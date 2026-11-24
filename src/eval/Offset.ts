@@ -67,30 +67,8 @@ export class Offset {
             return { result : Offset.polylineOffset( curve, distance, n ), maxError : 0.0, iterations : 0 };
         }
 
-        let degree = curve.degree;
-        let knots = curve.knots.slice();
-        let result : NurbsCurveData = null;
-        let err = Infinity;
-        let it = 0;
-        for (; it <= maxIt; it++) {
-            let params = Fit.grevilleAbscissae( knots, degree );
-            result = Fit.curveWithKnots( params.map( offsetPoint ), params, degree, knots );
-            let bad : Array<number> = [];
-            err = 0.0;
-            for (let [a, b] of Offset.spans( knots )) {
-                let worst = 0.0;
-                for (let s of Offset.FRACTIONS) {
-                    let u = a + (b - a) * s;
-                    worst = Math.max( worst, Vec.dist( Eval.rationalCurvePoint( result, u ), offsetPoint( u ) ) );
-                }
-                err = Math.max( err, worst );
-                if (worst > tol) bad.push( (a + b) / 2 );
-            }
-            if (bad.length == 0) break;
-            if (it == maxIt) break;
-            knots = Offset.insertKnots( knots, bad );
-        }
-        return { result : result, maxError : err, iterations : it };
+        let fit = Fit.approximateCurve( offsetPoint, curve.degree, curve.knots, tol, maxIt );
+        return { result : fit.curve, maxError : fit.maxError, iterations : fit.iterations };
     }
 
     // Offset a surface along its normal.
@@ -113,43 +91,8 @@ export class Offset {
             return Vec.add( Eval.rationalSurfacePoint( surface, u, v ), Vec.mul( distance, Offset.surfaceUnitNormal( surface, u, v ) ) );
         };
 
-        let knotsU = surface.knotsU.slice(), knotsV = surface.knotsV.slice();
-        let degU = surface.degreeU, degV = surface.degreeV;
-        let result : NurbsSurfaceData = null;
-        let err = Infinity;
-        let it = 0;
-        for (; it <= maxIt; it++) {
-            let pu = Fit.grevilleAbscissae( knotsU, degU ), pv = Fit.grevilleAbscissae( knotsV, degV );
-            let grid = pu.map( u => pv.map( v => offsetPoint( u, v ) ) );
-            result = Fit.surfaceWithKnots( grid, pu, pv, degU, degV, knotsU, knotsV );
-
-            // test the fit away from the interpolation parameters: inside each knot span in one direction, against
-            // the interpolation parameters and the span interiors in the other
-            let spansU = Offset.spans( knotsU ), spansV = Offset.spans( knotsV );
-            let inU = spansU.map( s => Offset.FRACTIONS.map( f => s[0] + (s[1] - s[0]) * f ) );
-            let inV = spansV.map( s => Offset.FRACTIONS.map( f => s[0] + (s[1] - s[0]) * f ) );
-            let allInV = ([] as Array<number>).concat( ...inV ), allInU = ([] as Array<number>).concat( ...inU );
-            let dev = (u : number, v : number) => Vec.dist( Eval.rationalSurfacePoint( result, u, v ), offsetPoint( u, v ) );
-            let badU : Array<number> = [], badV : Array<number> = [];
-            err = 0.0;
-            for (let i = 0; i < spansU.length; i++) {
-                let worst = 0.0;
-                for (let u of inU[i]) for (let v of pv.concat( allInV )) worst = Math.max( worst, dev( u, v ) );
-                err = Math.max( err, worst );
-                if (worst > tol) badU.push( (spansU[i][0] + spansU[i][1]) / 2 );
-            }
-            for (let j = 0; j < spansV.length; j++) {
-                let worst = 0.0;
-                for (let v of inV[j]) for (let u of pu.concat( allInU )) worst = Math.max( worst, dev( u, v ) );
-                err = Math.max( err, worst );
-                if (worst > tol) badV.push( (spansV[j][0] + spansV[j][1]) / 2 );
-            }
-            if (badU.length == 0 && badV.length == 0) break;
-            if (it == maxIt) break;
-            knotsU = Offset.insertKnots( knotsU, badU );
-            knotsV = Offset.insertKnots( knotsV, badV );
-        }
-        return { result : result, maxError : err, iterations : it };
+        let fit = Fit.approximateSurface( offsetPoint, surface.degreeU, surface.degreeV, surface.knotsU, surface.knotsV, tol, maxIt );
+        return { result : fit.surface, maxError : fit.maxError, iterations : fit.iterations };
     }
 
     // Unit normal of a surface, robust to degenerate points such as the poles of a sphere or a collapsed edge: when
@@ -192,19 +135,5 @@ export class Offset {
             out.push( Vec.add( pts[i], Vec.mul( distance / c, Vec.normalized( bis ) ) ) );
         }
         return new NurbsCurveData( 1, curve.knots.slice(), Eval.homogenize1d( out, null ) );
-    }
-
-    // where, inside a knot span, the fit is compared with the exact offset (chosen to avoid Greville abscissae)
-    private static FRACTIONS = [0.13, 0.31, 0.5, 0.69, 0.87];
-
-    // non-empty knot spans
-    private static spans( knots : KnotArray ) : Array<Array<number>> {
-        let out : Array<Array<number>> = [];
-        for (let i = 0; i < knots.length - 1; i++) if (knots[i+1] - knots[i] > 1e-12) out.push( [knots[i], knots[i+1]] );
-        return out;
-    }
-
-    private static insertKnots( knots : KnotArray, values : Array<number> ) : KnotArray {
-        return knots.concat( values ).sort( (a, b) => a - b );
     }
 }

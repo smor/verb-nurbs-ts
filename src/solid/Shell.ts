@@ -77,6 +77,45 @@ export class Shell {
         return mesh;
     }
 
+    // Mesh a surface that is closed in v (a tube) into a solid. When it is also closed in u (a ring, like a swept
+    // closed rail) the result is a torus-like solid of genus 1; otherwise both ends are capped with flat fans around
+    // the centroid of each end ring (each ring must be star-shaped around it, which is checked).
+    //
+    //**returns**
+    //
+    //* an outward-facing TriMesh
+
+    public static tube( surface : NurbsSurfaceData, closedU : boolean, options? : VesselMeshOptions ) : TriMesh {
+        let divsU = options != null && options.divsU != null ? options.divsU : 128;
+        let divsV = options != null && options.divsV != null ? options.divsV : 48;
+        let G = Shell.sampleGrid( surface, divsU, divsV, true );
+        if (closedU) G.pop();
+        let mesh = new TriMesh();
+        let idx = G.map( row => row.map( p => mesh.addVertex( p ) ) );
+        let rows = idx.length, n = divsV;
+        let quadRows = closedU ? rows : rows - 1;
+        for (let i = 0; i < quadRows; i++) {
+            let inext = (i + 1) % rows;
+            for (let j = 0; j < n; j++) {
+                let jn = (j + 1) % n;
+                mesh.addQuad( idx[i][j], idx[i][jn], idx[inext][jn], idx[inext][j] );
+            }
+        }
+        if (!closedU) {
+            let c0 = mesh.addVertex( Shell.centroid( G[0] ) );
+            let c1 = mesh.addVertex( Shell.centroid( G[rows - 1] ) );
+            Shell.checkStarShaped( G[0], mesh.vertices[c0], "start cap" );
+            Shell.checkStarShaped( G[rows - 1], mesh.vertices[c1], "end cap" );
+            for (let j = 0; j < n; j++) {
+                let jn = (j + 1) % n;
+                mesh.addTriangle( c0, idx[0][jn], idx[0][j] );
+                mesh.addTriangle( c1, idx[rows - 1][j], idx[rows - 1][jn] );
+            }
+        }
+        if (mesh.signedVolume() < 0) mesh.flip();
+        return mesh;
+    }
+
     // Check that a closed ring of points, seen along its average normal, turns around `center` monotonically, so a fan
     // of triangles from `center` does not fold over itself.
 

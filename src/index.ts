@@ -36,6 +36,8 @@ import { Make } from "./eval/Make.js";
 import { Modify } from "./eval/Modify.js";
 import { Offset } from "./eval/Offset.js";
 export type { OffsetOptions, OffsetResult } from "./eval/Offset.js";
+import { RotationMinimizingFrames, Sweep } from "./eval/Sweep.js";
+export type { Frame, FrameOptions, SweepOptions, SweepResult } from "./eval/Sweep.js";
 import { Tess, AdaptiveRefinementOptions, AdaptiveRefinementNode } from "./eval/Tess.js";
 import { Arc } from "./geom/Arc.js";
 import { BezierCurve } from "./geom/BezierCurve.js";
@@ -61,6 +63,8 @@ import { TriMesh } from "./solid/TriMesh.js";
 export type { ManifoldMeshArrays, ManifoldReport } from "./solid/TriMesh.js";
 import { FreeformVesselRecipe } from "./recipes/FreeformVessel.js";
 export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./recipes/FreeformVessel.js";
+import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
+export type { SweptObject, KnotPipeParams, TwistedRingParams } from "./recipes/SweptObjects.js";
 import { registerSerializable } from "./core/Serialization.js";
 
 export {
@@ -116,6 +120,8 @@ export {
     Make,
     Modify,
     Offset,
+    RotationMinimizingFrames,
+    Sweep,
     Tess,
     AdaptiveRefinementOptions,
     AdaptiveRefinementNode,
@@ -138,6 +144,7 @@ export {
     Shell,
     TriMesh,
     FreeformVesselRecipe,
+    SweptObjectsRecipe,
     registerSerializable,
 };
 
@@ -196,6 +203,8 @@ export const eval_ = {
     Make,
     Modify,
     Offset,
+    RotationMinimizingFrames,
+    Sweep,
     Tess,
     AdaptiveRefinementOptions,
     AdaptiveRefinementNode,
@@ -226,6 +235,7 @@ export const solid = {
 };
 export const recipes = {
     FreeformVesselRecipe,
+    SweptObjectsRecipe,
 };
 
 const verb = { core, eval: eval_, geom, exe, solid, recipes };

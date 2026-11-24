@@ -11,3 +11,4 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node examples/aalto-vessel.mjs out
+      - run: node examples/swept-objects.mjs out
