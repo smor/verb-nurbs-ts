@@ -1,19 +1,17 @@
 {
-  "name": "verb-nurbs",
-  "version": "3.0.3",
+  "name": "verb-nurbs-ts",
+  "version": "4.0.0-alpha.0",
   "author": "pboyer <peter.b.boyer@gmail.com>",
-  "description": "A library for creating and manipulating NURBS surfaces and curves in many languages",
+  "description": "A TypeScript NURBS library for curves, surfaces and generative design (a TypeScript port of verb)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pboyer/verb.git"
+    "url": "https://github.com/smor/verb-nurbs-ts.git"
   },
-  "main": "build/js/verb.js",
-  "unpkg": "build/js/verb.min.js",
-  "module": "build/js//verb.es.js",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "haxe buildjs.hxml",
-    "package": "rollup --config",
-    "test": "mocha"
+    "build": "tsc -p .",
+    "test": "npm run build && mocha",
+    "typecheck": "tsc --noEmit -p ."
   },
   "keywords": [
     "NURBS",
@@ -27,31 +25,22 @@
   "files": [
     "LICENSE",
     "README.md",
-    "build",
-    "buildcpp.hxml",
-    "buildcs.hxml",
-    "buildjs.hxml",
-    "buildphp.hxml",
-    "buildpython.hxml",
-    "examples",
-    "package-lock.json",
-    "package.json",
-    "rollup.config.mjs",
-    "src",
-    "test",
-    "verb.iml"
+    "dist",
+    "src"
   ],
-  "dependencies": {
-    "web-worker": "^1.3.0"
-  },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^26.0.1",
-    "@rollup/plugin-node-resolve": "^15.2.3",
-    "@rollup/plugin-terser": "^0.4.4",
+    "@types/node": "^26.6.7",
     "mocha": "^10.6.0",
-    "rollup": "^4.18.0",
-    "rollup-plugin-polyfill-node": "^0.13.0",
-    "should": "^13.2.3"
+    "should": "^13.2.3",
+    "typescript": "^5.9.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
 }

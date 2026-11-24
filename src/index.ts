@@ -1,0 +1,215 @@
+// verb-nurbs-ts entry point.
+//
+// Every class is available as a named export (e.g. `import { NurbsCurve } from "verb-nurbs-ts"`), and the
+// upstream namespace layout (`verb.core`, `verb.eval`, `verb.geom`, `verb.exe`) is kept on the default export.
+
+import { ArrayExtensions } from "./core/ArrayExtensions.js";
+import { Binomial } from "./core/Binomial.js";
+import { BoundingBox } from "./core/BoundingBox.js";
+import { Constants } from "./core/Constants.js";
+import { Plane, Ray, NurbsCurveData, NurbsSurfaceData, MeshData, PolylineData, VolumeData, Pair, Interval } from "./core/Data.js";
+export type { Point, Vector, Matrix, KnotArray, Tri, UV } from "./core/Data.js";
+import { CurveCurveIntersection, CurveSurfaceIntersection, MeshIntersectionPoint, PolylineMeshIntersection, SurfaceSurfaceIntersectionPoint, TriSegmentIntersection, CurveTriPoint, SurfacePoint, CurvePoint } from "./core/Intersections.js";
+import { KdTree, BinaryHeap, KdPoint, KdNode } from "./core/KdTree.js";
+import { LazyCurveBoundingBoxTree } from "./core/LazyCurveBoundingBoxTree.js";
+import { LazyMeshBoundingBoxTree } from "./core/LazyMeshBoundingBoxTree.js";
+import { LazyPolylineBoundingBoxTree } from "./core/LazyPolylineBoundingBoxTree.js";
+import { LazySurfaceBoundingBoxTree } from "./core/LazySurfaceBoundingBoxTree.js";
+import { Mat, LUDecomp } from "./core/Mat.js";
+import { Mesh } from "./core/Mesh.js";
+import { MeshBoundingBoxTree } from "./core/MeshBoundingBoxTree.js";
+import { Minimizer, MinimizationResult } from "./core/Minimizer.js";
+import { SerializableBase, Deserializer } from "./core/Serialization.js";
+export type { ISerializable } from "./core/Serialization.js";
+import { SurfaceBoundingBoxTree } from "./core/SurfaceBoundingBoxTree.js";
+import { Trig } from "./core/Trig.js";
+import { Vec } from "./core/Vec.js";
+import { Analyze, KnotMultiplicity } from "./eval/Analyze.js";
+import { Check } from "./eval/Check.js";
+import { Divide, CurveLengthSample } from "./eval/Divide.js";
+import { Eval } from "./eval/Eval.js";
+import { Intersect as EvalIntersect } from "./eval/Intersect.js";
+export type { IBoundingBoxTree } from "./eval/Intersect.js";
+import { Make } from "./eval/Make.js";
+import { Modify } from "./eval/Modify.js";
+import { Tess, AdaptiveRefinementOptions, AdaptiveRefinementNode } from "./eval/Tess.js";
+import { Arc } from "./geom/Arc.js";
+import { BezierCurve } from "./geom/BezierCurve.js";
+import { Circle } from "./geom/Circle.js";
+import { ConicalSurface } from "./geom/ConicalSurface.js";
+import { CylindricalSurface } from "./geom/CylindricalSurface.js";
+import { Ellipse } from "./geom/Ellipse.js";
+import { EllipseArc } from "./geom/EllipseArc.js";
+import { ExtrudedSurface } from "./geom/ExtrudedSurface.js";
+export type { ICurve } from "./geom/ICurve.js";
+export type { ISurface } from "./geom/ISurface.js";
+import { Intersect } from "./geom/Intersect.js";
+import { Line } from "./geom/Line.js";
+import { NurbsCurve } from "./geom/NurbsCurve.js";
+import { NurbsSurface } from "./geom/NurbsSurface.js";
+import { RevolvedSurface } from "./geom/RevolvedSurface.js";
+import { SphericalSurface } from "./geom/SphericalSurface.js";
+import { SweptSurface } from "./geom/SweptSurface.js";
+import { Dispatcher } from "./exe/Dispatcher.js";
+import { registerSerializable } from "./core/Serialization.js";
+
+export {
+    ArrayExtensions,
+    Binomial,
+    BoundingBox,
+    Constants,
+    Plane,
+    Ray,
+    NurbsCurveData,
+    NurbsSurfaceData,
+    MeshData,
+    PolylineData,
+    VolumeData,
+    Pair,
+    Interval,
+    CurveCurveIntersection,
+    CurveSurfaceIntersection,
+    MeshIntersectionPoint,
+    PolylineMeshIntersection,
+    SurfaceSurfaceIntersectionPoint,
+    TriSegmentIntersection,
+    CurveTriPoint,
+    SurfacePoint,
+    CurvePoint,
+    KdTree,
+    BinaryHeap,
+    KdPoint,
+    KdNode,
+    LazyCurveBoundingBoxTree,
+    LazyMeshBoundingBoxTree,
+    LazyPolylineBoundingBoxTree,
+    LazySurfaceBoundingBoxTree,
+    Mat,
+    LUDecomp,
+    Mesh,
+    MeshBoundingBoxTree,
+    Minimizer,
+    MinimizationResult,
+    SerializableBase,
+    Deserializer,
+    SurfaceBoundingBoxTree,
+    Trig,
+    Vec,
+    Analyze,
+    KnotMultiplicity,
+    Check,
+    Divide,
+    CurveLengthSample,
+    Eval,
+    EvalIntersect,
+    Make,
+    Modify,
+    Tess,
+    AdaptiveRefinementOptions,
+    AdaptiveRefinementNode,
+    Arc,
+    BezierCurve,
+    Circle,
+    ConicalSurface,
+    CylindricalSurface,
+    Ellipse,
+    EllipseArc,
+    ExtrudedSurface,
+    Intersect,
+    Line,
+    NurbsCurve,
+    NurbsSurface,
+    RevolvedSurface,
+    SphericalSurface,
+    SweptSurface,
+    Dispatcher,
+    registerSerializable,
+};
+
+export const core = {
+    ArrayExtensions,
+    Binomial,
+    BoundingBox,
+    Constants,
+    Plane,
+    Ray,
+    NurbsCurveData,
+    NurbsSurfaceData,
+    MeshData,
+    PolylineData,
+    VolumeData,
+    Pair,
+    Interval,
+    CurveCurveIntersection,
+    CurveSurfaceIntersection,
+    MeshIntersectionPoint,
+    PolylineMeshIntersection,
+    SurfaceSurfaceIntersectionPoint,
+    TriSegmentIntersection,
+    CurveTriPoint,
+    SurfacePoint,
+    CurvePoint,
+    KdTree,
+    BinaryHeap,
+    KdPoint,
+    KdNode,
+    LazyCurveBoundingBoxTree,
+    LazyMeshBoundingBoxTree,
+    LazyPolylineBoundingBoxTree,
+    LazySurfaceBoundingBoxTree,
+    Mat,
+    LUDecomp,
+    Mesh,
+    MeshBoundingBoxTree,
+    Minimizer,
+    MinimizationResult,
+    SerializableBase,
+    Deserializer,
+    SurfaceBoundingBoxTree,
+    Trig,
+    Vec,
+};
+export const eval_ = {
+    Analyze,
+    KnotMultiplicity,
+    Check,
+    Divide,
+    CurveLengthSample,
+    Eval,
+    Intersect: EvalIntersect,
+    Make,
+    Modify,
+    Tess,
+    AdaptiveRefinementOptions,
+    AdaptiveRefinementNode,
+};
+export const geom = {
+    Arc,
+    BezierCurve,
+    Circle,
+    ConicalSurface,
+    CylindricalSurface,
+    Ellipse,
+    EllipseArc,
+    ExtrudedSurface,
+    Intersect,
+    Line,
+    NurbsCurve,
+    NurbsSurface,
+    RevolvedSurface,
+    SphericalSurface,
+    SweptSurface,
+};
+export const exe = {
+    Dispatcher,
+};
+
+const verb = { core, eval: eval_, geom, exe };
+export default verb;
+
+// register every class so that `Deserializer.deserialize` can rebuild serialized objects
+for (const [nsName, members] of Object.entries(verb)) {
+    for (const [name, value] of Object.entries(members)) {
+        if (typeof value === "function") registerSerializable(nsName + "." + name, value);
+    }
+}
