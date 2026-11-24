@@ -8,6 +8,7 @@ import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
 import { Modify } from "../eval/Modify.js";
 import { Tess } from "../eval/Tess.js";
+import { Offset, OffsetOptions } from "../eval/Offset.js";
 import { Dispatcher } from "../exe/Dispatcher.js";
 import { ICurve } from "./ICurve.js";
 
@@ -399,4 +400,21 @@ export class NurbsCurve extends SerializableBase implements ICurve {
         return Dispatcher.dispatchMethod( Tess, 'rationalCurveAdaptiveSample', [ this._data, tolerance, false ] );
     }
 
+
+    // Offset a planar curve within its plane, to within `options.tolerance` of the exact offset.
+    //
+    //**params**
+    //
+    //* signed distance; positive is to the right of the direction of travel seen from the normal side (outward for
+    //  a counter-clockwise curve)
+    //* plane normal (default +Z)
+    //* options: tolerance (default 1e-4), maxIterations
+    //
+    //**returns**
+    //
+    //* a new NurbsCurve
+
+    public offset( distance : number, normal : Vector = null, options : OffsetOptions = null ) : NurbsCurve {
+        return new NurbsCurve( Offset.curve( this._data, distance, normal, options ).result );
+    }
 }

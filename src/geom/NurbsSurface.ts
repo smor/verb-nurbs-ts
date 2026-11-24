@@ -8,6 +8,7 @@ import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
 import { Modify } from "../eval/Modify.js";
 import { AdaptiveRefinementOptions, Tess } from "../eval/Tess.js";
+import { Offset, OffsetOptions } from "../eval/Offset.js";
 import { Dispatcher } from "../exe/Dispatcher.js";
 import { ICurve } from "./ICurve.js";
 import { ISurface } from "./ISurface.js";
@@ -399,5 +400,21 @@ export class NurbsSurface extends SerializableBase implements ISurface {
     public transformAsync( mat : Matrix ) : Promise<NurbsSurface> {
         return Dispatcher.dispatchMethod( Modify, 'rationalSurfaceTransform', [ this._data,  mat ] )
             .then(function(x){ return new NurbsSurface(x); });
+    }
+
+    // Offset the surface along its normal (dS/du x dS/dv), to within `options.tolerance` of the exact offset.
+    // Use a negative distance to offset against the normal, for example to give a wall its thickness.
+    //
+    //**params**
+    //
+    //* signed distance
+    //* options: tolerance (default 1e-4), maxIterations
+    //
+    //**returns**
+    //
+    //* a new NurbsSurface
+
+    public offset( distance : number, options : OffsetOptions = null ) : NurbsSurface {
+        return new NurbsSurface( Offset.surface( this._data, distance, options ).result );
     }
 }

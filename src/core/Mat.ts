@@ -97,7 +97,7 @@ export class Mat {
 
     // Based on methods from numeric.js
 
-    private static LUsolve(LUP : LUDecomp, b : Vector) : Vector {
+    public static LUsolve(LUP : LUDecomp, b : Vector) : Vector {
         let i, j;
         let LU = LUP.LU;
         let n   = LU.length;
@@ -147,7 +147,7 @@ export class Mat {
 
     // Based on methods from numeric.js
 
-    private static LU( A : Matrix ) : LUDecomp {
+    public static LU( A : Matrix ) : LUDecomp {
 
         let abs = Math.abs;
         let i, j, k, absAjk, Akk, Ak, Pk, Ai;
