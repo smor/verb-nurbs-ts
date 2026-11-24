@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc -p .",
     "test": "npm run build && mocha",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "demo:vessel": "npm run build && node examples/aalto-vessel.mjs"
   },
   "keywords": [
     "NURBS",
@@ -30,6 +31,7 @@
   ],
   "devDependencies": {
     "@types/node": "^26.6.7",
+    "manifold-3d": "^3.5.5",
     "mocha": "^10.6.0",
     "should": "^13.2.3",
     "typescript": "^5.9.3"

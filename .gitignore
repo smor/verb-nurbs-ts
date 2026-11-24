@@ -16,3 +16,4 @@ node_modules/
 *.VC.db
 *.VC.db-wal
 dist/
+out/

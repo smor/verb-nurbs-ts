@@ -1,7 +1,8 @@
 // verb-nurbs-ts entry point.
 //
 // Every class is available as a named export (e.g. `import { NurbsCurve } from "verb-nurbs-ts"`), and the
-// upstream namespace layout (`verb.core`, `verb.eval`, `verb.geom`, `verb.exe`) is kept on the default export.
+// upstream namespace layout (`verb.core`, `verb.eval`, `verb.geom`, `verb.exe`) is kept on the default export,
+// next to the new `verb.solid` (watertight meshes) and `verb.recipes` (parametric models) namespaces.
 
 import { ArrayExtensions } from "./core/ArrayExtensions.js";
 import { Binomial } from "./core/Binomial.js";
@@ -28,10 +29,13 @@ import { Analyze, KnotMultiplicity } from "./eval/Analyze.js";
 import { Check } from "./eval/Check.js";
 import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
+import { Fit } from "./eval/Fit.js";
 import { Intersect as EvalIntersect } from "./eval/Intersect.js";
 export type { IBoundingBoxTree } from "./eval/Intersect.js";
 import { Make } from "./eval/Make.js";
 import { Modify } from "./eval/Modify.js";
+import { Offset } from "./eval/Offset.js";
+export type { OffsetOptions, OffsetResult } from "./eval/Offset.js";
 import { Tess, AdaptiveRefinementOptions, AdaptiveRefinementNode } from "./eval/Tess.js";
 import { Arc } from "./geom/Arc.js";
 import { BezierCurve } from "./geom/BezierCurve.js";
@@ -51,6 +55,12 @@ import { RevolvedSurface } from "./geom/RevolvedSurface.js";
 import { SphericalSurface } from "./geom/SphericalSurface.js";
 import { SweptSurface } from "./geom/SweptSurface.js";
 import { Dispatcher } from "./exe/Dispatcher.js";
+import { Shell } from "./solid/Shell.js";
+export type { VesselMeshOptions } from "./solid/Shell.js";
+import { TriMesh } from "./solid/TriMesh.js";
+export type { ManifoldMeshArrays, ManifoldReport } from "./solid/TriMesh.js";
+import { FreeformVesselRecipe } from "./recipes/FreeformVessel.js";
+export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./recipes/FreeformVessel.js";
 import { registerSerializable } from "./core/Serialization.js";
 
 export {
@@ -101,9 +111,11 @@ export {
     Divide,
     CurveLengthSample,
     Eval,
+    Fit,
     EvalIntersect,
     Make,
     Modify,
+    Offset,
     Tess,
     AdaptiveRefinementOptions,
     AdaptiveRefinementNode,
@@ -123,6 +135,9 @@ export {
     SphericalSurface,
     SweptSurface,
     Dispatcher,
+    Shell,
+    TriMesh,
+    FreeformVesselRecipe,
     registerSerializable,
 };
 
@@ -176,9 +191,11 @@ export const eval_ = {
     Divide,
     CurveLengthSample,
     Eval,
+    Fit,
     Intersect: EvalIntersect,
     Make,
     Modify,
+    Offset,
     Tess,
     AdaptiveRefinementOptions,
     AdaptiveRefinementNode,
@@ -203,13 +220,20 @@ export const geom = {
 export const exe = {
     Dispatcher,
 };
+export const solid = {
+    Shell,
+    TriMesh,
+};
+export const recipes = {
+    FreeformVesselRecipe,
+};
 
-const verb = { core, eval: eval_, geom, exe };
+const verb = { core, eval: eval_, geom, exe, solid, recipes };
 export default verb;
 
 // register every class so that `Deserializer.deserialize` can rebuild serialized objects
 for (const [nsName, members] of Object.entries(verb)) {
     for (const [name, value] of Object.entries(members)) {
-        if (typeof value === "function") registerSerializable(nsName + "." + name, value);
+        if (typeof value === "function" && /^[A-Z]/.test(name)) registerSerializable(nsName + "." + name, value);
     }
 }
