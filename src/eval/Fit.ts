@@ -1,4 +1,5 @@
 import { NurbsCurveData, NurbsSurfaceData, Point, KnotArray, Matrix } from "../core/Data.js";
+import { Vec } from "../core/Vec.js";
 import { Mat, LUDecomp } from "../core/Mat.js";
 import { Eval } from "./Eval.js";
 import { Modify } from "./Modify.js";
@@ -173,5 +174,99 @@ export class Fit {
         let subCps = refined.controlPoints.slice( first, first + numCps );
         let span = b - a;
         return new NurbsCurveData( degree, subKnots.map( x => (x - a) / span ), subCps );
+    }
+
+    // Approximate a parametric curve f(u) with a non-rational B-spline of the given degree to within `tolerance`.
+    //
+    // The curve interpolates f at the Greville abscissae of the knot vector. The deviation is measured at several
+    // points inside each knot span, and spans that deviate by more than the tolerance are split in half; this repeats
+    // up to `maxIterations` times. Start from the knots of a related NURBS (for example the curve being offset), so
+    // that the result inherits its parameterisation.
+
+    public static approximateCurve( f : (u : number) => Point, degree : number, knots : KnotArray,
+                                    tolerance : number, maxIterations? : number ) : { curve : NurbsCurveData, maxError : number, iterations : number } {
+        if (maxIterations == null) maxIterations = 10;
+        knots = knots.slice();
+        let result : NurbsCurveData = null;
+        let err = Infinity;
+        let it = 0;
+        for (; it <= maxIterations; it++) {
+            let params = Fit.grevilleAbscissae( knots, degree );
+            result = Fit.curveWithKnots( params.map( f ), params, degree, knots );
+            let bad : Array<number> = [];
+            err = 0.0;
+            for (let [a, b] of Fit.spans( knots )) {
+                let worst = 0.0;
+                for (let s of Fit.FRACTIONS) {
+                    let u = a + (b - a) * s;
+                    worst = Math.max( worst, Vec.dist( Eval.rationalCurvePoint( result, u ), f( u ) ) );
+                }
+                err = Math.max( err, worst );
+                if (worst > tolerance) bad.push( (a + b) / 2 );
+            }
+            if (bad.length == 0 || it == maxIterations) break;
+            knots = Fit.insertKnots( knots, bad );
+        }
+        return { curve : result, maxError : err, iterations : it };
+    }
+
+    // Approximate a parametric surface f(u, v) with a non-rational B-spline surface to within `tolerance`, refining
+    // the knot vectors where needed (see `approximateCurve`). Each direction is refined only in the spans where the
+    // fit deviates along that direction.
+
+    public static approximateSurface( f : (u : number, v : number) => Point, degreeU : number, degreeV : number,
+                                      knotsU : KnotArray, knotsV : KnotArray, tolerance : number,
+                                      maxIterations? : number ) : { surface : NurbsSurfaceData, maxError : number, iterations : number } {
+        if (maxIterations == null) maxIterations = 10;
+        knotsU = knotsU.slice(); knotsV = knotsV.slice();
+        let result : NurbsSurfaceData = null;
+        let err = Infinity;
+        let it = 0;
+        for (; it <= maxIterations; it++) {
+            let pu = Fit.grevilleAbscissae( knotsU, degreeU ), pv = Fit.grevilleAbscissae( knotsV, degreeV );
+            let grid = pu.map( u => pv.map( v => f( u, v ) ) );
+            result = Fit.surfaceWithKnots( grid, pu, pv, degreeU, degreeV, knotsU, knotsV );
+
+            // test away from the interpolation parameters: inside each knot span in one direction, against the
+            // interpolation parameters and the span interiors in the other
+            let spansU = Fit.spans( knotsU ), spansV = Fit.spans( knotsV );
+            let inU = spansU.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
+            let inV = spansV.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
+            let allInV = ([] as Array<number>).concat( ...inV ), allInU = ([] as Array<number>).concat( ...inU );
+            let dev = (u : number, v : number) => Vec.dist( Eval.rationalSurfacePoint( result, u, v ), f( u, v ) );
+            let badU : Array<number> = [], badV : Array<number> = [];
+            err = 0.0;
+            for (let i = 0; i < spansU.length; i++) {
+                let worst = 0.0;
+                for (let u of inU[i]) for (let v of pv.concat( allInV )) worst = Math.max( worst, dev( u, v ) );
+                err = Math.max( err, worst );
+                if (worst > tolerance) badU.push( (spansU[i][0] + spansU[i][1]) / 2 );
+            }
+            for (let j = 0; j < spansV.length; j++) {
+                let worst = 0.0;
+                for (let v of inV[j]) for (let u of pu.concat( allInU )) worst = Math.max( worst, dev( u, v ) );
+                err = Math.max( err, worst );
+                if (worst > tolerance) badV.push( (spansV[j][0] + spansV[j][1]) / 2 );
+            }
+            if ((badU.length == 0 && badV.length == 0) || it == maxIterations) break;
+            knotsU = Fit.insertKnots( knotsU, badU );
+            knotsV = Fit.insertKnots( knotsV, badV );
+        }
+        return { surface : result, maxError : err, iterations : it };
+    }
+
+    // where, inside a knot span, a fit is compared with its target (chosen to avoid Greville abscissae)
+    private static FRACTIONS = [0.13, 0.31, 0.5, 0.69, 0.87];
+
+    // non-empty knot spans
+    public static spans( knots : KnotArray ) : Array<Array<number>> {
+        let out : Array<Array<number>> = [];
+        for (let i = 0; i < knots.length - 1; i++) if (knots[i+1] - knots[i] > 1e-12) out.push( [knots[i], knots[i+1]] );
+        return out;
+    }
+
+    // a knot vector with extra knots, kept sorted
+    public static insertKnots( knots : KnotArray, values : Array<number> ) : KnotArray {
+        return knots.concat( values ).sort( (a, b) => a - b );
     }
 }

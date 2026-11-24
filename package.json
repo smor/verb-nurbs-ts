@@ -12,7 +12,8 @@
     "build": "tsc -p .",
     "test": "npm run build && mocha",
     "typecheck": "tsc --noEmit -p .",
-    "demo:vessel": "npm run build && node examples/aalto-vessel.mjs"
+    "demo:vessel": "npm run build && node examples/aalto-vessel.mjs",
+    "demo:sweeps": "npm run build && node examples/swept-objects.mjs"
   },
   "keywords": [
     "NURBS",
