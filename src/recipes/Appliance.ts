@@ -41,6 +41,8 @@ export interface ApplianceParams {
     // the bowl's handle: a sculpted grip, its section (width, thickness) and how much it swells halfway
     gripSection? : [number, number];
     gripSwell? : number;
+    // ribs standing proud of the bowl's inner wall, filleted where they grow out of it (default 3; 0 for none)
+    ribs? : number;
     // the lid: plate thickness, how far it overhangs the rim, its lobed tab's reach, the plug that drops inside the rim
     // (depth and wall), the central hole's radius and the fillet round the hole
     lidThickness? : number;
@@ -78,7 +80,8 @@ export interface Appliance {
 // * the base: a soft, tapered block whose top is cut by a sloped plane. A conical seat is sunk into the slope, and a
 //   carry arch rises from the back of it. Every new edge is rounded with a rolling-ball fillet: the top edge and the
 //   seat's edge are convex, the arch's feet concave.
-// * the bowl: a conical vessel with a sculpted handle (a variable-section sweep), which drops into the seat with a set
+// * the bowl: a conical vessel with a sculpted handle (a variable-section sweep) and ribs that grow out of its inner
+//   wall, which drops into the seat with a set
 //   radial clearance (the seat is the bowl's own cone, widened by the clearance). A lobed foot under it keys into a
 //   pocket in the seat's floor: the pocket is the foot's outline offset by the clearance.
 // * the lid: a plate with a soft edge and a lobed tab, a plug that drops inside the rim, and a central filler hole
@@ -180,6 +183,7 @@ export class ApplianceRecipe {
             handleReach : 44, handleHeights : [0.56, 0.92], handleAngle : 1.5 * Math.PI,
             fillet : p.handleFillet != null ? p.handleFillet : 4,
             addons : keyFoot != null ? [keyFoot] : [], addonFillet : 1,
+            ribs : p.ribs != null ? p.ribs : 3, ribHeights : [0.12, 0.62], ribSize : [7, 5], ribFillet : 1.5,
             divsU : fine ? 48 : 24, divsV : fine ? 192 : 96, offsetTolerance : fine ? 0.02 : 0.08
         } );
         let lid = ApplianceRecipe.lid( p, bH, bR, p.bowlWall != null ? p.bowlWall : 2.5, gap, fine );

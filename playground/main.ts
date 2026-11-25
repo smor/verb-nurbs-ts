@@ -102,6 +102,7 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "seatF", label : "Seat edge fillet", min : 0, max : 8, step : 0.25, value : 4, unit : "mm" },
             { key : "archF", label : "Arch foot fillet", min : 0, max : 10, step : 0.25, value : 6, unit : "mm" },
             { key : "handleF", label : "Handle fillet", min : 0, max : 6, step : 0.25, value : 4, unit : "mm" },
+            { key : "ribs", label : "Bowl ribs", min : 0, max : 6, step : 1, value : 3 },
             { key : "swell", label : "Grip swell", min : 0.8, max : 1.5, step : 0.05, value : 1.2 },
             { key : "key", label : "Coupling radius", min : 0, max : 44, step : 1, value : 34, unit : "mm" },
             { key : "tab", label : "Lid tab", min : 0, max : 24, step : 1, value : 16, unit : "mm" },

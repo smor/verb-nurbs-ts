@@ -25,9 +25,10 @@ describe("verb.recipes.ApplianceRecipe", function(){
 		m.genus().should.be.equal(1);
 	});
 
-	it('bowl: a cone with a sculpted, filleted grip and a keyed foot, a genus 1 solid', function(){
+	it('bowl: a cone with a sculpted, filleted grip, a keyed foot and three filleted inner ribs, a genus 1 solid', function(){
 		var r = a.bowl.result.report;
-		r.fillets.should.be.equal(3);
+		r.fillets.should.be.equal(6);
+		r.filletsFailed.should.be.equal(0);
 		r.manifold.closedManifold.should.be.true();
 		r.manifold.genus.should.be.equal(1);
 		manifold(a.bowl.result.mesh).status().should.be.equal('NoError');

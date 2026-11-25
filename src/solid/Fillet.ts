@@ -172,6 +172,14 @@ export class Fillet {
             k--;
         }
 
+        // where the face narrows below the ball (the tip of a rib, say), the contact curve folds over itself or over the
+        // edge: there is no blend of this radius, so leave the edge sharp
+        for (let side = 0; side < 2; side++) {
+            let F = side == 0 ? A.face : B.face, d = side == 0 ? dA : dB;
+            let c = sections.map( x => side == 0 ? x.a : x.b ), e = side == 0 ? edge.uvA : edge.uvB;
+            if (Fillet.crossing( c, c, F, d ) || Fillet.crossing( c, e, F, d )) return null;
+        }
+
         // the contact curves as face cuts
         let pa = sections.map( x => x.pa ), pb = sections.map( x => x.pb );
         let cutA = Fillet.pieces( A.face, sections.map( x => x.a ), sections.map( x => x.seamA ), pa );
@@ -298,6 +306,31 @@ export class Fillet {
         let w = Math.cos( th / 2 );
         let m = Vec.add( c, Vec.mul( r / Math.max( w, 1e-9 ), mid ) );
         return Make.rationalBezierCurve( [p, m, q], [1, w, 1] );
+    }
+
+    // Whether two closed polylines in a face's (u, v) cross (or one crosses itself, when both are the same), leaving out
+    // segments that jump across a seam and segments that share a vertex
+    private static crossing( p : Array<UV>, q : Array<UV>, F : BrepFace, d : Array<number> ) : boolean {
+        let span = [d[1] - d[0], d[3] - d[2]];
+        let jump = (a : UV, b : UV) => (F.periodic[0] && Math.abs( a[0] - b[0] ) > span[0] / 2) || (F.periodic[1] && Math.abs( a[1] - b[1] ) > span[1] / 2);
+        let same = p === q;
+        let n = p.length, m = q.length;
+        let cross = (a : UV, b : UV, c : UV, e : UV) => {
+            let o = (x : UV, y : UV, z : UV) => ((y[0] - x[0]) / span[0]) * ((z[1] - x[1]) / span[1]) - ((y[1] - x[1]) / span[1]) * ((z[0] - x[0]) / span[0]);
+            let d1 = o( a, b, c ), d2 = o( a, b, e ), d3 = o( c, e, a ), d4 = o( c, e, b );
+            return d1 * d2 < 0 && d3 * d4 < 0;
+        };
+        for (let i = 0; i < n; i++) {
+            let a = p[i], b = p[(i + 1) % n];
+            if (jump( a, b )) continue;
+            for (let j = same ? i + 2 : 0; j < m; j++) {
+                if (same && (j + 1) % m == i) continue;
+                let c = q[j], e = q[(j + 1) % m];
+                if (jump( c, e )) continue;
+                if (cross( a, b, c, e )) return true;
+            }
+        }
+        return false;
     }
 
     // A closed polyline on a face, split at seam vertices.
