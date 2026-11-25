@@ -171,10 +171,15 @@ a rim narrower than two radii), the four stay sharp.
 
 Limits:
 
-* A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges of one
-  kind (convex or concave) meet: a ball for one radius, a setback vertex blend for different radii (see above). Three
-  edges of mixed kinds, more than three edges, or a rounded edge meeting an unrounded one, are left sharp and counted
-  in `report.filletsSkipped`, with the other edges around the same corners.
+* A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges meet:
+  a ball for one radius and one kind (convex or concave), a setback vertex blend otherwise, including mixed corners
+  (a convex fillet flaring into two concave ones, as where a rounded boss's vertical edge meets the fillets round its
+  base). More than three edges, or a rounded edge meeting an unrounded one, are left sharp and counted in
+  `report.filletsSkipped`, with the other edges around the same corners.
+* Where contact curves cross beyond a blend's end (two concave fillets round a convex edge, at a boss's base), they
+  are carried on straight past their ends to find the crossing, for mitres as for setbacks.
+* An own edge that a Boolean's branch ends on (a boss's vertical edge, where it enters the base) is split there; each
+  piece is rounded only if it is an edge of the result, and its end is the corner the branches meet at.
 * A setback needs room: on a short edge between two corners (a notch top across a thin rim) the two trims can overlap,
   and the edge and its partners stay sharp.
 * If the ball does not fit (the radius is larger than the room between the faces), the edge is left sharp and
