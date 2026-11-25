@@ -72,8 +72,10 @@ pull request so the gain is kept.
 The hooks can be skipped; CI cannot. To make CI binding, protect `main` on GitHub (Settings → Branches → Add
 rule, or a ruleset):
 
-- Require a pull request before merging, with one approval, and require review from Code Owners
-  (`.github/CODEOWNERS`).
+- Require a pull request before merging. While there is one maintainer, set required approvals to 0: GitHub
+  counts whoever's account pushed the commits (including an agent working through that account) as the author,
+  and an author cannot approve their own pull request. With a second reviewer, require one approval and review
+  from Code Owners (`.github/CODEOWNERS`).
 - Require status checks to pass: `typecheck, layers, lint, ratchets`, `test (node 20)`, `test (node 22)`,
   `test (node 24)` and `demos, apps and API docs`. Require branches to be up to date before merging.
 - Require conversation resolution, and block force pushes and deletions.
