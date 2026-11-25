@@ -84,6 +84,53 @@ export class TriMesh {
     }
 
     // Check that the mesh is a closed, consistently oriented 2-manifold, using only its connectivity.
+    // Whether a point is inside the closed mesh, by the parity of ray crossings. Three rays in unrelated directions
+    // vote, so a ray that grazes an edge or a vertex cannot decide alone. The mesh must be closed; its orientation
+    // does not matter.
+    public containsPoint( p : Point ) : boolean {
+        let dirs : Array<Point> = [[0.5773, 0.6123, 0.5401], [-0.7071, 0.1234, 0.6963], [0.2357, -0.9101, 0.3405]];
+        let votes = 0;
+        for (let d of dirs) if (this.rayCrossings( p, Vec.normalized( d ) ) % 2 == 1) votes++;
+        return votes >= 2;
+    }
+
+    // Number of triangles hit by the ray p + t d, t > 0 (Moller-Trumbore, without allocation).
+    public rayCrossings( p : Point, d : Point ) : number {
+        let n = 0;
+        let v = this.vertices;
+        let px = p[0], py = p[1], pz = p[2], dx = d[0], dy = d[1], dz = d[2];
+        for (let t of this.triangles) {
+            let a = v[t[0]], b = v[t[1]], c = v[t[2]];
+            let ax = a[0], ay = a[1], az = a[2];
+            let e1x = b[0] - ax, e1y = b[1] - ay, e1z = b[2] - az;
+            let e2x = c[0] - ax, e2y = c[1] - ay, e2z = c[2] - az;
+            let hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x;
+            let det = e1x * hx + e1y * hy + e1z * hz;
+            if (det > -1e-14 && det < 1e-14) continue;
+            let f = 1.0 / det;
+            let sx = px - ax, sy = py - ay, sz = pz - az;
+            let u = f * (sx * hx + sy * hy + sz * hz);
+            if (u < 0.0 || u > 1.0) continue;
+            let qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+            let w = f * (dx * qx + dy * qy + dz * qz);
+            if (w < 0.0 || u + w > 1.0) continue;
+            if (f * (e2x * qx + e2y * qy + e2z * qz) > 0.0) n++;
+        }
+        return n;
+    }
+
+    // Drop triangles with a repeated vertex and vertices no triangle uses (renumbering the rest).
+    public compact() : void {
+        this.triangles = this.triangles.filter( t => t[0] != t[1] && t[1] != t[2] && t[2] != t[0] );
+        let used = new Int32Array( this.vertices.length ).fill( -1 );
+        let verts : Array<Point> = [];
+        for (let t of this.triangles) for (let k = 0; k < 3; k++) {
+            if (used[t[k]] < 0) { used[t[k]] = verts.length; verts.push( this.vertices[t[k]] ); }
+            t[k] = used[t[k]];
+        }
+        this.vertices = verts;
+    }
+
     public checkClosedManifold() : ManifoldReport {
         let directed = new Map<string, number>();
         let undirected = new Map<string, number>();

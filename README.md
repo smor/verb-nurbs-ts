@@ -2,7 +2,7 @@
 
 A TypeScript NURBS library for generative design, forked from [verb](https://github.com/pboyer/verb) by Peter Boyer.
 
-The goal is a small, open-source, Rhino/Grasshopper-like toolkit that runs in the browser and in Node: NURBS for form, with watertight meshes as output so that mesh booleans (through [manifold-3d](https://github.com/elalish/manifold)) can finish the job.
+The goal is a small, open-source, Rhino/Grasshopper-like toolkit that runs in the browser and in Node: NURBS for form, NURBS booleans with exact trimmed seams, and watertight meshes as output, checked against [manifold-3d](https://github.com/elalish/manifold).
 
 ## What is here
 
@@ -11,7 +11,8 @@ The goal is a small, open-source, Rhino/Grasshopper-like toolkit that runs in th
 * **Sweeps on rotation-minimising frames.** `RotationMinimizingFrames` computes twist-free frames along any rail with the double reflection method, and on closed rails spreads the leftover rotation evenly so the frame closes up. `Sweep.surface` moves a profile along a rail, with optional twist and scale along the way; `Sweep.pipe` sweeps a circle of constant or varying radius. Both return a B-spline within a given tolerance of the exact sweep.
 * **Fitting.** `Fit` interpolates curves and surfaces with chosen parameters and knot vectors, lofts compatible sections (`Fit.loft`), and builds closed, smooth periodic curves (`Fit.periodicCurve`).
 * **Solids.** `TriMesh` is an indexed triangle mesh with a closed-manifold check, volume, STL/OBJ export and conversion to manifold-3d's `Mesh`. `Shell.openVessel` turns an outer and an inner wall into one watertight solid, and `Shell.tube` turns a swept surface into a capped solid (open rail) or a ring-shaped solid of genus 1 (closed rail).
-* **Recipes.** `FreeformVesselRecipe` builds an Aalto-style free-form vessel end to end, and `SweptObjectsRecipe` a torus-knot pipe and a twisted ring (see below).
+* **NURBS booleans.** `BrepSolid` is a closed solid bounded by NURBS faces (capped tubes, capped walls). `BrepBoolean` computes union, intersection, difference, or any Boolean expression over any number of solids. Seams are surface/surface intersection curves refined onto both faces (to about 1e-9), carried as trim curves in each face's parameters, and shared vertex for vertex by the two faces, so the result is watertight. See [docs/booleans.md](docs/booleans.md) for the method and its current limits.
+* **Recipes.** `FreeformVesselRecipe` builds an Aalto-style free-form vessel end to end, `SweptObjectsRecipe` a torus-knot pipe and a twisted ring, and `BooleanObjectsRecipe` a mug and a pierced vessel with NURBS booleans (see below).
 
 ## Install and build
 
@@ -46,7 +47,7 @@ import verb from "verb-nurbs-ts";
 const crv = verb.geom.NurbsCurve.byPoints([[0, 0, 0], [1, 1, 0], [2, 0, 0]], 2);
 ```
 
-`dist/` is plain ES modules without dependencies, so it loads directly in a browser with `<script type="module">`.
+`dist/` is plain ES modules. The only runtime dependency is [cdt2d](https://github.com/mikolalysenko/cdt2d) (constrained Delaunay triangulation, used to tessellate trimmed faces); bundle it with esbuild or use an import map to load the library in a browser.
 
 ## Demo: a free-form vessel, validated as a manifold
 
@@ -66,13 +67,33 @@ npm run demo:sweeps
 
 `SweptObjectsRecipe.knotPipe()` sweeps a circle whose radius swells and thins along a trefoil knot; `SweptObjectsRecipe.twistedRing()` sweeps a rounded-square section along a wavy ring with one full turn of twist. Both rails are closed, so both objects are genus 1 solids, checked by `TriMesh` and by manifold-3d.
 
+## Demo: NURBS booleans
+
+```
+npm run demo:booleans
+```
+
+`BooleanObjectsRecipe.mug()` evaluates (body + handle) − cavity: the body is the solid inside a free-form outer wall, the handle a pipe swept along a C-shaped rail whose ends go through the wall, and the cavity the solid inside the inner wall, running a little above the rim. Subtracting the cavity opens the top and trims the handle's ends flush with the inner wall. `BooleanObjectsRecipe.pierced()` subtracts the cavity and 18 round tools from a vessel. Both results are checked by `TriMesh` (watertight, genus 1 and genus 18) and by manifold-3d, whose own mesh boolean of the same operands gives the same genus and a volume within 0.02%.
+
+```ts
+import { BrepSolid, BrepBoolean, Sweep, Make } from "verb-nurbs-ts";
+const rod = (a, b, r) => BrepSolid.cappedTube(Sweep.pipe(Make.rationalBezierCurve([a, b]), r).surface, [24, 64]);
+const a = rod([-30, 0, 0], [30, 0, 0], 10), b = rod([0, -30, 1], [0, 30, 1], 6);
+const r = BrepBoolean.difference(a, [b]);
+r.mesh;          // watertight TriMesh, genus 1
+r.faces;         // trimmed faces: surface + trim loops in (u, v)
+r.curves;        // the intersection curves, with parameters on both faces
+// any expression: inside(body or handle) and not inside(cavity)
+BrepBoolean.evaluate([body, handle, cavity], f => (f[0] || f[1]) && !f[2]);
+```
+
 ## Playground
 
 ```
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe and the twisted ring with sliders. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug and the pierced vessel with sliders. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
 
 ## Differences from upstream verb
 

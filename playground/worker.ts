@@ -1,8 +1,8 @@
 // Builds models off the main thread so the sliders stay responsive.
-import { FreeformVesselRecipe, SweptObjectsRecipe } from "../src/index.js";
+import { BooleanObjectsRecipe, FreeformVesselRecipe, SweptObjectsRecipe } from "../src/index.js";
 import type { TriMesh } from "../src/index.js";
 
-export type ModelId = "vessel" | "knot" | "ring";
+export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced";
 
 export interface BuildRequest { id : number; model : ModelId; params : Record<string, number>; fine : boolean }
 
@@ -19,6 +19,32 @@ function vessel( p : Record<string, number>, fine : boolean ) {
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 64 : 28, divsV : fine ? 256 : 112
     } );
     return { mesh : v.mesh, report : v.report, error : v.report.offsetMaxError, ok : v.report.innerRingsSimple };
+}
+
+function folds( k : number ) {
+    return FreeformVesselRecipe.DEFAULT_HARMONICS.map( h => ({
+        frequency : h.frequency, amplitude : [h.amplitude[0] * k, h.amplitude[1] * k] as [number, number], phase : h.phase
+    }) );
+}
+
+function mug( p : Record<string, number>, fine : boolean ) {
+    let o = BooleanObjectsRecipe.mug( {
+        height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
+        handleRadius : p.handle, handleReach : p.reach, handleHeights : [p.low, p.high],
+        offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
+    } );
+    let r = o.result.report;
+    return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
+}
+
+function pierced( p : Record<string, number>, fine : boolean ) {
+    let o = BooleanObjectsRecipe.pierced( {
+        height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
+        holes : p.holes, rows : p.rows, holeRadius : p.hole,
+        offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
+    } );
+    let r = o.result.report;
+    return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
 }
 
 function knot( p : Record<string, number>, fine : boolean ) {
@@ -49,12 +75,13 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
     let { id, model, params, fine } = e.data;
     let t0 = performance.now();
     try {
-        let r = model == "vessel" ? vessel( params, fine ) : model == "knot" ? knot( params, fine ) : ring( params, fine );
+        let build = { vessel, knot, ring, mug, pierced }[model];
+        let r = build( params, fine );
         let ms = performance.now() - t0;
         let { pos, idx } = pack( r.mesh );
         let bb = r.report.manifold ? r.mesh.boundingBox() : null;
         (self as any).postMessage( {
-            id, ok : true, pos, idx, ms, fine,
+            id, model, ok : true, pos, idx, ms, fine,
             stats : {
                 triangles : r.mesh.triangles.length,
                 manifold : r.report.manifold,
@@ -65,6 +92,6 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
             }
         }, [pos.buffer, idx.buffer] );
     } catch (err) {
-        (self as any).postMessage( { id, ok : false, message : String( err ) } );
+        (self as any).postMessage( { id, model, ok : false, message : String( err ) } );
     }
 };

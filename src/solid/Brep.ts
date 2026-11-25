@@ -1,0 +1,373 @@
+import cdt2d from "cdt2d";
+import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
+import { Vec } from "../core/Vec.js";
+import { Eval } from "../eval/Eval.js";
+import { Make } from "../eval/Make.js";
+import { SurfaceDomain, SurfaceIntersect } from "./SurfaceIntersect.js";
+import { TriMesh } from "./TriMesh.js";
+
+// One face of a boundary representation: a NURBS surface over its whole parameter domain. Faces of a solid meet
+// along their domain edges; a periodic direction closes on itself (the two edges of the seam are the same curve), and
+// an edge may collapse to a point (a pole, as at the apex of a cap).
+export interface BrepFace {
+    surface : NurbsSurfaceData;
+    // whether the face closes on itself in u and in v
+    periodic : [boolean, boolean];
+    // tessellation grid. Faces that share an edge must sample it the same way: the same number of divisions along it
+    // and the same parameterisation, which is what the constructors below arrange.
+    divs : [number, number];
+    // true when the outward normal is -(dS/du x dS/dv); set by `BrepSolid.orient`
+    reversed : boolean;
+    name? : string;
+}
+
+// A polyline in a face's parameter domain whose vertices carry their exact 3D points. Cut curves are shared by the
+// two faces they separate: both faces use the same 3D points, so their tessellations meet without gaps.
+export interface FaceCut {
+    uv : Array<UV>;
+    points : Array<Point>;
+    closed : boolean;
+}
+
+// The tessellation of one face, with the cut curves as constrained edges.
+export interface FaceTessellation {
+    // per local vertex: its parameters, its point and its id in the shared welder
+    uv : Array<UV>;
+    points : Array<Point>;
+    ids : Array<number>;
+    // triangles over local vertices, counter-clockwise in (u, v), so their normal is dS/du x dS/dv
+    triangles : Array<Array<number>>;
+    // the cut edges, as pairs of local vertices
+    cutEdges : Array<[number, number]>;
+}
+
+// Merges points closer than a tolerance into one vertex of a TriMesh, through a hash grid of cells of that size.
+export class Welder {
+    public mesh : TriMesh = new TriMesh();
+    private cells : Map<string, Array<number>> = new Map();
+    constructor( public tolerance : number ) {}
+
+    public id( p : Point ) : number {
+        let t = this.tolerance;
+        let c = [Math.floor( p[0] / t ), Math.floor( p[1] / t ), Math.floor( p[2] / t )];
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+            let l = this.cells.get( (c[0] + dx) + "," + (c[1] + dy) + "," + (c[2] + dz) );
+            if (l == null) continue;
+            for (let i of l) if (Vec.distSquared( this.mesh.vertices[i], p ) <= t * t) return i;
+        }
+        let id = this.mesh.addVertex( p );
+        let key = c[0] + "," + c[1] + "," + c[2];
+        let l = this.cells.get( key );
+        if (l == null) this.cells.set( key, [id] ); else l.push( id );
+        return id;
+    }
+}
+
+// A closed solid bounded by NURBS faces.
+export class BrepSolid {
+
+    constructor( public faces : Array<BrepFace> ) {}
+
+    public static face( surface : NurbsSurfaceData, periodic : [boolean, boolean], divs : [number, number], name? : string ) : BrepFace {
+        return { surface : surface, periodic : periodic, divs : divs, reversed : false, name : name };
+    }
+
+    // The ruled surface between two curves (u along the curves, v from the first to the second).
+    public static ruled( c0 : NurbsCurveData, c1 : NurbsCurveData ) : NurbsSurfaceData {
+        return Make.loftedSurface( [c0, c1], 1 );
+    }
+
+    // The cone from a point to a curve (u along the curve, v from the apex to the curve). A cap for a planar curve
+    // that is star-shaped around the apex.
+    public static cone( apex : Point, curve : NurbsCurveData ) : NurbsSurfaceData {
+        let w = curve.controlPoints.map( p => p[p.length - 1] );
+        let apexCurve = new NurbsCurveData( curve.degree, curve.knots.slice(), w.map( wi => apex.map( x => x * wi ).concat( [wi] ) ) );
+        return Make.loftedSurface( [apexCurve, curve], 1 );
+    }
+
+    // The curve along a domain edge: u fixed at its start (or end), or v fixed.
+    public static edge( s : NurbsSurfaceData, alongV : boolean, atEnd : boolean ) : NurbsCurveData {
+        let d = SurfaceIntersect.domain( s );
+        return alongV ? Make.surfaceIsocurve( s, atEnd ? d[1] : d[0], false ) : Make.surfaceIsocurve( s, atEnd ? d[3] : d[2], true );
+    }
+
+    // The centroid of a closed curve's samples
+    public static curveCentroid( c : NurbsCurveData, samples : number = 64 ) : Point {
+        let a = c.knots[0], b = c.knots[c.knots.length - 1];
+        let s = [0, 0, 0];
+        for (let i = 0; i < samples; i++) s = Vec.add( s, Eval.rationalCurvePoint( c, a + (b - a) * i / samples ) );
+        return Vec.mul( 1 / samples, s );
+    }
+
+    // A tube closed in v, with a flat cap at each end: the solid of a pipe or of any surface swept along an open rail.
+    public static cappedTube( tube : NurbsSurfaceData, divs : [number, number] ) : BrepSolid {
+        let c0 = BrepSolid.edge( tube, true, false ), c1 = BrepSolid.edge( tube, true, true );
+        let capDivs : [number, number] = [divs[1], Math.max( 4, Math.round( divs[1] / 8 ) )];
+        return new BrepSolid( [
+            BrepSolid.face( tube, [false, true], divs, "tube" ),
+            BrepSolid.face( BrepSolid.cone( BrepSolid.curveCentroid( c0 ), c0 ), [true, false], capDivs, "start cap" ),
+            BrepSolid.face( BrepSolid.cone( BrepSolid.curveCentroid( c1 ), c1 ), [true, false], capDivs, "end cap" ),
+        ] ).orient();
+    }
+
+    // The solid inside a wall that is closed in v (u from bottom to top), with a cap at the bottom and at the top.
+    public static cappedWall( wall : NurbsSurfaceData, divs : [number, number] ) : BrepSolid {
+        let s = BrepSolid.cappedTube( wall, divs );
+        s.faces[0].name = "wall"; s.faces[1].name = "bottom"; s.faces[2].name = "top";
+        return s;
+    }
+
+    // Set each face's `reversed` flag so its normal points out of the solid: step a little off the face along its
+    // normal and test whether that point is inside.
+    public orient() : BrepSolid {
+        for (let f of this.faces) f.reversed = false;
+        let mesh = this.tessellate();
+        let bb = mesh.boundingBox();
+        let eps = Vec.dist( bb.min, bb.max ) * 2e-4;
+        for (let f of this.faces) {
+            let t = FaceMesher.mesh( f, [], new Welder( eps * 1e-3 ) );
+            // the largest triangle, away from the face's edges
+            let best = -1, bestA = -1;
+            t.triangles.forEach( (tri, k) => {
+                let a = Vec.norm( Vec.cross( Vec.sub( t.points[tri[1]], t.points[tri[0]] ), Vec.sub( t.points[tri[2]], t.points[tri[0]] ) ) );
+                if (a > bestA) { bestA = a; best = k; }
+            } );
+            let tri = t.triangles[best];
+            let p = Vec.mul( 1 / 3, Vec.add( t.points[tri[0]], Vec.add( t.points[tri[1]], t.points[tri[2]] ) ) );
+            let n = Vec.normalized( Vec.cross( Vec.sub( t.points[tri[1]], t.points[tri[0]] ), Vec.sub( t.points[tri[2]], t.points[tri[0]] ) ) );
+            f.reversed = mesh.containsPoint( Vec.add( p, Vec.mul( eps, n ) ) );
+        }
+        return this;
+    }
+
+    // A watertight triangle mesh of the solid (outward facing once `orient` has run).
+    public tessellate( welder? : Welder ) : TriMesh {
+        if (welder == null) welder = new Welder( this.weldTolerance() );
+        let out = new TriMesh();
+        for (let f of this.faces) {
+            let t = FaceMesher.mesh( f, [], welder );
+            for (let tri of t.triangles) {
+                let a = t.ids[tri[0]], b = t.ids[tri[1]], c = t.ids[tri[2]];
+                if (f.reversed) out.addTriangle( a, c, b ); else out.addTriangle( a, b, c );
+            }
+        }
+        out.vertices = welder.mesh.vertices;
+        out.compact();
+        return out;
+    }
+
+    public boundingBox() : { min : Point, max : Point } {
+        let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+        for (let f of this.faces) {
+            let b = BrepSolid.faceBox( f );
+            for (let k = 0; k < 3; k++) { min[k] = Math.min( min[k], b.min[k] ); max[k] = Math.max( max[k], b.max[k] ); }
+        }
+        return { min : min, max : max };
+    }
+
+    // A box that contains the face: the box of its control points (a NURBS surface lies in their convex hull).
+    public static faceBox( f : BrepFace ) : { min : Point, max : Point } {
+        let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+        for (let row of f.surface.controlPoints) for (let hp of row) {
+            let w = hp[hp.length - 1];
+            for (let k = 0; k < 3; k++) { min[k] = Math.min( min[k], hp[k] / w ); max[k] = Math.max( max[k], hp[k] / w ); }
+        }
+        return { min : min, max : max };
+    }
+
+    public weldTolerance() : number {
+        let b = this.boundingBox();
+        return Vec.dist( b.min, b.max ) * 1e-7;
+    }
+
+    public static domainOf( f : BrepFace ) : SurfaceDomain {
+        return { surface : f.surface, periodic : f.periodic };
+    }
+}
+
+// Tessellates a face, possibly cut by curves, with a constrained Delaunay triangulation of its parameter domain
+// (cdt2d, after Shewchuk's robust predicates). The domain is scaled to the face's mean edge lengths so the triangles
+// are not stretched by the parameterisation. Grid points too close to a cut are left out.
+export class FaceMesher {
+
+    public static mesh( f : BrepFace, cuts : Array<FaceCut>, welder : Welder ) : FaceTessellation {
+        let s = f.surface;
+        let d = SurfaceIntersect.domain( s );
+        let nu = f.divs[0], nv = f.divs[1];
+        let L = FaceMesher.lengths( s, d );
+        let X = (uv : UV) : Array<number> => [(uv[0] - d[0]) / (d[1] - d[0]) * L[0], (uv[1] - d[2]) / (d[3] - d[2]) * L[1]];
+        let hx = L[0] / nu, hy = L[1] / nv;
+
+        let uv : Array<UV> = [], pts : Array<Point> = [];
+        let keyOf = (p : UV) => Math.round( p[0] * 1e11 ) + ":" + Math.round( p[1] * 1e11 );
+        let index : Map<string, number> = new Map();
+        let add = (p : UV, x : Point | null) : number => {
+            let k = keyOf( p );
+            let i = index.get( k );
+            if (i != null) return i;
+            uv.push( p ); pts.push( x != null ? x : Eval.rationalSurfacePoint( s, p[0], p[1] ) );
+            index.set( k, uv.length - 1 );
+            return uv.length - 1;
+        };
+
+        // where cuts meet the domain edges (cuts meet only seams, so a cut point on one side of a seam is added to the
+        // other side as well): extra u values on the v edges, extra v values on the u edges
+        let us = Array.from( { length : nu + 1 }, (_, i) => d[0] + (d[1] - d[0]) * i / nu );
+        let vs = Array.from( { length : nv + 1 }, (_, j) => d[2] + (d[3] - d[2]) * j / nv );
+        let atU : Array<number> = [], atV : Array<number> = [];
+        let endpoints : Map<string, Point> = new Map();
+        for (let c of cuts) {
+            if (c.closed) continue;
+            for (let e of [0, c.uv.length - 1]) {
+                let p = c.uv[e];
+                let onU = Math.abs( p[0] - d[0] ) < 1e-12 || Math.abs( p[0] - d[1] ) < 1e-12;
+                let onV = Math.abs( p[1] - d[2] ) < 1e-12 || Math.abs( p[1] - d[3] ) < 1e-12;
+                if (onV) { atU.push( p[0] ); endpoints.set( keyOf( [p[0], d[2]] ), c.points[e] ); endpoints.set( keyOf( [p[0], d[3]] ), c.points[e] ); }
+                else if (onU) { atV.push( p[1] ); endpoints.set( keyOf( [d[0], p[1]] ), c.points[e] ); endpoints.set( keyOf( [d[1], p[1]] ), c.points[e] ); }
+                else throw "FaceMesher: a cut curve ends inside the face '" + (f.name != null ? f.name : "") + "'";
+            }
+        }
+        let addB = (p : UV) => { let e = endpoints.get( keyOf( p ) ); return add( p, e != null ? e : null ); };
+
+        // a boundary grid node that (almost) coincides with a cut end becomes that cut end
+        let snapU = us.map( u => { let e = atU.find( x => Math.abs( x - u ) < (d[1] - d[0]) * 1e-7 ); return e != null ? e : u; } );
+        let snapV = vs.map( v => { let e = atV.find( x => Math.abs( x - v ) < (d[3] - d[2]) * 1e-7 ); return e != null ? e : v; } );
+        let nodes = new Int32Array( (nu + 1) * (nv + 1) ).fill( -1 );
+        let node = (i : number, j : number) : number => {
+            let k = i * (nv + 1) + j;
+            if (nodes[k] < 0) {
+                let onI = i == 0 || i == nu, onJ = j == 0 || j == nv;
+                nodes[k] = addB( [onJ ? snapU[i] : us[i], onI ? snapV[j] : vs[j]] );
+            }
+            return nodes[k];
+        };
+
+        // the cuts, as constrained segments
+        let cutEdges : Array<[number, number]> = [];
+        let edges : Array<Array<number>> = [];
+        let segs : Array<[Array<number>, Array<number>]> = [];
+        for (let c of cuts) {
+            let ids = c.uv.map( (p, k) => { let e = endpoints.get( keyOf( p ) ); return add( p, e != null ? e : c.points[k] ); } );
+            let n = ids.length, m = c.closed ? n : n - 1;
+            for (let k = 0; k < m; k++) {
+                let a = ids[k], b = ids[(k + 1) % n];
+                if (a == b) continue;
+                edges.push( [a, b] ); cutEdges.push( [a, b] );
+                segs.push( [X( uv[a] ), X( uv[b] )] );
+            }
+        }
+
+        // cells near a cut, or holding a cut end on their edge, are triangulated with the cuts (constrained Delaunay);
+        // the rest of the grid is split into triangle pairs directly
+        let r = 0.35 * Math.min( hx, hy );
+        let blocked = new Uint8Array( nu * nv );
+        let near = new Uint8Array( (nu + 1) * (nv + 1) );
+        let clampI = (x : number) => Math.min( nu - 1, Math.max( 0, x ) ), clampJ = (x : number) => Math.min( nv - 1, Math.max( 0, x ) );
+        for (let sg of segs) {
+            let x0 = Math.min( sg[0][0], sg[1][0] ) - r, x1 = Math.max( sg[0][0], sg[1][0] ) + r;
+            let y0 = Math.min( sg[0][1], sg[1][1] ) - r, y1 = Math.max( sg[0][1], sg[1][1] ) + r;
+            for (let i = clampI( Math.floor( x0 / hx ) ); i <= clampI( Math.floor( x1 / hx ) ); i++)
+                for (let j = clampJ( Math.floor( y0 / hy ) ); j <= clampJ( Math.floor( y1 / hy ) ); j++) blocked[i * nv + j] = 1;
+            for (let i = Math.max( 0, Math.ceil( x0 / hx ) ); i <= Math.min( nu, Math.floor( x1 / hx ) ); i++)
+                for (let j = Math.max( 0, Math.ceil( y0 / hy ) ); j <= Math.min( nv, Math.floor( y1 / hy ) ); j++)
+                    if (FaceMesher.segDist( [i * hx, j * hy], sg[0], sg[1] ) < r) near[i * (nv + 1) + j] = 1;
+        }
+        let cellOf = (x : number, n : number) => [Math.floor( x * n - 1e-6 ), Math.floor( x * n + 1e-6 )];
+        for (let u of atU) for (let i of cellOf( (u - d[0]) / (d[1] - d[0]), nu )) {
+            if (i < 0 || i >= nu) continue;
+            blocked[i * nv] = 1; blocked[i * nv + nv - 1] = 1;
+        }
+        for (let v of atV) for (let j of cellOf( (v - d[2]) / (d[3] - d[2]), nv )) {
+            if (j < 0 || j >= nv) continue;
+            blocked[j] = 1; blocked[(nu - 1) * nv + j] = 1;
+        }
+
+        let triangles : Array<Array<number>> = [];
+        for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+            if (blocked[i * nv + j]) continue;
+            let a = node( i, j ), b = node( i + 1, j ), c = node( i + 1, j + 1 ), e = node( i, j + 1 );
+            if (Vec.distSquared( pts[a], pts[c] ) <= Vec.distSquared( pts[b], pts[e] )) { triangles.push( [a, b, c] ); triangles.push( [a, c, e] ); }
+            else { triangles.push( [a, b, e] ); triangles.push( [b, c, e] ); }
+        }
+
+        if (segs.length > 0 || atU.length > 0 || atV.length > 0) {
+            let isBlocked = (i : number, j : number) => i >= 0 && i < nu && j >= 0 && j < nv && blocked[i * nv + j] == 1;
+            let inside = (i : number, j : number) => i >= 0 && i < nu && j >= 0 && j < nv;
+            let used = new Set<number>();
+            for (let e of edges) { used.add( e[0] ); used.add( e[1] ); }
+            let constrain = (a : number, b : number) => { if (a != b) { edges.push( [a, b] ); used.add( a ); used.add( b ); } };
+            // a boundary side of a cell, with the cut ends that lie on it
+            let chain = (p : UV, q : UV, axis : number, extra : Array<number>, a : number, b : number) => {
+                let lo = Math.min( p[axis], q[axis] ), hi = Math.max( p[axis], q[axis] );
+                let mids = extra.filter( x => x > lo && x < hi ).sort( (x, y) => p[axis] < q[axis] ? x - y : y - x );
+                let prev = a;
+                for (let x of mids) {
+                    let m : UV = axis == 0 ? [x, p[1]] : [p[0], x];
+                    let id = addB( m );
+                    constrain( prev, id ); prev = id;
+                }
+                constrain( prev, b );
+            };
+            for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+                if (!blocked[i * nv + j]) continue;
+                // keep the corners unless they are surrounded by blocked cells and too close to a cut
+                for (let c of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+                    let ci = c[0], cj = c[1];
+                    let interior = ci > 0 && ci < nu && cj > 0 && cj < nv && isBlocked( ci - 1, cj - 1 ) && isBlocked( ci, cj - 1 ) && isBlocked( ci - 1, cj ) && isBlocked( ci, cj );
+                    if (!(interior && near[ci * (nv + 1) + cj])) used.add( node( ci, cj ) );
+                }
+                // sides facing kept cells or the domain edge are constrained
+                let sides : Array<[number, number, number, number, number, number]> = [
+                    [i, j, i + 1, j, i, j - 1], [i + 1, j, i + 1, j + 1, i + 1, j], [i + 1, j + 1, i, j + 1, i, j + 1], [i, j + 1, i, j, i - 1, j]];
+                for (let sd of sides) {
+                    let ni = sd[4], nj = sd[5];
+                    if (isBlocked( ni, nj )) continue;
+                    let a = node( sd[0], sd[1] ), b = node( sd[2], sd[3] );
+                    if (inside( ni, nj )) constrain( a, b );
+                    else {
+                        let alongU = sd[1] == sd[3];
+                        chain( uv[a], uv[b], alongU ? 0 : 1, alongU ? atU : atV, a, b );
+                    }
+                }
+            }
+            let ids = Array.from( used );
+            let local = new Map<number, number>();
+            ids.forEach( (id, k) => local.set( id, k ) );
+            let tris = cdt2d( ids.map( id => X( uv[id] ) ), edges.map( e => [local.get( e[0] ), local.get( e[1] )] ), { exterior : true } );
+            for (let t of tris) {
+                let a = ids[t[0]], b = ids[t[1]], c = ids[t[2]];
+                let pa = X( uv[a] ), pb = X( uv[b] ), pc = X( uv[c] );
+                let ci = Math.floor( (pa[0] + pb[0] + pc[0]) / 3 / hx ), cj = Math.floor( (pa[1] + pb[1] + pc[1]) / 3 / hy );
+                if (!isBlocked( clampI( ci ), clampJ( cj ) )) continue;
+                let area = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
+                triangles.push( area > 0 ? [a, b, c] : [a, c, b] );
+            }
+        }
+        return { uv : uv, points : pts, ids : pts.map( p => welder.id( p ) ), triangles : triangles, cutEdges : cutEdges };
+    }
+
+    // mean length of the u and v isocurves
+    private static lengths( s : NurbsSurfaceData, d : Array<number> ) : [number, number] {
+        let n = 24, m = 5;
+        let lu = 0.0, lv = 0.0;
+        for (let k = 0; k < m; k++) {
+            let t = (k + 0.5) / m;
+            let pu = Eval.rationalSurfacePoint( s, d[0], d[2] + (d[3] - d[2]) * t ), pv = Eval.rationalSurfacePoint( s, d[0] + (d[1] - d[0]) * t, d[2] );
+            for (let i = 1; i <= n; i++) {
+                let qu = Eval.rationalSurfacePoint( s, d[0] + (d[1] - d[0]) * i / n, d[2] + (d[3] - d[2]) * t );
+                let qv = Eval.rationalSurfacePoint( s, d[0] + (d[1] - d[0]) * t, d[2] + (d[3] - d[2]) * i / n );
+                lu += Vec.dist( pu, qu ); lv += Vec.dist( pv, qv );
+                pu = qu; pv = qv;
+            }
+        }
+        return [Math.max( lu / m, 1e-9 ), Math.max( lv / m, 1e-9 )];
+    }
+
+    private static segDist( p : Array<number>, a : Array<number>, b : Array<number> ) : number {
+        let dx = b[0] - a[0], dy = b[1] - a[1];
+        let l2 = dx * dx + dy * dy;
+        let t = l2 > 0 ? Math.max( 0, Math.min( 1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2 ) ) : 0;
+        let ex = a[0] + t * dx - p[0], ey = a[1] + t * dy - p[1];
+        return Math.sqrt( ex * ex + ey * ey );
+    }
+}

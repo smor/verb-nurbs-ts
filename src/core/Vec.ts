@@ -179,19 +179,19 @@ export class Vec {
     }
 
     public static rep<T>(num : number, ele : T ) : Array<T> {
-        return Array.from({ length: num }, (_, i) => ele);
+        let r = new Array( num ); for (let i = 0; i < num; i++) r[i] = ele; return r;
     }
 
     public static zeros1d(rows : number) : Array<number> {
-        return Array.from({ length: rows }, (_, i) => 0.0);
+        let r = new Array<number>( rows ); for (let i = 0; i < rows; i++) r[i] = 0.0; return r;
     }
 
     public static zeros2d(rows : number, cols : number) : Array<Array<number>> {
-        return Array.from({ length: rows }, (_, i) => Vec.zeros1d(cols));
+        let r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros1d( cols ); return r;
     }
 
     public static zeros3d(rows : number, cols : number, depth : number) : Array<Array<Array<number>>> {
-        return Array.from({ length: rows }, (_, i) => Vec.zeros2d(cols, depth));
+        let r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros2d( cols, depth ); return r;
     }
 
     public static dot(a : Array<number>, b : Array<number>) : number {
@@ -203,19 +203,19 @@ export class Vec {
     }
 
     public static add(a : Array<number>, b : Array<number>) : Array<number>{
-        return Array.from({ length: a.length }, (_, i) => a[i] + b[i]);
+        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] + b[i]; return r;
     }
 
     public static mul(a : number, b : Array<number>) : Array<number>{
-        return Array.from({ length: b.length }, (_, i) => a * b[i]);
+        let n = b.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a * b[i]; return r;
     }
 
     public static div(a : Array<number>, b : number ) : Array<number>{
-        return Array.from({ length: a.length }, (_, i) => a[i] / b);
+        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] / b; return r;
     }
 
     public static sub(a : Array<number>, b : Array<number>) : Array<number>{
-        return Array.from({ length: a.length }, (_, i) => a[i] - b[i]);
+        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] - b[i]; return r;
     }
 
     public static isZero( vec : Array<number> ){

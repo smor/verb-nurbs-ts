@@ -12,4 +12,5 @@ jobs:
       - run: npm test
       - run: node examples/aalto-vessel.mjs out
       - run: node examples/swept-objects.mjs out
+      - run: node examples/boolean-objects.mjs out
       - run: npm run playground

@@ -78,30 +78,34 @@ export class FreeformVesselRecipe {
         { frequency : 9, amplitude : [0.015, 0.025], phase : [0.8, 1.6] },
     ];
 
-    public static build( params? : FreeformVesselParams ) : FreeformVessel {
+    // The section curves and the outer wall lofted through them. With `extend` > 0 the wall continues above the
+    // rim by that fraction of the height, following the same outline (the rim then sits at u = 1 / (1 + extend)).
+    public static outerWall( params? : FreeformVesselParams, extend : number = 0 ) : { sections : Array<NurbsCurveData>, outerWall : NurbsSurfaceData } {
         let p = params != null ? params : {};
         let H = p.height != null ? p.height : 160;
         let R = p.radius != null ? p.radius : [70, 80];
         let belly = p.belly != null ? p.belly : 1.5;
         let lean = p.lean != null ? p.lean : [4, -2];
         let harmonics = p.harmonics != null ? p.harmonics : FreeformVesselRecipe.DEFAULT_HARMONICS;
-        let t = p.wallThickness != null ? p.wallThickness : 3;
-        let tb = p.baseThickness != null ? p.baseThickness : 4;
         let K = p.sections != null ? p.sections : 7;
         let M = p.sectionControlPoints != null ? p.sectionControlPoints : 40;
-        let tol = p.offsetTolerance != null ? p.offsetTolerance : 0.02;
 
         // smooth blend 0..1 with zero slope at both ends
         let ease = (s : number) => s * s * (3 - 2 * s);
         let lerp = (a : number, b : number, s : number) => a + (b - a) * s;
 
+        // with an extension, add sections above the rim (the outline keeps evolving as if the vessel were taller,
+        // with the blends frozen at their rim values)
+        let Kx = extend > 0 ? K + Math.max( 1, Math.ceil( extend * (K - 1) ) ) : K;
+        let sMax = extend > 0 ? 1 + extend : 1;
         let sections : Array<NurbsCurveData> = [];
-        for (let k = 0; k < K; k++) {
-            let s = k / (K - 1);
+        for (let k = 0; k < Kx; k++) {
+            let s = Kx == K ? k / (K - 1) : sMax * k / (Kx - 1);
+            let sc = Math.min( s, 1 );
             let z = H * s;
-            let e = ease( s );
-            let radius = lerp( R[0], R[1], e ) + belly * Math.sin( Math.PI * s );
-            let cx = lean[0] * e, cy = lean[1] * Math.sin( Math.PI * s );
+            let e = ease( sc );
+            let radius = lerp( R[0], R[1], e ) + belly * Math.sin( Math.PI * sc );
+            let cx = lean[0] * e, cy = lean[1] * Math.sin( Math.PI * sc );
             let cps : Array<Point> = [];
             for (let i = 0; i < M; i++) {
                 let th = 2 * Math.PI * i / M;
@@ -112,29 +116,47 @@ export class FreeformVesselRecipe {
             sections.push( Fit.periodicCurve( cps, 3 ) );
         }
 
-        // u runs from base to rim, v around the vessel; keep the section heights as the loft parameters so the wall
-        // is evenly parameterised in height
-        let outerWall = Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) );
+        // u runs from base to top, v around the vessel; the loft parameters are the section heights so the wall is
+        // evenly parameterised in height (z is exactly linear in u)
+        let outerWall = Fit.loft( sections, 3, sections.map( (_, k) => k / (Kx - 1) ) );
+        return { sections : sections, outerWall : outerWall };
+    }
 
-        // the inner wall goes against the outward direction: compare the normal with the direction away from the axis
+    // The wall offset inward by `thickness`, as `Offset.surface` returns it.
+    public static innerOffset( outerWall : NurbsSurfaceData, thickness : number, tolerance : number ) {
         let mid = Eval.rationalSurfacePoint( outerWall, 0.5, 0.0 );
         let axisPt = Shell.centroid( Array.from( { length : 16 }, (_, j) => Eval.rationalSurfacePoint( outerWall, 0.5, j / 16 ) ) );
         let n = Offset.surfaceUnitNormal( outerWall, 0.5, 0.0 );
         let outwardSign = Vec.dot( n, Vec.sub( mid, axisPt ) ) > 0 ? 1 : -1;
-        let off = Offset.surface( outerWall, -outwardSign * t, { tolerance : tol } );
+        return Offset.surface( outerWall, -outwardSign * thickness, { tolerance : tolerance } );
+    }
 
-        // cut the inner wall where its mean height reaches the floor thickness
-        let meanZ = (srf : NurbsSurfaceData, u : number) => {
-            let z = 0.0;
-            for (let j = 0; j < 32; j++) z += Eval.rationalSurfacePoint( srf, u, j / 32 )[2] / 32;
-            return z;
+    // The parameter u at which the mean height of the wall's isocurve is z.
+    public static uAtHeight( srf : NurbsSurfaceData, z : number ) : number {
+        let meanZ = (u : number) => {
+            let m = 0.0;
+            for (let j = 0; j < 32; j++) m += Eval.rationalSurfacePoint( srf, u, j / 32 )[2] / 32;
+            return m;
         };
-        let lo = 0.0, hi = 0.5;
+        let lo = srf.knotsU[0], hi = srf.knotsU[srf.knotsU.length - 1];
         for (let it = 0; it < 60; it++) {
             let m = (lo + hi) / 2;
-            if (meanZ( off.result, m ) < tb) lo = m; else hi = m;
+            if (meanZ( m ) < z) lo = m; else hi = m;
         }
-        let innerWall = Divide.surfaceSplit( off.result, (lo + hi) / 2, false )[1];
+        return (lo + hi) / 2;
+    }
+
+    public static build( params? : FreeformVesselParams ) : FreeformVessel {
+        let p = params != null ? params : {};
+        let t = p.wallThickness != null ? p.wallThickness : 3;
+        let tb = p.baseThickness != null ? p.baseThickness : 4;
+        let tol = p.offsetTolerance != null ? p.offsetTolerance : 0.02;
+        let w = FreeformVesselRecipe.outerWall( p );
+        let sections = w.sections, outerWall = w.outerWall;
+
+        let off = FreeformVesselRecipe.innerOffset( outerWall, t, tol );
+        // cut the inner wall where its mean height reaches the floor thickness
+        let innerWall = Divide.surfaceSplit( off.result, FreeformVesselRecipe.uAtHeight( off.result, tb ), false )[1];
 
         let divsU = p.divsU != null ? p.divsU : 64;
         let divsV = p.divsV != null ? p.divsV : 256;

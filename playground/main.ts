@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 declare const WORKER_SOURCE : string;
 
-type ModelId = "vessel" | "knot" | "ring";
+type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced";
 interface Slider { key : string; label : string; min : number; max : number; step : number; value : number; unit? : string }
 
 const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[] }> = {
@@ -48,12 +49,41 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "exponent", label : "Squareness", min : 2, max : 8, step : 0.25, value : 4 },
             { key : "turns", label : "Turns", min : 0, max : 4, step : 1, value : 1 },
         ]
+    },
+    mug : {
+        name : "Mug",
+        note : "NURBS Boolean: (body + handle) − cavity. Seams are exact surface/surface intersections, trimmed on both faces.",
+        sliders : [
+            { key : "height", label : "Height", min : 70, max : 160, step : 1, value : 110, unit : "mm" },
+            { key : "baseRadius", label : "Base radius", min : 28, max : 70, step : 1, value : 40, unit : "mm" },
+            { key : "rimRadius", label : "Rim radius", min : 28, max : 75, step : 1, value : 44, unit : "mm" },
+            { key : "folds", label : "Fold depth", min : 0, max : 1.4, step : 0.05, value : 1, unit : "×" },
+            { key : "wall", label : "Wall", min : 2, max : 6, step : 0.1, value : 3, unit : "mm" },
+            { key : "handle", label : "Handle radius", min : 3, max : 9, step : 0.1, value : 5.5, unit : "mm" },
+            { key : "reach", label : "Handle reach", min : 20, max : 50, step : 1, value : 32, unit : "mm" },
+            { key : "low", label : "Lower joint", min : 0.12, max : 0.45, step : 0.01, value : 0.25, unit : "×H" },
+            { key : "high", label : "Upper joint", min : 0.55, max : 0.85, step : 0.01, value : 0.75, unit : "×H" },
+        ]
+    },
+    pierced : {
+        name : "Pierced vessel",
+        note : "NURBS Boolean: body − cavity − round tools, one exact trimmed hole through the wall per tool.",
+        sliders : [
+            { key : "height", label : "Height", min : 80, max : 220, step : 1, value : 140, unit : "mm" },
+            { key : "baseRadius", label : "Base radius", min : 40, max : 90, step : 1, value : 55, unit : "mm" },
+            { key : "rimRadius", label : "Rim radius", min : 40, max : 95, step : 1, value : 62, unit : "mm" },
+            { key : "folds", label : "Fold depth", min : 0, max : 1.4, step : 0.05, value : 1, unit : "×" },
+            { key : "wall", label : "Wall", min : 2, max : 6, step : 0.1, value : 3, unit : "mm" },
+            { key : "holes", label : "Holes per row", min : 3, max : 14, step : 1, value : 9 },
+            { key : "rows", label : "Rows", min : 1, max : 3, step : 1, value : 2 },
+            { key : "hole", label : "Hole radius", min : 3, max : 12, step : 0.5, value : 7, unit : "mm" },
+        ]
     }
 };
 
 const $ = (id : string) => document.getElementById( id )!;
 let current : ModelId = "vessel";
-const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {} };
+const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {} };
 for (const m of Object.keys( MODELS ) as ModelId[]) for (const s of MODELS[m].sliders) values[m][s.key] = s.value;
 try {
     const saved = JSON.parse( localStorage.getItem( "verb-playground" ) || "null" );
@@ -138,11 +168,14 @@ worker.onmessage = (e : MessageEvent) => {
     busy = false;
     const r = e.data;
     if (queued) { const q = queued; queued = null; request( q.fine ); }
+    if (r.model != current) return; // a build for a model the user has since left
     if (!r.ok) { showError( r.message ); return; }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute( "position", new THREE.BufferAttribute( r.pos, 3 ) );
-    g.setIndex( new THREE.BufferAttribute( r.idx, 1 ) );
-    g.computeVertexNormals();
+    const indexed = new THREE.BufferGeometry();
+    indexed.setAttribute( "position", new THREE.BufferAttribute( r.pos, 3 ) );
+    indexed.setIndex( new THREE.BufferAttribute( r.idx, 1 ) );
+    // smooth shading, but keep sharp edges (rims, hole edges) sharp
+    const g = toCreasedNormals( indexed, Math.PI / 5 );
+    indexed.dispose();
     mesh.geometry.dispose();
     mesh.geometry = g;
     lastPos = r.pos; lastIdx = r.idx;
@@ -167,7 +200,7 @@ function showStats( s : any, ms : number, fine : boolean ) {
         ["Genus", String( m.genus )],
         ["Material", (s.volume / 1000).toFixed( 1 ) + " cm³"],
         ["Size", s.size ? s.size.map( (x : number) => x.toFixed( 0 ) ).join( " × " ) + " mm" : "–"],
-        ["Fit error", s.error.toFixed( 3 ) + " mm"],
+        current == "mug" || current == "pierced" ? ["Seam error", s.error.toExponential( 1 ) + " mm"] : ["Fit error", s.error.toFixed( 3 ) + " mm"],
         ["Build", Math.round( ms ) + " ms"],
     ];
     $( "stats" ).innerHTML = rows.map( ([k, v]) => `<div><dt>${k}</dt><dd>${v.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</dd></div>` ).join( "" );

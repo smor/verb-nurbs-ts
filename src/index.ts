@@ -57,10 +57,18 @@ import { RevolvedSurface } from "./geom/RevolvedSurface.js";
 import { SphericalSurface } from "./geom/SphericalSurface.js";
 import { SweptSurface } from "./geom/SweptSurface.js";
 import { Dispatcher } from "./exe/Dispatcher.js";
+import { Welder, BrepSolid, FaceMesher } from "./solid/Brep.js";
+export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
+import { BrepBoolean } from "./solid/BrepBoolean.js";
+export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { Shell } from "./solid/Shell.js";
 export type { VesselMeshOptions } from "./solid/Shell.js";
+import { SurfaceIntersect } from "./solid/SurfaceIntersect.js";
+export type { SurfaceDomain, IntersectionCurve, SurfaceIntersectOptions } from "./solid/SurfaceIntersect.js";
 import { TriMesh } from "./solid/TriMesh.js";
 export type { ManifoldMeshArrays, ManifoldReport } from "./solid/TriMesh.js";
+import { BooleanObjectsRecipe } from "./recipes/BooleanObjects.js";
+export type { MugParams, Mug, PierceParams, PiercedVessel } from "./recipes/BooleanObjects.js";
 import { FreeformVesselRecipe } from "./recipes/FreeformVessel.js";
 export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./recipes/FreeformVessel.js";
 import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
@@ -141,8 +149,14 @@ export {
     SphericalSurface,
     SweptSurface,
     Dispatcher,
+    Welder,
+    BrepSolid,
+    FaceMesher,
+    BrepBoolean,
     Shell,
+    SurfaceIntersect,
     TriMesh,
+    BooleanObjectsRecipe,
     FreeformVesselRecipe,
     SweptObjectsRecipe,
     registerSerializable,
@@ -230,10 +244,16 @@ export const exe = {
     Dispatcher,
 };
 export const solid = {
+    Welder,
+    BrepSolid,
+    FaceMesher,
+    BrepBoolean,
     Shell,
+    SurfaceIntersect,
     TriMesh,
 };
 export const recipes = {
+    BooleanObjectsRecipe,
     FreeformVesselRecipe,
     SweptObjectsRecipe,
 };
