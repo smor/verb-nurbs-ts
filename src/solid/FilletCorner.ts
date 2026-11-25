@@ -137,10 +137,12 @@ export class FilletCorner {
         let n1 = FilletCorner.near( F1, e1 ), n2 = FilletCorner.near( F2, e2 );
 
         // X: where the contact curves on b cross
-        let cx = FilletCorner.polyCross( bFace, n1.map( k => FilletCorner.uvOn( F1, b1, k ) ), n2.map( k => FilletCorner.uvOn( F2, b2, k ) ) );
+        // (the contact curves carried on past their ends: on a concave corner they cross beyond them)
+        let l1 = FilletCorner.carriedOn( F1, n1, b1, 3 * Math.max( F1.radius, F2.radius ) ), l2 = FilletCorner.carriedOn( F2, n2, b2, 3 * Math.max( F1.radius, F2.radius ) );
+        let cx = FilletCorner.polyCross( bFace, l1.uv, l2.uv );
         if (cx == null) return false;
         let D = BrepSolid.domainOf( bFace );
-        let at1 = FilletCorner.lerpRow( F1, n1, cx[0] ), at2 = FilletCorner.lerpRow( F2, n2, cx[1] );
+        let at1 = l1.at( cx[0] ), at2 = l2.at( cx[1] );
         let uvX = SurfaceIntersect.lerpUV( D, at1.f, FilletCorner.uvOn( F1, b1, at1.k0 ), FilletCorner.uvOn( F1, b1, at1.k1 ) );
         let X = Eval.rationalSurfacePoint( bFace.surface, uvX[0], uvX[1] );
         let c1 : Corner = { F : F1, e : e1, b : b1, n : n1, sX : at1.s }, c2 : Corner = { F : F2, e : e2, b : b2, n : n2, sX : at2.s };
@@ -166,6 +168,22 @@ export class FilletCorner {
         let s0 = F.rows[idx[0]].s, reach = 6 * radius;
         // and one row past the reach
         return idx.filter( (k, j) => j <= 4 || Math.abs( F.rows[idx[j - 1]].s - s0 ) <= reach );
+    }
+
+    // A contact curve near a corner (on side b of the rows idx, from the end inwards), carried on straight past the
+    // end by a length: its parameters, and where a fractional index along them falls on the blend (the rows around it,
+    // the fraction between them, negative past the end, and the s there).
+    private static carriedOn( F : OpenBlend, idx : Array<number>, b : number, length : number ) {
+        let uv = idx.map( k => FilletCorner.uvOn( F, b, k ) );
+        let r0 = F.rows[idx[0]], r1 = F.rows[idx[1]], col = b == 0 ? 0 : F.m;
+        let K = length / Math.max( Vec.dist( r0.points[col], r1.points[col] ), 1e-300 );
+        let ext : UV = [uv[0][0] + K * (uv[0][0] - uv[1][0]), uv[0][1] + K * (uv[0][1] - uv[1][1])];
+        let at = (z : number) : { k0 : number, k1 : number, f : number, s : number } => {
+            if (z >= 1) return FilletCorner.lerpRow( F, idx, z - 1 );
+            let f = -(1 - z) * K;
+            return { k0 : idx[0], k1 : idx[1], f : f, s : r0.s + f * (r1.s - r0.s) };
+        };
+        return { uv : [ext].concat( uv ), at : at, s : (z : number) => at( z ).s };
     }
 
     private static uvOn( F : OpenBlend, side : number, k : number ) : UV { return side == 0 ? F.rows[k].uvA : F.rows[k].uvB; }
@@ -496,8 +514,8 @@ export class FilletCorner {
     // How far a setback corner stops each blend short of where its contact curves meet the others', in radii.
     public static setbackFactor = 0.6;
 
-    // A setback vertex blend: three blends of any radii, all convex or all concave, between three faces that meet at a
-    // point. Each blend stops a setback short of where its contact curves cross its neighbours' (on the face they
+    // A setback vertex blend: three blends of any radii and kinds (convex, concave or mixed), between three faces that
+    // meet at a point. Each blend stops a setback short of where its contact curves cross its neighbours' (on the face they
     // share); on each face a curve tangent to the two contact curves joins their ends, and cuts the face; the corner is
     // the six-sided patch between the three end sections and the three face curves, a transfinite surface that meets
     // the blends and the faces with G1 continuity along its sides (T. Várady, A. Rockwood, "Vertex blending based on
@@ -505,8 +523,6 @@ export class FilletCorner {
     public static setback( ends : Array<{ F : OpenBlend, e : number, keys : [string, string] }>, tol : number )
         : CornerPatch | null {
         if (ends.length != 3) return null;
-        let side = ends[0].F.side;
-        if (ends.some( x => x.F.side != side )) return null;
         let keys : Array<string> = [];
         for (let x of ends) for (let k of x.keys) if (!keys.includes( k )) keys.push( k );
         if (keys.length != 3) return null;
@@ -524,14 +540,7 @@ export class FilletCorner {
             let face = faceOf( p.i, p.b ).face;
             // the contact curves, carried on straight past their ends by a few radii: a blend much smaller than its
             // neighbour stops before its contact meets the neighbour's
-            let line = (x : { i : number, b : number }) => {
-                let F = ends[x.i].F, idx = near[x.i];
-                let uv = idx.map( k => FilletCorner.uvOn( F, x.b, k ) );
-                let a = F.rows[idx[0]], b = F.rows[idx[1]], col = x.b == 0 ? 0 : F.m;
-                let K = 3 * rMax / Math.max( Vec.dist( a.points[col], b.points[col] ), 1e-300 );
-                let ext : UV = [uv[0][0] + K * (uv[0][0] - uv[1][0]), uv[0][1] + K * (uv[0][1] - uv[1][1])];
-                return { uv : [ext].concat( uv ), s : (z : number) => z >= 1 ? FilletCorner.lerpRow( F, idx, z - 1 ).s : a.s + (1 - z) * K * (a.s - b.s) };
-            };
+            let line = (x : { i : number, b : number }) => FilletCorner.carriedOn( ends[x.i].F, near[x.i], x.b, 3 * rMax );
             let lp = line( p ), lq = line( q );
             let cx = FilletCorner.polyCross( face, lp.uv, lq.uv );
             if (cx == null) return null;
@@ -657,14 +666,21 @@ export class FilletCorner {
             } );
         }
         let m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
-        // outward: away from the end sections' centres on a convex corner, towards them on a concave one
+        // outward, with the faces: the triangles turned one way in the polygon, then all flipped if the one at the
+        // patch's first boundary point (on the first face curve, where the patch is tangent to that face) faces against
+        // the face's outward normal. (A convex and a concave corner both follow, and a mixed one too.)
         let c = Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) );
-        let triangles = m.triangles.map( t => {
-            let nrm = Vec.cross( Vec.sub( m.points[t[1]], m.points[t[0]] ), Vec.sub( m.points[t[2]], m.points[t[0]] ) );
-            let mid = Vec.mul( 1 / 3, Vec.add( m.points[t[0]], Vec.add( m.points[t[1]], m.points[t[2]] ) ) );
-            let out = Vec.dot( nrm, Vec.sub( mid, c ) ) * -side > 0;
-            return (out ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
+        let ccw = m.triangles.map( t => {
+            let a = m.domain[t[0]], b = m.domain[t[1]], d = m.domain[t[2]];
+            let o = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]);
+            return (o > 0 ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
         } );
+        let first = ccw.find( t => t.includes( 0 ) ) as [number, number, number];
+        let o0 = order[0] as { kind : "face", f : number, reverse : boolean }, c0 = curves[o0.f];
+        let uv0 = o0.reverse ? c0.uv[c0.uv.length - 1] : c0.uv[0];
+        let n0 = Vec.cross( Vec.sub( m.points[first[1]], m.points[first[0]] ), Vec.sub( m.points[first[2]], m.points[first[0]] ) );
+        let flip = Vec.dot( n0, Fillet.normal( c0.side, uv0 ) ) < 0;
+        let triangles = ccw.map( t => (flip ? [t[0], t[2], t[1]] : t) as [number, number, number] );
         // the face curves cut their faces, as more cuts of the first blend on each
         touch.forEach( (t, k) => {
             let F = ends[t[0].i].F, cv = curves[k];

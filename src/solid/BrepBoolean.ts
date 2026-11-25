@@ -5,7 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
 import { MeshBVH } from "./MeshBVH.js";
-import { BrepEdges, DomainSide } from "./BrepEdges.js";
+import { BrepEdges, DomainSide, SolidEdge } from "./BrepEdges.js";
 import { Fillet, FilletRadius, FilletResult, FilletShape, FilletSide } from "./Fillet.js";
 import { FilletCorner, OpenBlend, ThirdEdge } from "./FilletCorner.js";
 import { ManifoldReport, TriMesh } from "./TriMesh.js";
@@ -173,6 +173,9 @@ export class BrepBoolean {
         // the solids' own edges to round: runs that are not cut into their faces (they lie on the faces' sides)
         let ownFailed = 0;
         let vertices : Array<Point> = [];
+        // the ends of the Boolean's branches, where they may cross an own edge
+        let branchEnds : Array<Point> = [];
+        for (let c of curves) if (!c.curve.closed) for (let p of [c.curve.points[0], c.curve.points[c.curve.points.length - 1]]) if (!branchEnds.includes( p )) branchEnds.push( p );
         for (let x of o.edges || []) {
             let solid = solids[x.solid];
             let e = BrepEdges.between( solid, x.faces[0], x.faces[1] );
@@ -185,13 +188,18 @@ export class BrepBoolean {
                     if (same != null) pts[k] = same; else vertices.push( pts[k] );
                 }
             }
-            // an edge of the result where the other solids leave its solid's boundary there
-            let mid = e.curve.points[e.curve.points.length >> 1];
-            let flags = solids.map( (_, k) => k == x.solid ? false : meshes[k].contains( mid ) );
-            let fin = expr( flags.map( (f, k) => k == x.solid ? true : f ) ), fout = expr( flags );
-            if (fin == fout) continue;
-            curves.push( { solids : [x.solid, x.solid], faces : x.faces, curve : e.curve, own : e.sides } );
-            runs.push( { ci : curves.length - 1, curve : e.curve, sides : BrepEdges.filletSides( solid, e, 0 ), radius : x.radius, own : true } );
+            // where branches of the Boolean end on the edge, it is split: each piece is an edge of the result or not
+            for (let piece of BrepBoolean.splitAt( e.curve, branchEnds, snap )) {
+                // an edge of the result where the other solids leave its solid's boundary there
+                let mid = piece.points[piece.points.length >> 1];
+                if (!piece.closed && piece.points.length == 2) mid = Vec.lerp( 0.5, piece.points[0], piece.points[1] );
+                let flags = solids.map( (_, k) => k == x.solid ? false : meshes[k].contains( mid ) );
+                let fin = expr( flags.map( (f, k) => k == x.solid ? true : f ) ), fout = expr( flags );
+                if (fin == fout) continue;
+                let pe : SolidEdge = { faces : e.faces, sides : e.sides, curve : piece };
+                curves.push( { solids : [x.solid, x.solid], faces : x.faces, curve : piece, own : e.sides } );
+                runs.push( { ci : curves.length - 1, curve : piece, sides : BrepEdges.filletSides( solid, pe, piece.points.length >> 1 ), radius : x.radius, own : true } );
+            }
         }
 
         // rolling-ball fillets: the contact curves are extra cuts (tagged runs.length + the run's index); the strip of
@@ -446,6 +454,55 @@ export class BrepBoolean {
         let A = side( i, j, solids[i].faces[e.faces[0]] ), B = side( j, i, solids[j].faces[e.faces[1]] );
         if (A == null || B == null) return null;
         return [A, B];
+    }
+
+    // A curve split at the points of `at` that lie on it (within tol): the points are put into it (their parameters
+    // interpolated along the segment they fall on) and the pieces between them returned, open. A curve that no point
+    // lies on comes back whole.
+    private static splitAt( c : IntersectionCurve, at : Array<Point>, tol : number ) : Array<IntersectionCurve> {
+        let n = c.points.length, segs = c.closed ? n : n - 1;
+        let hits : Array<{ k : number, f : number, p : Point }> = [];
+        for (let p of at) {
+            for (let k = 0; k < segs; k++) {
+                let a = c.points[k], b = c.points[(k + 1) % n], ab = Vec.sub( b, a ), l2 = Vec.dot( ab, ab );
+                let f = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) ) : 0;
+                if (Vec.dist( p, Vec.add( a, Vec.mul( f, ab ) ) ) < tol) {
+                    // not an end of an open curve (those are vertices of the solid)
+                    if (!c.closed && ((k == 0 && f < 1e-9) || (k == segs - 1 && f > 1 - 1e-9))) break;
+                    if (f > 1 - 1e-9) hits.push( { k : (k + 1) % n, f : 0, p : p } ); else hits.push( { k : k, f : f, p : p } );
+                    break;
+                }
+            }
+        }
+        if (hits.length == 0) return [c];
+        // the curve with the points put in, and their indices
+        hits.sort( (x, y) => x.k - y.k || x.f - y.f );
+        let pts : Array<Point> = [], uvA : Array<UV> = [], uvB : Array<UV> = [], sA : Array<number> = [], sB : Array<number> = [], cut : Array<number> = [];
+        let lerp = (a : UV, b : UV, f : number) : UV => [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])];
+        let h = 0;
+        for (let k = 0; k < n; k++) {
+            let atStart = false;
+            while (h < hits.length && hits[h].k == k && hits[h].f < 1e-9) { atStart = true; cut.push( pts.length ); pts.push( hits[h].p ); uvA.push( c.uvA[k] ); uvB.push( c.uvB[k] ); sA.push( c.seamA[k] ); sB.push( c.seamB[k] ); h++; }
+            if (!atStart) { pts.push( c.points[k] ); uvA.push( c.uvA[k] ); uvB.push( c.uvB[k] ); sA.push( c.seamA[k] ); sB.push( c.seamB[k] ); }
+            while (h < hits.length && hits[h].k == k) {
+                let k1 = (k + 1) % n, f = hits[h].f;
+                cut.push( pts.length ); pts.push( hits[h].p );
+                uvA.push( lerp( c.uvA[k], c.uvA[k1], f ) ); uvB.push( lerp( c.uvB[k], c.uvB[k1], f ) ); sA.push( 0 ); sB.push( 0 );
+                h++;
+            }
+        }
+        let m = pts.length, out : Array<IntersectionCurve> = [];
+        let take = (idx : Array<number>) => out.push( { points : idx.map( i => pts[i] ), uvA : idx.map( i => uvA[i] ), uvB : idx.map( i => uvB[i] ),
+                                                        seamA : idx.map( i => sA[i] ), seamB : idx.map( i => sB[i] ), closed : false } );
+        let bounds = c.closed ? cut : [0].concat( cut, [m - 1] );
+        let pieces = c.closed ? bounds.length : bounds.length - 1;
+        for (let x = 0; x < pieces; x++) {
+            let a = bounds[x], b = bounds[(x + 1) % bounds.length];
+            let idx : Array<number> = [];
+            for (let i = a; ; i = (i + 1) % m) { idx.push( i ); if (i == b && idx.length > 1) break; if (idx.length > m + 1) break; }
+            if (idx.length >= 2) take( idx );
+        }
+        return out;
     }
 
     // Whether a region of a face's tessellation has a vertex on a side of the face's domain.

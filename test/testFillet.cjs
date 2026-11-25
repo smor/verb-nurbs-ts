@@ -258,4 +258,27 @@ describe("verb.solid.Fillet", function(){
 			manifold(res.mesh).status().should.be.equal('NoError');
 		});
 	});
+
+	it("rounds the edges around a boss on a box: concave mitres at a sharp boss, and mixed corners when the boss is rounded too", function(){
+		var A = BrepSolid.box([0, 0, 0], [30, 20, 8], 12), B = BrepSolid.box([8, 5, 4], [20, 15, 16], 12);
+		// only the new (concave) edges: they meet in pairs at the boss's sharp vertical edges, along mitres
+		var base = BrepBoolean.union([A, B], { fillet : 1.5 });
+		base.report.fillets.should.be.equal(4);
+		base.report.filletsSkipped.should.be.equal(0);
+		base.report.manifold.closedManifold.should.be.true();
+		// every edge: the boss's vertical edges are split where the base's edges end on them, and their upper parts
+		// (convex) meet the base's fillets (concave) at four mixed setback corners
+		var edges = lib.BrepEdges.all(A).map(function(e){ return { solid : 0, faces : e.faces, radius : 1.5 }; })
+			.concat(lib.BrepEdges.all(B).map(function(e){ return { solid : 1, faces : e.faces, radius : 1.5 }; }));
+		var all = BrepBoolean.union([A, B], { fillet : 1.5, edges : edges });
+		all.report.fillets.should.be.equal(24);
+		all.report.filletsSkipped.should.be.equal(0);
+		all.corners.filter(function(c){ return c.kind == 'setback'; }).length.should.be.equal(4);
+		all.corners.filter(function(c){ return c.kind == 'ball'; }).length.should.be.equal(12);
+		all.report.manifold.closedManifold.should.be.true();
+		all.report.manifold.genus.should.be.equal(0);
+		manifold(all.mesh).status().should.be.equal('NoError');
+		// rounding takes material off the convex edges and adds it in the concave ones: less than the sharp union
+		all.report.volume.should.be.below(BrepBoolean.union([A, B]).report.volume);
+	});
 });
