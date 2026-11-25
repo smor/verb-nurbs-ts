@@ -18,7 +18,7 @@ checks that solids are valid manifolds.
 | `npm run typecheck` | strict type check without emitting |
 | `npm run lint` | ESLint (`eslint.config.js`). Warnings are capped: the cap may go down, never up |
 | `npm test` | build, then every mocha spec in `test/` |
-| `npx mocha test/testFillet.cjs -g "box"` | one spec file, filtered by test name (after a build) |
+| `npx mocha --no-config --timeout 60000 test/testFillet.cjs -g "box"` | one spec file, filtered by test name (after a build) |
 | `npm run coverage` | tests with c8 coverage, mapped back to `src/` (`coverage/index.html`) |
 | `npm run docs` | API reference with TypeDoc → `docs/api/` |
 | `npm run viewer` / `npm run playground` | build the single-file web apps |

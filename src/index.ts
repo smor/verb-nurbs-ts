@@ -75,7 +75,9 @@ import { MeshBVH } from "./solid/MeshBVH.js";
 import { Shell } from "./solid/Shell.js";
 export type { VesselMeshOptions } from "./solid/Shell.js";
 import { SurfaceIntersect } from "./solid/SurfaceIntersect.js";
-export type { SurfaceDomain, IntersectionCurve, SurfaceIntersectOptions } from "./solid/SurfaceIntersect.js";
+export type { SurfaceDomain, IntersectionCurve, SurfaceIntersectOptions, SurfaceIntersection } from "./solid/SurfaceIntersect.js";
+import { SurfaceLoops } from "./solid/SurfaceLoops.js";
+export type { LoopSurface, CriticalPoint, LoopOptions, LoopStart } from "./solid/SurfaceLoops.js";
 import { TriMesh } from "./solid/TriMesh.js";
 export type { ManifoldMeshArrays, ManifoldReport } from "./solid/TriMesh.js";
 import { ApplianceRecipe } from "./recipes/Appliance.js";
@@ -176,6 +178,7 @@ export {
     MeshBVH,
     Shell,
     SurfaceIntersect,
+    SurfaceLoops,
     TriMesh,
     ApplianceRecipe,
     BooleanObjectsRecipe,
@@ -279,6 +282,7 @@ export const solid = {
     MeshBVH,
     Shell,
     SurfaceIntersect,
+    SurfaceLoops,
     TriMesh,
 };
 export const recipes = {

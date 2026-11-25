@@ -3,6 +3,7 @@ import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { Intersect } from "../eval/Intersect.js";
+import { SurfaceLoops, CriticalPoint } from "./SurfaceLoops.js";
 
 // A surface with the information the intersection needs about its parameter domain: whether it closes on itself
 // in u or in v (a periodic direction has a seam that intersection curves may cross).
@@ -33,6 +34,18 @@ export interface SurfaceIntersectOptions {
     step? : number;
     // refinement tolerance on the distance between the two surfaces (default 1e-9)
     tolerance? : number;
+    // look for closed loops smaller than the grid, from the critical points of the distance between the surfaces
+    // (`SurfaceLoops`); default true
+    loops? : boolean;
+    // cells per direction in which critical points are sought (default 8)
+    loopCells? : number;
+}
+
+// The full result of an intersection: its branches, and the isolated points where the two surfaces touch without
+// crossing (tangent contact), which produce no branch.
+export interface SurfaceIntersection {
+    curves : Array<IntersectionCurve>;
+    touching : Array<CriticalPoint>;
 }
 
 // Surface-surface intersection with parameters on both surfaces.
@@ -48,10 +61,17 @@ export interface SurfaceIntersectOptions {
 // 3. densify the branch until consecutive points are `step` apart, refining every inserted point
 // 4. insert an exact vertex wherever the branch crosses the seam of a periodic surface (isocurve/surface Newton),
 //    so the trimmed faces can be split there
+// 5. find the closed loops step 1 cannot resolve from the critical points of the distance between the surfaces
+//    (`SurfaceLoops`, after Sinha's theorem), and trace each with a marching method (`trace`)
 
 export class SurfaceIntersect {
 
     public static surfaces( A : SurfaceDomain, B : SurfaceDomain, options? : SurfaceIntersectOptions ) : Array<IntersectionCurve> {
+        return SurfaceIntersect.analyze( A, B, options ).curves;
+    }
+
+    // The branches of the intersection and the points where the surfaces touch.
+    public static analyze( A : SurfaceDomain, B : SurfaceDomain, options? : SurfaceIntersectOptions ) : SurfaceIntersection {
         const o = options != null ? options : {};
         const tol = o.tolerance != null ? o.tolerance : 1e-9;
         const a = A.surface, b = B.surface;
@@ -75,10 +95,108 @@ export class SurfaceIntersect {
             let c : IntersectionCurve = { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed };
             if (!closed) c = SurfaceIntersect.extendToEdges( A, B, c, Math.max( step, SurfaceIntersect.meshEdge( ma, mb ) ) * 4, tol );
             c = SurfaceIntersect.densify( A, B, c, step, tol );
+            if (c.closed && c.points.length < SurfaceIntersect.MIN_LOOP_POINTS) {
+                // a loop not much bigger than the step is too coarse to trim with: trace it again, finer
+                const fine = SurfaceIntersect.retrace( A, B, c, tol );
+                if (fine != null) c = fine;
+            }
             c = SurfaceIntersect.insertSeams( A, B, c, tol );
             out.push( c );
         }
-        return out;
+        const touching : Array<CriticalPoint> = [];
+        if (o.loops !== false) {
+            const found = SurfaceLoops.seeds( A, B, { cells : o.loopCells } );
+            touching.push( ...found.touching );
+            for (const s of found.starts) {
+                const r = SurfaceIntersect.refine( A, B, s.uvA, s.uvB, tol );
+                if (r == null) continue;
+                // a start point on a branch already found adds nothing
+                if (out.some( c => SurfaceIntersect.onCurve( c, r.point ) )) continue;
+                let c = SurfaceIntersect.trace( A, B, r, Math.min( step, Math.max( s.size / 12, 1e-6 * step ) ), tol );
+                if (c == null) continue;
+                if (!c.closed) c = SurfaceIntersect.extendToEdges( A, B, c, 4 * step, tol );
+                c = SurfaceIntersect.insertSeams( A, B, c, tol );
+                out.push( c );
+            }
+        }
+        return { curves : out, touching : touching };
+    }
+
+    // A marching method (Barnhill and Kersey 1990): from a point on both surfaces, step along the intersection's
+    // tangent (the cross product of the two normals) and refine each step onto both surfaces, both ways, until the
+    // branch closes on its start or leaves a domain. The step is halved where the refinement fails.
+    public static trace( A : SurfaceDomain, B : SurfaceDomain, start : { point : Point, uvA : UV, uvB : UV }, step : number,
+                         tol : number, maxPoints : number = 20000 ) : IntersectionCurve | null {
+        const halves : Array<Array<{ point : Point, uvA : UV, uvB : UV }>> = [];
+        let closed = false;
+        for (const dir of [1, -1]) {
+            const run = [start];
+            let cur = start;
+            while (run.length < maxPoints) {
+                const pa = Eval.rationalSurfaceDerivatives( A.surface, cur.uvA[0], cur.uvA[1], 1 );
+                const pb = Eval.rationalSurfaceDerivatives( B.surface, cur.uvB[0], cur.uvB[1], 1 );
+                const t = Vec.cross( Vec.cross( pa[1][0], pa[0][1] ), Vec.cross( pb[1][0], pb[0][1] ) );
+                if (Vec.norm( t ) < 1e-14) break; // the surfaces are tangent here: the branch cannot be followed
+                const dirT = Vec.mul( dir / Vec.norm( t ), t );
+                let next : { point : Point, uvA : UV, uvB : UV } | null = null;
+                let h = step;
+                for (let tries = 0; tries < 5 && next == null; tries++, h /= 2) {
+                    const ga = Vec.add( cur.uvA, SurfaceIntersect.tangentStep( pa[1][0], pa[0][1], Vec.mul( h, dirT ) ) );
+                    const gb = Vec.add( cur.uvB, SurfaceIntersect.tangentStep( pb[1][0], pb[0][1], Vec.mul( h, dirT ) ) );
+                    if (!SurfaceIntersect.within( A, ga ) || !SurfaceIntersect.within( B, gb )) break;
+                    const r = SurfaceIntersect.refine( A, B, ga, gb, tol );
+                    if (r != null && Vec.dist( r.point, cur.point ) > 0.2 * h && Vec.dist( r.point, cur.point ) < 2 * h) next = r;
+                }
+                if (next == null) break;
+                if (run.length > 3 && Vec.dist( next.point, start.point ) < 0.75 * step) { closed = true; break; }
+                run.push( next ); cur = next;
+            }
+            halves.push( run );
+            if (closed) break;
+        }
+        let pts = halves[0];
+        if (!closed && halves.length > 1) pts = halves[1].slice( 1 ).reverse().concat( halves[0] );
+        if (pts.length < 2) return null;
+        return { points : pts.map( p => p.point ), uvA : pts.map( p => p.uvA ), uvB : pts.map( p => p.uvB ),
+                 seamA : pts.map( () => 0 ), seamB : pts.map( () => 0 ), closed : closed };
+    }
+
+    // the fewest vertices a closed loop is given; smaller loops are traced again with a finer step
+    public static MIN_LOOP_POINTS = 24;
+
+    // Trace a closed loop again from its first vertex, with a step that gives it about 2 x MIN_LOOP_POINTS vertices.
+    private static retrace( A : SurfaceDomain, B : SurfaceDomain, c : IntersectionCurve, tol : number ) : IntersectionCurve | null {
+        let perimeter = 0.0;
+        for (let i = 0; i < c.points.length; i++) perimeter += Vec.dist( c.points[i], c.points[(i + 1) % c.points.length] );
+        if (perimeter <= 0) return null;
+        const r = SurfaceIntersect.refine( A, B, c.uvA[0], c.uvB[0], tol );
+        if (r == null) return null;
+        const t = SurfaceIntersect.trace( A, B, r, perimeter / (2 * SurfaceIntersect.MIN_LOOP_POINTS), tol );
+        return t != null && t.closed && t.points.length >= SurfaceIntersect.MIN_LOOP_POINTS / 2 ? t : null;
+    }
+
+    // Whether a point of the intersection lies on a branch already found: closer to one of its vertices than about
+    // half the length of the branch's segments there (an exact point between two vertices is at most that far).
+    private static onCurve( c : IntersectionCurve, p : Point ) : boolean {
+        const n = c.points.length;
+        for (let i = 0; i < n; i++) {
+            const a = c.points[i];
+            const prev = i > 0 ? c.points[i - 1] : (c.closed ? c.points[n - 1] : null);
+            const next = i + 1 < n ? c.points[i + 1] : (c.closed ? c.points[0] : null);
+            let seg = 0.0;
+            if (prev != null) seg = Math.max( seg, Vec.dist( prev, a ) );
+            if (next != null) seg = Math.max( seg, Vec.dist( a, next ) );
+            if (Vec.dist( a, p ) <= 0.6 * seg + 1e-9) return true;
+        }
+        return false;
+    }
+
+    // Whether a parameter pair is inside the domain (periodic directions always are).
+    private static within( S : SurfaceDomain, uv : UV ) : boolean {
+        const d = SurfaceIntersect.domain( S.surface );
+        const p = S.periodic != null ? S.periodic : [false, false];
+        for (let k = 0; k < 2; k++) if (!p[k] && (uv[k] < d[2 * k] - 1e-12 || uv[k] > d[2 * k + 1] + 1e-12)) return false;
+        return true;
     }
 
     // Refine an estimate onto both surfaces. Periodic parameters are wrapped into the domain, others clamped.

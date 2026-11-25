@@ -17,8 +17,20 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
    Design and Manufacturing* (2002), ch. 5, and Barnhill and Kersey, "A marching method for parametric
    surface/surface intersection" (CAGD 7, 1990):
    * **Find every branch.** Intersect two grid triangulations of the faces. This finds every branch the grids
-     resolve. A branch smaller than a grid cell can be missed. Kernels close that gap with subdivision and
-     loop-detection tests (Sederberg and Meyers, CAGD 5, 1988), which are not implemented here.
+     resolve. A closed loop smaller than a grid cell can be missed, so step 1b looks for those separately.
+   * **1b. Detect small loops** (`SurfaceLoops`). By Sinha's theorem (Sinha, Klassen and Wang, ACM Symposium on
+     Computational Geometry, 1985), two surfaces that meet in a closed loop have, inside the loop, a pair of points
+     whose normals are parallel, a *collinear normal point* (Kriezis, Patrikalakis and Wolter, CAD 24(1), 1992):
+     - Both domains are split into cells. Only pairs whose boxes meet and whose sampled normal cones admit parallel
+       normals are kept.
+     - Newton's method solves the four collinear-normal equations from each kept pair. These exclude the trivial
+       solutions along a transversal crossing.
+     - At a critical point a positive distance apart, the loop around it is found by walking the isocurves through
+       it until the signed distance changes sign. The loop is then traced by marching (`SurfaceIntersect.trace`).
+     - A critical point at zero distance is a **point where the surfaces touch** without crossing. It is reported
+       (`SurfaceIntersect.analyze(...).touching`), not lost.
+     - A loop that the grid finds but resolves with fewer than 24 vertices is traced again, finer, so it can trim a
+       face.
    * **Refine each point.** The three-plane Newton step moves the point to where the two tangent planes and the plane
      normal to both meet, then maps that move back to `(u, v)` on each surface. The iteration keeps the parameters on
      both surfaces. These parameter-space images of the curve are the "pcurves" that trimming needs. Periodic
@@ -44,9 +56,14 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
      edges and the edges between faces of one solid all close up.
 4. **Group regions.** Within each face, triangles are joined across every edge that is not a cut (a union-find over
    the welded edges), so a region continues across periodic seams.
-5. **Classify** (`TriMesh.containsPoint`). Each region is tested against every other solid by ray parity:
-   * Three rays in unrelated directions vote.
-   * The region's five largest triangles vote.
+5. **Classify.** Each region is tested against every other solid:
+   * **At a seam, exactly** (`BrepBoolean.seamSides`). For a region bounded by a seam with another solid, step from
+     the seam into the region. The step is taken in the tangent plane of the region's face, across the seam. The
+     region is inside the other solid when that step points against the other face's outward normal. This does not
+     depend on how finely either solid is tessellated, which matters when two solids overlap by less than the
+     tessellation's chord error. Every seam edge votes, and a clear majority (90%) decides.
+   * **Elsewhere, by ray parity** (`TriMesh.containsPoint`) against the other solid's tessellation. Three rays in
+     unrelated directions vote, from each of the region's five largest triangles.
 6. **Evaluate the expression.** This is CSG boundary evaluation (Requicha and Voelcker, "Boolean operations in solid
    modeling: boundary evaluation and merging algorithms", Proc. IEEE 73(1), 1985). Let a region belong to solid *i*.
    Evaluate the expression twice, once with solid *i* taken as inside and once as outside, and the other solids at
@@ -237,9 +254,12 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
 * **More than two branches crossing at one point** (four or more faces meeting) is not handled.
-* **Tangent and coincident faces.** Faces that touch tangentially, or that overlap, are not detected. Leave tools long
-  and let the Boolean cut them, as the mug does with its handle and cavity, rather than placing faces flush.
-* **Small branches.** A loop smaller than the search grid can be missed.
+* **Tangent and coincident faces.** Isolated points of tangency are detected and reported. Faces that touch along a
+  curve, or that overlap over an area, are not handled. Leave tools long and let the Boolean cut them, as the mug
+  does with its handle and cavity, rather than placing faces flush.
+* **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
+  sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
+  of the derivative surfaces).
 * **Trim curves are polylines.** `TrimmedFace.loops` are dense polylines in `(u, v)`. Fitting them with B-splines
   (`Fit.curve`) would give IGES 142/144 or STEP style trimmed surfaces for export.
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume

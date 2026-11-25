@@ -37,6 +37,8 @@ export interface BooleanOptions {
     // edges of the solids' own faces to round too (see `BrepEdges`): the solid, its two faces, and the radius. They take
     // the same fillet shape. Closed edges only for now (a cap's rim, a wall's top).
     edges? : Array<{ solid : number, faces : [number, number], radius : FilletRadius }>;
+    // look for intersection loops too small for the search grids (see `SurfaceLoops`; default true)
+    loops? : boolean;
 }
 
 export interface BooleanResult {
@@ -117,7 +119,7 @@ export class BrepBoolean {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
                 const step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 const found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
-                    divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol } );
+                    divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
                 for (const c of BrepBoolean.dropRetraces( found, 0.02 * step ))
                     curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
@@ -378,6 +380,9 @@ export class BrepBoolean {
                     if (ownStrips.some( x => x.solid == si && x.face == fi && tags.has( x.tag ) && BrepBoolean.touches( face, t, reg, x.side ) )) continue;
                 }
                 const inside = BrepBoolean.classify( t, reg, si, meshes );
+                // next to a seam with another solid, the side is exact: it does not depend on how finely that solid is
+                // tessellated, which matters when the two barely overlap
+                for (const [k, x] of BrepBoolean.seamSides( t, reg, si, solids, runs, curves )) inside[k] = x;
                 const fin = expr( inside.map( (x, k) => k == si ? true : x ) );
                 const fout = expr( inside.map( (x, k) => k == si ? false : x ) );
                 if (fin == fout) continue;
@@ -511,6 +516,54 @@ export class BrepBoolean {
         const eps = 1e-9 * (d[2 * side.axis + 1] - d[2 * side.axis]);
         for (const k of region) for (const v of t.triangles[k]) if (Math.abs( t.uv[v][side.axis] - side.value ) <= eps) return true;
         return false;
+    }
+
+    // Inside/outside flags of a region against the solids it meets along a seam, from the geometry at the seam: step
+    // from the seam into the region, in the tangent plane of the region's face and across the seam, and see which side
+    // of the other face that is (its outward normal). Exact for transversal seams, whatever the tessellation.
+    private static seamSides( t : FaceTessellation, region : Array<number>, own : number, solids : Array<BrepSolid>,
+                              runs : Array<{ ci : number, curve : IntersectionCurve, own? : boolean }>,
+                              curves : BooleanResult["curves"] ) : Map<number, boolean> {
+        // votes per other solid: [inside, outside], one per seam edge; a side is decided by a clear majority (a sliver
+        // triangle at the end of a seam can vote wrong), otherwise left to the ray test
+        const votes = new Map<number, [number, number]>();
+        const key = (a : number, b : number) => a + "," + b;
+        const tagOf = new Map<string, number>();
+        t.cutEdges.forEach( (e, k) => { tagOf.set( key( e[0], e[1] ), t.cutTags[k] ); tagOf.set( key( e[1], e[0] ), t.cutTags[k] ); } );
+        for (const k of region) {
+            const tri = t.triangles[k];
+            for (let x = 0; x < 3; x++) {
+                const a = tri[x], b = tri[(x + 1) % 3], c = tri[(x + 2) % 3];
+                const g = tagOf.get( key( a, b ) );
+                if (g == null || g < 0 || g >= runs.length || runs[g].own) continue;
+                const e = curves[runs[g].ci], run = runs[g].curve;
+                const mine = e.solids[0] == own ? 0 : 1, other = 1 - mine;
+                if (e.solids[mine] != own) continue;
+                const myFace = solids[own].faces[e.faces[mine]], otherFace = solids[e.solids[other]].faces[e.faces[other]];
+                const mid = Vec.lerp( 0.5, t.points[a], t.points[b] );
+                let best = 0, bd = Infinity;
+                run.points.forEach( (p, i) => { const d = Vec.distSquared( p, mid ); if (d < bd) { bd = d; best = i; } } );
+                const uvMine = mine == 0 ? run.uvA[best] : run.uvB[best], uvOther = mine == 0 ? run.uvB[best] : run.uvA[best];
+                const da = Eval.rationalSurfaceDerivatives( myFace.surface, uvMine[0], uvMine[1], 1 );
+                const db = Eval.rationalSurfaceDerivatives( otherFace.surface, uvOther[0], uvOther[1], 1 );
+                const na = Vec.normalized( Vec.cross( da[1][0], da[0][1] ) );
+                let nb = Vec.normalized( Vec.cross( db[1][0], db[0][1] ) );
+                if (otherFace.reversed) nb = Vec.mul( -1, nb );
+                const along = Vec.cross( na, nb );
+                if (Vec.norm( along ) < 1e-9) continue; // tangent here: no clean side
+                const T = Vec.normalized( along );
+                let d = Vec.sub( t.points[c], mid );
+                d = Vec.sub( d, Vec.mul( Vec.dot( d, na ), na ) );
+                d = Vec.sub( d, Vec.mul( Vec.dot( d, T ), T ) );
+                const s = Vec.dot( d, nb );
+                if (Math.abs( s ) < 1e-12 * Math.max( 1, Vec.norm( d ) )) continue;
+                const v = votes.get( e.solids[other] );
+                if (v == null) votes.set( e.solids[other], s < 0 ? [1, 0] : [0, 1] ); else v[s < 0 ? 0 : 1]++;
+            }
+        }
+        const out = new Map<number, boolean>();
+        for (const [k, v] of votes) if (Math.max( v[0], v[1] ) >= 0.9 * (v[0] + v[1])) out.set( k, v[0] > v[1] );
+        return out;
     }
 
     // the tags of the cut edges around a region
