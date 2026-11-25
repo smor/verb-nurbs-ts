@@ -72,7 +72,8 @@ export class SurfaceLoops {
             if (!SurfaceLoops.conesAdmitParallel( a, b )) continue;
             // a critical point already found in this pair of cells: Newton's method would most likely find it again
             if (out.some( o => SurfaceLoops.inCell( a, o.uvA ) && SurfaceLoops.inCell( b, o.uvB ) )) continue;
-            const foot = SurfaceLoops.project( A, Eval.rationalSurfacePoint( B.surface, b.centre[0], b.centre[1] ), a.centre );
+            // a rough foot point is enough to start from: Newton's method below refines it
+            const foot = SurfaceLoops.project( A, Eval.rationalSurfacePoint( B.surface, b.centre[0], b.centre[1] ), a.centre, 6 );
             const cp = SurfaceLoops.newton( A, B, foot != null ? foot : a.centre, b.centre );
             if (cp == null) continue;
             if (out.some( o => Vec.dist( o.pointA, cp.pointA ) < same && Vec.dist( o.pointB, cp.pointB ) < same )) continue;
@@ -155,9 +156,9 @@ export class SurfaceLoops {
     }
 
     // The parameters of the point of B closest to X, by Newton's method from uv0.
-    public static project( B : LoopSurface, X : Point, uv0 : UV ) : UV | null {
+    public static project( B : LoopSurface, X : Point, uv0 : UV, iterations : number = 30 ) : UV | null {
         let uv = SurfaceLoops.wrap( B, uv0 );
-        for (let it = 0; it < 30; it++) {
+        for (let it = 0; it < iterations; it++) {
             const d = Eval.rationalSurfaceDerivatives( B.surface, uv[0], uv[1], 2 );
             const r = Vec.sub( d[0][0], X );
             const g = [Vec.dot( r, d[1][0] ), Vec.dot( r, d[0][1] )];
@@ -182,7 +183,11 @@ export class SurfaceLoops {
     // transversal intersection, where P = Q but the normals differ.
     private static newton( A : LoopSurface, B : LoopSurface, uvA0 : UV, uvB0 : UV ) : CriticalPoint | null {
         let x = [uvA0[0], uvA0[1], uvB0[0], uvB0[1]];
-        let first = Infinity;
+        let first = Infinity, prevMoved = Infinity, best = Infinity, bestAt = 0;
+        const dA = SurfaceLoops.domain( A.surface ), dB = SurfaceLoops.domain( B.surface );
+        // limit a step to a quarter of each domain, so a far start cannot jump across the surface
+        const lim = [0.25 * (dA[1] - dA[0]), 0.25 * (dA[3] - dA[2]), 0.25 * (dB[1] - dB[0]), 0.25 * (dB[3] - dB[2])];
+        const scale = Math.max( 1, 4 * Math.max( ...lim ) );
         for (let it = 0; it < 30; it++) {
             const a = Eval.rationalSurfaceDerivatives( A.surface, x[0], x[1], 2 );
             const b = Eval.rationalSurfaceDerivatives( B.surface, x[2], x[3], 2 );
@@ -193,9 +198,14 @@ export class SurfaceLoops {
             const Nu = Vec.add( Vec.cross( Puu, Pv ), Vec.cross( Pu, Puv ) ), Nv = Vec.add( Vec.cross( Puv, Pv ), Vec.cross( Pu, Pvv ) );
             const F = [Vec.dot( d, Pu ), Vec.dot( d, Pv ), Vec.dot( N, Qs ), Vec.dot( N, Qt )];
             // Newton's method converges fast or not at all: give up on a start that has not halved its residual
+            // after 8 steps, or that wanders without halving its best residual for 6 steps (a cycle far from any
+            // solution, which would otherwise run to the iteration limit)
             const res = Math.hypot( F[0], F[1], F[2], F[3] );
             if (it == 0) first = res;
-            else if (it == 8 && res > 0.5 * first) return null;
+            else if (it >= 8 && res > 0.5 * first) return null;
+            if (res < 0.5 * best) { best = res; bestAt = it; } else if (it - bestAt >= 6) return null;
+            // the size of the terms in F, to judge when F is zero up to round-off
+            const norm = Vec.dot( Pu, Pu ) + Vec.dot( Pv, Pv ) + Vec.norm( N ) * (Vec.norm( Qs ) + Vec.norm( Qt ));
             const J = [
                 [Vec.dot( Pu, Pu ) + Vec.dot( d, Puu ), Vec.dot( Pu, Pv ) + Vec.dot( d, Puv ), -Vec.dot( Qs, Pu ), -Vec.dot( Qt, Pu )],
                 [Vec.dot( Pu, Pv ) + Vec.dot( d, Puv ), Vec.dot( Pv, Pv ) + Vec.dot( d, Pvv ), -Vec.dot( Qs, Pv ), -Vec.dot( Qt, Pv )],
@@ -203,15 +213,19 @@ export class SurfaceLoops {
                 [Vec.dot( Nu, Qt ), Vec.dot( Nv, Qt ), Vec.dot( N, Qst ), Vec.dot( N, Qtt )]];
             const step = SurfaceLoops.solve( J, F );
             if (step == null) return null;
-            // limit a step to a quarter of each domain, so a far start cannot jump across the surface
-            const dA = SurfaceLoops.domain( A.surface ), dB = SurfaceLoops.domain( B.surface );
-            const lim = [0.25 * (dA[1] - dA[0]), 0.25 * (dA[3] - dA[2]), 0.25 * (dB[1] - dB[0]), 0.25 * (dB[3] - dB[2])];
             const k = Math.max( 1, ...step.map( (v, i) => Math.abs( v ) / lim[i] ) );
             const uvA = SurfaceLoops.wrap( A, [x[0] - step[0] / k, x[1] - step[1] / k] );
             const uvB = SurfaceLoops.wrap( B, [x[2] - step[2] / k, x[3] - step[3] / k] );
             const moved = Math.abs( uvA[0] - x[0] ) + Math.abs( uvA[1] - x[1] ) + Math.abs( uvB[0] - x[2] ) + Math.abs( uvB[1] - x[3] );
             x = [uvA[0], uvA[1], uvB[0], uvB[1]];
-            if (moved < 1e-13) {
+            // converged: the step is at the round-off level of the parameters, or it has stopped shrinking while
+            // tiny (round-off then limits it; requiring a fixed 1e-13 used to reject points found to 1e-12)
+            const done = moved < 1e-13 * scale || (moved < 1e-9 * scale && moved > 0.5 * prevMoved);
+            prevMoved = moved;
+            // a stalled step alone is not a solution (a singular Jacobian stalls too): F must also be near zero
+            const small = res <= 1e-8 * norm || res <= 1e-6 * first;
+            if (done) {
+                if (!small) return null;
                 // a critical point on the boundary of a domain is a boundary extremum, not one inside a loop
                 if (SurfaceLoops.onBoundary( A, uvA ) || SurfaceLoops.onBoundary( B, uvB )) return null;
                 const pa = Eval.rationalSurfacePoint( A.surface, uvA[0], uvA[1] ), pb = Eval.rationalSurfacePoint( B.surface, uvB[0], uvB[1] );
@@ -223,7 +237,16 @@ export class SurfaceLoops {
 
     // ---------- step 1: cells, their boxes and normal cones ----------
 
+    // Cells depend only on the surface and n, and one face meets many others in a Boolean: compute them once.
     private static cells( s : NurbsSurfaceData, n : number ) : Array<Cell> {
+        let bySize = CELLS.get( s );
+        if (bySize == null) { bySize = new Map(); CELLS.set( s, bySize ); }
+        let out = bySize.get( n );
+        if (out == null) { out = SurfaceLoops.sampleCells( s, n ); bySize.set( n, out ); }
+        return out;
+    }
+
+    private static sampleCells( s : NurbsSurfaceData, n : number ) : Array<Cell> {
         const d = SurfaceLoops.domain( s );
         const m = 4; // samples per cell side
         const out : Array<Cell> = [];
@@ -333,6 +356,10 @@ export class SurfaceLoops {
         return x.every( v => isFinite( v ) ) ? x : null;
     }
 }
+
+// Cells by surface, then by cells per side. Weak keys: an entry goes when its surface does. Surface data is treated
+// as immutable throughout the library, so an entry never goes stale.
+const CELLS = new WeakMap<NurbsSurfaceData, Map<number, Array<Cell>>>();
 
 interface Cell {
     centre : UV;

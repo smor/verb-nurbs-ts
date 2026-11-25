@@ -1,11 +1,12 @@
 var should = require('should');
 var lib = require('../dist/index.js');
+var budget = require('./support/budget.cjs');
 
 function layer(v, name) { return v.layers.find(function(l){ return l.name == name; }); }
 function fact(facts, name) { return facts.find(function(f){ return f[0] == name; })[1]; }
 
 describe("verb.view.Inspect", function(){
-	this.timeout(60000);
+	this.timeout(budget(60000));
 
 	it('a circle: rational, its curvature comb a ring of teeth of one length, all pointing outward', function(){
 		var v = lib.Inspect.curve(lib.Make.arc([0,0,0],[1,0,0],[0,1,0],10,0,2*Math.PI), 'circle', { samples : 64 });
