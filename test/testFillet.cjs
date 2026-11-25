@@ -226,4 +226,36 @@ describe("verb.solid.Fillet", function(){
 			manifold(res.mesh).status().should.be.equal('NoError');
 		});
 	});
+
+	it("rounds every edge of a box: open own edges meeting at ball corners, the volume of a Minkowski sum", function(){
+		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
+		var E = lib.BrepEdges.all(b);
+		E.length.should.be.equal(12);
+		var r = 2;
+		var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : r }; }) });
+		res.report.fillets.should.be.equal(12);
+		res.report.filletsSkipped.should.be.equal(0);
+		res.corners.map(function(c){ return c.kind; }).should.be.eql(['ball', 'ball', 'ball', 'ball', 'ball', 'ball', 'ball', 'ball']);
+		res.report.manifold.closedManifold.should.be.true();
+		manifold(res.mesh).status().should.be.equal('NoError');
+		// the inner box (16 x 10 x 6) swept by a ball of radius 2
+		var a = 16, bb = 10, c = 6;
+		var exact = a * bb * c + r * 2 * (a * bb + bb * c + c * a) + Math.PI * r * r * (a + bb + c) + 4 / 3 * Math.PI * r * r * r;
+		res.report.volume.should.be.approximately(exact, exact * 0.01);
+		res.report.volume.should.be.below(exact);
+	});
+
+	it("rounds a box's edges with three radii: setback corners where they differ, in every section shape", function(){
+		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
+		var E = lib.BrepEdges.all(b);
+		['circular', 'chamfer'].forEach(function(shape){
+			var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : shape, edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : [1, 2, 3][k % 3] }; }) });
+			res.report.fillets.should.be.equal(12);
+			res.report.filletsSkipped.should.be.equal(0);
+			res.corners.length.should.be.equal(8);
+			res.corners.filter(function(c){ return c.kind == 'setback'; }).length.should.be.above(5);
+			res.report.manifold.closedManifold.should.be.true();
+			manifold(res.mesh).status().should.be.equal('NoError');
+		});
+	});
 });
