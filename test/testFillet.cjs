@@ -246,6 +246,22 @@ describe("verb.solid.Fillet", function(){
 		res.report.volume.should.be.below(exact);
 	});
 
+	it("keeps setback corners inside the faces they round: no corner of a rounded box bulges past the box", function(){
+		// radii 3, 4 and 5 on a 40 x 28 x 20 box: with one cross-derivative length for all six sides, the corners stuck
+		// out by 0.11 (circular) and 0.17 (curvature-continuous). Circular corners now stay inside exactly; curvature-
+		// continuous ones keep some fullness to stay G2, and still cross by up to 0.04
+		[['circular', 1e-9], ['curvature', 0.05]].forEach(function(x){
+			var b = BrepSolid.box([0, 0, 0], [40, 28, 20], 12);
+			var E = lib.BrepEdges.all(b).map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; });
+			var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : x[0], edges : E });
+			res.corners.length.should.be.equal(8);
+			res.report.manifold.closedManifold.should.be.true();
+			var out = 0;
+			res.mesh.vertices.forEach(function(p){ out = Math.max(out, -p[0], p[0] - 40, -p[1], p[1] - 28, -p[2], p[2] - 20); });
+			out.should.be.below(x[1]);
+		});
+	});
+
 	it("rounds a box's edges with three radii: setback corners where they differ, in every section shape", function(){
 		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
 		var E = lib.BrepEdges.all(b);
