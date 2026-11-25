@@ -94,6 +94,17 @@ r.curves;        // the intersection curves, with parameters on both faces
 BrepBoolean.evaluate([body, handle, cavity], f => (f[0] || f[1]) && !f[2]);
 ```
 
+## Demo: STEP export
+
+```
+npm run demo:step
+```
+
+Writes `out/step/rounded-box.step` (a box with curvature-continuous fillets and setback corners),
+`out/step/boss.step` (a rod on a disc, its foot filleted) and `out/step/mug.step` (genus 1). Open them in any CAD
+system. Each is a closed solid of the exact NURBS faces with shared B-spline edges; OpenCascade reads all three as
+valid. See [docs/step.md](docs/step.md).
+
 ## Demo: an appliance in four parts
 
 `ApplianceRecipe.build()` is an original kitchen-appliance study made of four separate solids, each checked as
