@@ -74,6 +74,6 @@
   },
   "sideEffects": false,
   "config": {
-    "maxLintWarnings": 64
+    "maxLintWarnings": 60
   }
 }

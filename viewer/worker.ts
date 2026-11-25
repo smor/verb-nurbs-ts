@@ -1,6 +1,6 @@
 // Builds the examples and turns them, or a dropped file, into views, off the main thread.
-import { ApplianceRecipe, BooleanObjectsRecipe, BrepBoolean, BrepEdges, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Sweep, TriMesh } from "../src/index.js";
-import type { View } from "../src/index.js";
+import { ApplianceRecipe, BooleanObjectsRecipe, BrepBoolean, BrepEdges, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Step, Sweep, TriMesh } from "../src/index.js";
+import type { BooleanResult, View } from "../src/index.js";
 
 import { EXAMPLES } from "./examples.js";
 export { EXAMPLES };
@@ -42,6 +42,14 @@ function cornerBox() {
     return BrepBoolean.evaluate( [b], f => f[0], { filletShape : "curvature", edges : edges } );
 }
 
+// The solid on show, for the STEP download: B-rep examples only.
+let solid : { result : BooleanResult, name : string } | null = null;
+function brep( b : BooleanResult | BrepSolid, title : string ) : View {
+    const r = b instanceof BrepSolid ? BrepBoolean.evaluate( [b], f => f[0] ) : b;
+    solid = { result : r, name : title };
+    return Inspect.brep( r, title );
+}
+
 function build( id : string ) : View {
     switch (id) {
         case "circle": return Inspect.curve( Make.arc( [0, 0, 0], [1, 0, 0], [0, 1, 0], 40, 0, 2 * Math.PI ), "Exact circle" );
@@ -57,16 +65,16 @@ function build( id : string ) : View {
         }
         case "wall": return Inspect.surface( FreeformVesselRecipe.outerWall( {} ).outerWall, "Vessel wall", { samples : 96 } );
         case "grip": return Inspect.surface( mug().handle.faces[0].surface, "Sculpted grip", { samples : 96 } );
-        case "mug": return Inspect.brep( mug().result, "Mug with filleted handle" );
-        case "boss1": return Inspect.brep( boss( "circular" ), "Boss with a circular (G1) fillet" );
-        case "corners": return Inspect.brep( cornerBox(), "Box with G2 fillets and G2 setback corners" );
-        case "boss2": return Inspect.brep( boss( "curvature" ), "Boss with a curvature-continuous (G2) fillet" );
-        case "lid": return Inspect.brep( appliance != null ? appliance.lid : ApplianceRecipe.lid( {}, 170, [58, 76], 2.5, 0.6, false ), "Appliance lid" );
-        case "cup": return Inspect.brep( appliance != null ? appliance.cup : ApplianceRecipe.cup( {}, 176, 0.6, false ), "Measuring cup" );
-        case "base": return Inspect.brep( app().base, "Appliance base" );
+        case "mug": return brep( mug().result, "Mug with filleted handle" );
+        case "boss1": return brep( boss( "circular" ), "Boss with a circular (G1) fillet" );
+        case "corners": return brep( cornerBox(), "Box with G2 fillets and G2 setback corners" );
+        case "boss2": return brep( boss( "curvature" ), "Boss with a curvature-continuous (G2) fillet" );
+        case "lid": return brep( appliance != null ? appliance.lid : ApplianceRecipe.lid( {}, 170, [58, 76], 2.5, 0.6, false ), "Appliance lid" );
+        case "cup": return brep( appliance != null ? appliance.cup : ApplianceRecipe.cup( {}, 176, 0.6, false ), "Measuring cup" );
+        case "base": return brep( app().base, "Appliance base" );
         case "pipe": {
             const rail = Make.rationalInterpCurve( [[0, 0, 0], [30, 10, 40], [0, 40, 80], [-30, 10, 120]], 3 );
-            return Inspect.brep( BrepSolid.cappedTube( Sweep.pipe( rail, 12 ).surface, [48, 48] ), "Capped pipe" );
+            return brep( BrepSolid.cappedTube( Sweep.pipe( rail, 12 ).surface, [48, 48] ), "Capped pipe" );
         }
         case "baseMesh": return Inspect.mesh( app().base.mesh, "Appliance base mesh" );
         case "open": {
@@ -160,11 +168,20 @@ function pack( v : View ) {
                      items : v.items.map( it => ({ label : it.label, type : it.type, facts : it.facts, overlay : it.overlay.map( layer ) }) ) }, transfer };
 }
 
+// the worker's own postMessage, with transferables
+const post = (msg : object, transfer? : Array<ArrayBuffer>) => (self as unknown as Worker).postMessage( msg, transfer ?? [] );
+
 self.onmessage = (e : MessageEvent) => {
     const q = e.data;
     try {
         const t0 = performance.now();
+        if (q.step) {
+            if (solid == null) throw new Error( "Only B-rep examples can be written as STEP." );
+            post( { id : q.id, ok : true, step : Step.write( solid.result, { name : solid.name } ), name : solid.name } );
+            return;
+        }
         let v : View;
+        solid = null;
         if (q.file != null) {
             const name : string = q.file.name, lower = name.toLowerCase();
             if (lower.endsWith( ".stl" )) v = Inspect.mesh( parseSTL( q.file.data ), name );
@@ -173,9 +190,8 @@ self.onmessage = (e : MessageEvent) => {
             else throw new Error( "Drop an .stl or .obj mesh, or a .json NURBS curve or surface." );
         } else v = build( q.example );
         const p = pack( v );
-        (p.msg as any).id = q.id; (p.msg as any).ms = performance.now() - t0;
-        (self as any).postMessage( p.msg, p.transfer );
+        post( { ...p.msg, id : q.id, ms : performance.now() - t0, solid : solid != null }, p.transfer );
     } catch (err) {
-        (self as any).postMessage( { id : q.id, ok : false, message : String( (err as Error).message ?? err ) } );
+        post( { id : q.id, ok : false, message : String( (err as Error).message ?? err ) } );
     }
 };
