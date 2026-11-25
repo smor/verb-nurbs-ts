@@ -1,5 +1,5 @@
 import cdt2d from "cdt2d";
-import { Point, UV } from "../core/Data.js";
+import { NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
@@ -371,6 +371,128 @@ export class FilletCorner {
             return { point : pt, s : r0.s + f * (r1.s - r0.s), uv : uv };
         }
         return null;
+    }
+
+    // A ball corner: three blends of one radius, all convex or all concave, between three faces that meet at a point.
+    // The ball that touches all three faces stops each blend at the section through its centre c; the corner is the
+    // spherical triangle on that ball between the three end arcs, and each face's two contact curves meet at the
+    // ball's foot on it. Returns the corner patch, or null where the ball cannot be placed.
+    public static ball( ends : Array<{ F : OpenBlend, e : number, keys : [string, string] }>, tol : number )
+        : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData, centre : Point, radius : number } | null {
+        if (ends.length != 3) return null;
+        let r = ends[0].F.radius, side = ends[0].F.side;
+        if (ends.some( x => Math.abs( x.F.radius - r ) > 1e-9 * Math.max( 1, r ) || x.F.side != side )) return null;
+        // the three faces, each with its side as some blend sees it and a starting guess from that blend's end row
+        let keys : Array<string> = [];
+        for (let x of ends) for (let k of x.keys) if (!keys.includes( k )) keys.push( k );
+        if (keys.length != 3) return null;
+        let faces = keys.map( k => {
+            let x = ends.find( y => y.keys.includes( k ) ) as typeof ends[0];
+            let a = x.keys[0] == k ? 0 : 1;
+            let row = x.F.rows[x.e == 0 ? 2 : x.F.rows.length - 3];
+            return { key : k, side : a == 0 ? x.F.A : x.F.B, uv : (a == 0 ? row.uvA : row.uvB).slice() as UV };
+        } );
+        // Newton on the six parameters: the three offsets reach one centre
+        let sr = side * r;
+        let off = (i : number, uv : UV) => {
+            let d = Eval.rationalSurfaceDerivatives( faces[i].side.face.surface, uv[0], uv[1], 1 );
+            let nn = Vec.mul( faces[i].side.sign, Vec.normalized( Vec.cross( d[1][0], d[0][1] ) ) );
+            return Vec.add( d[0][0], Vec.mul( sr, nn ) );
+        };
+        let uv = faces.map( f => f.uv );
+        let D = faces.map( f => BrepSolid.domainOf( f.side.face ) );
+        let spans = faces.map( f => { let d = SurfaceIntersect.domain( f.side.face.surface ); return [d[1] - d[0], d[3] - d[2]]; } );
+        let ok = false;
+        for (let it = 0; it < 50; it++) {
+            let o = [0, 1, 2].map( i => off( i, uv[i] ) );
+            let R = Vec.sub( o[0], o[1] ).concat( Vec.sub( o[0], o[2] ) );
+            if (Vec.norm( R ) < tol * Math.max( 1, r )) { ok = true; break; }
+            let J : Array<Array<number>> = [0, 1, 2, 3, 4, 5].map( _ => [0, 0, 0, 0, 0, 0] );
+            for (let i = 0; i < 3; i++) for (let k = 0; k < 2; k++) {
+                let h = spans[i][k] * 1e-7;
+                let q : UV = [uv[i][0], uv[i][1]]; q[k] += h;
+                let dO = Vec.mul( 1 / h, Vec.sub( off( i, q ), o[i] ) );
+                for (let row = 0; row < 3; row++) {
+                    // R1 = o0 - o1, R2 = o0 - o2
+                    if (i == 0) { J[row][2 * i + k] = dO[row]; J[3 + row][2 * i + k] = dO[row]; }
+                    else if (i == 1) J[row][2 * i + k] = -dO[row];
+                    else J[3 + row][2 * i + k] = -dO[row];
+                }
+            }
+            let step : Array<number>;
+            try { step = Mat.solve( J, R.map( x => -x ) ); } catch (e) { return null; }
+            if (step.some( x => !isFinite( x ) )) return null;
+            let big = Math.max( ...[0, 1, 2].map( i => Math.max( Math.abs( step[2 * i] ) / spans[i][0], Math.abs( step[2 * i + 1] ) / spans[i][1] ) ) );
+            let f = big > 0.1 ? 0.1 / big : 1;
+            uv = [0, 1, 2].map( i => Fillet.clampTo( D[i], [uv[i][0] + f * step[2 * i], uv[i][1] + f * step[2 * i + 1]], 0.3 ) );
+        }
+        if (!ok) return null;
+        let c = Vec.mul( 1 / 3, Vec.add( off( 0, uv[0] ), Vec.add( off( 1, uv[1] ), off( 2, uv[2] ) ) ) );
+        let feet = [0, 1, 2].map( i => Eval.rationalSurfacePoint( faces[i].side.face.surface, uv[i][0], uv[i][1] ) );
+        // the centre must lie near the corner, within reach of each blend's rows
+        let arcs : Array<Array<Point>> = [];
+        for (let x of ends) {
+            let F = x.F, ia = keys.indexOf( x.keys[0] ), ib = keys.indexOf( x.keys[1] );
+            // where the blend's centres pass the ball's centre
+            let best = Infinity, sAt = 0;
+            for (let k = 0; k + 1 < F.rows.length; k++) {
+                let a = F.rows[k].centre, b = F.rows[k + 1].centre, ab = Vec.sub( b, a ), l2 = Math.max( Vec.dot( ab, ab ), 1e-300 );
+                let t = Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( c, a ), ab ) / l2 ) );
+                let dd = Vec.dist( c, Vec.add( a, Vec.mul( t, ab ) ) );
+                if (dd < best) { best = dd; sAt = F.rows[k].s + t * (F.rows[k + 1].s - F.rows[k].s); }
+            }
+            if (best > 0.25 * r) return null;
+            let arc = Fillet.arc( feet[ia], c, feet[ib] );
+            let pts : Array<Point> = [feet[ia]];
+            for (let i = 1; i < F.m; i++) pts.push( Eval.rationalCurvePoint( arc, i / F.m ) );
+            pts.push( feet[ib] );
+            F.trims[x.e] = pts.map( (p, i) => ({ point : p, s : sAt, t : i / F.m, uv : i == 0 ? uv[ia] : i == F.m ? uv[ib] : undefined }) );
+            arcs.push( pts );
+        }
+        let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side );
+        return patch == null ? null : Object.assign( patch, { centre : c, radius : r } );
+    }
+
+    // The triangle on a sphere bounded by three arcs between three feet (each arc's points given from one foot to
+    // another, in any direction): a constrained triangulation of its gnomonic projection, with points inside.
+    private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number )
+        : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData } | null {
+        // chain the arcs into one loop: foot 0 -> ... -> back to foot 0
+        let loop : Array<Point> = [];
+        let left = arcs.slice(), at = feet[0];
+        while (left.length > 0) {
+            let k = left.findIndex( a => a[0] === at || a[a.length - 1] === at );
+            if (k < 0) return null;
+            let a = left.splice( k, 1 )[0];
+            if (a[0] !== at) a = a.slice().reverse();
+            loop.push( ...a.slice( 0, a.length - 1 ) );
+            at = a[a.length - 1];
+        }
+        if (at !== feet[0]) return null;
+        let d = feet.map( f => Vec.normalized( Vec.sub( f, c ) ) );
+        let axis = Vec.normalized( Vec.add( d[0], Vec.add( d[1], d[2] ) ) );
+        let e1 = Vec.normalized( Vec.cross( axis, Math.abs( axis[0] ) < 0.9 ? [1, 0, 0] : [0, 1, 0] ) ), e2 = Vec.cross( axis, e1 );
+        let flat = (p : Point) : [number, number] => { let x = Vec.sub( p, c ), z = Vec.dot( x, axis ); return [Vec.dot( x, e1 ) / z, Vec.dot( x, e2 ) / z]; };
+        let points = loop.slice(), xy = loop.map( flat );
+        let n = loop.length;
+        let edges : Array<[number, number]> = loop.map( (_, k) => [k, (k + 1) % n] as [number, number] );
+        // inside: a barycentric grid of the three directions, pushed onto the sphere
+        let g = Math.max( 2, Math.round( n / 3 ) );
+        for (let i = 1; i < g; i++) for (let j = 1; i + j < g; j++) {
+            let w = [i / g, j / g, 1 - (i + j) / g];
+            let p = Vec.add( c, Vec.mul( r, Vec.normalized( Vec.add( Vec.mul( w[0], d[0] ), Vec.add( Vec.mul( w[1], d[1] ), Vec.mul( w[2], d[2] ) ) ) ) ) );
+            points.push( p ); xy.push( flat( p ) );
+        }
+        let tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        if (tris.length == 0) return null;
+        // outward: away from the centre on a convex corner (the ball is in the material), towards it on a concave one
+        let triangles = tris.map( t => {
+            let nrm = Vec.cross( Vec.sub( points[t[1]], points[t[0]] ), Vec.sub( points[t[2]], points[t[0]] ) );
+            let out = Vec.dot( nrm, Vec.sub( points[t[0]], c ) ) * -side > 0;
+            return (out ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
+        } );
+        let surface = Make.sphericalSurface( c, axis, e1, r );
+        return { points : points, triangles : triangles, reversed : false, surface : surface };
     }
 
     // The blend between its two trims: triangles over a constrained triangulation of its (s, t) rectangle, and its

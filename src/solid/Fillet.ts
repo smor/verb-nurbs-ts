@@ -319,6 +319,9 @@ export class Fillet {
             let r = Vec.sub( oa, ob );
             return [r[0], r[1], r[2], Vec.dot( Vec.sub( oa, p ), t )];
         };
+        // a fitted periodic surface may not close exactly across its seam: near the seam Newton cannot do better than
+        // that gap
+        tol = Math.max( tol, 2 * Fillet.seamGap( A.face ), 2 * Fillet.seamGap( B.face ) );
         for (let it = 0; it < 40; it++) {
             let oa = off( A, a ), ob = off( B, b );
             let R = resid( oa, ob );
@@ -353,6 +356,26 @@ export class Fillet {
         }
         return null;
     }
+
+    // The largest distance between the two sides of a face's periodic seams (0 for a face that closes exactly).
+    public static seamGap( F : BrepFace ) : number {
+        let g = Fillet.gaps.get( F.surface );
+        if (g != null) return g;
+        g = 0;
+        let d = SurfaceIntersect.domain( F.surface );
+        for (let ax = 0; ax < 2; ax++) {
+            if (!F.periodic[ax]) continue;
+            for (let i = 0; i <= 32; i++) {
+                let w = d[2 * (1 - ax)] + (d[2 * (1 - ax) + 1] - d[2 * (1 - ax)]) * i / 32;
+                let p = ax == 0 ? Eval.rationalSurfacePoint( F.surface, d[0], w ) : Eval.rationalSurfacePoint( F.surface, w, d[2] );
+                let q = ax == 0 ? Eval.rationalSurfacePoint( F.surface, d[1], w ) : Eval.rationalSurfacePoint( F.surface, w, d[3] );
+                g = Math.max( g, Vec.dist( p, q ) );
+            }
+        }
+        Fillet.gaps.set( F.surface, g );
+        return g;
+    }
+    private static gaps = new WeakMap<object, number>();
 
     // Parameters brought into a face's domain: wrapped in periodic directions, and clamped in the others to the domain
     // widened by `slack` (a fraction of its span) on each side, where the surface's end spans carry on.

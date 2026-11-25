@@ -114,6 +114,18 @@ describe("verb.eval.Offset.surface", function(){
 		sampleSurface(r.result, 40, function(p){ Math.hypot(p[0], p[1]).should.be.approximately(1.6, 1e-4); });
 	});
 
+	it('keeps a smoothly closed wall smooth across its seam (a periodic fit, not just a closed one)', function(){
+		var wall = verb.recipes.FreeformVesselRecipe.outerWall({}).outerWall;
+		Offset.closesSmoothlyInV(wall).should.be.true();
+		var r = Offset.surface(wall, -3, { tolerance : 0.02 });
+		for (var i = 1; i < 10; i++) {
+			var u = i / 10;
+			var a = Offset.surfaceUnitNormal(r.result, u, 0), b = Offset.surfaceUnitNormal(r.result, u, 1);
+			verb.core.Vec.dist(a, b).should.be.below(1e-6);
+			verb.core.Vec.dist(Eval.rationalSurfacePoint(r.result, u, 0), Eval.rationalSurfacePoint(r.result, u, 1)).should.be.below(1e-9);
+		}
+	});
+
 	it('is available on NurbsSurface', function(){
 		var s = new verb.geom.SphericalSurface([0,0,0], 1).offset(0.25, { tolerance : 1e-3 });
 		var p = s.point(0.4, 0.3);

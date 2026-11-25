@@ -221,6 +221,32 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		});
 	});
 
+	it('rounds the rim too: where three fillets of one radius meet, a ball corner (a spherical triangle) joins them', function(){
+		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 1, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		var rep = o.result.report;
+		rep.manifold.closedManifold.should.be.true();
+		rep.manifold.genus.should.be.equal(0);
+		// 12 notch edges and the rim's 3 runs between the notches; every notch has two inner corners
+		rep.fillets.should.be.equal(15);
+		rep.filletsFailed.should.be.equal(0);
+		rep.filletsSkipped.should.be.equal(0);
+		var corners = o.result.faces.map(function(f, i){ return f.name == 'fillet corner' ? i : -1; }).filter(function(i){ return i >= 0; });
+		corners.length.should.be.equal(6);
+		// each corner lies on its ball, which touches all three faces: every vertex at the radius from its centre
+		o.result.corners.length.should.be.equal(6);
+		o.result.corners.forEach(function(c){
+			c.radius.should.be.equal(1);
+			var n = 0;
+			o.result.mesh.triangles.forEach(function(t, k){
+				if (o.result.faceOf[k] != c.face) return;
+				n++;
+				t.forEach(function(v){ lib.Vec.dist(o.result.mesh.vertices[v], c.centre).should.be.approximately(1, 1e-6); });
+			});
+			n.should.be.above(3);
+		});
+		manifold(o.result.mesh).status().should.be.equal('NoError');
+	});
+
 	it('leaves a notch sharp when its fillets would swallow the rim (radius near half the wall)', function(){
 		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1.5, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
 		o.result.report.manifold.closedManifold.should.be.true();

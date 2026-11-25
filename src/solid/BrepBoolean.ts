@@ -39,6 +39,9 @@ export interface BooleanResult {
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
     fillets : Array<{ curve : number, radius : number, blend : FilletResult }>;
+    // ball corners, where three fillets of one radius meet: the ball's centre and radius, and the corner's face in
+    // `faces`
+    corners : Array<{ centre : Point, radius : number, face : number }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
@@ -196,6 +199,7 @@ export class BrepBoolean {
         } );
         let unsupported = new Set<number>();
         let inserts : Array<{ g : [number, number], insert : () => void }> = [];
+        let balls : Array<{ g : Array<number>, patch : NonNullable<ReturnType<typeof FilletCorner.ball>> }> = [];
         let partners = new Map<number, Array<number>>();
         for (let [P, at] of corners) {
             let filleted = at.filter( x => openBlends.has( x.g ) );
@@ -241,6 +245,16 @@ export class BrepBoolean {
                     }
                 }
             }
+            if (filleted.length == 3 && others.length == 0 && new Set( filleted.map( x => x.g ) ).size == 3) {
+                let patch = FilletCorner.ball( filleted.map( x => ({ F : openBlends.get( x.g ) as OpenBlend, e : x.end, keys : faceKeys( x.g ) as [string, string] }) ), tol );
+                if (patch != null) {
+                    ok = true;
+                    balls.push( { g : filleted.map( x => x.g ), patch : patch } );
+                    for (let x of filleted) for (let y of filleted) if (x.g != y.g) {
+                        let l = partners.get( x.g ); if (l == null) partners.set( x.g, l = [] ); l.push( y.g );
+                    }
+                }
+            }
             if (!ok) for (let x of filleted) unsupported.add( x.g );
         }
         // a blend that cannot end at one of its corners takes its partners at the others with it
@@ -273,6 +287,8 @@ export class BrepBoolean {
             strip.push( [g, runs.length + g] );
         };
         runs.forEach( (_, g) => { let fr = closedBlends.get( g ) || built.get( g ); if (fr != null) addBlend( g, fr ); } );
+        // ball corners whose three blends were built
+        let ballPatches = balls.filter( b => b.g.every( g => built.has( g ) ) ).map( b => b.patch );
 
         // the runs as cuts of their faces
         runs.forEach( (r, g) => {
@@ -325,10 +341,17 @@ export class BrepBoolean {
             for (let tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
             faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed, loops : [] } );
         }
+        let cornerInfo : BooleanResult["corners"] = [];
+        for (let b of ballPatches) {
+            cornerInfo.push( { centre : b.centre, radius : b.radius, face : faces.length } );
+            let ids = b.points.map( p => welder.id( p ) );
+            for (let tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
+            faces.push( { solid : -1, face : -1, name : "fillet corner", surface : b.surface, reversed : b.reversed, loops : [] } );
+        }
         out.vertices = welder.mesh.vertices;
         faceOf = faceOf.filter( (_, k) => { let t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; } );
         out.compact(); // drops the same degenerate triangles
-        return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, report : {
+        return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
     }

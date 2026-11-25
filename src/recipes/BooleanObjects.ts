@@ -61,9 +61,11 @@ export interface PierceParams extends FreeformVesselParams {
     notchRadius? : number;
     // where the first notch sits around the rim, as a fraction of the spacing between notches (default 0.5)
     notchPhase? : number;
-    // radius of the rolling-ball fillet that rounds the edges of the holes (default 0: sharp edges; notch edges end at
-    // corners on the rim and stay sharp)
+    // radius of the rolling-ball fillet that rounds the edges of the holes and notches (default 0: sharp edges)
     fillet? : number;
+    // radius of the fillet on the rim's inner edge (default 0: sharp). Equal to `fillet`, the notches' inner corners
+    // become ball corners, where three fillets meet
+    rimFillet? : number;
 }
 
 export interface PiercedVessel {
@@ -235,9 +237,11 @@ export class BooleanObjectsRecipe {
             let a = Vec.add( [0, 0, H], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
             tools.push( BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), nr ).surface, [12, 32] ) );
         }
-        let fr = p.fillet != null ? p.fillet : 0;
+        let fr = p.fillet != null ? p.fillet : 0, rim = p.rimFillet != null ? p.rimFillet : 0;
+        // the rim's inner edge is the one between the body's top (face 2) and the cavity's wall
         let result = BrepBoolean.evaluate( [solids.body, solids.cavity].concat( tools ),
-            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { fillet : (c : { solids : [number, number] }) => c.solids[1] >= 2 ? fr : 0 } );
+            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { fillet : (c : { solids : [number, number], faces : [number, number] }) =>
+                c.solids[1] >= 2 ? fr : c.solids[0] == 0 && c.solids[1] == 1 && c.faces[0] == 2 ? rim : 0 } );
         return { body : solids.body, cavity : solids.cavity, tools : tools, result : result };
     }
 

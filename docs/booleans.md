@@ -108,15 +108,24 @@ past each end. Then:
   boundary the contact points shared with the faces' cuts and the mitre points shared with the other blend, so the
   result stays watertight.
 
+Where three rounded edges of one radius meet, all convex or all concave, the corner is a **ball corner**: the ball
+that touches all three faces (its centre found by Newton's method on the three faces' offsets, six unknowns) stops
+each blend at the section through its centre. The corner is the spherical triangle on that ball between the three
+end arcs (great-circle arcs, since each is centred on the ball's centre), and each face's two contact curves meet at
+the ball's foot on it. The patch is tangent to all three blends along their end arcs. On the pierced vessel with its
+inner rim rounded too, each notch has two ball corners (tube, rim top, inner wall) and two mitres (tube, rim top,
+outer wall, whose edge stays sharp).
+
 The mitre is found on the blends' meshes (column polylines through the other blend's triangles), so it is as accurate
 as the tessellation. A notch's four edges are rounded together: if one corner cannot be built (the fillets would swallow
 a rim narrower than two radii), the four stay sharp.
 
 Limits:
 
-* A corner is rounded only where exactly two rounded edges that share a face meet a sharp edge (see below). Three
-  rounded edges meeting at a point (a ball corner), or a rounded edge meeting an unrounded one, are left sharp and
-  counted in `report.filletsSkipped`, with the other edges around the same corners.
+* A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges of one
+  radius and one kind (convex or concave) meet (see above). Three edges of different radii (which need a setback
+  vertex blend), or a rounded edge meeting an unrounded one, are left sharp and counted in `report.filletsSkipped`,
+  with the other edges around the same corners.
 * If the ball does not fit (the radius is larger than the room between the faces), the edge is left sharp and
   counted in `report.filletsFailed`.
 * Fillets of nearby edges must not overlap: keep the radius under half the distance between edges, for example half

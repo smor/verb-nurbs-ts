@@ -9,6 +9,8 @@ export interface OffsetOptions {
     tolerance? : number;
     // maximum number of knot refinement rounds (default 10)
     maxIterations? : number;
+    // fit the surface's v direction periodically (default: when the surface closes on itself smoothly in v)
+    periodicV? : boolean;
 }
 
 // The result of an offset: the approximating NURBS and the largest deviation measured from the true offset.
@@ -91,8 +93,29 @@ export class Offset {
             return Vec.add( Eval.rationalSurfacePoint( surface, u, v ), Vec.mul( distance, Offset.surfaceUnitNormal( surface, u, v ) ) );
         };
 
-        let fit = Fit.approximateSurface( offsetPoint, surface.degreeU, surface.degreeV, surface.knotsU, surface.knotsV, tol, maxIt );
+        // a surface that closes smoothly on itself in v (a lofted wall of periodic sections) gets a periodic fit, so the
+        // offset is as smooth across the seam as elsewhere and not just closed
+        let periodicV = options != null && options.periodicV != null ? options.periodicV : Offset.closesSmoothlyInV( surface );
+        let fit = Fit.approximateSurface( offsetPoint, surface.degreeU, surface.degreeV, surface.knotsU, surface.knotsV, tol, maxIt, periodicV );
         return { result : fit.surface, maxError : fit.maxError, iterations : fit.iterations };
+    }
+
+    // Whether a surface's v = start and v = end edges coincide with matching tangent planes (checked at a few u).
+    public static closesSmoothlyInV( surface : NurbsSurfaceData ) : boolean {
+        if (surface.degreeV < 2) return false;
+        let ku = surface.knotsU, kv = surface.knotsV;
+        let u0 = ku[0], u1 = ku[ku.length - 1], v0 = kv[0], v1 = kv[kv.length - 1];
+        let size = 0.0;
+        for (let i = 0; i <= 8; i++) {
+            let u = u0 + (u1 - u0) * (0.05 + 0.9 * i / 8);
+            let a = Eval.rationalSurfaceDerivatives( surface, u, v0, 1 ), b = Eval.rationalSurfaceDerivatives( surface, u, v1, 1 );
+            size = Math.max( size, Vec.norm( a[0][1] ) );
+            if (Vec.dist( a[0][0], b[0][0] ) > 1e-9 * (1 + Vec.norm( a[0][0] ))) return false;
+            let na = Vec.cross( a[1][0], a[0][1] ), nb = Vec.cross( b[1][0], b[0][1] );
+            if (Vec.norm( na ) < 1e-12 || Vec.norm( nb ) < 1e-12) continue;
+            if (Vec.angleBetween( na, nb ) > 0.05) return false;
+        }
+        return size > 0;
     }
 
     // Unit normal of a surface, robust to degenerate points such as the poles of a sphere or a collapsed edge: when
