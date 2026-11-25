@@ -260,7 +260,7 @@ describe("verb.solid.Fillet", function(){
 		});
 	});
 
-	it("gives curvature-continuous fillets curvature-continuous setback corners (G2): no jump in curvature across any side", function(){
+	it("gives curvature-continuous fillets curvature-continuous corners (G2): no jump in curvature across any side", function(){
 		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
 		var E = lib.BrepEdges.all(b);
 		var Transfinite = lib.Transfinite;
@@ -284,15 +284,18 @@ describe("verb.solid.Fillet", function(){
 			});
 			return worst;
 		}
-		var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : [1, 2, 3][k % 3] }; }) });
-		res.report.fillets.should.be.equal(12);
-		res.report.filletsSkipped.should.be.equal(0);
-		res.report.manifold.closedManifold.should.be.true();
-		manifold(res.mesh).status().should.be.equal('NoError');
-		var setbacks = res.corners.filter(function(c){ return c.kind == 'setback'; });
-		setbacks.length.should.be.above(5);
-		// the same corner built G1 (without second derivatives) jumps by 2.3 to 4 / r; this one by under 0.1 / r
-		setbacks.forEach(function(c){ worstAcross(c).should.be.below(0.1); });
+		// three radii, and one radius: equal radii too get a setback corner, since a sphere cannot be G2 with
+		// curvature-continuous sections
+		[[1, 2, 3], [2, 2, 2]].forEach(function(radii){
+			var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : radii[k % 3] }; }) });
+			res.report.fillets.should.be.equal(12);
+			res.report.filletsSkipped.should.be.equal(0);
+			res.report.manifold.closedManifold.should.be.true();
+			manifold(res.mesh).status().should.be.equal('NoError');
+			res.corners.length.should.be.equal(8);
+			// the same corner built G1 (without second derivatives) jumps by 2.3 to 4 / r; this one by under 0.1 / r
+			res.corners.forEach(function(c){ c.kind.should.be.equal('setback'); worstAcross(c).should.be.below(0.1); });
+		});
 	});
 
 	it("rounds the edges around a boss on a box: concave mitres at a sharp boss, and mixed corners when the boss is rounded too", function(){

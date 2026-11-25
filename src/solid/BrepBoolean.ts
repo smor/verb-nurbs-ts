@@ -302,9 +302,12 @@ export class BrepBoolean {
             }
             if (filleted.length == 3 && others.length == 0 && new Set( filleted.map( x => x.g ) ).size == 3) {
                 const three = filleted.map( x => ({ F : openBlends.get( x.g ) as OpenBlend, e : x.end, keys : faceKeys( x.g ) as [string, string] }) );
-                // a ball where the three radii are equal there, a setback vertex blend otherwise
-                let patch = FilletCorner.ball( three, tol );
-                if (patch == null) patch = FilletCorner.setback( three, tol );
+                // a ball where the three radii are equal there, a setback vertex blend otherwise. Curvature-continuous
+                // blends always get a setback blend, which is G2 with them; a sphere cannot be (their sections are
+                // not circular arcs)
+                const g2 = three.every( x => x.F.shape == "curvature" );
+                let patch = g2 ? FilletCorner.setback( three, tol ) : FilletCorner.ball( three, tol );
+                if (patch == null) patch = g2 ? FilletCorner.ball( three, tol ) : FilletCorner.setback( three, tol );
                 if (patch != null) {
                     ok = true;
                     balls.push( { g : filleted.map( x => x.g ), patch : patch } );

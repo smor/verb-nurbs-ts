@@ -280,7 +280,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		});
 	});
 
-	it('curvature-continuous fillets go round the same corners: the ball corners bend to meet their sections', function(){
+	it('curvature-continuous fillets go round the same corners, with curvature-continuous (setback) corners', function(){
 		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 1, filletShape : 'curvature', divsU : 24, divsV : 96, offsetTolerance : 0.08 });
 		var rep = o.result.report;
 		rep.manifold.closedManifold.should.be.true();
@@ -288,6 +288,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		rep.fillets.should.be.equal(15);
 		rep.filletsSkipped.should.be.equal(0);
 		o.result.corners.length.should.be.equal(6);
+		o.result.corners.forEach(function(c){ c.kind.should.be.equal('setback'); });
 		manifold(o.result.mesh).status().should.be.equal('NoError');
 	});
 

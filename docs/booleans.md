@@ -116,9 +116,11 @@ tangent to both faces and has each face's normal curvature where it meets it (G2
 fundamental form along the section's direction. Its control points lie on the two tangent lines towards their meeting
 point, at 0.35 and 0.7 of the way, the second ones lifted off the tangent line by 5/4 k l^2, which is what gives the
 end curvature k. Against a plane the section starts with zero curvature, so reflections run on into the blend with no
-jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Ball corners
-follow: the sphere patch is bent so its sides meet the three G2 end sections, each side's departure from the ball's arc
-carried inside with Nielsen's side-vertex weights (w_j w_k)^2.
+jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Where three such
+blends meet, the corner is a G2 setback vertex blend (below), even for equal radii: a sphere cannot be G2 with sections
+that are not circular arcs. (Should the setback construction fail, the fallback is a ball corner bent so its sides
+meet the three end sections, each side's departure from the ball's arc carried inside with Nielsen's side-vertex
+weights (w_j w_k)^2: G1 only.)
 
 ### Chamfers
 
@@ -267,9 +269,6 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).
-* **G2 ball corners.** With curvature-continuous blends, setback corners are G2 (above), but a ball corner (three
-  equal radii, one kind) is still the bent sphere patch, G1 with its blends. Building it as a three-sided G2
-  transfinite patch from the same ribbons would close the gap.
 * **Trim curves are polylines.** `TrimmedFace.loops` are dense polylines in `(u, v)`. Fitting them with B-splines
   (`Fit.curve`) would give IGES 142/144 or STEP style trimmed surfaces for export.
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
