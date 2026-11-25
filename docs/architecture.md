@@ -31,7 +31,8 @@ through it, which invariants hold everywhere, and where to start reading for eac
 ```
 
 Imports only point down. `docs/packages.md` records how these layers become separate packages, and the rules
-that keep that split possible.
+that keep that split possible. `npm run layers` (`scripts/check-layers.mjs`) enforces it on every commit and in
+CI, so a wrong import fails the build rather than waiting for a reviewer to spot it.
 
 ## Data model
 

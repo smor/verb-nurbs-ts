@@ -1,1 +1,1 @@
-{ "spec": "test/*.cjs", "timeout": 20000 }
+{ "spec": "test/*.cjs", "timeout": 20000, "forbid-only": true }

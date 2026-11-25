@@ -11,17 +11,20 @@
   "scripts": {
     "build": "tsc -p .",
     "typecheck": "tsc --noEmit -p .",
-    "lint": "eslint . --max-warnings 64",
+    "layers": "node scripts/check-layers.mjs",
+    "lint": "eslint . --max-warnings $npm_package_config_maxLintWarnings",
     "test": "npm run build && mocha",
     "test:fast": "mocha",
-    "coverage": "npm run build && c8 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
+    "coverage": "npm run build && c8 --check-coverage --lines 94 --branches 88 --functions 90 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
     "docs": "typedoc",
-    "check": "npm run typecheck && npm run lint && npm test",
+    "check": "npm run typecheck && npm run layers && npm run lint && npm test",
+    "prepare": "git config core.hooksPath .githooks || true",
     "demo:vessel": "npm run build && node examples/aalto-vessel.mjs",
     "demo:sweeps": "npm run build && node examples/swept-objects.mjs",
     "demo:booleans": "npm run build && node examples/boolean-objects.mjs",
     "playground": "node playground/build.mjs",
-    "viewer": "node viewer/build.mjs"
+    "viewer": "node viewer/build.mjs",
+    "ratchets": "node scripts/check-ratchets.mjs"
   },
   "keywords": [
     "NURBS",
@@ -68,5 +71,8 @@
   "engines": {
     "node": ">=20"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "config": {
+    "maxLintWarnings": 64
+  }
 }

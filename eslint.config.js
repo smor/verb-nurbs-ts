@@ -15,6 +15,23 @@ export default tseslint.config(
             "@typescript-eslint/no-explicit-any": "warn",
             // upstream verb pre-declares loop temporaries; harmless, reported for gradual cleanup
             "no-useless-assignment": "warn",
+            // a suppression must say why
+            "@typescript-eslint/ban-ts-comment": [ "error", { "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true } ],
         }
+    },
+    {
+        files: [ "src/**/*.ts" ],
+        rules: {
+            // geometry must be reproducible: no hidden randomness in library code (see AGENTS.md)
+            "no-restricted-properties": [ "error", { object: "Math", property: "random", message: "Library code must be deterministic. Take a seeded generator as a parameter." } ],
+        }
+    },
+    {
+        // Legacy upstream verb: randomised split points in subdivision. Known, listed here so the list can only shrink.
+        files: [ "src/eval/Tess.ts", "src/core/SurfaceBoundingBoxTree.ts", "src/core/LazyCurveBoundingBoxTree.ts" ],
+        rules: { "no-restricted-properties": "off" }
+    },
+    {
+        linterOptions: { reportUnusedDisableDirectives: "error" }
     }
 );

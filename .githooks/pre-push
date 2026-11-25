@@ -1,0 +1,4 @@
+#!/bin/sh
+# The same gates CI runs, so a push is green before it leaves the machine.
+set -e
+npm run --silent check

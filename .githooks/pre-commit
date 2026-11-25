@@ -1,0 +1,8 @@
+#!/bin/sh
+# Fast gates before every commit: types, layering and lint on the whole tree (a few seconds).
+# The full test suite runs in CI and before a push. Skip once with `git commit --no-verify` only for a WIP commit
+# that will not be pushed as is.
+set -e
+npm run --silent typecheck
+node scripts/check-layers.mjs
+npx eslint . --max-warnings "$(node -p "require('./package.json').config.maxLintWarnings")"

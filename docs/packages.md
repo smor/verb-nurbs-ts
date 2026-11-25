@@ -34,3 +34,7 @@ Dependencies only point down this table: no folder imports from one below it.
 * `TriMesh`, `MeshBVH` and `Makeable` import nothing from the B-rep code.
 * Rendering code (three.js) stays in the apps; `Inspect` returns plain arrays.
 * `src/index.ts` is generated; each package would get its own index the same way.
+
+The first two rules are checked by `npm run layers` (`scripts/check-layers.mjs`), on every commit and in CI. The
+table in that script is the source of truth: narrowing it is always fine, widening it needs a line here saying
+why.
