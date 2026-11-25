@@ -26,7 +26,7 @@ export class Eval {
     //* a Vector represented by an array of length (dim)
 
     public static rationalCurveTangent( curve : NurbsCurveData, u : number ) : Array<number> {
-        let derivs = Eval.rationalCurveDerivatives( curve, u, 1 );
+        const derivs = Eval.rationalCurveDerivatives( curve, u, 1 );
         return derivs[1];
     }
 
@@ -43,7 +43,7 @@ export class Eval {
     //* a Vector represented by an array of length (dim)
 
     public static rationalSurfaceNormal( surface : NurbsSurfaceData, u : number, v : number) : Array<number> {
-        let derivs = Eval.rationalSurfaceDerivatives( surface, u, v, 1 );
+        const derivs = Eval.rationalSurfaceDerivatives( surface, u, v, 1 );
         return Vec.cross( derivs[1][0], derivs[0][1] );
     }
 
@@ -65,7 +65,7 @@ export class Eval {
                                                         v : number,
                                                         numDerivs? : number) : Array<Array<Array<number>>> { if (numDerivs == null) numDerivs = 1;
 
-        let ders = Eval.surfaceDerivatives( surface, u, v, numDerivs)
+        const ders = Eval.surfaceDerivatives( surface, u, v, numDerivs)
         , Aders = Eval.rational2d(ders)
         , wders = Eval.weight2d(ders)
         , SKL = new Array<Array<Array<number>>>()
@@ -75,7 +75,7 @@ export class Eval {
             SKL.push( new Array<Array<number>>() );
 
             for (let l = 0; l < numDerivs-k+1; l++) {
-                let v = Aders[k][l];
+                const v = Aders[k][l];
 
                 for (let j = 1; j < l+1; j++) {
                     Vec.subMulMutate( v, Binomial.get(l, j) * wders[0][j], SKL[k][l-j] );
@@ -84,7 +84,7 @@ export class Eval {
                 for (let i = 1; i < k+1; i++) {
                     Vec.subMulMutate( v, Binomial.get(k, i) * wders[i][0], SKL[k-i][l] );
 
-                    let v2 = Vec.zeros1d(dim);
+                    const v2 = Vec.zeros1d(dim);
 
                     for (let j = 1; j < l+1; j++) {
                         Vec.addMulMutate( v2, Binomial.get(l, j) * wders[i][j], SKL[k-i][l-j] );
@@ -136,15 +136,13 @@ export class Eval {
 
     public static rationalCurveDerivatives( curve : NurbsCurveData, u : number, numDerivs? : number) : Array<Point> { if (numDerivs == null) numDerivs = 1;
 
-        let ders = Eval.curveDerivatives( curve, u, numDerivs )
+        const ders = Eval.curveDerivatives( curve, u, numDerivs )
         , Aders = Eval.rational1d(ders)
         , wders = Eval.weight1d(ders)
-        , k = 0
-        , i  = 0
         , CK = [];
 
         for (let k = 0; k < numDerivs+1; k++) {
-            let v = Aders[k];
+            const v = Aders[k];
 
             for (let i = 1; i < k+1; i++) {
                 Vec.subMulMutate( v, Binomial.get(k, i) * wders[i], CK[k-i] );
@@ -191,7 +189,7 @@ export class Eval {
 
     public static surfaceDerivatives( surface : NurbsSurfaceData, u : number, v : number, numDerivs : number ) : Array<Array<Point>> {
 
-        let n = surface.knotsU.length - surface.degreeU - 2
+        const n = surface.knotsU.length - surface.degreeU - 2
         , m = surface.knotsV.length - surface.degreeV - 2;
 
         return Eval.surfaceDerivativesGivenNM( n, m, surface, u, v, numDerivs );
@@ -220,7 +218,7 @@ export class Eval {
                                                      v: number,
                                                      numDerivs : number ) : Array<Array<Point>>{
 
-        let degreeU = surface.degreeU
+        const degreeU = surface.degreeU
         , degreeV = surface.degreeV
         , controlPoints = surface.controlPoints
         , knotsU = surface.knotsU
@@ -232,16 +230,16 @@ export class Eval {
             throw 'Invalid relations between control points, knot vector, and n';
         }
 
-        let dim = controlPoints[0][0].length;
-        let du = numDerivs < degreeU ? numDerivs : degreeU
-        , dv = numDerivs < degreeV ? numDerivs : degreeV
-        , SKL = Vec.zeros3d( numDerivs+1, numDerivs+1, dim )
-        , knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU )
-        , knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV )
-        , uders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_u, u, degreeU, n, knotsU )
-        , vders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_v, v, degreeV, m, knotsV )
-        , temp = Vec.zeros2d( degreeV+1, dim )
-        , dd = 0;
+        const dim = controlPoints[0][0].length;
+        const du = numDerivs < degreeU ? numDerivs : degreeU;
+        const dv = numDerivs < degreeV ? numDerivs : degreeV;
+        const SKL = Vec.zeros3d( numDerivs+1, numDerivs+1, dim );
+        const knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU );
+        const knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV );
+        const uders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_u, u, degreeU, n, knotsU );
+        const vders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_v, v, degreeV, m, knotsV );
+        const temp = Vec.zeros2d( degreeV+1, dim );
+        let dd = 0;
 
         for (let k = 0; k < du+1; k++) {
             for (let s = 0; s < degreeV+1; s++) {
@@ -252,7 +250,7 @@ export class Eval {
                 }
             }
 
-            let nk = numDerivs - k;
+            const nk = numDerivs - k;
             dd = nk < dv ? nk : dv;
 
             for (let l = 0; l < dd+1; l++) {
@@ -281,7 +279,7 @@ export class Eval {
 
     public static surfacePoint( surface : NurbsSurfaceData, u : number, v : number) : Point {
 
-        let n = surface.knotsU.length - surface.degreeU - 2
+        const n = surface.knotsU.length - surface.degreeU - 2
         , m = surface.knotsV.length - surface.degreeV - 2;
 
         return Eval.surfacePointGivenNM( n, m, surface, u, v );
@@ -305,7 +303,7 @@ export class Eval {
 
     public static surfacePointGivenNM( n : number, m : number, surface : NurbsSurfaceData, u : number, v : number ) : Point {
 
-        let degreeU = surface.degreeU
+        const degreeU = surface.degreeU
         , degreeV = surface.degreeV
         , controlPoints = surface.controlPoints
         , knotsU = surface.knotsU
@@ -317,15 +315,15 @@ export class Eval {
             throw 'Invalid relations between control points, knot vector, and n';
         }
 
-        let dim = controlPoints[0][0].length
-        , knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU )
-        , knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV )
-        , u_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_u, u, degreeU, knotsU )
-        , v_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_v, v, degreeV, knotsV )
-        , uind = knotSpan_index_u - degreeU
-        , vind = knotSpan_index_v
-        , position = Vec.zeros1d( dim )
-        , temp = Vec.zeros1d( dim );
+        const dim = controlPoints[0][0].length;
+        const knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU );
+        const knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV );
+        const u_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_u, u, degreeU, knotsU );
+        const v_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_v, v, degreeV, knotsV );
+        const uind = knotSpan_index_u - degreeU;
+        let vind = knotSpan_index_v;
+        const position = Vec.zeros1d( dim );
+        let temp = Vec.zeros1d( dim );
 
         for (let l = 0; l < degreeV + 1; l++) {
 
@@ -347,24 +345,24 @@ export class Eval {
     public static curveRegularSamplePoints( crv : NurbsCurveData, divs : number ){
 
         // initialize the derivative set
-        let derivs = Eval.curveDerivatives( crv, crv.knots[0], crv.degree );
+        const derivs = Eval.curveDerivatives( crv, crv.knots[0], crv.degree );
 
         // expand the taylor series
 
-        let t = 1.0 / divs;
-        let temp = t * t;
+        const t = 1.0 / divs;
+        const temp = t * t;
 
-        let f = derivs[0];
-        let fd = Vec.mul(t, derivs[1] );
-        let fdd_per2 = Vec.mul( temp * 0.5, derivs[2] );
-        let fddd_per2 = Vec.mul( temp * t * 0.5, derivs[3] );
+        const f = derivs[0];
+        const fd = Vec.mul(t, derivs[1] );
+        const fdd_per2 = Vec.mul( temp * 0.5, derivs[2] );
+        const fddd_per2 = Vec.mul( temp * t * 0.5, derivs[3] );
 
-        let fdd = Vec.add( fdd_per2, fdd_per2 );
-        let fddd = Vec.add( fddd_per2, fddd_per2 );
-        let fddd_per6 = Vec.mul( 1/3, fddd_per2 );
+        const fdd = Vec.add( fdd_per2, fdd_per2 );
+        const fddd = Vec.add( fddd_per2, fddd_per2 );
+        const fddd_per6 = Vec.mul( 1/3, fddd_per2 );
 
         // evaluate the points
-        let pts = [];
+        const pts = [];
 
         for (let i = 0; i < divs+1; i++) {
 
@@ -383,24 +381,24 @@ export class Eval {
     public static curveRegularSamplePoints2( crv : NurbsCurveData, divs : number ){
 
         // initialize the derivative set
-        let derivs = Eval.curveDerivatives( crv, crv.knots[0], crv.degree );
+        const derivs = Eval.curveDerivatives( crv, crv.knots[0], crv.degree );
 
         // expand the taylor series
 
-        let t = 1.0 / divs;
-        let temp = t * t;
+        const t = 1.0 / divs;
+        const temp = t * t;
 
-        let f = derivs[0];
-        let fd = Vec.mul(t, derivs[1] );
-        let fdd_per2 = Vec.mul( temp * 0.5, derivs[2] );
-        let fddd_per2 = Vec.mul( temp * t * 0.5, derivs[3] );
+        const f = derivs[0];
+        const fd = Vec.mul(t, derivs[1] );
+        const fdd_per2 = Vec.mul( temp * 0.5, derivs[2] );
+        const fddd_per2 = Vec.mul( temp * t * 0.5, derivs[3] );
 
-        let fdd = Vec.add( fdd_per2, fdd_per2 );
-        let fddd = Vec.add( fddd_per2, fddd_per2 );
-        let fddd_per6 = Vec.mul( 1/3, fddd_per2 );
+        const fdd = Vec.add( fdd_per2, fdd_per2 );
+        const fddd = Vec.add( fddd_per2, fddd_per2 );
+        const fddd_per6 = Vec.mul( 1/3, fddd_per2 );
 
         // evaluate the points
-        let pts = [];
+        const pts = [];
 
         for (let i = 0; i < divs+1; i++) {
             pts.push(Eval.dehomogenize(f));
@@ -430,21 +428,21 @@ export class Eval {
 
     public static rationalSurfaceRegularSampleDerivatives( surface : NurbsSurfaceData, divsU : number, divsV : number, numDerivs : number ) {
 
-        let allders = Eval.surfaceRegularSampleDerivatives( surface, divsU, divsV, numDerivs );
+        const allders = Eval.surfaceRegularSampleDerivatives( surface, divsU, divsV, numDerivs );
 
-        let allratders = [];
-        let divsU1 = divsU+1;
-        let divsV1 = divsV+1;
-        let numDerivs1 = numDerivs+1;
+        const allratders = [];
+        const divsU1 = divsU+1;
+        const divsV1 = divsV+1;
+        const numDerivs1 = numDerivs+1;
 
         for (let i = 0; i < divsU1; i++) {
 
-            let rowders : any[] = [];
+            const rowders : any[] = [];
             allratders.push(rowders);
 
             for (let j = 0; j < divsV1; j++) {
 
-                let ders = allders[i][j]
+                const ders = allders[i][j]
                 , Aders = Eval.rational2d(ders)
                 , wders = Eval.weight2d(ders)
                 , SKL = new Array<Array<Array<number>>>()
@@ -454,7 +452,7 @@ export class Eval {
                     SKL.push( new Array<Array<number>>() );
 
                     for (let l = 0; l < numDerivs1-k; l++) {
-                        let v = Aders[k][l];
+                        const v = Aders[k][l];
 
                         for (let j = 1; j < l+1; j++) {
                             Vec.subMulMutate( v, Binomial.get(l, j) * wders[0][j], SKL[k][l-j] );
@@ -463,7 +461,7 @@ export class Eval {
                         for (let i = 1; i < k+1; i++) {
                             Vec.subMulMutate( v, Binomial.get(k, i) * wders[i][0], SKL[k-i][l] );
 
-                            let v2 = Vec.zeros1d(dim);
+                            const v2 = Vec.zeros1d(dim);
 
                             for (let j = 1; j < l+1; j++) {
                                 Vec.addMulMutate( v2, Binomial.get(l, j) * wders[i][j], SKL[k-i][l-j] );
@@ -500,15 +498,13 @@ export class Eval {
 
     public static surfaceRegularSampleDerivatives( surface : NurbsSurfaceData, divsU : number, divsV : number, numDerivs : number ) {
 
-        let degreeU = surface.degreeU
+        const degreeU = surface.degreeU
         , degreeV = surface.degreeV
         , controlPoints = surface.controlPoints
         , knotsU = surface.knotsU
         , knotsV = surface.knotsV;
 
-        let dim = controlPoints[0][0].length
-        , spanU = (ArrayExtensions.last(knotsU) - knotsU[0]) / divsU
-        , spanV = (ArrayExtensions.last(knotsV) - knotsV[0]) / divsV
+        const dim = controlPoints[0][0].length
         , knotSpansBasesU = Eval.regularlySpacedDerivativeBasisFunctions( degreeU, knotsU, divsU )
         , knotSpansU = knotSpansBasesU.item0
         , basesU = knotSpansBasesU.item1
@@ -520,7 +516,7 @@ export class Eval {
         , divsV1 = divsV+1;
 
         for (let i = 0; i < divsU1; i++) {
-            let ptsi : any[] = [];
+            const ptsi : any[] = [];
             pts.push( ptsi );
 
             for (let j = 0; j < divsV1; j++) {
@@ -563,15 +559,13 @@ export class Eval {
 
     public static surfaceRegularSamplePoints( surface : NurbsSurfaceData, divsU : number, divsV : number ) : Array<Array<Point>> {
 
-        let degreeU = surface.degreeU
+        const degreeU = surface.degreeU
         , degreeV = surface.degreeV
         , controlPoints = surface.controlPoints
         , knotsU = surface.knotsU
         , knotsV = surface.knotsV;
 
-        let dim = controlPoints[0][0].length
-        , spanU = (ArrayExtensions.last(knotsU) - knotsU[0]) / divsU
-        , spanV = (ArrayExtensions.last(knotsV) - knotsV[0]) / divsV
+        const dim = controlPoints[0][0].length
         , knotSpansBasesU = Eval.regularlySpacedBasisFunctions( degreeU, knotsU, divsU )
         , knotSpansU = knotSpansBasesU.item0
         , basesU = knotSpansBasesU.item1
@@ -583,7 +577,7 @@ export class Eval {
         , divsV1 = divsV+1;
 
         for (let i = 0; i < divsU1; i++) {
-            let ptsi : any[] = [];
+            const ptsi : any[] = [];
             pts.push( ptsi );
 
             for (let j = 0; j < divsV1; j++) {
@@ -596,14 +590,14 @@ export class Eval {
 
     private static regularlySpacedBasisFunctions( degree : number, knots : KnotArray, divs : number ) : Pair<Array<number>, Array<Array<number>>> {
 
-        let n : number = knots.length - degree - 2;
-        let span : number = (ArrayExtensions.last(knots) - knots[0]) / divs;
+        const n : number = knots.length - degree - 2;
+        const span : number = (ArrayExtensions.last(knots) - knots[0]) / divs;
 
-        let bases = [];
-        let knotspans = [];
+        const bases = [];
+        const knotspans = [];
         let u = knots[0];
         let knotIndex = Eval.knotSpanGivenN( n, degree, u, knots );
-        let div1 = divs + 1;
+        const div1 = divs + 1;
 
         // compute all of the basis functions in given dir
         for (let i = 0; i < div1; i++) {
@@ -618,14 +612,14 @@ export class Eval {
 
     private static regularlySpacedDerivativeBasisFunctions(degree : number, knots : KnotArray, divs : number){
 
-        let n : number = knots.length - degree - 2;
-        let span : number = (ArrayExtensions.last(knots) - knots[0]) / divs;
+        const n : number = knots.length - degree - 2;
+        const span : number = (ArrayExtensions.last(knots) - knots[0]) / divs;
 
-        let bases = [];
-        let knotspans = [];
+        const bases = [];
+        const knotspans = [];
         let u = knots[0];
         let knotIndex = Eval.knotSpanGivenN( n, degree, u, knots );
-        let div1 = divs + 1;
+        const div1 = divs + 1;
 
         // compute all of the basis functions in given dir
         for (let i = 0; i < div1; i++) {
@@ -647,11 +641,11 @@ export class Eval {
                                                              basesV : Array<number>,
                                                              dim : number) : Point {
 
-        let position = Vec.zeros1d( dim )
-        , temp : Array<number>;
+        const position = Vec.zeros1d( dim );
+        let temp : Array<number>;
 
         // could be precomputed
-        let uind = knotSpanU - degreeU;
+        const uind = knotSpanU - degreeU;
         let vind = knotSpanV - degreeV;
 
         for (let l = 0; l < degreeV + 1; l++) {
@@ -681,11 +675,11 @@ export class Eval {
                                                                   numDerivs : number ){
 
         dim = controlPoints[0][0].length;
-        let du = numDerivs < degreeU ? numDerivs : degreeU
-        , dv = numDerivs < degreeV ? numDerivs : degreeV
-        , SKL = Vec.zeros3d( du+1, dv+1, dim )
-        , temp = Vec.zeros2d( degreeV+1, dim )
-        , dd = 0;
+        const du = numDerivs < degreeU ? numDerivs : degreeU;
+        const dv = numDerivs < degreeV ? numDerivs : degreeV;
+        const SKL = Vec.zeros3d( du+1, dv+1, dim );
+        const temp = Vec.zeros2d( degreeV+1, dim );
+        let dd = 0;
 
         for (let k = 0; k < du+1; k++) {
             for (let s = 0; s < degreeV+1; s++) {
@@ -696,7 +690,7 @@ export class Eval {
                 }
             }
 
-            let nk = numDerivs - k;
+            const nk = numDerivs - k;
             dd = nk < dv ? nk : dv;
 
             for (let l = 0; l < dd+1; l++) {
@@ -725,7 +719,7 @@ export class Eval {
 
     public static curveDerivatives( crv : NurbsCurveData, u : number, numDerivs : number ) : Array<Point> {
 
-        let n = crv.knots.length - crv.degree - 2;
+        const n = crv.knots.length - crv.degree - 2;
         return Eval.curveDerivativesGivenN( n, crv, u, numDerivs);
 
     }
@@ -745,7 +739,7 @@ export class Eval {
 
     public static curveDerivativesGivenN( n : number, curve : NurbsCurveData, u : number, numDerivs : number ) : Array<Point> {
 
-        let degree = curve.degree
+        const degree = curve.degree
         , controlPoints = curve.controlPoints
         , knots = curve.knots;
 
@@ -753,13 +747,11 @@ export class Eval {
             throw 'Invalid relations between control points, knot vector, and n';
         }
 
-        let dim = controlPoints[0].length
+        const dim = controlPoints[0].length
         , du = numDerivs < degree ? numDerivs : degree
         , CK = Vec.zeros2d( numDerivs+1, dim )
         , knotSpan_index = Eval.knotSpanGivenN( n, degree, u, knots )
-        , nders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index, u, degree, du, knots )
-        , k = 0
-        , j = 0;
+        , nders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index, u, degree, du, knots );
 
         for (let k = 0; k < du+1; k++) {
             for (let j = 0; j < degree+1; j++) {
@@ -781,7 +773,7 @@ export class Eval {
     //* a point represented by an array of length (dim)
 
     public static curvePoint( curve : NurbsCurveData, u : number) {
-        let n = curve.knots.length - curve.degree - 2;
+        const n = curve.knots.length - curve.degree - 2;
         return Eval.curvePointGivenN( n, curve, u);
     }
 
@@ -817,18 +809,17 @@ export class Eval {
 
     public static curvePointGivenN( n : number, curve : NurbsCurveData, u : number) : Point {
 
-        let degree = curve.degree
+        const degree = curve.degree
             , controlPoints = curve.controlPoints
             , knots = curve.knots;
 
         if ( !Eval.areValidRelations( degree, controlPoints.length, knots.length ) ) {
             throw 'Invalid relations between control points, knot Array, and n';
-            return null;
         }
 
-        let knotSpan_index = Eval.knotSpanGivenN( n, degree, u, knots );
-        let basis_values = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index, u, degree, knots );
-        let position = Vec.zeros1d( controlPoints[0].length );
+        const knotSpan_index = Eval.knotSpanGivenN( n, degree, u, knots );
+        const basis_values = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index, u, degree, knots );
+        const position = Vec.zeros1d( controlPoints[0].length );
 
         for (let j = 0; j < degree+1; j++) {
             Vec.addMulMutate( position, basis_values[j], controlPoints[ knotSpan_index - degree + j ] );
@@ -851,7 +842,7 @@ export class Eval {
     //* a point represented by an array of length (dim)
 
     public static volumePoint( volume : VolumeData, u : number, v : number, w : number ) : Point {
-        let n = volume.knotsU.length - volume.degreeU - 2
+        const n = volume.knotsU.length - volume.degreeU - 2
         , m = volume.knotsV.length - volume.degreeV - 2
         , l = volume.knotsW.length - volume.degreeW - 2;
 
@@ -885,7 +876,7 @@ export class Eval {
             throw 'Invalid relations between control points and knot vector';
         }
 
-        let controlPoints = volume.controlPoints
+        const controlPoints = volume.controlPoints
         , degreeU = volume.degreeU
         , degreeV = volume.degreeV
         , degreeW = volume.degreeW
@@ -893,27 +884,27 @@ export class Eval {
         , knotsV = volume.knotsV
         , knotsW = volume.knotsW;
 
-        let dim = controlPoints[0][0][0].length
-        , knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU )
-        , knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV )
-        , knotSpan_index_w = Eval.knotSpanGivenN( l, degreeW, w, knotsW )
-        , u_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_u, u, degreeU, knotsU )
-        , v_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_v, v, degreeV, knotsV )
-        , w_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_w, w, degreeW, knotsW )
-        , uind = knotSpan_index_u - degreeU
-        , position = Vec.zeros1d( dim )
-        , temp = Vec.zeros1d( dim )
-        , temp2 = Vec.zeros1d( dim );
+        const dim = controlPoints[0][0][0].length;
+        const knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU );
+        const knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV );
+        const knotSpan_index_w = Eval.knotSpanGivenN( l, degreeW, w, knotsW );
+        const u_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_u, u, degreeU, knotsU );
+        const v_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_v, v, degreeV, knotsV );
+        const w_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_w, w, degreeW, knotsW );
+        const uind = knotSpan_index_u - degreeU;
+        const position = Vec.zeros1d( dim );
+        let temp = Vec.zeros1d( dim );
+        let temp2 = Vec.zeros1d( dim );
 
         for (let i = 0; i < degreeW + 1; i++) {
 
             temp2 = Vec.zeros1d( dim );
-            let wind = knotSpan_index_w - degreeW + i;
+            const wind = knotSpan_index_w - degreeW + i;
 
             for (let j = 0; j < degreeV + 1; j++) {
 
                 temp = Vec.zeros1d( dim );
-                let vind = knotSpan_index_v  - degreeV + j;
+                const vind = knotSpan_index_v  - degreeV + j;
 
                 for (let k = 0; k < degreeU + 1; k++) {
                     Vec.addMulMutate( temp, u_basis_vals[k], controlPoints[uind+k][vind][wind] );
@@ -944,7 +935,7 @@ export class Eval {
 
     public static derivativeBasisFunctions( u : number, degree : number, knots : KnotArray ): Array<Array<number>>
     {
-        let knotSpan_index = Eval.knotSpan( degree, u, knots )
+        const knotSpan_index = Eval.knotSpan( degree, u, knots )
         , m = knots.length - 1
         , n = m - degree - 1;
 
@@ -969,11 +960,11 @@ export class Eval {
     public static derivativeBasisFunctionsGivenNI( knotIndex : number, u : number, p : number,
                                                             n : number, knots : KnotArray ) : Array<Array<number>>
     {
-        let ndu = Vec.zeros2d( p+1, p+1 )
-        , left = Vec.zeros1d( p + 1 )
-        , right = Vec.zeros1d( p + 1 )
-        , saved = 0.0
-        , temp = 0.0;
+        const ndu = Vec.zeros2d( p+1, p+1 );
+        const left = Vec.zeros1d( p + 1 );
+        const right = Vec.zeros1d( p + 1 );
+        let saved = 0.0;
+        let temp = 0.0;
 
         ndu[0][0] = 1.0;
 
@@ -993,15 +984,15 @@ export class Eval {
             ndu[j][j] = saved;
         }
 
-        let ders = Vec.zeros2d(n+1, p+1)
-            , a = Vec.zeros2d(2, p+1)
-            , s1 : number = 0
-            , s2 : number = 1
-            , d : number = 0.0
-            , rk : number = 0
-            , pk : number = 0
-            , j1 : number = 0
-            , j2 : number = 0;
+        const ders = Vec.zeros2d(n+1, p+1);
+        const a = Vec.zeros2d(2, p+1);
+        let s1 : number = 0;
+        let s2 : number = 1;
+        let d : number = 0.0;
+        let rk : number = 0;
+        let pk : number = 0;
+        let j1 : number = 0;
+        let j2 : number = 0;
 
         for (let j = 0; j < p+1; j++) {
             ders[0][j] = ndu[j][p];
@@ -1047,7 +1038,7 @@ export class Eval {
 
                 ders[k][r] = d;
 
-                let temp = s1;
+                const temp = s1;
                 s1 = s2;
                 s2 = temp;
             }
@@ -1080,7 +1071,7 @@ export class Eval {
 
     public static basisFunctions( u : number, degree : number, knots : KnotArray) : Array<number>
     {
-        let knotSpan_index = Eval.knotSpan(degree, u, knots);
+        const knotSpan_index = Eval.knotSpan(degree, u, knots);
         return Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index, u, degree, knots );
     }
 
@@ -1104,9 +1095,9 @@ export class Eval {
                                                                   degree : number,
                                                                   knots : KnotArray ) : Array<number>
     {
-        let basisFunctions = Vec.zeros1d( degree + 1 );
-        let left = Vec.zeros1d( degree + 1 );
-        let right = Vec.zeros1d( degree + 1 );
+        const basisFunctions = Vec.zeros1d( degree + 1 );
+        const left = Vec.zeros1d( degree + 1 );
+        const right = Vec.zeros1d( degree + 1 );
         let saved : number = 0;
         let temp : number = 0;
 
@@ -1206,7 +1197,7 @@ export class Eval {
 
     public static dehomogenize( homoPoint : Point ) : Point {
 
-        let dim = homoPoint.length
+        const dim = homoPoint.length
         , point = []
         , wt = homoPoint[dim-1]
         , l = homoPoint.length - 1;
@@ -1230,7 +1221,7 @@ export class Eval {
     //* array of points represented by an array (wi*pi) with length (dim)
 
     public static rational1d( homoPoints : Array<Point> ) : Array<Point> {
-        let dim = homoPoints[0].length - 1;
+        const dim = homoPoints[0].length - 1;
         return homoPoints.map(function(x : Point){ return x.slice(0,dim); });
     }
 
@@ -1261,7 +1252,7 @@ export class Eval {
     //* a point represented by an array pi with length (dim)
 
     public static weight1d( homoPoints : Array<Point> ) : Array<number> {
-        let dim = homoPoints[0].length - 1;
+        const dim = homoPoints[0].length - 1;
         return homoPoints.map(function(x){ return x[dim]; });
     }
 
@@ -1321,19 +1312,18 @@ export class Eval {
     //i the ith control point weight and pi is the ith control point,
     //hence the dimension of the point is dim + 1
 
-    public static homogenize1d( controlPoints : Array<Point>, weights : Array<number> = null) : Array<Point> {
+    public static homogenize1d( controlPoints : Array<Point>, weights : Array<number> | null = null) : Array<Point> {
 
-        let rows = controlPoints.length
-        , dim = controlPoints[0].length
-        , homo_controlPoints = new Array<Point>()
-        , wt : number = 0.0
-        , ref_pt = []
-        ;
+        const rows = controlPoints.length;
+        const dim = controlPoints[0].length;
+        const homo_controlPoints = new Array<Point>();
+        let wt : number = 0.0;
+        let ref_pt = [];
         weights = weights != null ? weights : Vec.rep( controlPoints.length, 1.0 );
 
         for (let i = 0; i < rows; i++) {
 
-            let pt = [];
+            const pt = [];
             ref_pt = controlPoints[i];
             wt = weights[i];
 
@@ -1363,11 +1353,11 @@ export class Eval {
     // (m x n x dim+1)
 
     public static homogenize2d( controlPoints : Array<Array<Point>>,
-                                         weights: Array<Array<number>> = null ) : Array<Array<Point>> {
-        let rows = controlPoints.length
+                                         weights: Array<Array<number>> | null = null ) : Array<Array<Point>> {
+        const rows = controlPoints.length
         , homo_controlPoints = new Array<Array<Point>>()
         ;
-        weights = weights != null ? weights : Array.from({ length: rows }, (_, i) => Vec.rep( controlPoints[0].length, 1.0 ));
+        weights = weights != null ? weights : Array.from({ length: rows }, () => Vec.rep( controlPoints[0].length, 1.0 ));
 
         for (let i = 0; i < rows; i++) {
             homo_controlPoints.push( Eval.homogenize1d(controlPoints[i], weights[i]) );

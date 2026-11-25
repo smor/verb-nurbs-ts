@@ -10,9 +10,9 @@ export class SurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData
 
     _children : Pair<IBoundingBoxTree<NurbsSurfaceData>, IBoundingBoxTree<NurbsSurfaceData>>;
     _surface : NurbsSurfaceData;
-    _boundingBox : BoundingBox = null;
+    _boundingBox : BoundingBox | null = null;
 
-    constructor(surface : NurbsSurfaceData, splitV? : boolean, knotTolU : number = null, knotTolV : number = null){ if (splitV == null) splitV = false;
+    constructor(surface : NurbsSurfaceData, splitV? : boolean, knotTolU : number | null = null, knotTolV : number | null = null){ if (splitV == null) splitV = false;
         this._surface = surface;
 
         if (knotTolU == null){
@@ -44,10 +44,10 @@ export class SurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData
             max = ArrayExtensions.last(this._surface.knotsU);
         }
 
-        let dom = max - min;
-        let pivot = (min + max) / 2.0 + dom * 0.1 * Math.random();
+        const dom = max - min;
+        const pivot = (min + max) / 2.0 + dom * 0.1 * Math.random();
 
-        let srfs = Divide.surfaceSplit( this._surface, pivot, splitV );
+        const srfs = Divide.surfaceSplit( this._surface, pivot, splitV );
 
         this._children = new Pair<IBoundingBoxTree<NurbsSurfaceData>, IBoundingBoxTree<NurbsSurfaceData>>(
             new SurfaceBoundingBoxTree( srfs[0], !splitV, knotTolU, knotTolV ),
@@ -73,7 +73,7 @@ export class SurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData
         return this._surface;
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return this._children == null;
     }
 

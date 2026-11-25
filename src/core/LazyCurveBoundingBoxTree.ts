@@ -9,10 +9,10 @@ import { IBoundingBoxTree } from "../eval/Intersect.js";
 export class LazyCurveBoundingBoxTree implements IBoundingBoxTree<NurbsCurveData> {
 
     _curve : NurbsCurveData;
-    _boundingBox : BoundingBox = null;
+    _boundingBox : BoundingBox | null = null;
     _knotTol : number;
 
-    constructor(curve : NurbsCurveData, knotTol : number = null){
+    constructor(curve : NurbsCurveData, knotTol : number | null = null){
         this._curve = curve;
         if (knotTol == null){
             knotTol = Vec.domain(this._curve.knots) / 64;
@@ -21,11 +21,11 @@ export class LazyCurveBoundingBoxTree implements IBoundingBoxTree<NurbsCurveData
     }
 
     public split() : Pair<IBoundingBoxTree<NurbsCurveData>, IBoundingBoxTree<NurbsCurveData>> {
-        let min = ArrayExtensions.first(this._curve.knots);
-        let max = ArrayExtensions.last(this._curve.knots);
-        let dom = max - min;
+        const min = ArrayExtensions.first(this._curve.knots);
+        const max = ArrayExtensions.last(this._curve.knots);
+        const dom = max - min;
 
-        let crvs = Divide.curveSplit( this._curve, (max + min) / 2.0 + dom * 0.1 * Math.random());
+        const crvs = Divide.curveSplit( this._curve, (max + min) / 2.0 + dom * 0.1 * Math.random());
 
         return new Pair<IBoundingBoxTree<NurbsCurveData>, IBoundingBoxTree<NurbsCurveData>>(
             new LazyCurveBoundingBoxTree( crvs[0], this._knotTol ),
@@ -43,7 +43,7 @@ export class LazyCurveBoundingBoxTree implements IBoundingBoxTree<NurbsCurveData
         return this._curve;
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return Vec.domain(this._curve.knots) < this._knotTol;
     }
 

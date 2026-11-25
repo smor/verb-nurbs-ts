@@ -54,7 +54,7 @@ export class NurbsCurve extends SerializableBase implements ICurve {
     public static byKnotsControlPointsWeights( degree : number,
                                                         knots : KnotArray,
                                                         controlPoints : Array<Point>,
-                                                        weights : Array<number> = null ) : NurbsCurve {
+                                                        weights? : Array<number> ) : NurbsCurve {
         return new NurbsCurve( new NurbsCurveData( degree, knots.slice(), Eval.homogenize1d( controlPoints, weights) ) );
     }
 
@@ -290,13 +290,13 @@ export class NurbsCurve extends SerializableBase implements ICurve {
     //
     //* The length of the curve at the given parameter
 
-    public paramAtLength( len : number, tolerance : number = null ) : number {
+    public paramAtLength( len : number, tolerance? : number ) : number {
         return Analyze.rationalCurveParamAtArcLength( this._data, len, tolerance );
     }
 
     //The async version of `paramAtLength`
 
-    public paramAtLengthAsync( len : number, tolerance : number = null ) : Promise<number> {
+    public paramAtLengthAsync( len : number, tolerance? : number ) : Promise<number> {
         return Dispatcher.dispatchMethod( Analyze, 'rationalCurveParamAtArcLength', [ this._data, len, tolerance ] );
     }
 
@@ -390,13 +390,13 @@ export class NurbsCurve extends SerializableBase implements ICurve {
     //
     //* A point represented as an array
 
-    public tessellate(tolerance : number = null) : Array<Point> {
+    public tessellate(tolerance? : number) : Array<Point> {
         return Tess.rationalCurveAdaptiveSample( this._data, tolerance, false );
     }
 
     // The async version of `tessellate`
 
-    public tessellateAsync( tolerance : number = null ) : Promise<Array<Point>> {
+    public tessellateAsync( tolerance? : number ) : Promise<Array<Point>> {
         return Dispatcher.dispatchMethod( Tess, 'rationalCurveAdaptiveSample', [ this._data, tolerance, false ] );
     }
 
@@ -414,7 +414,7 @@ export class NurbsCurve extends SerializableBase implements ICurve {
     //
     //* a new NurbsCurve
 
-    public offset( distance : number, normal : Vector = null, options : OffsetOptions = null ) : NurbsCurve {
+    public offset( distance : number, normal? : Vector, options? : OffsetOptions ) : NurbsCurve {
         return new NurbsCurve( Offset.curve( this._data, distance, normal, options ).result );
     }
 }

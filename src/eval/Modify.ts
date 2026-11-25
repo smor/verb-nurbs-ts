@@ -67,11 +67,10 @@ export class Modify {
     //* The reversed array of knots
 
     public static knotsReverse( knots : KnotArray ) : KnotArray {
-        let min = ArrayExtensions.first(knots);
-        let max = ArrayExtensions.last(knots);
+        const min = ArrayExtensions.first(knots);
 
-        let l = [ min ];
-        let len = knots.length;
+        const l = [ min ];
+        const len = knots.length;
         for (let i = 1; i < len; i++) {
             l.push( l[i-1] + ( knots[len-i] - knots[len-i-1] ) );
         }
@@ -92,7 +91,7 @@ export class Modify {
     public static unifyCurveKnotVectors( curves : Array<NurbsCurveData> ) : Array<NurbsCurveData> {
         curves = curves.map(Make.clonedCurve);
 
-        let maxDegree = curves.reduce(function(a, x){ return Modify.imax(x.degree, a); }, 0 );
+        const maxDegree = curves.reduce(function(a, x){ return Modify.imax(x.degree, a); }, 0 );
 
         //elevate all curves to the same degree
         for (let i = 0; i < curves.length; i++) {
@@ -101,33 +100,30 @@ export class Modify {
             }
         }
 
-        let knotIntervals = curves.map((c) => new Interval( ArrayExtensions.first(c.knots), ArrayExtensions.last(c.knots) ));
+        const knotIntervals = curves.map((c) => new Interval( ArrayExtensions.first(c.knots), ArrayExtensions.last(c.knots) ));
 
         //shift all knot vectors to start at 0.0
         for (let i = 0; i < curves.length; i++) {
-            let min = knotIntervals[i].min;
+            const min = knotIntervals[i].min;
             curves[i].knots = curves[i].knots.map(function(x){ return x - min; });
         }
 
         //find the max knot span
-        let knotSpans = knotIntervals.map(function(x){ return x.max - x.min; });
-        let maxKnotSpan = knotSpans.reduce(function(a, x){ return Math.max(x, a); }, 0.0 );
+        const knotSpans = knotIntervals.map(function(x){ return x.max - x.min; });
+        const maxKnotSpan = knotSpans.reduce(function(a, x){ return Math.max(x, a); }, 0.0 );
 
         //scale all of the knot vectors to match
         for (let i = 0; i < curves.length; i++) {
-            let scale = maxKnotSpan / knotSpans[i];
+            const scale = maxKnotSpan / knotSpans[i];
             curves[i].knots = curves[i].knots.map(function(x){ return x * scale; });
         }
 
         //merge all of the knot vectors
-        let mergedKnots = curves.reduce(function(a, x){ return Vec.sortedSetUnion(x.knots,a); }, []);
+        const mergedKnots = curves.reduce(function(a, x){ return Vec.sortedSetUnion(x.knots,a); }, [] as Array<number>);
 
         //knot refinement on each curve
         for (let i = 0; i < curves.length; i++) {
-            let rem = Vec.sortedSetSub( mergedKnots, curves[i].knots );
-            if (rem.length == 0) {
-                curves[i] = curves[i];
-            }
+            const rem = Vec.sortedSetSub( mergedKnots, curves[i].knots );
             curves[i] = Modify.curveKnotRefine( curves[i], rem  );
         }
 
@@ -158,42 +154,40 @@ export class Modify {
         if (finalDegree <= curve.degree) return curve;
 
         //args
-        let n = curve.knots.length - curve.degree - 2;
-        let newDegree = curve.degree;
-        let knots = curve.knots;
-        let controlPoints = curve.controlPoints;
-        let degreeInc = finalDegree - curve.degree;
+        const n = curve.knots.length - curve.degree - 2;
+        const newDegree = curve.degree;
+        const knots = curve.knots;
+        const controlPoints = curve.controlPoints;
+        const degreeInc = finalDegree - curve.degree;
 
-        let dim = curve.controlPoints[0].length;
+        const dim = curve.controlPoints[0].length;
 
         //intermediate values
-        let bezalfs = Vec.zeros2d( newDegree + degreeInc + 1, newDegree + 1);
-        let bpts = [];
-        let ebpts = [];
-        let Nextbpts = [];
-        let alphas = [];
+        const bezalfs = Vec.zeros2d( newDegree + degreeInc + 1, newDegree + 1);
+        const bpts = [];
+        const ebpts = [];
+        const Nextbpts = [];
 
-        let m = n + newDegree + 1;
-        let ph = finalDegree;
-        let ph2 = Math.floor(ph / 2);
+        const m = n + newDegree + 1;
+        const ph = finalDegree;
+        const ph2 = Math.floor(ph / 2);
 
         //return values
-        let Qw = [];
-        let Uh = [];
-        let nh;
+        const Qw = [];
+        const Uh = [];
 
         bezalfs[0][0] = 1.0;
         bezalfs[ph][newDegree] = 1.0;
 
         for (let i = 1; i < ph2+1; i++) {
-            let inv = 1.0 / Binomial.get( ph, i );
-            let mpi = Modify.imin(newDegree,i);
+            const inv = 1.0 / Binomial.get( ph, i );
+            const mpi = Modify.imin(newDegree,i);
             for (let j = Modify.imax(0,i-degreeInc); j < mpi+1; j++) {
                 bezalfs[i][j] = inv * Binomial.get(newDegree,j) * Binomial.get(degreeInc,i-j);
             }
         }
         for (let i = ph2+1; i < ph; i++) {
-            let mpi = Modify.imin(newDegree,i);
+            const mpi = Modify.imin(newDegree,i);
             for (let j = Modify.imax(0,i-degreeInc); j < mpi+1; j++) {
                 bezalfs[i][j] = bezalfs[ph-i][newDegree-j];
             }
@@ -213,29 +207,29 @@ export class Modify {
             bpts[i] = controlPoints[i];
         }
         while (b < m){
-            let i = b;
+            const i = b;
             while( b < m && knots[b] == knots[b+1]){
                 b = b+1;
             }
-            let mul = b-i+1;
+            const mul = b-i+1;
             mh = mh+mul+degreeInc;
-            let ub = knots[b];
-            let oldr = r;
+            const ub = knots[b];
+            const oldr = r;
             r = newDegree-mul;
             //check for integer arithmetic
-            let lbz = oldr > 0 ? Math.floor((oldr+2)/2) : 1;
-            let rbz = r > 0 ? Math.floor(ph-(r+1)/2) : ph;
+            const lbz = oldr > 0 ? Math.floor((oldr+2)/2) : 1;
+            const rbz = r > 0 ? Math.floor(ph-(r+1)/2) : ph;
             if (r > 0){
-                let numer = ub-ua;
-                let alfs = [];
+                const numer = ub-ua;
+                const alfs = [];
                 let k = newDegree;
                 while (k > mul){
                     alfs[k-mul-1] = numer/(knots[a+k]-ua); //integer arithmetic?
                     k--;
                 }
                 for (let j = 1; j < r+1; j++) {
-                    let save = r-j;
-                    let s = mul+j;
+                    const save = r-j;
+                    const s = mul+j;
                     let k = newDegree;
                     while ( k >= s ){
                         bpts[k] = Vec.add( Vec.mul(alfs[k-s],bpts[k]), Vec.mul(1.0-alfs[k-s], bpts[k-1]));
@@ -247,7 +241,7 @@ export class Modify {
 
             for (let i = lbz; i < ph+1; i++) {
                 ebpts[i] = Vec.zeros1d( dim );
-                let mpi = Modify.imin(newDegree,i);
+                const mpi = Modify.imin(newDegree,i);
                 for (let j = Modify.imax(0,i-degreeInc); j < mpi+1; j++) {
                     ebpts[i] = Vec.add( ebpts[i], Vec.mul( bezalfs[i][j], bpts[j]));
                 }
@@ -256,20 +250,20 @@ export class Modify {
             if (oldr > 1){
                 let first = kind-2;
                 let last = kind;
-                let den = ub-ua;
-                let bet = (ub-Uh[kind-1])/den; //integer arithmetic?
+                const den = ub-ua;
+                const bet = (ub-Uh[kind-1])/den; //integer arithmetic?
                 for (let tr = 1; tr < oldr; tr++) {
                     let i = first;
                     let j = last;
                     let kj = j-kind+1;
                     while (j-i > tr){
                         if (i < cind){
-                            let alf = (ub-Uh[i])/(ua-Uh[i]); //integer arithmetic?
+                            const alf = (ub-Uh[i])/(ua-Uh[i]); //integer arithmetic?
                             Qw[i] = Vec.lerp(alf, Qw[i], Qw[i-1]);
                         }
                         if ( j >= lbz ){
                             if ( j-tr <= kind-ph+oldr ){
-                                let gam = (ub-Uh[j-tr])/den;
+                                const gam = (ub-Uh[j-tr])/den;
                                 ebpts[kj] = Vec.lerp(gam, ebpts[kj], ebpts[kj+1]);
                             }
                         } else {
@@ -313,7 +307,6 @@ export class Modify {
                 }
             }
         }
-        nh = mh-ph-1;
 
         return new NurbsCurveData( finalDegree, Uh, Qw );
     }
@@ -331,11 +324,11 @@ export class Modify {
 
     public static rationalSurfaceTransform( surface : NurbsSurfaceData, mat : Matrix ) : NurbsSurfaceData {
 
-        let pts = Eval.dehomogenize2d( surface.controlPoints );
+        const pts = Eval.dehomogenize2d( surface.controlPoints );
 
         for (let i = 0; i < pts.length; i++) {
             for (let j = 0; j < pts[i].length; j++) {
-                let homoPt = pts[i][j];
+                const homoPt = pts[i][j];
                 homoPt.push(1.0);
 
                 pts[i][j] = Mat.dot( mat, homoPt ).slice( 0, homoPt.length - 1 );
@@ -358,11 +351,11 @@ export class Modify {
 
     public static rationalCurveTransform( curve : NurbsCurveData, mat : Matrix ) : NurbsCurveData {
 
-        let pts = Eval.dehomogenize1d( curve.controlPoints );
+        const pts = Eval.dehomogenize1d( curve.controlPoints );
 
         for (let i = 0; i < pts.length; i++) {
 
-            let homoPt = pts[i];
+            const homoPt = pts[i];
             homoPt.push(1.0);
 
             pts[i] = Mat.dot( mat, homoPt ).slice( 0, homoPt.length - 1 );
@@ -407,13 +400,13 @@ export class Modify {
         }
 
         //do knot refinement on every row
-        let c : NurbsCurveData = null;
+        let c! : NurbsCurveData;
         for (const cptrow of ctrlPts) {
             c = Modify.curveKnotRefine( new NurbsCurveData(degree, knots, cptrow), knotsToInsert );
             newPts.push( c.controlPoints );
         }
 
-        let newknots = c.knots;
+        const newknots = c.knots;
 
         //u dir
         if (!useV){
@@ -439,37 +432,36 @@ export class Modify {
 
     public static decomposeCurveIntoBeziers( curve : NurbsCurveData ) : Array<NurbsCurveData> {
 
-        let degree = curve.degree
-        , controlPoints = curve.controlPoints
-        , knots = curve.knots;
+        const degree = curve.degree;
+        let controlPoints = curve.controlPoints;
+        let knots = curve.knots;
 
         //find all of the unique knot values and their multiplicity
         //for each, increase their multiplicity to degree + 1
 
-        let knotmults = Analyze.knotMultiplicities( knots );
-        let reqMult = degree + 1;
+        const knotmults = Analyze.knotMultiplicities( knots );
+        const reqMult = degree + 1;
 
         //insert the knots
         for (const knotmult of knotmults) { // (var i = 0; i < mults.length; i++){
             if ( knotmult.mult < reqMult ){
 
-                let knotsInsert = Vec.rep( reqMult - knotmult.mult, knotmult.knot );
-                let res = Modify.curveKnotRefine( new NurbsCurveData(degree, knots, controlPoints), knotsInsert );
+                const knotsInsert = Vec.rep( reqMult - knotmult.mult, knotmult.knot );
+                const res = Modify.curveKnotRefine( new NurbsCurveData(degree, knots, controlPoints), knotsInsert );
 
                 knots = res.knots;
                 controlPoints = res.controlPoints;
             }
         }
 
-        let numCrvs = knots.length / reqMult - 1;
-        let crvKnotLength = reqMult * 2;
+        const crvKnotLength = reqMult * 2;
 
-        let crvs = [];
+        const crvs = [];
 
         let i = 0;
         while ( i < controlPoints.length){
-            let kts = knots.slice( i, i + crvKnotLength );
-            let pts = controlPoints.slice( i, i + reqMult );
+            const kts = knots.slice( i, i + crvKnotLength );
+            const pts = controlPoints.slice( i, i + reqMult );
 
             crvs.push( new NurbsCurveData(degree, kts, pts ) );
 
@@ -498,11 +490,11 @@ export class Modify {
 
         if ( knotsToInsert.length == 0 ) return Make.clonedCurve(curve);
 
-        let degree = curve.degree
+        const degree = curve.degree
         , controlPoints = curve.controlPoints
         , knots = curve.knots;
 
-        let n = controlPoints.length - 1
+        const n = controlPoints.length - 1
         , m = n + degree + 1
         , r = knotsToInsert.length - 1
         , a = Eval.knotSpan( degree, knotsToInsert[0], knots )
@@ -545,7 +537,7 @@ export class Modify {
 
             for (let l = 1; l < degree+1; l++) {
 
-                let ind = k-degree+l;
+                const ind = k-degree+l;
                 let alfa = knots_post[k+l] - knotsToInsert[j];
 
                 if (Math.abs(alfa) < Constants.EPSILON){
@@ -592,7 +584,7 @@ export class Modify {
 
     public static curveKnotInsert( curve : NurbsCurveData, u : number, r : number ) : NurbsCurveData {
 
-        let degree = curve.degree
+        const degree = curve.degree
         , controlPoints = curve.controlPoints
         , knots = curve.knots;
 
@@ -602,15 +594,13 @@ export class Modify {
         //r is the number of times to insert the knot
         //controlPoints is initial set of control points
 
-        let s = 0; //assume original multiplicity is 0 - TODO add check for multiplicity in knots
+        const s = 0; //assume original multiplicity is 0 - TODO add check for multiplicity in knots
 
-        let num_pts = controlPoints.length
+        const num_pts = controlPoints.length
         , k = Eval.knotSpan( degree, u, knots ) //the span in which the knot will be inserted
-        , num_pts_post = num_pts + r //a new control pt for every new knot
         , controlPoints_temp = new Array<Point>() //new Array( degree - s )
         , knots_post = [] //new Array( knots.length + r )  //r new knots
-        , controlPoints_post = new Array<Point>() //new Array( num_pts_post )
-        , i = 0;
+        , controlPoints_post = new Array<Point>(); //new Array( num_pts_post )
 
         //new knot vector
 

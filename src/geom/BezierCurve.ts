@@ -12,7 +12,7 @@ export class BezierCurve extends NurbsCurve {
     //* Array of control points
     //* Array of control point weights (optional)
 
-    constructor(points : Array<Point>, weights : Array<number> = null) {
+    constructor(points : Array<Point>, weights? : Array<number>) {
         super( Make.rationalBezierCurve( points, weights ) );
     }
 }

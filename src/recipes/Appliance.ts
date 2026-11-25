@@ -94,57 +94,57 @@ export interface Appliance {
 export class ApplianceRecipe {
 
     public static build( params? : ApplianceParams ) : Appliance {
-        let p = params != null ? params : {};
-        let W = p.width != null ? p.width : 200, D = p.depth != null ? p.depth : 250;
-        let hf = p.frontHeight != null ? p.frontHeight : 120, hb = p.backHeight != null ? p.backHeight : 190;
-        let sq = p.squareness != null ? p.squareness : 3.2;
-        let taper = p.taper != null ? p.taper : 0.88;
-        let bH = p.bowlHeight != null ? p.bowlHeight : 170;
-        let bR = p.bowlRadius != null ? p.bowlRadius : [58, 76] as [number, number];
-        let seat = p.seatDepth != null ? p.seatDepth : 80;
-        let gap = p.clearance != null ? p.clearance : 0.6;
-        let archH = p.archHeight != null ? p.archHeight : 70;
-        let archS = p.archSection != null ? p.archSection : [30, 16] as [number, number];
-        let fine = p.fine != null ? p.fine : true;
-        let around = p.divs != null ? p.divs : (fine ? 192 : 96);
+        const p = params != null ? params : {};
+        const W = p.width != null ? p.width : 200, D = p.depth != null ? p.depth : 250;
+        const hf = p.frontHeight != null ? p.frontHeight : 120, hb = p.backHeight != null ? p.backHeight : 190;
+        const sq = p.squareness != null ? p.squareness : 3.2;
+        const taper = p.taper != null ? p.taper : 0.88;
+        const bH = p.bowlHeight != null ? p.bowlHeight : 170;
+        const bR = p.bowlRadius != null ? p.bowlRadius : [58, 76] as [number, number];
+        const seat = p.seatDepth != null ? p.seatDepth : 80;
+        const gap = p.clearance != null ? p.clearance : 0.6;
+        const archH = p.archHeight != null ? p.archHeight : 70;
+        const archS = p.archSection != null ? p.archSection : [30, 16] as [number, number];
+        const fine = p.fine != null ? p.fine : true;
+        const around = p.divs != null ? p.divs : (fine ? 192 : 96);
 
         // the sloped top: z = hf at the front (y = -D/2), hb at the back (y = D/2)
-        let slope = (hb - hf) / D;
-        let topZ = (y : number) => (hf + hb) / 2 + slope * y;
-        let up : Point = Vec.normalized( [0, -slope, 1] );
+        const slope = (hb - hf) / D;
+        const topZ = (y : number) => (hf + hb) / 2 + slope * y;
+        const up : Point = Vec.normalized( [0, -slope, 1] );
 
         // 1. the block: a loft of rounded-square sections, narrowing upwards, well above the top so the slab cuts it
-        let Htot = hb + archH + 120;
-        let sections : Array<NurbsCurveData> = [];
-        let K = 5;
+        const Htot = hb + archH + 120;
+        const sections : Array<NurbsCurveData> = [];
+        const K = 5;
         for (let k = 0; k < K; k++) {
-            let s = k / (K - 1);
-            let f = 1 - (1 - taper) * s;
+            const s = k / (K - 1);
+            const f = 1 - (1 - taper) * s;
             sections.push( ApplianceRecipe.superellipse( W / 2 * f, D / 2 * f, sq, [0, 6 * s, Htot * s], 48 ) );
         }
-        let wall = Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) );
-        let block = BrepSolid.cappedWall( wall, [fine ? 24 : 12, around] );
+        const wall = Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) );
+        const block = BrepSolid.cappedWall( wall, [fine ? 24 : 12, around] );
 
         // 2. the slab above the sloped plane: a wide flat-ended cylinder along the plane's normal. Its start cap is the
         // top surface; the cap's centre (a pole of its parameterisation) falls inside the seat, which is cut away.
-        let yb = -0.12 * D; // the bowl's centre, a little forward
-        let c0 : Point = [0, yb, topZ( yb )];
-        let slabR = 1.6 * Math.max( W, D );
-        let slab = BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [c0, Vec.add( c0, Vec.mul( 2 * Htot, up ) )] ), slabR ).surface,
+        const yb = -0.12 * D; // the bowl's centre, a little forward
+        const c0 : Point = [0, yb, topZ( yb )];
+        const slabR = 1.6 * Math.max( W, D );
+        const slab = BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [c0, Vec.add( c0, Vec.mul( 2 * Htot, up ) )] ), slabR ).surface,
             [8, around] );
 
         // 3. the seat: the bowl's cone widened by the clearance, from the bowl's foot up through the top
-        let zf = topZ( yb ) - seat;
-        let rAt = (h : number) => bR[0] + (bR[1] - bR[0]) * h / bH; // bowl radius at height h above its foot
-        let seatTop = seat + 0.5 * D * slope + 40;
-        let seatTool = BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [[0, yb, zf], [0, yb, zf + seatTop]] ),
+        const zf = topZ( yb ) - seat;
+        const rAt = (h : number) => bR[0] + (bR[1] - bR[0]) * h / bH; // bowl radius at height h above its foot
+        const seatTop = seat + 0.5 * D * slope + 40;
+        const seatTool = BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [[0, yb, zf], [0, yb, zf + seatTop]] ),
             [rAt( 0 ) + gap, rAt( seatTop ) + gap] ).surface, [12, fine ? 96 : 64] );
 
         // 4. the arch: a soft rectangular section swept over the back of the top, its feet sunk into the block
-        let yA = 0.5 * (yb + rAt( seat ) + 0.5 * D * taper) + 8, xA = 0.25 * W;
-        let foot = (x : number) : Point => [x, yA, topZ( yA )];
-        let fl = foot( -xA ), fr = foot( xA );
-        let rail = Make.rationalInterpCurve( [
+        const yA = 0.5 * (yb + rAt( seat ) + 0.5 * D * taper) + 8, xA = 0.25 * W;
+        const foot = (x : number) : Point => [x, yA, topZ( yA )];
+        const fl = foot( -xA ), fr = foot( xA );
+        const rail = Make.rationalInterpCurve( [
             Vec.sub( fl, Vec.mul( 18, up ) ),
             Vec.add( fl, Vec.mul( 0.45 * archH, up ) ),
             Vec.add( Vec.add( foot( -0.55 * xA ), Vec.mul( 0.9 * archH, up ) ), [0, 6, 0] ),
@@ -153,30 +153,30 @@ export class ApplianceRecipe {
             Vec.add( fr, Vec.mul( 0.45 * archH, up ) ),
             Vec.sub( fr, Vec.mul( 18, up ) ),
         ], 3 );
-        let profile = BooleanObjectsRecipe.superellipse( archS[0] / 2, archS[1] / 2, 3, 24 );
-        let arch = BrepSolid.cappedTube( Sweep.surface( rail, profile, { tolerance : 0.02 } ).surface, [fine ? 96 : 48, fine ? 40 : 24] );
+        const profile = BooleanObjectsRecipe.superellipse( archS[0] / 2, archS[1] / 2, 3, 24 );
+        const arch = BrepSolid.cappedTube( Sweep.surface( rail, profile, { tolerance : 0.02 } ).surface, [fine ? 96 : 48, fine ? 40 : 24] );
 
         // 5. the keyed coupling: the foot's outline, and the pocket's (the outline pushed out by the clearance)
-        let cR = p.couplingRadius != null ? p.couplingRadius : 34, cH = p.couplingHeight != null ? p.couplingHeight : 8;
-        let key = (t : number) => cR * (1 + 0.1 * Math.cos( 3 * t ) + 0.05 * Math.cos( t ));
-        let solids = [block, slab, seatTool, arch];
+        const cR = p.couplingRadius != null ? p.couplingRadius : 34, cH = p.couplingHeight != null ? p.couplingHeight : 8;
+        const key = (t : number) => cR * (1 + 0.1 * Math.cos( 3 * t ) + 0.05 * Math.cos( t ));
+        const solids = [block, slab, seatTool, arch];
         let keyFoot : BrepSolid | null = null;
         if (cR > 0 && cH > 0) {
             keyFoot = ApplianceRecipe.prism( ApplianceRecipe.polar( key, 0, 0, 96 ), -cH, 2, [8, fine ? 128 : 96] );
-            let pocket = ApplianceRecipe.polar( key, gap, 0, 96 );
+            const pocket = ApplianceRecipe.polar( key, gap, 0, 96 );
             solids.push( ApplianceRecipe.prism( pocket, zf - cH - 1.5, zf + 1, [8, fine ? 128 : 96], [0, yb] ) );
         }
 
-        let ft = p.topFillet != null ? p.topFillet : 10, fs = p.seatFillet != null ? p.seatFillet : 4, fa = p.archFillet != null ? p.archFillet : 6;
-        let base = BrepBoolean.evaluate( solids, f => (f[0] && !f[1] && !f[2] && !f[4]) || f[3], {
+        const ft = p.topFillet != null ? p.topFillet : 10, fs = p.seatFillet != null ? p.seatFillet : 4, fa = p.archFillet != null ? p.archFillet : 6;
+        const base = BrepBoolean.evaluate( solids, f => (f[0] && !f[1] && !f[2] && !f[4]) || f[3], {
             fillet : (c : { solids : [number, number] }) => {
-                let k = c.solids[0] + "," + c.solids[1];
+                const k = c.solids[0] + "," + c.solids[1];
                 return k == "0,1" ? ft : k == "1,2" ? fs : k == "1,3" ? fa : k == "2,4" ? 2 : 0;
             }
         } );
 
         // the bowl: a cone with its handle towards the front, where the top is lowest
-        let bowl = BooleanObjectsRecipe.mug( {
+        const bowl = BooleanObjectsRecipe.mug( {
             height : bH, radius : bR, linearRadius : true, belly : 0, lean : [0, 0], harmonics : [],
             wallThickness : p.bowlWall != null ? p.bowlWall : 2.5, baseThickness : 4,
             handleSection : p.gripSection != null ? p.gripSection : [24, 15], handleSwell : p.gripSwell != null ? p.gripSwell : 1.2,
@@ -186,15 +186,15 @@ export class ApplianceRecipe {
             ribs : p.ribs != null ? p.ribs : 3, ribHeights : [0.12, 0.62], ribSize : [7, 5], ribFillet : 1.5,
             divsU : fine ? 48 : 24, divsV : fine ? 192 : 96, offsetTolerance : fine ? 0.02 : 0.08
         } );
-        let lid = ApplianceRecipe.lid( p, bH, bR, p.bowlWall != null ? p.bowlWall : 2.5, gap, fine );
-        let cup = ApplianceRecipe.cup( p, bH + (p.lidThickness != null ? p.lidThickness : 6), gap, fine );
-        let bowlOffset : Point = [0, yb, zf];
-        let assembly = new TriMesh();
-        for (let m of [base.mesh, bowl.result.mesh, lid.mesh, cup.mesh]) {
-            let o = assembly.vertices.length;
-            let shift = m === base.mesh ? [0, 0, 0] : bowlOffset;
-            for (let v of m.vertices) assembly.addVertex( Vec.add( v, shift ) );
-            for (let t of m.triangles) assembly.addTriangle( t[0] + o, t[1] + o, t[2] + o );
+        const lid = ApplianceRecipe.lid( p, bH, bR, p.bowlWall != null ? p.bowlWall : 2.5, gap, fine );
+        const cup = ApplianceRecipe.cup( p, bH + (p.lidThickness != null ? p.lidThickness : 6), gap, fine );
+        const bowlOffset : Point = [0, yb, zf];
+        const assembly = new TriMesh();
+        for (const m of [base.mesh, bowl.result.mesh, lid.mesh, cup.mesh]) {
+            const o = assembly.vertices.length;
+            const shift = m === base.mesh ? [0, 0, 0] : bowlOffset;
+            for (const v of m.vertices) assembly.addVertex( Vec.add( v, shift ) );
+            for (const t of m.triangles) assembly.addTriangle( t[0] + o, t[1] + o, t[2] + o );
         }
         return { base : base, bowl : bowl, lid : lid, cup : cup, bowlOffset : bowlOffset, assembly : assembly };
     }
@@ -204,35 +204,35 @@ export class ApplianceRecipe {
     // and top so its edge is soft; the plug is a ring that drops inside the rim with the clearance. The hole's two
     // edges (on the plate's top and on the plug's ceiling) are rounded.
     public static lid( p : ApplianceParams, bH : number, bR : [number, number], wall : number, gap : number, fine : boolean ) : BooleanResult {
-        let T = p.lidThickness != null ? p.lidThickness : 6;
-        let over = p.lidOverhang != null ? p.lidOverhang : 5;
-        let tab = p.lidTab != null ? p.lidTab : 16;
-        let depth = p.plugDepth != null ? p.plugDepth : 12, pw = p.plugWall != null ? p.plugWall : 2.5;
-        let hole = p.lidHole != null ? p.lidHole : 24;
-        let fl = p.lidFillet != null ? p.lidFillet : 2;
-        let around = fine ? 192 : 128;
+        const T = p.lidThickness != null ? p.lidThickness : 6;
+        const over = p.lidOverhang != null ? p.lidOverhang : 5;
+        const tab = p.lidTab != null ? p.lidTab : 16;
+        const depth = p.plugDepth != null ? p.plugDepth : 12, pw = p.plugWall != null ? p.plugWall : 2.5;
+        const hole = p.lidHole != null ? p.lidHole : 24;
+        const fl = p.lidFillet != null ? p.lidFillet : 2;
+        const around = fine ? 192 : 128;
         // the bowl's inner radius at height z: the wall is measured square to the cone
-        let slope = (bR[1] - bR[0]) / bH;
-        let rIn = (z : number) => bR[0] + slope * z - wall * Math.sqrt( 1 + slope * slope );
+        const slope = (bR[1] - bR[0]) / bH;
+        const rIn = (z : number) => bR[0] + slope * z - wall * Math.sqrt( 1 + slope * slope );
 
         // the outline: a circle with a tab of three soft lobes on the right (+x), clear of the handle and the arch
-        let g = (d : number, w : number) => Math.exp( -d * d / (w * w) );
-        let outline = (t : number) => {
-            let d = Math.atan2( Math.sin( t ), Math.cos( t ) );
+        const g = (d : number, w : number) => Math.exp( -d * d / (w * w) );
+        const outline = (t : number) => {
+            const d = Math.atan2( Math.sin( t ), Math.cos( t ) );
             return bR[1] + over + tab * (g( d, 0.17 ) + 0.55 * (g( d - 0.3, 0.12 ) + g( d + 0.3, 0.12 )));
         };
-        let e = Math.min( 2.5, 0.4 * T ), K = 7;
-        let sections : Array<NurbsCurveData> = [];
+        const e = Math.min( 2.5, 0.4 * T ), K = 7;
+        const sections : Array<NurbsCurveData> = [];
         for (let k = 0; k < K; k++) {
-            let phi = Math.PI * k / (K - 1);
+            const phi = Math.PI * k / (K - 1);
             sections.push( ApplianceRecipe.polar( outline, -e * (1 - Math.sin( phi )), bH + T / 2 - T / 2 * Math.cos( phi ), 144 ) );
         }
-        let plate = BrepSolid.cappedWall( Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) ), [fine ? 24 : 16, around] );
+        const plate = BrepSolid.cappedWall( Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) ), [fine ? 24 : 16, around] );
         // the plug and its hollow follow the bowl's taper
-        let z0 = bH - depth, z1 = bH + T / 2;
-        let plug = ApplianceRecipe.tube( [rIn( z0 ) - gap, rIn( z1 ) - gap], z0, z1, [8, around] );
-        let hollow = ApplianceRecipe.tube( [rIn( z0 - 2 ) - gap - pw, rIn( bH - 2 ) - gap - pw], z0 - 2, bH - 2, [8, around] );
-        let bore = ApplianceRecipe.tube( hole, bH - depth - 6, bH + T + 6, [8, fine ? 96 : 64] );
+        const z0 = bH - depth, z1 = bH + T / 2;
+        const plug = ApplianceRecipe.tube( [rIn( z0 ) - gap, rIn( z1 ) - gap], z0, z1, [8, around] );
+        const hollow = ApplianceRecipe.tube( [rIn( z0 - 2 ) - gap - pw, rIn( bH - 2 ) - gap - pw], z0 - 2, bH - 2, [8, around] );
+        const bore = ApplianceRecipe.tube( hole, bH - depth - 6, bH + T + 6, [8, fine ? 96 : 64] );
         return BrepBoolean.evaluate( [plate, plug, hollow, bore], f => (f[0] || f[1]) && !f[2] && !f[3], {
             // the hole's edge on the plate's top (face 2) and on the hollow's ceiling (its end cap, face 2)
             fillet : (c : { solids : [number, number], faces : [number, number] }) =>
@@ -244,28 +244,28 @@ export class ApplianceRecipe {
     // is a soft-edged loft of a teardrop outline; the body is a cone that drops into the lid's hole with the clearance;
     // the cavity opens at the top. The flange's joint with the body and the cavity's rim are filleted.
     public static cup( p : ApplianceParams, zTop : number, gap : number, fine : boolean ) : BooleanResult {
-        let hole = p.lidHole != null ? p.lidHole : 24;
-        let lip = p.cupLip != null ? p.cupLip : 18, depth = p.cupDepth != null ? p.cupDepth : 28, w = p.cupWall != null ? p.cupWall : 2;
-        let T = 5, around = fine ? 192 : 128;
-        let R = hole + 8; // the flange's round part overhangs the hole all round
+        const hole = p.lidHole != null ? p.lidHole : 24;
+        const lip = p.cupLip != null ? p.cupLip : 18, depth = p.cupDepth != null ? p.cupDepth : 28, w = p.cupWall != null ? p.cupWall : 2;
+        const T = 5, around = fine ? 192 : 128;
+        const R = hole + 8; // the flange's round part overhangs the hole all round
         // the teardrop: a circle drawn out towards -x (the lip) by a smooth bump, tightest at its tip
-        let outline = (t : number) => {
-            let d = Math.atan2( Math.sin( t - Math.PI ), Math.cos( t - Math.PI ) );
-            let c = Math.cos( d / 2 );
+        const outline = (t : number) => {
+            const d = Math.atan2( Math.sin( t - Math.PI ), Math.cos( t - Math.PI ) );
+            const c = Math.cos( d / 2 );
             return R + lip * Math.pow( Math.max( 0, c ), 36 );
         };
-        let e = 1.6, K = 7;
-        let sections : Array<NurbsCurveData> = [];
+        const e = 1.6, K = 7;
+        const sections : Array<NurbsCurveData> = [];
         for (let k = 0; k < K; k++) {
-            let phi = Math.PI * k / (K - 1);
+            const phi = Math.PI * k / (K - 1);
             sections.push( ApplianceRecipe.polar( outline, -e * (1 - Math.sin( phi )), zTop + T / 2 - T / 2 * Math.cos( phi ), 160 ) );
         }
-        let flange = BrepSolid.cappedWall( Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) ), [fine ? 24 : 16, around] );
-        let taper = 0.06; // the body narrows by this much per mm downwards
-        let rTop = hole - gap, z0 = zTop - depth, z1 = zTop + T / 2;
-        let body = ApplianceRecipe.tube( [rTop - taper * depth, rTop + taper * T / 2], z0, z1, [8, around] );
-        let c0 = z0 + w, c1 = zTop + T + 4;
-        let cavity = ApplianceRecipe.tube( [rTop - w - taper * (zTop - c0), rTop - w + taper * (c1 - zTop)], c0, c1, [8, around] );
+        const flange = BrepSolid.cappedWall( Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) ), [fine ? 24 : 16, around] );
+        const taper = 0.06; // the body narrows by this much per mm downwards
+        const rTop = hole - gap, z0 = zTop - depth, z1 = zTop + T / 2;
+        const body = ApplianceRecipe.tube( [rTop - taper * depth, rTop + taper * T / 2], z0, z1, [8, around] );
+        const c0 = z0 + w, c1 = zTop + T + 4;
+        const cavity = ApplianceRecipe.tube( [rTop - w - taper * (zTop - c0), rTop - w + taper * (c1 - zTop)], c0, c1, [8, around] );
         return BrepBoolean.evaluate( [flange, body, cavity], f => (f[0] || f[1]) && !f[2], {
             // the joint under the flange (its bottom, face 1) and the cavity's rim on the flange's top (face 2)
             fillet : (c : { solids : [number, number], faces : [number, number] }) =>
@@ -276,12 +276,12 @@ export class ApplianceRecipe {
     // A closed outline in polar form r(t) in a horizontal plane at height z, pushed out by `offset` along its normal,
     // as a periodic cubic B-spline through `samples` points
     public static polar( r : (t : number) => number, offset : number, z : number, samples : number ) : NurbsCurveData {
-        let at = (t : number) : Point => [r( t ) * Math.cos( t ), r( t ) * Math.sin( t ), z];
-        let pts : Array<Point> = [];
+        const at = (t : number) : Point => [r( t ) * Math.cos( t ), r( t ) * Math.sin( t ), z];
+        const pts : Array<Point> = [];
         for (let i = 0; i < samples; i++) {
-            let t = 2 * Math.PI * i / samples, h = 1e-5;
-            let d = Vec.sub( at( t + h ), at( t - h ) );
-            let n : Point = Vec.normalized( [d[1], -d[0], 0] ); // outward for a counter-clockwise outline
+            const t = 2 * Math.PI * i / samples, h = 1e-5;
+            const d = Vec.sub( at( t + h ), at( t - h ) );
+            const n : Point = Vec.normalized( [d[1], -d[0], 0] ); // outward for a counter-clockwise outline
             pts.push( Vec.add( at( t ), Vec.mul( offset, n ) ) );
         }
         return Fit.periodicCurve( pts, 3 );
@@ -289,10 +289,10 @@ export class ApplianceRecipe {
 
     // The solid prism of a closed horizontal outline between two heights, moved by an (x, y) shift
     public static prism( outline : NurbsCurveData, z0 : number, z1 : number, divs : [number, number], shift? : [number, number] ) : BrepSolid {
-        let s = shift != null ? shift : [0, 0];
-        let move = (dz : number) => new NurbsCurveData( outline.degree, outline.knots.slice(),
+        const s = shift != null ? shift : [0, 0];
+        const move = (dz : number) => new NurbsCurveData( outline.degree, outline.knots.slice(),
             outline.controlPoints.map( c => [c[0] + s[0] * c[3], c[1] + s[1] * c[3], c[2] + dz * c[3], c[3]] ) );
-        let z = outline.controlPoints[0][2] / outline.controlPoints[0][3];
+        const z = outline.controlPoints[0][2] / outline.controlPoints[0][3];
         return BrepSolid.cappedWall( Fit.loft( [move( z0 - z ), move( z1 - z )], 1 ), divs );
     }
 
@@ -303,10 +303,10 @@ export class ApplianceRecipe {
 
     // A closed superellipse |x/a|^n + |y/b|^n = 1 around a centre, as a periodic cubic B-spline
     public static superellipse( a : number, b : number, n : number, centre : Point, samples : number ) : NurbsCurveData {
-        let pts : Array<Point> = [];
+        const pts : Array<Point> = [];
         for (let i = 0; i < samples; i++) {
-            let t = 2 * Math.PI * i / samples;
-            let c = Math.cos( t ), s = Math.sin( t );
+            const t = 2 * Math.PI * i / samples;
+            const c = Math.cos( t ), s = Math.sin( t );
             pts.push( [centre[0] + a * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / n ),
                        centre[1] + b * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / n ), centre[2]] );
         }

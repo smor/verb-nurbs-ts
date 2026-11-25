@@ -60,7 +60,7 @@ export class NurbsSurface extends SerializableBase implements ISurface {
                                                        knotsU : KnotArray,
                                                        knotsV : KnotArray,
                                                        controlPoints : Array<Array<Point>>,
-                                                       weights : Array<Array<number>> = null ) : NurbsSurface {
+                                                       weights? : Array<Array<number>> ) : NurbsSurface {
         return new NurbsSurface( new NurbsSurfaceData( degreeU, degreeV, knotsU, knotsV, Eval.homogenize2d(controlPoints, weights) ) );
     }
 
@@ -91,7 +91,7 @@ export class NurbsSurface extends SerializableBase implements ISurface {
     //
     //* A new NurbsSurface
 
-    public static byLoftingCurves( curves : Array<ICurve>, degreeV : number = null ) : NurbsSurface {
+    public static byLoftingCurves( curves : Array<ICurve>, degreeV? : number ) : NurbsSurface {
         return new NurbsSurface( Make.loftedSurface(curves.map((c) => c.asNurbs()), degreeV ));
     }
 
@@ -347,13 +347,13 @@ export class NurbsSurface extends SerializableBase implements ISurface {
     //
     //* an array containing 4 elements, first 2 curves in the V direction, then 2 curves in the U direction
 
-    public boundaries( options : AdaptiveRefinementOptions = null) : Array<NurbsCurve> {
+    public boundaries( _options? : AdaptiveRefinementOptions) : Array<NurbsCurve> {
         return Make.surfaceBoundaryCurves( this._data ).map(function(x){ return new NurbsCurve(x); });
     }
 
     //The async version of `boundaries`
 
-    public boundariesAsync( options : AdaptiveRefinementOptions = null ) : Promise<Array<NurbsCurve>> {
+    public boundariesAsync( _options? : AdaptiveRefinementOptions ) : Promise<Array<NurbsCurve>> {
         return Dispatcher.dispatchMethod( Make, 'surfaceBoundaryCurves', [ this._data ] )
             .then(function(cs : Array<NurbsCurveData>){
                 return cs.map(function(x){ return new NurbsCurve(x); });
@@ -371,13 +371,13 @@ export class NurbsSurface extends SerializableBase implements ISurface {
     //
     //* A MeshData object
 
-    public tessellate( options : AdaptiveRefinementOptions = null) : MeshData {
+    public tessellate( options? : AdaptiveRefinementOptions) : MeshData {
         return Tess.rationalSurfaceAdaptive( this._data, options );
     }
 
     //The async version of `boundaries`
 
-    public tessellateAsync( options : AdaptiveRefinementOptions = null ) : Promise<MeshData> {
+    public tessellateAsync( options? : AdaptiveRefinementOptions ) : Promise<MeshData> {
         return Dispatcher.dispatchMethod( Tess, 'rationalSurfaceAdaptive', [ this._data,  options ] );
     }
 
@@ -414,7 +414,7 @@ export class NurbsSurface extends SerializableBase implements ISurface {
     //
     //* a new NurbsSurface
 
-    public offset( distance : number, options : OffsetOptions = null ) : NurbsSurface {
+    public offset( distance : number, options? : OffsetOptions ) : NurbsSurface {
         return new NurbsSurface( Offset.surface( this._data, distance, options ).result );
     }
 }

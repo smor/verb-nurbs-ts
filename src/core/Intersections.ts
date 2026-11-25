@@ -47,16 +47,16 @@ export class MeshIntersectionPoint {
     public faceIndex1 : number;
 
     //tags to navigate a segment structure
-    public opp : MeshIntersectionPoint = null;
-    public adj : MeshIntersectionPoint = null;
+    public opp : MeshIntersectionPoint | null = null;
+    public adj : MeshIntersectionPoint | null = null;
     public visited : boolean = false;
 
     constructor(uv0 : UV, uv1 : UV, point : Point, faceIndex0 : number, faceIndex1 : number){
         this.uv0 = uv0;
         this.uv1 = uv1;
         this.point = point;
-        this.faceIndex0;
-        this.faceIndex1;
+        this.faceIndex0 = faceIndex0;
+        this.faceIndex1 = faceIndex1;
     }
 }
 
@@ -143,7 +143,7 @@ export class SurfacePoint {
     }
 
     public static fromUv(u : number, v : number){
-        return new SurfacePoint(null, null, [u,v] );
+        return new SurfacePoint([], [], [u,v] );
     }
 }
 

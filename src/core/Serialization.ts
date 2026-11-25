@@ -3,10 +3,13 @@
 // Upstream verb used Haxe's serializer. The TypeScript port serializes to JSON instead. Class instances are tagged
 // with a `$type` field so that `Deserializer.deserialize` can rebuild them with their prototype.
 
-const registry = new Map<string, Function>();
+// any constructor: the registry rebuilds instances of classes with different constructor signatures
+type Constructor = abstract new (...args: never[]) => unknown;
+
+const registry = new Map<string, Constructor>();
 
 // Register a class so that it can be rebuilt by `Deserializer.deserialize`.
-export function registerSerializable(name: string, ctor: Function): void {
+export function registerSerializable(name: string, ctor: Constructor): void {
     registry.set(name, ctor);
     (ctor as any).__verbTypeName = name;
 }

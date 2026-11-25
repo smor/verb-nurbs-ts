@@ -16,7 +16,7 @@ export class KdTree<T> {
     private points : Array<KdPoint<T>>;
     private distanceFunction : ((a0: Point, a1: Point) => number);
     private dim : number = 3;
-    private root : KdNode<T>;
+    private root : KdNode<T> | null;
 
     constructor(points : Array<KdPoint<T>>, distanceFunction : ((a0: Point, a1: Point) => number)) {
         this.points = points;
@@ -26,16 +26,14 @@ export class KdTree<T> {
         this.root = this.buildTree(points, 0, null);
     }
 
-    private buildTree(points : Array<KdPoint<T>>, depth : number, parent : KdNode<T>) : KdNode<T> {
-        let dim = depth % this.dim,
-            median,
-            node;
+    private buildTree(points : Array<KdPoint<T>>, depth : number, parent : KdNode<T> | null) : KdNode<T> | null {
+        const dim = depth % this.dim;
 
         if (points.length == 0) return null;
         if (points.length == 1) return new KdNode<T>(points[0], dim, parent);
 
         points.sort(function(a : KdPoint<T>, b : KdPoint<T>) {
-            let diff = a.point[dim] - b.point[dim];
+            const diff = a.point[dim] - b.point[dim];
             if (diff == 0.0){
                 return 0;
             } else if (diff > 0) {
@@ -45,9 +43,9 @@ export class KdTree<T> {
             }
         });
 
-        median = Math.floor(points.length / 2);
+        const median = Math.floor(points.length / 2);
 
-        node = new KdNode(points[median], dim, parent);
+        const node = new KdNode(points[median], dim, parent);
 
         node.left = this.buildTree( points.slice(0, median), depth + 1, node);
         node.right = this.buildTree( points.slice(median + 1), depth + 1, node);
@@ -57,19 +55,17 @@ export class KdTree<T> {
 
     public nearest(point : Point, maxNodes : number, maxDistance : number ) : Array<Pair<KdPoint<T>, number>> {
 
-        let bestNodes = new BinaryHeap<KdNode<T>>(
-            function (e : Pair<KdNode<T>, number>) { return -e.item1; }
+        const bestNodes = new BinaryHeap<KdNode<T> | null>(
+            function (e : Pair<KdNode<T> | null, number>) { return -e.item1; }
         );
 
         const nearestSearch = (node : KdNode<T>) => {
 
-            let bestChild,
-                dimension = node.dimension,
-                ownDistance = this.distanceFunction( point, node.kdPoint.point ),
-                linearPoint = Array.from({ length: this.dim }, (_, i) => 0.0),
-                linearDistance,
-                otherChild,
-                i;
+            let bestChild;
+            const dimension = node.dimension;
+            const ownDistance = this.distanceFunction( point, node.kdPoint.point );
+            const linearPoint = Array.from({ length: this.dim }, () => 0.0);
+            let otherChild;
 
             function saveNode(node : KdNode<T>, distance : number) : void {
                 bestNodes.push(new Pair(node, distance));
@@ -86,7 +82,7 @@ export class KdTree<T> {
                 }
             }
 
-            linearDistance = this.distanceFunction( linearPoint, node.kdPoint.point );
+            const linearDistance = this.distanceFunction( linearPoint, node.kdPoint.point );
 
             if (node.right == null && node.left == null) {
                 if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek().item1) {
@@ -107,7 +103,7 @@ export class KdTree<T> {
                 }
             }
 
-            nearestSearch( bestChild );
+            nearestSearch( bestChild! );
 
             if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek().item1) {
                 saveNode(node, ownDistance);
@@ -126,16 +122,17 @@ export class KdTree<T> {
         }
 
         for (let i = 0; i < maxNodes; i++) {
-            bestNodes.push(new Pair<KdNode<T>, number>(null, maxDistance));
+            bestNodes.push(new Pair<KdNode<T> | null, number>(null, maxDistance));
         }
 
-        nearestSearch( this.root );
+        if (this.root != null) nearestSearch( this.root );
 
-        let result = [];
+        const result = [];
 
         for (let i = 0; i < maxNodes; i++) {
-            if (bestNodes.content[i].item0 != null) {
-                result.push(new Pair<KdPoint<T>, number>(bestNodes.content[i].item0.kdPoint, bestNodes.content[i].item1));
+            const best = bestNodes.content[i].item0;
+            if (best != null) {
+                result.push(new Pair<KdPoint<T>, number>(best.kdPoint, bestNodes.content[i].item1));
             }
         }
 
@@ -165,9 +162,9 @@ export class BinaryHeap<T> {
 
     public pop() : Pair<T, number> {
         //Store the first element so we can return it later.
-        let result = this.content[0];
+        const result = this.content[0];
         //Get the element at the end of the array.
-        let end = this.content.pop();
+        const end = this.content.pop()!;
         //If there are any elements left, put the end element at the
         //start, and let it sink down.
         if (this.content.length > 0) {
@@ -182,14 +179,14 @@ export class BinaryHeap<T> {
     }
 
     public remove(node : Pair<T, number>) : void {
-        let len = this.content.length;
+        const len = this.content.length;
         //To remove a value, we must search through the array to find
         //it.
         for (let i = 0; i < len; i++) {
             if (this.content[i] == node) {
                 //When it is found, the process seen in 'pop' is repeated
                 //to fill up the hole.
-                let end = this.content.pop();
+                const end = this.content.pop()!;
                 if (i != len - 1) {
                     this.content[i] = end;
                     if (this.scoreFunction(end) < this.scoreFunction(node))
@@ -209,11 +206,11 @@ export class BinaryHeap<T> {
 
     private bubbleUp(n : number) : void {
         //Fetch the element that has to be moved.
-        let element = this.content[n];
+        const element = this.content[n];
         //When at 0, an element can not go up any further.
         while (n > 0) {
             //Compute the parent element's index, and fetch it.
-            let parentN = Math.floor((n + 1.0) / 2) - 1,
+            const parentN = Math.floor((n + 1.0) / 2) - 1,
             parent = this.content[parentN];
             //Swap the elements if the parent is greater.
             if (this.scoreFunction(element) < this.scoreFunction(parent)) {
@@ -231,14 +228,14 @@ export class BinaryHeap<T> {
 
     private sinkDown(n : number) : void {
         //Look up the target element and its score.
-        let length = this.content.length,
+        const length = this.content.length,
         element = this.content[n],
         elemScore = this.scoreFunction(element);
 
         while(true) {
             //Compute the indices of the child elements.
-            let child2N = (n + 1) * 2;
-            let child1N = child2N - 1;
+            const child2N = (n + 1) * 2;
+            const child1N = child2N - 1;
             //This is used to store the new position of the element,
             //if any.
             let swap = -1;
@@ -247,7 +244,7 @@ export class BinaryHeap<T> {
             //If the first child exists (is inside the array)...
             if (child1N < length) {
                 //Look it up and compute its score.
-                let child1 = this.content[child1N];
+                const child1 = this.content[child1N];
                 child1Score = this.scoreFunction(child1);
                 //If the score is less than our element's, we need to swap.
                 if (child1Score < elemScore)
@@ -255,8 +252,8 @@ export class BinaryHeap<T> {
             }
             //Do the same checks for the other child.
             if (child2N < length) {
-                let child2 = this.content[child2N];
-                let child2Score = this.scoreFunction(child2);
+                const child2 = this.content[child2N];
+                const child2Score = this.scoreFunction(child2);
                 if (child2Score < (swap == -1 ? elemScore : child1Score)){
                     swap = child2N;
                 }
@@ -298,18 +295,18 @@ export class KdNode<T> {
     public kdPoint : KdPoint<T>;
 
     // The left child
-    public left : KdNode<T>;
+    public left : KdNode<T> | null;
 
     // The right child
-    public right : KdNode<T>;
+    public right : KdNode<T> | null;
 
     // The parent of the node
-    public parent : KdNode<T>;
+    public parent : KdNode<T> | null;
 
     // The dimensionality of the point
     public dimension : number;
 
-    constructor(kdPoint : KdPoint<T>, dimension : number, parent : KdNode<T>) {
+    constructor(kdPoint : KdPoint<T>, dimension : number, parent : KdNode<T> | null) {
         this.kdPoint = kdPoint;
         this.left = null;
         this.right = null;

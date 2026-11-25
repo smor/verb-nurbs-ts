@@ -70,77 +70,77 @@ export class SweptObjectsRecipe {
 
     // A pipe along a torus knot whose radius swells and thins as it goes.
     public static knotPipe( params? : KnotPipeParams ) : SweptObject {
-        let o = params != null ? params : {};
-        let p = o.p != null ? o.p : 2, q = o.q != null ? o.q : 3;
-        let R = o.radius != null ? o.radius : 30, r = o.tubeRadius != null ? o.tubeRadius : 12;
-        let pr = o.pipeRadius != null ? o.pipeRadius : 5, swell = o.pipeSwell != null ? o.pipeSwell : 0.35;
-        let cps : Array<Point> = [];
-        let n = 24 * Math.max( p, q );
+        const o = params != null ? params : {};
+        const p = o.p != null ? o.p : 2, q = o.q != null ? o.q : 3;
+        const R = o.radius != null ? o.radius : 30, r = o.tubeRadius != null ? o.tubeRadius : 12;
+        const pr = o.pipeRadius != null ? o.pipeRadius : 5, swell = o.pipeSwell != null ? o.pipeSwell : 0.35;
+        const cps : Array<Point> = [];
+        const n = 24 * Math.max( p, q );
         for (let i = 0; i < n; i++) {
-            let t = 2 * Math.PI * i / n;
-            let rr = R + r * Math.cos( q * t );
+            const t = 2 * Math.PI * i / n;
+            const rr = R + r * Math.cos( q * t );
             cps.push( [rr * Math.cos( p * t ), rr * Math.sin( p * t ), -r * Math.sin( q * t )] );
         }
-        let rail = Fit.periodicCurve( cps, 3 );
-        let sweep = Sweep.pipe( rail, (u : number) => pr * (1 + swell * Math.sin( 2 * Math.PI * q * u )),
+        const rail = Fit.periodicCurve( cps, 3 );
+        const sweep = Sweep.pipe( rail, (u : number) => pr * (1 + swell * Math.sin( 2 * Math.PI * q * u )),
             { tolerance : o.tolerance != null ? o.tolerance : 0.02 } );
-        let mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 400, divsV : o.divsV != null ? o.divsV : 40 } );
+        const mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 400, divsV : o.divsV != null ? o.divsV : 40 } );
         return SweptObjectsRecipe.finish( rail, null, sweep, mesh );
     }
 
     // A wavy ring with a rounded-square section that turns around the ring as it goes.
     public static twistedRing( params? : TwistedRingParams ) : SweptObject {
-        let o = params != null ? params : {};
-        let R = o.radius != null ? o.radius : 32, wave = o.wave != null ? o.wave : 4, waves = o.waves != null ? o.waves : 3;
-        let w = o.width != null ? o.width : 6, h = o.height != null ? o.height : 3, e = o.exponent != null ? o.exponent : 4;
-        let turns = o.turns != null ? o.turns : 1;
-        let railCps : Array<Point> = [];
+        const o = params != null ? params : {};
+        const R = o.radius != null ? o.radius : 32, wave = o.wave != null ? o.wave : 4, waves = o.waves != null ? o.waves : 3;
+        const w = o.width != null ? o.width : 6, h = o.height != null ? o.height : 3, e = o.exponent != null ? o.exponent : 4;
+        const turns = o.turns != null ? o.turns : 1;
+        const railCps : Array<Point> = [];
         for (let i = 0; i < 48; i++) {
-            let t = 2 * Math.PI * i / 48;
+            const t = 2 * Math.PI * i / 48;
             railCps.push( [R * Math.cos( t ), R * Math.sin( t ), wave * Math.sin( waves * t )] );
         }
-        let rail = Fit.periodicCurve( railCps, 3 );
-        let profCps : Array<Point> = [];
+        const rail = Fit.periodicCurve( railCps, 3 );
+        const profCps : Array<Point> = [];
         for (let i = 0; i < 32; i++) {
-            let t = 2 * Math.PI * i / 32;
-            let c = Math.cos( t ), s = Math.sin( t );
+            const t = 2 * Math.PI * i / 32;
+            const c = Math.cos( t ), s = Math.sin( t );
             profCps.push( [w * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / e ), h * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / e ), 0.0] );
         }
-        let profile = Fit.periodicCurve( profCps, 3 );
-        let sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : o.tolerance != null ? o.tolerance : 0.01 } );
-        let mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 360, divsV : o.divsV != null ? o.divsV : 64 } );
+        const profile = Fit.periodicCurve( profCps, 3 );
+        const sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : o.tolerance != null ? o.tolerance : 0.01 } );
+        const mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 360, divsV : o.divsV != null ? o.divsV : 64 } );
         return SweptObjectsRecipe.finish( rail, profile, sweep, mesh );
     }
 
     // A ribbon swept along a torus knot, twisting as it goes. With thickness 0 it is a bare sheet: a visual object
     // that encloses nothing. With a thickness it is a thin rounded band, a genus 1 solid that can be made.
     public static ribbonKnot( params? : RibbonKnotParams ) : SweptObject {
-        let o = params != null ? params : {};
-        let p = o.p != null ? o.p : 3, q = o.q != null ? o.q : 5;
-        let R = o.radius != null ? o.radius : 34, r = o.tubeRadius != null ? o.tubeRadius : 13;
-        let w = (o.width != null ? o.width : 9) / 2, th = o.thickness != null ? o.thickness : 1.6;
-        let turns = o.turns != null ? o.turns : 2;
-        let cps : Array<Point> = [];
-        let n = 24 * Math.max( p, q );
+        const o = params != null ? params : {};
+        const p = o.p != null ? o.p : 3, q = o.q != null ? o.q : 5;
+        const R = o.radius != null ? o.radius : 34, r = o.tubeRadius != null ? o.tubeRadius : 13;
+        const w = (o.width != null ? o.width : 9) / 2, th = o.thickness != null ? o.thickness : 1.6;
+        const turns = o.turns != null ? o.turns : 2;
+        const cps : Array<Point> = [];
+        const n = 24 * Math.max( p, q );
         for (let i = 0; i < n; i++) {
-            let t = 2 * Math.PI * i / n;
-            let rr = R + r * Math.cos( q * t );
+            const t = 2 * Math.PI * i / n;
+            const rr = R + r * Math.cos( q * t );
             cps.push( [rr * Math.cos( p * t ), rr * Math.sin( p * t ), -r * Math.sin( q * t )] );
         }
-        let rail = Fit.periodicCurve( cps, 3 );
-        let tol = o.tolerance != null ? o.tolerance : 0.02;
-        let divsU = o.divsU != null ? o.divsU : 600;
+        const rail = Fit.periodicCurve( cps, 3 );
+        const tol = o.tolerance != null ? o.tolerance : 0.02;
+        const divsU = o.divsU != null ? o.divsU : 600;
         let profile : NurbsCurveData, mesh : TriMesh, sweep : SweepResult;
         if (th <= 0) {
             profile = Fit.curve( [[-w, 0, 0], [0, 0, 0], [w, 0, 0]], 1 );
             sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : tol } );
             mesh = Shell.sheet( sweep.surface, [sweep.closedU, false], { divsU : divsU, divsV : o.divsV != null ? o.divsV : 8 } );
         } else {
-            let profCps : Array<Point> = [];
-            let h = th / 2, e = 6;
+            const profCps : Array<Point> = [];
+            const h = th / 2, e = 6;
             for (let i = 0; i < 40; i++) {
-                let t = 2 * Math.PI * i / 40;
-                let c = Math.cos( t ), s = Math.sin( t );
+                const t = 2 * Math.PI * i / 40;
+                const c = Math.cos( t ), s = Math.sin( t );
                 profCps.push( [w * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / e ), h * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / e ), 0.0] );
             }
             profile = Fit.periodicCurve( profCps, 3 );

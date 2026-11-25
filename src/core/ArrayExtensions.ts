@@ -11,7 +11,7 @@ export class ArrayExtensions {
     //
     //* nothing, just mutates the given array
 
-    public static alloc<T>( a : Array<T>, n : number ){
+    public static alloc<T>( a : Array<T | null>, n : number ){
         if (n < 0) return;
         while (a.length < n) {
             a.push(null);
@@ -29,7 +29,7 @@ export class ArrayExtensions {
     //* a reversed copy of the array
 
     public static reversed<T>(a : Array<T>) : Array<T> {
-        let ac = a.slice();
+        const ac = a.slice();
         ac.reverse();
         return ac;
     }
@@ -79,7 +79,7 @@ export class ArrayExtensions {
 
     public static left<T>(arr : Array<T>) : Array<T>{
         if (arr.length == 0) return [];
-        let len = Math.ceil( arr.length / 2 );
+        const len = Math.ceil( arr.length / 2 );
         return arr.slice( 0, len );
     }
 
@@ -95,7 +95,7 @@ export class ArrayExtensions {
 
     public static right<T>(arr : Array<T>) : Array<T>{
         if (arr.length == 0) return [];
-        let len = Math.ceil( arr.length / 2 );
+        const len = Math.ceil( arr.length / 2 );
         return arr.slice( len );
     }
 
@@ -111,7 +111,7 @@ export class ArrayExtensions {
 
     public static rightWithPivot<T>(arr : Array<T>) : Array<T>{
         if (arr.length == 0) return [];
-        let len = Math.ceil( arr.length / 2 );
+        const len = Math.ceil( arr.length / 2 );
         return arr.slice( len-1 );
     }
 
@@ -127,15 +127,15 @@ export class ArrayExtensions {
     //
     //* array of unique elements
 
-    public static unique<T>( arr : Array<T>, comp : ((a0: T, a1: T) => boolean)){
+    public static unique<T>( arr : Array<T>, comp : ((a0: T, a1: T) => boolean)) : Array<T> {
 
         if (arr.length == 0) return [];
 
-        let uniques = [ arr.pop() ];
+        const uniques : Array<T> = [ arr.pop()! ];
 
         while (arr.length > 0){
 
-            let ele = arr.pop();
+            const ele = arr.pop()!;
             let isUnique = true;
 
             for (const unique of uniques) {

@@ -17,10 +17,10 @@ export class Mat {
 
     public static mult(x : Matrix, y : Matrix) : Matrix {
 
-        let p,q,r,ret,foo,bar,woo,i0,k0,p0,r0;
+        let foo,bar,woo,i0;
 
-        p = x.length; q = y.length; r = y[0].length;
-        ret = [];
+        const p = x.length, q = y.length, r = y[0].length;
+        const ret = [];
 
         let i = p-1;
         let j = 0;
@@ -77,7 +77,7 @@ export class Mat {
     // Build an identity matrix of a given size
 
     public static identity(n : number) : Matrix {
-        let zeros = Vec.zeros2d(n, n);
+        const zeros = Vec.zeros2d(n, n);
         for (let i = 0; i < n; i++) { zeros[i][i] = 1.0; }
         return zeros;
     }
@@ -99,11 +99,11 @@ export class Mat {
 
     public static LUsolve(LUP : LUDecomp, b : Vector) : Vector {
         let i, j;
-        let LU = LUP.LU;
-        let n   = LU.length;
-        let x = b.slice();
-        let P   = LUP.P;
-        let Pi, LUi, LUii, tmp;
+        const LU = LUP.LU;
+        const n   = LU.length;
+        const x = b.slice();
+        const P   = LUP.P;
+        let Pi, LUi, tmp;
 
         i = n-1;
         while ( i != -1 ){
@@ -149,13 +149,12 @@ export class Mat {
 
     public static LU( A : Matrix ) : LUDecomp {
 
-        let abs = Math.abs;
         let i, j, k, absAjk, Akk, Ak, Pk, Ai;
         let max;
         //copy A
         A = Array.from({ length: A.length }, (_, i) => A[i].slice());
-        let n = A.length, n1 = n-1;
-        let P = new Array<number>(); //new Array(n);
+        const n = A.length, n1 = n-1;
+        const P = new Array<number>(); //new Array(n);
 
         k = 0;
         while (k < n){

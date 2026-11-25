@@ -10,8 +10,13 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p .",
-    "test": "npm run build && mocha",
     "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint . --max-warnings 64",
+    "test": "npm run build && mocha",
+    "test:fast": "mocha",
+    "coverage": "npm run build && c8 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
+    "docs": "typedoc",
+    "check": "npm run typecheck && npm run lint && npm test",
     "demo:vessel": "npm run build && node examples/aalto-vessel.mjs",
     "demo:sweeps": "npm run build && node examples/swept-objects.mjs",
     "demo:booleans": "npm run build && node examples/boolean-objects.mjs",
@@ -34,14 +39,19 @@
     "src"
   ],
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.7",
     "@types/three": "^0.187.0",
+    "c8": "^12.0.0",
     "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
     "manifold-3d": "^3.5.5",
     "mocha": "^10.6.0",
     "should": "^13.2.3",
     "three": "^0.187.0",
-    "typescript": "^5.9.3"
+    "typedoc": "^0.28.20",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.74.0"
   },
   "license": "MIT",
   "type": "module",
@@ -54,5 +64,9 @@
   },
   "dependencies": {
     "cdt2d": "^1.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false
 }

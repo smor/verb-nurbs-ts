@@ -38,19 +38,19 @@ export class Make {
 
     public static rationalTranslationalSurface( profile : NurbsCurveData, rail : NurbsCurveData ) : NurbsSurfaceData {
 
-        let pt0 = Eval.rationalCurvePoint( rail, ArrayExtensions.first(rail.knots) )
+        const pt0 = Eval.rationalCurvePoint( rail, ArrayExtensions.first(rail.knots) )
             , startu = ArrayExtensions.first(rail.knots)
             , endu = ArrayExtensions.last(rail.knots)
             , numSamples = 2 * rail.controlPoints.length
             , span = ( endu - startu ) / (numSamples-1);
 
-        let crvs = [];
 
+        const crvs = [];
         for (let i = 0; i < numSamples; i++) {
 
-            let pt = Vec.sub( Eval.rationalCurvePoint( rail, startu + i * span ), pt0 );
+            const pt = Vec.sub( Eval.rationalCurvePoint( rail, startu + i * span ), pt0 );
 
-            let crv = Modify.rationalCurveTransform(profile, [[1,0,0,pt[0]], [0,1,0,pt[1]], [0,0,1,pt[2]], [0,0,0,1]]);
+            const crv = Modify.rationalCurveTransform(profile, [[1,0,0,pt[0]], [0,1,0,pt[1]], [0,0,1,pt[2]], [0,0,0,1]]);
             crvs.push( crv );
 
         }
@@ -65,12 +65,11 @@ export class Make {
     //* an array containing 4 elements, first 2 curves in the V direction, then 2 curves in the U direction
 
     public static surfaceBoundaryCurves(surface : NurbsSurfaceData) : Array<NurbsCurveData> {
-        let crvs = [];
 
-        let c0 = Make.surfaceIsocurve( surface, ArrayExtensions.first(surface.knotsU), false );
-        let c1 = Make.surfaceIsocurve( surface, ArrayExtensions.last(surface.knotsU), false );
-        let c2 = Make.surfaceIsocurve( surface, ArrayExtensions.first(surface.knotsV), true );
-        let c3 = Make.surfaceIsocurve( surface, ArrayExtensions.last(surface.knotsV), true );
+        const c0 = Make.surfaceIsocurve( surface, ArrayExtensions.first(surface.knotsU), false );
+        const c1 = Make.surfaceIsocurve( surface, ArrayExtensions.last(surface.knotsU), false );
+        const c2 = Make.surfaceIsocurve( surface, ArrayExtensions.first(surface.knotsV), true );
+        const c3 = Make.surfaceIsocurve( surface, ArrayExtensions.last(surface.knotsV), true );
 
         return [c0, c1, c2, c3];
     }
@@ -78,10 +77,10 @@ export class Make {
 
     public static surfaceIsocurve( surface : NurbsSurfaceData, u : number, useV? : boolean) : NurbsCurveData { if (useV == null) useV = false;
 
-        let knots = useV ? surface.knotsV : surface.knotsU;
-        let degree = useV ? surface.degreeV : surface.degreeU;
+        const knots = useV ? surface.knotsV : surface.knotsU;
+        const degree = useV ? surface.degreeV : surface.degreeU;
 
-        let knotMults = Analyze.knotMultiplicities( knots );
+        const knotMults = Analyze.knotMultiplicities( knots );
 
         //if the knot already exists in the array, don't make duplicates
         let reqKnotIndex : number = -1;
@@ -98,7 +97,7 @@ export class Make {
         }
 
         //insert the knots
-        let newSrf = numKnotsToInsert > 0 ? Modify.surfaceKnotRefine( surface, Vec.rep(numKnotsToInsert, u), useV ) : surface;
+        const newSrf = numKnotsToInsert > 0 ? Modify.surfaceKnotRefine( surface, Vec.rep(numKnotsToInsert, u), useV ) : surface;
 
         //obtain the correct index of control points to extract
         let span = Eval.knotSpan( degree, u, knots );
@@ -116,31 +115,31 @@ export class Make {
         return new NurbsCurveData( newSrf.degreeV, newSrf.knotsV, newSrf.controlPoints[span] );
     }
 
-    public static loftedSurface( curves : Array<NurbsCurveData>, degreeV : number = null ) : NurbsSurfaceData {
+    public static loftedSurface( curves : Array<NurbsCurveData>, degreeV : number | null = null ) : NurbsSurfaceData {
 
         curves = Modify.unifyCurveKnotVectors( curves );
 
         //degree
-        let degreeU = curves[0].degree;
+        const degreeU = curves[0].degree;
         if (degreeV == null) degreeV = 3;
         if (degreeV > curves.length - 1){
             degreeV = curves.length - 1;
         }
 
         //knots
-        let knotsU = curves[0].knots;
+        const knotsU = curves[0].knots;
 
         let knotsV : number[] = [];
-        let controlPoints = [];
+        const controlPoints = [];
         for (let i = 0; i < curves[0].controlPoints.length; i++) {
 
             //extract the ith control pt of each curve
-            let points = curves.map(function(x){
+            const points = curves.map(function(x){
                 return x.controlPoints[i];
             });
 
             //construct an interpolating curve using this list
-            let c = Make.rationalInterpCurve( points, degreeV, true );
+            const c = Make.rationalInterpCurve( points, degreeV, true );
             controlPoints.push( c.controlPoints );
             knotsV = c.knots; //redundant computation
         }
@@ -165,11 +164,11 @@ export class Make {
     //
     //* NurbsSurfaceData object
 
-    public static rationalBezierCurve( controlPoints : Array<Point>, weights : Array<number> = null ) : NurbsCurveData {
+    public static rationalBezierCurve( controlPoints : Array<Point>, weights : Array<number> | null = null ) : NurbsCurveData {
 
-        let degree = controlPoints.length - 1;
+        const degree = controlPoints.length - 1;
 
-        let knots = [];
+        const knots = [];
         for (let i = 0; i < degree+1; i++) { knots.push(0.0); }
         for (let i = 0; i < degree+1; i++) { knots.push(1.0); }
 
@@ -194,19 +193,19 @@ export class Make {
 
    public static fourPointSurface( p1 : Point, p2 : Point, p3 : Point, p4 : Point, degree? : number) : NurbsSurfaceData { if (degree == null) degree = 3;
 
-        let degreeFloat : number = degree;
+        const degreeFloat : number = degree;
 
-        let pts = [];
+        const pts = [];
         for (let i = 0; i < degree+1; i++) {
 
-            let row = [];
+            const row = [];
             for (let j = 0; j < degree+1; j++) {
 
-                let l = 1.0 - i / degreeFloat;
-                let p1p2 = Vec.lerp( l, p1, p2 );
-                let p4p3 = Vec.lerp( l, p4, p3 );
+                const l = 1.0 - i / degreeFloat;
+                const p1p2 = Vec.lerp( l, p1, p2 );
+                const p4p3 = Vec.lerp( l, p4, p3 );
 
-                let res = Vec.lerp( 1.0 - j / degreeFloat, p1p2, p4p3 );
+                const res = Vec.lerp( 1.0 - j / degreeFloat, p1p2, p4p3 );
                 res.push(1.0); //add the weight
 
                 row.push(res);
@@ -215,8 +214,8 @@ export class Make {
             pts.push( row );
         }
 
-       let zeros = Vec.rep(degree+1, 0.0);
-       let ones = Vec.rep(degree+1, 1.0);
+       const zeros = Vec.rep(degree+1, 0.0);
+       const ones = Vec.rep(degree+1, 1.0);
 
        return new NurbsSurfaceData( degree, degree, zeros.concat(ones), zeros.concat(ones), pts );
 
@@ -238,8 +237,8 @@ export class Make {
 
     public static ellipseArc( center : Point, xaxis : Point, yaxis : Point, startAngle : number, endAngle : number ) : NurbsCurveData {
 
-        let xradius = Vec.norm( xaxis );
-        let yradius = Vec.norm( yaxis );
+        const xradius = Vec.norm( xaxis );
+        const yradius = Vec.norm( yaxis );
 
         xaxis = Vec.normalized( xaxis );
         yaxis = Vec.normalized( yaxis );
@@ -247,8 +246,8 @@ export class Make {
         //if the end angle is less than the start angle, do a circle
         if (endAngle < startAngle) endAngle = 2.0 * Math.PI + startAngle;
 
-        let theta = endAngle - startAngle
-        , numArcs = 0;
+        const theta = endAngle - startAngle;
+        let numArcs = 0;
 
         //how many arcs?
         if (theta <= Math.PI / 2) {
@@ -263,16 +262,15 @@ export class Make {
             }
         }
 
-        let dtheta = theta / numArcs
-        , n = 2 * numArcs
-        , w1 = Math.cos( dtheta / 2)
-        , P0 = Vec.add( center, Vec.add( Vec.mul( xradius * Math.cos(startAngle), xaxis), Vec.mul( yradius * Math.sin(startAngle), yaxis ) ) )
-        , T0 = Vec.sub( Vec.mul( Math.cos(startAngle), yaxis ), Vec.mul( Math.sin(startAngle), xaxis) )
-        , controlPoints = []
-        , knots = Vec.zeros1d( 2 *numArcs + 3 )
-        , index = 0
-        , angle = startAngle
-        , weights = Vec.zeros1d( numArcs * 2 );
+        const dtheta = theta / numArcs;
+        const w1 = Math.cos( dtheta / 2);
+        let P0 = Vec.add( center, Vec.add( Vec.mul( xradius * Math.cos(startAngle), xaxis), Vec.mul( yradius * Math.sin(startAngle), yaxis ) ) );
+        let T0 = Vec.sub( Vec.mul( Math.cos(startAngle), yaxis ), Vec.mul( Math.sin(startAngle), xaxis) );
+        const controlPoints = [];
+        const knots = Vec.zeros1d( 2 *numArcs + 3 );
+        let index = 0;
+        let angle = startAngle;
+        const weights = Vec.zeros1d( numArcs * 2 );
 
         controlPoints[0] = P0;
         weights[0] = 1.0;
@@ -280,16 +278,16 @@ export class Make {
         for (let i = 1; i < numArcs+1; i++) {
 
             angle += dtheta;
-            let P2 = Vec.add( center,
+            const P2 = Vec.add( center,
                                 Vec.add( Vec.mul( xradius * Math.cos(angle), xaxis), Vec.mul( yradius * Math.sin(angle), yaxis ) ) );
 
             weights[index+2] = 1;
             controlPoints[index+2] = P2;
 
-            let T2 = Vec.sub( Vec.mul( Math.cos(angle), yaxis ), Vec.mul( Math.sin(angle), xaxis) );
+            const T2 = Vec.sub( Vec.mul( Math.cos(angle), yaxis ), Vec.mul( Math.sin(angle), xaxis) );
 
-            let inters = Intersect.rays(P0, Vec.mul( 1 / Vec.norm(T0), T0), P2, Vec.mul( 1 / Vec.norm(T2), T2));
-            let P1 = Vec.add( P0, Vec.mul(inters.u0, T0));
+            const inters = Intersect.rays(P0, Vec.mul( 1 / Vec.norm(T0), T0), P2, Vec.mul( 1 / Vec.norm(T2), T2));
+            const P1 = Vec.add( P0, Vec.mul(inters!.u0, T0));
 
             weights[index+1] = w1;
             controlPoints[index+1] = P1;
@@ -302,7 +300,7 @@ export class Make {
             }
         }
 
-        let j = 2 * numArcs + 1;
+        const j = 2 * numArcs + 1;
 
         for (let i = 0; i < 3; i++) {
             knots[i] = 0.0;
@@ -372,7 +370,7 @@ export class Make {
         //normalize the knot array
         knots = Vec.mul( 1 / lsum, knots );
 
-        let weights = Array.from({ length: pts.length }, (_, i) => 1.0);
+        const weights = Array.from({ length: pts.length }, () => 1.0);
 
         return new NurbsCurveData( 1, knots, Eval.homogenize1d(pts.slice(0), weights ));
 
@@ -392,14 +390,14 @@ export class Make {
 
     public static extrudedSurface( axis : Point, length : number, profile : NurbsCurveData ) : NurbsSurfaceData {
 
-        let controlPoints : number[][][] = [[],[],[]]
+        const controlPoints : number[][][] = [[],[],[]]
         , weights : number[][] = [[],[],[]];
 
-        let prof_controlPoints = Eval.dehomogenize1d( profile.controlPoints );
-        let prof_weights = Eval.weight1d( profile.controlPoints );
+        const prof_controlPoints = Eval.dehomogenize1d( profile.controlPoints );
+        const prof_weights = Eval.weight1d( profile.controlPoints );
 
-        let translation = Vec.mul( length, axis );
-        let halfTranslation = Vec.mul( 0.5 * length, axis );
+        const translation = Vec.mul( length, axis );
+        const halfTranslation = Vec.mul( 0.5 * length, axis );
 
         //original control points
         for (let j = 0; j < prof_controlPoints.length; j++) {
@@ -432,8 +430,7 @@ export class Make {
 
     public static cylindricalSurface( axis : Point, xaxis : Point, base : Point, height : number, radius : number ) : NurbsSurfaceData {
 
-        let yaxis = Vec.cross( axis, xaxis )
-        , angle = 2.0 * Math.PI
+        const yaxis = Vec.cross( axis, xaxis )
         , circ = Make.arc( base, xaxis, yaxis, radius, 0.0, 2 * Math.PI );
 
         return Make.extrudedSurface( axis, height, circ );
@@ -458,7 +455,7 @@ export class Make {
 
     public static revolvedSurface( profile : NurbsCurveData, center : Point, axis : Point, theta : number ) : NurbsSurfaceData {
 
-        let prof_controlPoints = Eval.dehomogenize1d( profile.controlPoints )
+        const prof_controlPoints = Eval.dehomogenize1d( profile.controlPoints )
             , prof_weights = Eval.weight1d( profile.controlPoints );
 
         let narcs : number, knotsU : number[];
@@ -485,7 +482,7 @@ export class Make {
             }
         }
 
-        let dtheta = theta / narcs //divide the interval into several points
+        const dtheta = theta / narcs //divide the interval into several points
         , j = 3 + 2 * (narcs-1);
 
         //initialize the start and end knots
@@ -496,12 +493,11 @@ export class Make {
         }
 
         //do some initialization
-        let n = 2 * narcs
-        , wm = Math.cos( dtheta/2.0 )
-        , angle = 0.0
-        , sines = Vec.zeros1d( narcs + 1)
-        , cosines = Vec.zeros1d( narcs + 1);
-        let controlPoints = Vec.zeros3d( 2*narcs + 1, prof_controlPoints.length, 3 )
+        const wm = Math.cos( dtheta/2.0 );
+        let angle = 0.0;
+        const sines = Vec.zeros1d( narcs + 1);
+        const cosines = Vec.zeros1d( narcs + 1);
+        const controlPoints = Vec.zeros3d( 2*narcs + 1, prof_controlPoints.length, 3 )
         , weights = Vec.zeros2d( 2*narcs + 1, prof_controlPoints.length );
 
         //initialize the sines and cosines
@@ -516,13 +512,10 @@ export class Make {
         for (let j = 0; j < prof_controlPoints.length; j++) {
 
             //get the closest point of the generatrix point on the axis
-            let O = Trig.rayClosestPoint(prof_controlPoints[j], center, axis)
-            //X is the vector from the axis to generatrix control pt
-            , X = Vec.sub( prof_controlPoints[j], O )
-            //radius at that height
-            , r = Vec.norm(X)
-            //Y is perpendicular to X and axis, and complete the coordinate system
-            , Y = Vec.cross(axis,X);
+            const O = Trig.rayClosestPoint(prof_controlPoints[j], center, axis); //X is the vector from the axis to generatrix control pt
+            let X = Vec.sub( prof_controlPoints[j], O ); //radius at that height
+            const r = Vec.norm(X); //Y is perpendicular to X and axis, and complete the coordinate system
+            let Y = Vec.cross(axis,X);
 
             if ( r > Constants.EPSILON ){
                 X = Vec.mul( 1 / r, X);
@@ -536,29 +529,28 @@ export class Make {
 
             //store T0 as the Y vector
             let T0 = Y
-            , index = 0
-            , angle = 0.0;
+            , index = 0;
 
             //proceed around the circle
             for (let i = 1; i < narcs+1; i++) {
 
                 //O + r * cos(theta) * X + r * sin(theta) * Y
                 //rotated generatrix pt
-                let P2 = r == 0 ? O : Vec.add( O, Vec.add( Vec.mul( r * cosines[i], X), Vec.mul( r * sines[i], Y) ) );
+                const P2 = r == 0 ? O : Vec.add( O, Vec.add( Vec.mul( r * cosines[i], X), Vec.mul( r * sines[i], Y) ) );
 
                 controlPoints[index+2][j] = P2;
                 weights[index+2][j] = prof_weights[j];
 
                 //construct the vector tangent to the rotation
-                let T2 = Vec.sub( Vec.mul( cosines[i], Y), Vec.mul(sines[i], X));
+                const T2 = Vec.sub( Vec.mul( cosines[i], Y), Vec.mul(sines[i], X));
 
                  //construct the next control pt
                 if (r == 0){
                     controlPoints[index+1][j] = O;
                 } else {
 
-                    let inters = Intersect.rays(P0, Vec.mul( 1 / Vec.norm(T0), T0), P2, Vec.mul( 1 / Vec.norm(T2), T2));
-                    let P1 = Vec.add( P0, Vec.mul(inters.u0, T0));
+                    const inters = Intersect.rays(P0, Vec.mul( 1 / Vec.norm(T0), T0), P2, Vec.mul( 1 / Vec.norm(T2), T2));
+                    const P1 = Vec.add( P0, Vec.mul(inters!.u0, T0));
 
                     controlPoints[index+1][j] = P1;
                 }
@@ -594,7 +586,7 @@ export class Make {
 
     public static sphericalSurface( center : Point, axis : Point, xaxis : Point, radius : number ){
 
-        let arc = Make.arc(center, Vec.mul( -1.0, axis ), xaxis, radius, 0.0, Math.PI );
+        const arc = Make.arc(center, Vec.mul( -1.0, axis ), xaxis, radius, 0.0, Math.PI );
         return Make.revolvedSurface( arc, center, axis, 2 * Math.PI );
 
     }
@@ -615,7 +607,7 @@ export class Make {
 
     public static conicalSurface( axis : Point, xaxis : Point, base : Point, height : number, radius : number ) : NurbsSurfaceData {
 
-        let angle = 2 * Math.PI
+        const angle = 2 * Math.PI
         , prof_degree = 1
         , prof_ctrl_pts = [ Vec.add( base, Vec.mul( height, axis ) ), Vec.add( base, Vec.mul( radius, xaxis ) )]
         , prof_knots = [0.0,0.0,1.0,1.0]
@@ -629,8 +621,8 @@ export class Make {
     public static rationalInterpCurve( points : Array<Array<number>>,
                                                 degree? : number,
                                                 homogeneousPoints? : boolean,
-                                                start_tangent : Point = null,
-                                                end_tangent : Point = null ) : NurbsCurveData { if (degree == null) degree = 3; if (homogeneousPoints == null) homogeneousPoints = false;
+                                                start_tangent : Point | null = null,
+                                                end_tangent : Point | null = null ) : NurbsCurveData { if (degree == null) degree = 3; if (homogeneousPoints == null) homogeneousPoints = false;
 
         // 0) build knot vector for curve by normalized chord length
         // 1) construct effective basis function in square matrix (W)
@@ -645,26 +637,26 @@ export class Make {
             throw "You need to supply at least degree + 1 points! You only supplied " + points.length + " points.";
         }
 
-        let us = [ 0.0 ];
+        const us = [ 0.0 ];
         for (let i = 1; i < points.length; i++) {
-            let chord = Vec.norm( Vec.sub( points[i], points[i-1] ) );
-            let last = us[us.length - 1];
+            const chord = Vec.norm( Vec.sub( points[i], points[i-1] ) );
+            const last = us[us.length - 1];
             us.push( last + chord );
         }
 
         //normalize
-        let max = us[us.length-1];
+        const max = us[us.length-1];
         for (let i = 0; i < us.length; i++) {
             us[i] = us[i] / max;
         }
 
-        let knotsStart = Vec.rep( degree + 1, 0.0 );
+        const knotsStart = Vec.rep( degree + 1, 0.0 );
 
         //we need two more control points, two more knots
 
-        let hasTangents = start_tangent != null && end_tangent != null;
-        let start = hasTangents ? 0 : 1;
-        let end = hasTangents ? us.length - degree + 1 : us.length - degree;
+        const hasTangents = start_tangent != null && end_tangent != null;
+        const start = hasTangents ? 0 : 1;
+        const end = hasTangents ? us.length - degree + 1 : us.length - degree;
 
         for (let i = start; i < end; i++) {
             let weightSums = 0.0;
@@ -675,43 +667,42 @@ export class Make {
             knotsStart.push( (1 / degree) * weightSums );
         }
 
-        let knots = knotsStart.concat( Vec.rep( degree + 1, 1.0 ) );
+        const knots = knotsStart.concat( Vec.rep( degree + 1, 1.0 ) );
 
         //build matrix of basis function coeffs (TODO: use sparse rep)
-        let A = [];
-        let n = hasTangents ? points.length + 1 : points.length - 1;
+        const A = [];
+        const n = hasTangents ? points.length + 1 : points.length - 1;
 
-        let lst = hasTangents ? 1 : 0;
-        let ld = hasTangents ? points.length - (degree - 1) : points.length - (degree + 1);
+        const ld = hasTangents ? points.length - (degree - 1) : points.length - (degree + 1);
 
         for (const u of us) {
-            let span = Eval.knotSpanGivenN( n, degree, u, knots );
-            let basisFuncs = Eval.basisFunctionsGivenKnotSpanIndex( span, u, degree, knots );
+            const span = Eval.knotSpanGivenN( n, degree, u, knots );
+            const basisFuncs = Eval.basisFunctionsGivenKnotSpanIndex( span, u, degree, knots );
 
-            let ls = span - degree;
+            const ls = span - degree;
 
-            let rowstart = Vec.zeros1d( ls );
-            let rowend = Vec.zeros1d( ld - ls );
+            const rowstart = Vec.zeros1d( ls );
+            const rowend = Vec.zeros1d( ld - ls );
 
             A.push( rowstart.concat(basisFuncs).concat(rowend) );
         }
 
         if (hasTangents){
-            let ln = A[0].length - 2;
+            const ln = A[0].length - 2;
 
-            let tanRow0 = [-1.0,1.0].concat( Vec.zeros1d( ln ) );
-            let tanRow1 = Vec.zeros1d( ln ).concat( [-1.0,1.0] );
+            const tanRow0 = [-1.0,1.0].concat( Vec.zeros1d( ln ) );
+            const tanRow1 = Vec.zeros1d( ln ).concat( [-1.0,1.0] );
 
             ArrayExtensions.spliceAndInsert(A, 1, 0, tanRow0);
             ArrayExtensions.spliceAndInsert(A, A.length-1, 0, tanRow1);
         }
 
         //for each dimension, solve
-        let dim = points[0].length;
-        let xs = [];
+        const dim = points[0].length;
+        const xs = [];
 
-        let mult1 = (1 - knots[knots.length - degree - 2] ) / degree;
-        let mult0 = knots[degree + 1] / degree;
+        const mult1 = (1 - knots[knots.length - degree - 2] ) / degree;
+        const mult0 = knots[degree + 1] / degree;
 
         for (let i = 0; i < dim; i++) {
             let b : Array<number>;
@@ -723,20 +714,20 @@ export class Make {
             else {
                 //insert the tangents at the second and second to last index
                 b = [ points[0][i] ];
-                b.push( mult0 * start_tangent[i]);
+                b.push( mult0 * start_tangent![i]);
                 for (let j = 1; j < points.length-1; j++) b.push( points[j][i] );
-                b.push( mult1 * end_tangent[i] );
+                b.push( mult1 * end_tangent![i] );
                 b.push( ArrayExtensions.last(points)[i] );
             }
 
-            let x = Mat.solve( A, b );
+            const x = Mat.solve( A, b );
             xs.push(x);
         }
 
         let controlPts = Mat.transpose(xs);
 
         if (!homogeneousPoints){
-            let weights = Vec.rep(controlPts.length, 1.0);
+            const weights = Vec.rep(controlPts.length, 1.0);
             controlPts = Eval.homogenize1d(controlPts, weights);
         }
 

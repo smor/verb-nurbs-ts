@@ -1,3 +1,5 @@
+// Gauss-Legendre abscissae and weights below are tabulated to more digits than a double holds, on purpose.
+/* eslint-disable no-loss-of-precision */
 import { ArrayExtensions } from "../core/ArrayExtensions.js";
 import { Constants } from "../core/Constants.js";
 import { KnotArray, NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
@@ -29,7 +31,7 @@ export class Analyze {
 
     public static knotMultiplicities( knots : KnotArray ) : Array<KnotMultiplicity> {
 
-        let mults = [  new KnotMultiplicity( knots[0], 0 ) ];
+        const mults = [  new KnotMultiplicity( knots[0], 0 ) ];
         let curr : KnotMultiplicity = mults[0];
 
         for (const knot of knots) {
@@ -58,10 +60,10 @@ export class Analyze {
 
     public static isRationalSurfaceClosed(surface : NurbsSurfaceData, uDir? : boolean) : boolean { if (uDir == null) uDir = true;
 
-        let cpts = uDir ? surface.controlPoints : Mat.transpose(surface.controlPoints);
+        const cpts = uDir ? surface.controlPoints : Mat.transpose(surface.controlPoints);
 
         for (let i = 0; i < cpts[0].length; i++) {
-            let test = Vec.dist( ArrayExtensions.first(cpts)[i], ArrayExtensions.last(cpts)[i] ) < Constants.EPSILON;
+            const test = Vec.dist( ArrayExtensions.first(cpts)[i], ArrayExtensions.last(cpts)[i] ) < Constants.EPSILON;
             if (!test) return false;
         }
 
@@ -80,7 +82,7 @@ export class Analyze {
     //* The closest point on the surface, bounded by the parametric range of the surface
 
     public static rationalSurfaceClosestPoint( surface : NurbsSurfaceData, p : Point ) : Point {
-        let uv = Analyze.rationalSurfaceClosestParam( surface, p );
+        const uv = Analyze.rationalSurfaceClosestParam( surface, p );
         return Eval.rationalSurfacePoint( surface, uv[0], uv[1] );
     }
 
@@ -139,30 +141,30 @@ export class Analyze {
         //  4)  if |(u* - u)C'(u)| < e1, halt
         //
 
-        let maxits = 5;
-        let i = 0
-        , e
-        , eps1 = 0.0001
-        , eps2 = 0.0005
-        , dif
-        , minu = surface.knotsU[0]
-        , maxu = ArrayExtensions.last(surface.knotsU)
-        , minv = surface.knotsV[0]
-        , maxv = ArrayExtensions.last(surface.knotsV)
-        , closedu = Analyze.isRationalSurfaceClosed(surface)
-        , closedv = Analyze.isRationalSurfaceClosed(surface, false)
-        , cuv = [0.0, 0.0]; // FIXME: this is not correct
+        const maxits = 5;
+        let i = 0;
+        let e;
+        const eps1 = 0.0001;
+        const eps2 = 0.0005;
+        let dif;
+        const minu = surface.knotsU[0];
+        const maxu = ArrayExtensions.last(surface.knotsU);
+        const minv = surface.knotsV[0];
+        const maxv = ArrayExtensions.last(surface.knotsV);
+        const closedu = Analyze.isRationalSurfaceClosed(surface);
+        const closedv = Analyze.isRationalSurfaceClosed(surface, false);
+        let cuv = [0.0, 0.0]; // FIXME: this is not correct
 
         //todo: divide surface instead of a full on tessellation
 
         //approximate closest point with tessellation
-        let tess = Tess.rationalSurfaceAdaptive( surface, new AdaptiveRefinementOptions() );
+        const tess = Tess.rationalSurfaceAdaptive( surface, new AdaptiveRefinementOptions() );
 
         let dmin = Infinity;
 
         for (let i = 0; i < tess.points.length; i++) {
-            let x = tess.points[i];
-            let d = Vec.normSquared( Vec.sub( p, x ) );
+            const x = tess.points[i];
+            const d = Vec.normSquared( Vec.sub( p, x ) );
 
             if ( d < dmin ){
                 dmin = d;
@@ -181,26 +183,26 @@ export class Analyze {
             //f = Su(u,v) * r = 0
             //g = Sv(u,v) * r = 0
 
-            let Su = e[1][0];
-            let Sv = e[0][1];
+            const Su = e[1][0];
+            const Sv = e[0][1];
 
-            let Suu = e[2][0];
-            let Svv = e[0][2];
+            const Suu = e[2][0];
+            const Svv = e[0][2];
 
-            let Suv = e[1][1];
-            let Svu = e[1][1];
+            const Suv = e[1][1];
+            const Svu = e[1][1];
 
-            let f = Vec.dot( Su, r );
-            let g = Vec.dot( Sv, r );
+            const f = Vec.dot( Su, r );
+            const g = Vec.dot( Sv, r );
 
-            let k = [-f, -g];
+            const k = [-f, -g];
 
-            let J00 = Vec.dot( Su, Su ) + Vec.dot( Suu, r );
-            let J01 = Vec.dot( Su, Sv ) + Vec.dot( Suv, r );
-            let J10 = Vec.dot( Su, Sv ) + Vec.dot( Svu, r );
-            let J11 = Vec.dot( Sv, Sv ) + Vec.dot( Svv, r );
+            const J00 = Vec.dot( Su, Su ) + Vec.dot( Suu, r );
+            const J01 = Vec.dot( Su, Sv ) + Vec.dot( Suv, r );
+            const J10 = Vec.dot( Su, Sv ) + Vec.dot( Svu, r );
+            const J11 = Vec.dot( Sv, Sv ) + Vec.dot( Svv, r );
 
-            let J = [ [ J00, J01 ], [ J10, J11 ] ];
+            const J = [ [ J00, J01 ], [ J10, J11 ] ];
 
             //    d =   [ u* - u, v* - v ]
             //		k = - [ f(u,v), g(u,v) ]
@@ -209,7 +211,7 @@ export class Analyze {
             //		     Su*Sv   +  Svu * r      |Sv|^2  +  Svv * r
             //
 
-            let d = Mat.solve( J, k );
+            const d = Mat.solve( J, k );
 
             return Vec.add( d, uv );
 
@@ -223,7 +225,7 @@ export class Analyze {
             //  point coincidence
             //
             //		|S(u,v) - p| < e1
-            let c1v = Vec.norm( dif );
+            const c1v = Vec.norm( dif );
 
             //
             //  cosine
@@ -236,18 +238,18 @@ export class Analyze {
             //   ----------------------  < e2
             //   |Sv(u,v)| |S(u,v) - P|
             //
-            let c2an = Vec.dot( e[1][0], dif);
-            let c2ad = Vec.norm( e[1][0] ) * c1v;
+            const c2an = Vec.dot( e[1][0], dif);
+            const c2ad = Vec.norm( e[1][0] ) * c1v;
 
-            let c2bn = Vec.dot( e[0][1], dif);
-            let c2bd = Vec.norm( e[0][1] ) * c1v;
+            const c2bn = Vec.dot( e[0][1], dif);
+            const c2bd = Vec.norm( e[0][1] ) * c1v;
 
-            let c2av = c2an / c2ad;
-            let c2bv = c2bn / c2bd;
+            const c2av = c2an / c2ad;
+            const c2bv = c2bn / c2bd;
 
-            let c1 = c1v < eps1;
-            let c2a = c2av < eps2;
-            let c2b = c2bv < eps2;
+            const c1 = c1v < eps1;
+            const c2a = c2av < eps2;
+            const c2b = c2bv < eps2;
 
             //if all of the tolerance are met, we're done
             if (c1 && c2a && c2b){
@@ -271,8 +273,8 @@ export class Analyze {
             }
 
             //if |(u* - u) C'(u)| < e1, halt
-            let c3v0 =  Vec.norm( Vec.mul(ct[0] - cuv[0], e[1][0] ) );
-            let c3v1 =  Vec.norm( Vec.mul(ct[1] - cuv[1], e[0][1] ) );
+            const c3v0 =  Vec.norm( Vec.mul(ct[0] - cuv[0], e[1][0] ) );
+            const c3v1 =  Vec.norm( Vec.mul(ct[1] - cuv[1], e[0][1] ) );
 
             if (c3v0 + c3v1 < eps1) {
                 return cuv;
@@ -348,18 +350,18 @@ export class Analyze {
         let min = Infinity;
         let u = 0.0;
 
-        let pts = Tess.rationalCurveRegularSample( curve, curve.controlPoints.length * curve.degree, true );
+        const pts = Tess.rationalCurveRegularSample( curve, curve.controlPoints.length * curve.degree, true );
 
         for (let i = 0; i < pts.length-1; i++) {
 
-            let u0 = pts[i][0];
-            let u1 = pts[i+1][0];
+            const u0 = pts[i][0];
+            const u1 = pts[i+1][0];
 
-            let p0 = pts[i].slice(1);
-            let p1 = pts[i+1].slice(1);
+            const p0 = pts[i].slice(1);
+            const p1 = pts[i+1].slice(1);
 
-            let proj = Trig.segmentClosestPoint( p, p0, p1, u0, u1 );
-            let d = Vec.norm( Vec.sub( p, proj.pt ) );
+            const proj = Trig.segmentClosestPoint( p, p0, p1, u0, u1 );
+            const d = Vec.norm( Vec.sub( p, proj.pt ) );
 
             if ( d < min ){
                 min = d;
@@ -367,16 +369,16 @@ export class Analyze {
             }
         }
 
-        let maxits = 5
-        , i = 0
-        , e
-        , eps1 = 0.0001
-        , eps2 = 0.0005
-        , dif
-        , minu = curve.knots[0]
-        , maxu = ArrayExtensions.last(curve.knots)
-        , closed = Vec.normSquared( Vec.sub( curve.controlPoints[0], ArrayExtensions.last(curve.controlPoints) ) ) < Constants.EPSILON
-        , cu = u;
+        const maxits = 5;
+        let i = 0;
+        let e;
+        const eps1 = 0.0001;
+        const eps2 = 0.0005;
+        let dif;
+        const minu = curve.knots[0];
+        const maxu = ArrayExtensions.last(curve.knots);
+        const closed = Vec.normSquared( Vec.sub( curve.controlPoints[0], ArrayExtensions.last(curve.controlPoints) ) ) < Constants.EPSILON;
+        let cu = u;
 
         function f(u : number) : Array<Point> {
             return Eval.rationalCurveDerivatives( curve, u, 2 );
@@ -384,10 +386,10 @@ export class Analyze {
 
         function n(u : number, e: Array<Point>, d : Array<number>) : number {
             //   C'(u) * ( C(u) - P ) = 0 = f(u)
-            let f = Vec.dot( e[1], d );
+            const f = Vec.dot( e[1], d );
 
             //	f' = C"(u) * ( C(u) - p ) + C'(u) * C'(u)
-            let s0 = Vec.dot( e[2], d )
+            const s0 = Vec.dot( e[2], d )
             , s1 = Vec.dot( e[1], e[1] )
             , df = s0 + s1;
 
@@ -400,18 +402,18 @@ export class Analyze {
             dif = Vec.sub( e[0], p );
 
             // |C(u) - p| < e1
-            let c1v = Vec.norm( dif );
+            const c1v = Vec.norm( dif );
 
             //C'(u) * (C(u) - P)
             // ------------------ < e2
             // |C'(u)| |C(u) - P|
-            let c2n = Vec.dot( e[1], dif);
-            let c2d = Vec.norm( e[1] ) * c1v;
+            const c2n = Vec.dot( e[1], dif);
+            const c2d = Vec.norm( e[1] ) * c1v;
 
-            let c2v = c2n / c2d;
+            const c2v = c2n / c2d;
 
-            let c1 = c1v < eps1;
-            let c2 = Math.abs(c2v) < eps2;
+            const c1 = c1v < eps1;
+            const c2 = Math.abs(c2v) < eps2;
 
             //if both tolerances are met
             if (c1 && c2){
@@ -428,7 +430,7 @@ export class Analyze {
             }
 
             //will our next step force us out of the curve?
-            let c3v = Vec.norm( Vec.mul(ct - cu, e[1] ) );
+            const c3v = Vec.norm( Vec.mul(ct - cu, e[1] ) );
 
             if (c3v < eps1) {
                 return cu;
@@ -460,16 +462,15 @@ export class Analyze {
     public static rationalCurveParamAtArcLength(curve : NurbsCurveData,
                                                          len : number,
                                                          tol? : number,
-                                                         beziers : Array<NurbsCurveData> = null,
-                                                         bezierLengths : Array<number> = null) : number { if (tol == null) tol = 1e-3;
+                                                         beziers : Array<NurbsCurveData> | null = null,
+                                                         bezierLengths : Array<number> | null = null) : number { if (tol == null) tol = 1e-3;
 
         if (len < Constants.EPSILON) return curve.knots[0];
 
-        let crvs = beziers != null ? beziers : Modify.decomposeCurveIntoBeziers( curve )
-        , i = 0
-        , cc = crvs[i]
-        , cl = -Constants.EPSILON
-        , bezier_lengths = bezierLengths != null ? bezierLengths : [];
+        const crvs = beziers != null ? beziers : Modify.decomposeCurveIntoBeziers( curve );
+        let i = 0;
+        let cl = -Constants.EPSILON;
+        const bezier_lengths = bezierLengths != null ? bezierLengths : [];
 
         //iterate through the curves consuming the bezier's, summing their length along the way
         while (cl < len && i < crvs.length){
@@ -503,18 +504,18 @@ export class Analyze {
 
     public static rationalBezierCurveParamAtArcLength(curve : NurbsCurveData,
                                                                len : number,
-                                                               tol : number = null,
-                                                               totalLength : number = null) : number {
+                                                               tol : number | null = null,
+                                                               totalLength : number | null = null) : number {
         if (len < 0) return curve.knots[0];
 
         //we compute the whole length.  if desired length is outside of that, give up
-        let totalLen = totalLength != null ? totalLength : Analyze.rationalBezierCurveArcLength( curve );
+        const totalLen = totalLength != null ? totalLength : Analyze.rationalBezierCurveArcLength( curve );
 
         if (len > totalLen) return ArrayExtensions.last(curve.knots);
 
         //divide & conquer
         //TODO: can we use derivative?
-        let start = { p : curve.knots[0], l : 0.0 }
+        const start = { p : curve.knots[0], l : 0.0 }
         , end = { p : ArrayExtensions.last(curve.knots), l : totalLen }
         , mid = { p : 0.0, l : 0.0 }
         , tol2 = tol != null ? tol : Constants.TOLERANCE * 2;
@@ -549,16 +550,16 @@ export class Analyze {
     //
     //* the approximate length
 
-    public static rationalCurveArcLength(curve : NurbsCurveData, u : number = null, gaussDegIncrease? : number){ if (gaussDegIncrease == null) gaussDegIncrease = 16;
+    public static rationalCurveArcLength(curve : NurbsCurveData, u : number | null = null, gaussDegIncrease? : number){ if (gaussDegIncrease == null) gaussDegIncrease = 16;
         u = (u == null) ? ArrayExtensions.last(curve.knots) : u;
 
-        let crvs = Modify.decomposeCurveIntoBeziers( curve )
-        , i = 0
-        , cc = crvs[0]
-        , sum = 0.0;
+        const crvs = Modify.decomposeCurveIntoBeziers( curve );
+        let i = 0;
+        let cc = crvs[0];
+        let sum = 0.0;
 
         while ( i < crvs.length && cc.knots[0] + Constants.EPSILON < u  ){
-            let param = Math.min(ArrayExtensions.last(cc.knots), u);
+            const param = Math.min(ArrayExtensions.last(cc.knots), u);
             sum += Analyze.rationalBezierCurveArcLength( cc, param, gaussDegIncrease );
             cc = crvs[++i];
         }
@@ -578,14 +579,14 @@ export class Analyze {
     //
     //* the approximate length
 
-    public static rationalBezierCurveArcLength(curve : NurbsCurveData, u : number = null, gaussDegIncrease? : number) : number { if (gaussDegIncrease == null) gaussDegIncrease = 16;
+    public static rationalBezierCurveArcLength(curve : NurbsCurveData, u : number | null = null, gaussDegIncrease? : number) : number { if (gaussDegIncrease == null) gaussDegIncrease = 16;
 
         u = u == null ? ArrayExtensions.last(curve.knots) : u;
-        let z = (u - curve.knots[0]) / 2
-        , sum = 0.0
-        , gaussDeg = curve.degree + gaussDegIncrease
-        , cu
-        , tan;
+        const z = (u - curve.knots[0]) / 2;
+        let sum = 0.0;
+        const gaussDeg = curve.degree + gaussDegIncrease;
+        let cu;
+        let tan;
 
         for (let i = 0; i < gaussDeg; i++) {
 

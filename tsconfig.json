@@ -8,7 +8,9 @@
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
-    "strictNullChecks": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
     "useDefineForClassFields": false

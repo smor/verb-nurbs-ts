@@ -80,7 +80,6 @@ let picked = -1;
 const layerVisible = new Map<string, boolean>();
 const objects = new Map<string, THREE.Object3D>();
 let pickMesh : { mesh : THREE.Mesh, layer : Layer } | null = null;
-let fileName = "";
 
 function lineObject( l : Layer, opacity = 1 ) : THREE.Object3D {
     const g = new THREE.BufferGeometry();
@@ -269,7 +268,7 @@ const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { typ
 let seq = 0;
 function status( text : string, state : string ) { $( "status" ).textContent = text; $( "status" ).dataset.state = state; }
 function load( ex : string ) {
-    example = ex; fileName = "";
+    example = ex;
     const e = EXAMPLES.find( x => x.id == ex )!;
     $( "note" ).textContent = e.note;
     status( "Building " + e.name.toLowerCase() + "…", "busy" );
@@ -277,7 +276,6 @@ function load( ex : string ) {
     try { localStorage.setItem( "verb-viewer", JSON.stringify( { example : ex } ) ); } catch (err) { /* ignore */ }
 }
 function loadFile( f : File ) {
-    fileName = f.name;
     status( "Reading " + f.name + "…", "busy" );
     $( "note" ).textContent = "Your file " + f.name + ", read in this browser.";
     f.arrayBuffer().then( data => worker.postMessage( { id : ++seq, file : { name : f.name, data } }, [data] ) );

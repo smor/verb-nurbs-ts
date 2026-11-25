@@ -11,7 +11,7 @@ export class Trig {
     }
 
     public static distToSegment(a : Point, b : Point, c : Point){
-        let res = Trig.segmentClosestPoint( b, a, c, 0.0, 1.0 );
+        const res = Trig.segmentClosestPoint( b, a, c, 0.0, 1.0 );
         return Vec.dist( b, res.pt );
     }
 
@@ -28,7 +28,7 @@ export class Trig {
     //* pt
 
     public static rayClosestPoint( pt : Point, o : Point, r : Vector ) {
-        let o2pt = Vec.sub(pt,o)
+        const o2pt = Vec.sub(pt,o)
         , do2ptr = Vec.dot(o2pt, r)
         , proj = Vec.add(o, Vec.mul(do2ptr, r));
 
@@ -48,8 +48,8 @@ export class Trig {
     //* the distance
 
     public static distToRay( pt : Point, o : Point, r : Vector ) {
-        let d = Trig.rayClosestPoint( pt, o, r );
-        let dif = Vec.sub( d, pt );
+        const d = Trig.rayClosestPoint( pt, o, r );
+        const dif = Vec.sub( d, pt );
 
         return Vec.norm( dif );
 
@@ -80,7 +80,7 @@ export class Trig {
     public static threePointsAreFlat( p1 : Point, p2 : Point, p3 : Point, tol : number ) {
 
         //find the area of the triangle without using a square root
-        let p2mp1 = Vec.sub( p2, p1 )
+        const p2mp1 = Vec.sub( p2, p1 )
         , p3mp1 = Vec.sub( p3, p1 )
         , norm = Vec.cross( p2mp1, p3mp1 )
         , area = Vec.dot( norm, norm );
@@ -105,14 +105,14 @@ export class Trig {
 
     public static segmentClosestPoint( pt : Point, segpt0 : Point, segpt1 : Point, u0 : number, u1 : number ) {
 
-        let dif = Vec.sub( segpt1, segpt0 )
+        const dif = Vec.sub( segpt1, segpt0 )
         , l = Vec.norm( dif );
 
         if (l < Constants.EPSILON ) {
             return { u: u0, pt : segpt0 };
         }
 
-        let o = segpt0
+        const o = segpt0
         , r = Vec.mul( 1 / l, dif )
         , o2pt = Vec.sub(pt, o)
         , do2ptr = Vec.dot(o2pt, r);

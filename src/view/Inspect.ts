@@ -35,6 +35,9 @@ export interface ViewLayer {
     dashed? : boolean;
 }
 
+// A layer that carries indices (lines and meshes), as the builders below return it.
+export type IndexedLayer = ViewLayer & { indices : Array<number> };
+
 export interface ViewItem {
     label : string;
     type : string;
@@ -72,45 +75,45 @@ export class Inspect {
     // ---------- NURBS curves ----------
 
     public static curve( c : NurbsCurveData, title? : string, options? : InspectOptions ) : View {
-        let o = options != null ? options : {};
-        let n = o.samples != null ? o.samples : 200;
-        let u0 = c.knots[0], u1 = c.knots[c.knots.length - 1];
-        let cps = Inspect.dehomogenize( c.controlPoints );
-        let weights = c.controlPoints.map( p => p[p.length - 1] );
-        let size = Inspect.size( cps );
+        const o = options != null ? options : {};
+        const n = o.samples != null ? o.samples : 200;
+        const u0 = c.knots[0], u1 = c.knots[c.knots.length - 1];
+        const cps = Inspect.dehomogenize( c.controlPoints );
+        const weights = c.controlPoints.map( p => p[p.length - 1] );
+        const size = Inspect.size( cps );
 
-        let curve = Inspect.lines( "Curve", COLORS.curve, true );
-        let comb = Inspect.lines( "Curvature comb", COLORS.comb, false );
-        let kappa : Array<number> = [], pts : Array<Point> = [], normals : Array<Point> = [];
+        const curve = Inspect.lines( "Curve", COLORS.curve, true );
+        const comb = Inspect.lines( "Curvature comb", COLORS.comb, false );
+        const kappa : Array<number> = [], pts : Array<Point> = [], normals : Array<Point> = [];
         for (let i = 0; i <= n; i++) {
-            let u = u0 + (u1 - u0) * i / n;
-            let d = Eval.rationalCurveDerivatives( c, u, 2 );
+            const u = u0 + (u1 - u0) * i / n;
+            const d = Eval.rationalCurveDerivatives( c, u, 2 );
             pts.push( d[0] );
-            let k = Inspect.curvature( d[1], d[2] );
+            const k = Inspect.curvature( d[1], d[2] );
             kappa.push( k.kappa ); normals.push( k.normal );
             if (i > 0) Inspect.segment( curve, pts[i - 1], pts[i] );
         }
-        let kmax = Math.max( 1e-12, ...kappa.filter( isFinite ) );
-        let scale = (o.comb != null ? o.comb : 0.15) * size / kmax;
-        let tips : Array<Point> = [];
+        const kmax = Math.max( 1e-12, ...kappa.filter( isFinite ) );
+        const scale = (o.comb != null ? o.comb : 0.15) * size / kmax;
+        const tips : Array<Point> = [];
         for (let i = 0; i <= n; i++) {
-            let tip = isFinite( kappa[i] ) ? Vec.sub( pts[i], Vec.mul( scale * kappa[i], normals[i] ) ) : pts[i];
+            const tip = isFinite( kappa[i] ) ? Vec.sub( pts[i], Vec.mul( scale * kappa[i], normals[i] ) ) : pts[i];
             tips.push( tip );
             Inspect.segment( comb, pts[i], tip );
             if (i > 0) Inspect.segment( comb, tips[i - 1], tip );
         }
 
-        let polygon = Inspect.lines( "Control polygon", COLORS.polygon, true );
+        const polygon = Inspect.lines( "Control polygon", COLORS.polygon, true );
         for (let i = 1; i < cps.length; i++) Inspect.segment( polygon, cps[i - 1], cps[i] );
-        let points = Inspect.points( "Control points", COLORS.points, cps, true );
+        const points = Inspect.points( "Control points", COLORS.points, cps, true );
         points.fields = { weight : { values : weights, unit : "", symmetric : false } };
 
-        let mult = Analyze.knotMultiplicities( c.knots );
-        let knots = Inspect.points( "Knots", COLORS.knots, mult.map( m => Eval.rationalCurvePoint( c, m.knot ) ), true );
+        const mult = Analyze.knotMultiplicities( c.knots );
+        const knots = Inspect.points( "Knots", COLORS.knots, mult.map( m => Eval.rationalCurvePoint( c, m.knot ) ), true );
 
-        let rational = weights.some( w => Math.abs( w - 1 ) > 1e-12 );
-        let closed = Vec.dist( pts[0], pts[n] ) < 1e-9 * (1 + size);
-        let facts : Array<[string, string]> = [
+        const rational = weights.some( w => Math.abs( w - 1 ) > 1e-12 );
+        const closed = Vec.dist( pts[0], pts[n] ) < 1e-9 * (1 + size);
+        const facts : Array<[string, string]> = [
             ["Type", rational ? "Rational B-spline (NURBS) curve" : "Non-rational B-spline curve"],
             ["Degree", String( c.degree )],
             ["Control points", String( cps.length )],
@@ -127,14 +130,14 @@ export class Inspect {
     // ---------- NURBS surfaces ----------
 
     public static surface( s : NurbsSurfaceData, title? : string, options? : InspectOptions ) : View {
-        let o = options != null ? options : {};
-        let n = o.samples != null ? o.samples : 64;
-        let item : ViewItem = { label : title != null ? title : "Surface", type : "NURBS surface", facts : Inspect.surfaceFacts( s ), overlay : [] };
-        let shaded = Inspect.surfaceMesh( s, n, n );
+        const o = options != null ? options : {};
+        const n = o.samples != null ? o.samples : 64;
+        const item : ViewItem = { label : title != null ? title : "Surface", type : "NURBS surface", facts : Inspect.surfaceFacts( s ), overlay : [] };
+        const shaded = Inspect.surfaceMesh( s, n, n );
         shaded.layer.pick = shaded.layer.indices.filter( (_, k) => k % 3 == 0 ).map( () => 0 );
-        let cps = s.controlPoints.map( row => Inspect.dehomogenize( row ) );
-        let size = Inspect.size( ([] as Array<Point>).concat( ...cps ) );
-        let layers = [shaded.layer, Inspect.knotLines( s ), Inspect.isocurves( s, 10 ), Inspect.controlNet( s, true ), Inspect.controlPoints( s, true ),
+        const cps = s.controlPoints.map( row => Inspect.dehomogenize( row ) );
+        const size = Inspect.size( ([] as Array<Point>).concat( ...cps ) );
+        const layers = [shaded.layer, Inspect.knotLines( s ), Inspect.isocurves( s, 10 ), Inspect.controlNet( s, true ), Inspect.controlPoints( s, true ),
                       Inspect.normals( s, 12, 0.06 * size ), Inspect.poles( s )];
         return { title : item.label, kind : "surface", layers : layers, items : [item], facts : item.facts };
     }
@@ -144,61 +147,61 @@ export class Inspect {
     // A B-rep: a Boolean's result (its trimmed faces, edges, seams and fillets) or a solid, which is shown as the result
     // of a Boolean of itself alone.
     public static brep( b : BooleanResult | BrepSolid, title? : string ) : View {
-        let r : BooleanResult = b instanceof BrepSolid ? BrepBoolean.evaluate( [b], f => f[0] ) : b;
-        let m = r.mesh;
-        let faces = Inspect.meshLayer( "Faces", COLORS.surface, m );
+        const r : BooleanResult = b instanceof BrepSolid ? BrepBoolean.evaluate( [b], f => f[0] ) : b;
+        const m = r.mesh;
+        const faces = Inspect.meshLayer( "Faces", COLORS.surface, m );
         faces.pick = r.faceOf.slice();
         faces.itemColors = true;
 
         // area per face
-        let area = r.faces.map( () => 0 );
+        const area = r.faces.map( () => 0 );
         m.triangles.forEach( (t, k) => {
-            let a = m.vertices[t[0]], bb = m.vertices[t[1]], c = m.vertices[t[2]];
+            const a = m.vertices[t[0]], bb = m.vertices[t[1]], c = m.vertices[t[2]];
             area[r.faceOf[k]] += Vec.norm( Vec.cross( Vec.sub( bb, a ), Vec.sub( c, a ) ) ) / 2;
         } );
 
         // edges, from each face's boundary loops in (u, v): a segment along a periodic side of the domain is a seam,
         // along another side of the domain a natural edge, and anywhere else a trim
-        let trim = Inspect.lines( "Trim edges", COLORS.trim, true );
-        let natural = Inspect.lines( "Natural edges", COLORS.natural, true );
-        let seam = Inspect.lines( "Seams", COLORS.seam, true ); seam.dashed = true;
-        let filletEdges = Inspect.lines( "Fillets", COLORS.fillet, true );
-        let items : Array<ViewItem> = r.faces.map( (f, fi) => {
-            let s = f.surface;
-            let d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
-            let per = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
-            let tol = 1e-9 * (1 + Math.abs( d[1] - d[0] ) + Math.abs( d[3] - d[2] ));
-            let on = (uv : Array<number>) => [Math.abs( uv[0] - d[0] ) < tol || Math.abs( uv[0] - d[1] ) < tol,
+        const trim = Inspect.lines( "Trim edges", COLORS.trim, true );
+        const natural = Inspect.lines( "Natural edges", COLORS.natural, true );
+        const seam = Inspect.lines( "Seams", COLORS.seam, true ); seam.dashed = true;
+        const filletEdges = Inspect.lines( "Fillets", COLORS.fillet, true );
+        const items : Array<ViewItem> = r.faces.map( (f, fi) => {
+            const s = f.surface;
+            const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+            const per = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
+            const tol = 1e-9 * (1 + Math.abs( d[1] - d[0] ) + Math.abs( d[3] - d[2] ));
+            const on = (uv : Array<number>) => [Math.abs( uv[0] - d[0] ) < tol || Math.abs( uv[0] - d[1] ) < tol,
                                               Math.abs( uv[1] - d[2] ) < tol || Math.abs( uv[1] - d[3] ) < tol];
             // sides of the domain that collapse to a point: the mesh fans out from there, and those fan edges are no edges
-            let pole = (f : (t : number) => Point) => { let a = f( 0 ); for (let k = 1; k <= 6; k++) if (Vec.dist( a, f( k / 6 ) ) > 1e-9 * (1 + Vec.norm( a ))) return false; return true; };
-            let poleSide = [pole( t => Eval.rationalSurfacePoint( s, d[0], d[2] + (d[3] - d[2]) * t ) ), pole( t => Eval.rationalSurfacePoint( s, d[1], d[2] + (d[3] - d[2]) * t ) ),
+            const pole = (f : (t : number) => Point) => { const a = f( 0 ); for (let k = 1; k <= 6; k++) if (Vec.dist( a, f( k / 6 ) ) > 1e-9 * (1 + Vec.norm( a ))) return false; return true; };
+            const poleSide = [pole( t => Eval.rationalSurfacePoint( s, d[0], d[2] + (d[3] - d[2]) * t ) ), pole( t => Eval.rationalSurfacePoint( s, d[1], d[2] + (d[3] - d[2]) * t ) ),
                             pole( t => Eval.rationalSurfacePoint( s, d[0] + (d[1] - d[0]) * t, d[2] ) ), pole( t => Eval.rationalSurfacePoint( s, d[0] + (d[1] - d[0]) * t, d[3] ) )];
-            let atPole = (uv : Array<number>) => (poleSide[0] && Math.abs( uv[0] - d[0] ) < tol) || (poleSide[1] && Math.abs( uv[0] - d[1] ) < tol)
+            const atPole = (uv : Array<number>) => (poleSide[0] && Math.abs( uv[0] - d[0] ) < tol) || (poleSide[1] && Math.abs( uv[0] - d[1] ) < tol)
                 || (poleSide[2] && Math.abs( uv[1] - d[2] ) < tol) || (poleSide[3] && Math.abs( uv[1] - d[3] ) < tol);
-            let edges = { trim : 0, natural : 0, seam : 0 }; // lengths
-            let step = Math.max( Math.abs( d[1] - d[0] ), Math.abs( d[3] - d[2] ) ) / 96;
-            for (let loop of f.loops) for (let k = 0; k < loop.length; k++) {
-                let a = loop[k], c = loop[(k + 1) % loop.length];
+            const edges = { trim : 0, natural : 0, seam : 0 }; // lengths
+            const step = Math.max( Math.abs( d[1] - d[0] ), Math.abs( d[3] - d[2] ) ) / 96;
+            for (const loop of f.loops) for (let k = 0; k < loop.length; k++) {
+                const a = loop[k], c = loop[(k + 1) % loop.length];
                 if (atPole( a ) || atPole( c )) continue;
-                let oa = on( a ), oc = on( c );
-                let alongU = oa[0] && oc[0] && Math.abs( a[0] - c[0] ) < tol, alongV = oa[1] && oc[1] && Math.abs( a[1] - c[1] ) < tol;
-                let kind : "trim" | "natural" | "seam" = alongU || alongV ? ((alongU && per[0]) || (alongV && per[1]) ? "seam" : "natural") : "trim";
+                const oa = on( a ), oc = on( c );
+                const alongU = oa[0] && oc[0] && Math.abs( a[0] - c[0] ) < tol, alongV = oa[1] && oc[1] && Math.abs( a[1] - c[1] ) < tol;
+                const kind : "trim" | "natural" | "seam" = alongU || alongV ? ((alongU && per[0]) || (alongV && per[1]) ? "seam" : "natural") : "trim";
                 // a seam is the same curve on both of its sides of the domain: draw it from the lower side only
                 if (kind == "seam" && (alongU ? Math.abs( a[0] - d[1] ) < tol : Math.abs( a[1] - d[3] ) < tol)) continue;
-                let layer = kind == "trim" ? trim : kind == "seam" ? seam : natural;
+                const layer = kind == "trim" ? trim : kind == "seam" ? seam : natural;
                 // a side of the domain can be long in (u, v) and still a curve in space: sample it
-                let n = Math.max( 1, Math.ceil( Math.hypot( c[0] - a[0], c[1] - a[1] ) / step ) );
+                const n = Math.max( 1, Math.ceil( Math.hypot( c[0] - a[0], c[1] - a[1] ) / step ) );
                 let prev = Eval.rationalSurfacePoint( s, a[0], a[1] );
                 for (let j = 1; j <= n; j++) {
-                    let t = j / n;
-                    let p = Eval.rationalSurfacePoint( s, a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t );
-                    let len = Vec.dist( prev, p );
+                    const t = j / n;
+                    const p = Eval.rationalSurfacePoint( s, a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t );
+                    const len = Vec.dist( prev, p );
                     if (len > 1e-12) { Inspect.segment( layer, prev, p ); edges[kind] += len; } // nothing at a pole
                     prev = p;
                 }
             }
-            let facts : Array<[string, string]> = [
+            const facts : Array<[string, string]> = [
                 ["Face", f.name != "" ? f.name : "face " + f.face],
                 ["From", f.solid < 0 ? "a rolling-ball fillet" : "solid " + f.solid + ", face " + f.face],
                 ["Area", Inspect.num( area[fi] )],
@@ -210,16 +213,16 @@ export class Inspect {
                      overlay : [Inspect.controlNet( s, true ), Inspect.controlPoints( s, true ), Inspect.knotLines( s )] };
         } );
         // the fillets' rails: the contact curves on either side
-        for (let fl of r.fillets) {
-            let secs = fl.blend.sections;
+        for (const fl of r.fillets) {
+            const secs = fl.blend.sections;
             for (let k = 0; k < (fl.blend.closed ? secs.length : secs.length - 1); k++) {
-                let a = secs[k], b = secs[(k + 1) % secs.length];
+                const a = secs[k], b = secs[(k + 1) % secs.length];
                 Inspect.segment( filletEdges, a.pa, b.pa ); Inspect.segment( filletEdges, a.pb, b.pb );
             }
         }
 
-        let rep = r.report;
-        let facts : Array<[string, string]> = [
+        const rep = r.report;
+        const facts : Array<[string, string]> = [
             ["Faces", r.faces.length + " (" + r.faces.filter( f => f.solid < 0 ).length + " fillets)"],
             ["Intersection curves", String( rep.intersectionCurves )],
             ["Fillets", rep.fillets + " rounded, " + rep.filletsFailed + " too large, " + rep.filletsSkipped + " left sharp at corners"],
@@ -236,15 +239,15 @@ export class Inspect {
     // A triangle mesh: its wireframe, open and non-manifold edges, and its wall thickness at each vertex (the distance
     // to the opposite wall along the inward normal).
     public static mesh( m : TriMesh, title? : string, options? : { thickness? : boolean } ) : View {
-        let shaded = Inspect.meshLayer( "Mesh", COLORS.surface, m );
-        let wire = Inspect.lines( "Wireframe", COLORS.wire, false );
-        let open = Inspect.lines( "Open edges", COLORS.open, true );
-        let bad = Inspect.lines( "Non-manifold edges", COLORS.nonManifold, true );
-        for (let l of [wire, open, bad]) l.positions = shaded.positions;
-        let count = new Map<string, Array<number>>();
-        for (let t of m.triangles) for (let k = 0; k < 3; k++) {
-            let a = t[k], b = t[(k + 1) % 3];
-            let key = a < b ? a + "," + b : b + "," + a;
+        const shaded = Inspect.meshLayer( "Mesh", COLORS.surface, m );
+        const wire = Inspect.lines( "Wireframe", COLORS.wire, false );
+        const open = Inspect.lines( "Open edges", COLORS.open, true );
+        const bad = Inspect.lines( "Non-manifold edges", COLORS.nonManifold, true );
+        for (const l of [wire, open, bad]) l.positions = shaded.positions;
+        const count = new Map<string, Array<number>>();
+        for (const t of m.triangles) for (let k = 0; k < 3; k++) {
+            const a = t[k], b = t[(k + 1) % 3];
+            const key = a < b ? a + "," + b : b + "," + a;
             let e = count.get( key );
             if (e == null) { e = [Math.min( a, b ), Math.max( a, b ), 0]; count.set( key, e ); }
             e[2]++;
@@ -256,10 +259,10 @@ export class Inspect {
             else if (e[2] > 2) { bad.indices.push( e[0], e[1] ); nBad++; }
         } );
 
-        let layers = [shaded, wire, open, bad];
-        let rep = m.checkClosedManifold();
-        let bb = m.boundingBox();
-        let facts : Array<[string, string]> = [
+        const layers = [shaded, wire, open, bad];
+        const rep = m.checkClosedManifold();
+        const bb = m.boundingBox();
+        const facts : Array<[string, string]> = [
             ["Vertices", String( m.vertices.length )],
             ["Triangles", String( m.triangles.length )],
             ["Open edges", String( nOpen )],
@@ -271,9 +274,9 @@ export class Inspect {
             ["Size", [0, 1, 2].map( k => Inspect.num( bb.max[k] - bb.min[k] ) ).join( " × " )],
         ];
         if (options == null || options.thickness !== false) {
-            let th = Inspect.thickness( m );
+            const th = Inspect.thickness( m );
             shaded.fields = { thickness : { values : th, unit : "mm", symmetric : false } };
-            let fin = th.filter( isFinite ).sort( (a, b) => a - b );
+            const fin = th.filter( isFinite ).sort( (a, b) => a - b );
             if (fin.length > 0) facts.push( ["Wall thickness", Inspect.num( fin[0] ) + " to " + Inspect.num( fin[fin.length - 1] ) + ", median " + Inspect.num( fin[fin.length >> 1] )] );
         }
         return { title : title != null ? title : "Mesh", kind : "mesh", layers : layers, items : [], facts : facts };
@@ -281,27 +284,27 @@ export class Inspect {
 
     // The wall thickness at each vertex: cast a ray from just inside the surface along the inward vertex normal
     public static thickness( m : TriMesh ) : Array<number> {
-        let bvh = new MeshBVH( m );
-        let nrm = m.vertices.map( () => [0, 0, 0] as Point );
+        const bvh = new MeshBVH( m );
+        const nrm = m.vertices.map( () => [0, 0, 0] as Point );
         // angle-weighted vertex normals, which do not depend on how the faces are split into triangles
-        for (let t of m.triangles) {
-            let p = [m.vertices[t[0]], m.vertices[t[1]], m.vertices[t[2]]];
-            let fn = Vec.cross( Vec.sub( p[1], p[0] ), Vec.sub( p[2], p[0] ) );
-            let l = Vec.norm( fn );
+        for (const t of m.triangles) {
+            const p = [m.vertices[t[0]], m.vertices[t[1]], m.vertices[t[2]]];
+            const fn = Vec.cross( Vec.sub( p[1], p[0] ), Vec.sub( p[2], p[0] ) );
+            const l = Vec.norm( fn );
             if (l == 0) continue;
             for (let k = 0; k < 3; k++) {
-                let e1 = Vec.normalized( Vec.sub( p[(k + 1) % 3], p[k] ) ), e2 = Vec.normalized( Vec.sub( p[(k + 2) % 3], p[k] ) );
-                let angle = Math.acos( Math.max( -1, Math.min( 1, Vec.dot( e1, e2 ) ) ) );
+                const e1 = Vec.normalized( Vec.sub( p[(k + 1) % 3], p[k] ) ), e2 = Vec.normalized( Vec.sub( p[(k + 2) % 3], p[k] ) );
+                const angle = Math.acos( Math.max( -1, Math.min( 1, Vec.dot( e1, e2 ) ) ) );
                 nrm[t[k]] = Vec.add( nrm[t[k]], Vec.mul( angle / l, fn ) );
             }
         }
-        let bb = m.boundingBox();
-        let eps = Vec.dist( bb.min, bb.max ) * 1e-6;
+        const bb = m.boundingBox();
+        const eps = Vec.dist( bb.min, bb.max ) * 1e-6;
         return m.vertices.map( (p, i) => {
-            let l = Vec.norm( nrm[i] );
+            const l = Vec.norm( nrm[i] );
             if (l == 0) return Infinity;
-            let d = Vec.mul( -1 / l, nrm[i] );
-            let t = bvh.raycast( Vec.add( p, Vec.mul( eps, d ) ), d, 0 );
+            const d = Vec.mul( -1 / l, nrm[i] );
+            const t = bvh.raycast( Vec.add( p, Vec.mul( eps, d ) ), d, 0 );
             return isFinite( t ) ? t + eps : Infinity;
         } );
     }
@@ -310,13 +313,13 @@ export class Inspect {
 
     // Facts about one NURBS surface
     public static surfaceFacts( s : NurbsSurfaceData ) : Array<[string, string]> {
-        let w = ([] as Array<number>).concat( ...s.controlPoints.map( row => row.map( p => p[p.length - 1] ) ) );
-        let rational = w.some( x => Math.abs( x - 1 ) > 1e-12 );
-        let mu = Analyze.knotMultiplicities( s.knotsU ), mv = Analyze.knotMultiplicities( s.knotsV );
-        let k = (m : Array<{ knot : number, mult : number }>) => m.length <= 12
+        const w = ([] as Array<number>).concat( ...s.controlPoints.map( row => row.map( p => p[p.length - 1] ) ) );
+        const rational = w.some( x => Math.abs( x - 1 ) > 1e-12 );
+        const mu = Analyze.knotMultiplicities( s.knotsU ), mv = Analyze.knotMultiplicities( s.knotsV );
+        const k = (m : Array<{ knot : number, mult : number }>) => m.length <= 12
             ? m.map( x => Inspect.num( x.knot ) + (x.mult > 1 ? " ×" + x.mult : "") ).join( ", " )
             : m.length + " distinct, " + Inspect.num( m[0].knot ) + " to " + Inspect.num( m[m.length - 1].knot );
-        let closedU = Analyze.isRationalSurfaceClosed( s, true ), closedV = Analyze.isRationalSurfaceClosed( s, false );
+        const closedU = Analyze.isRationalSurfaceClosed( s, true ), closedV = Analyze.isRationalSurfaceClosed( s, false );
         return [
             ["Surface", rational ? "rational (NURBS)" : "non-rational B-spline"],
             ["Degree (u, v)", s.degreeU + ", " + s.degreeV],
@@ -329,25 +332,25 @@ export class Inspect {
     }
 
     // The shaded surface on a regular grid, with Gaussian and mean curvature per vertex
-    public static surfaceMesh( s : NurbsSurfaceData, nu : number, nv : number ) : { layer : ViewLayer } {
-        let layer : ViewLayer = { name : "Surface", kind : "mesh", color : COLORS.surface, visible : true, positions : [], indices : [] };
-        let gauss : Array<number> = [], mean : Array<number> = [];
-        let u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
+    public static surfaceMesh( s : NurbsSurfaceData, nu : number, nv : number ) : { layer : IndexedLayer } {
+        const layer : IndexedLayer = { name : "Surface", kind : "mesh", color : COLORS.surface, visible : true, positions : [], indices : [] };
+        const gauss : Array<number> = [], mean : Array<number> = [];
+        const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
         for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) {
-            let d = Eval.rationalSurfaceDerivatives( s, u0 + (u1 - u0) * i / nu, v0 + (v1 - v0) * j / nv, 2 );
+            const d = Eval.rationalSurfaceDerivatives( s, u0 + (u1 - u0) * i / nu, v0 + (v1 - v0) * j / nv, 2 );
             layer.positions.push( d[0][0][0], d[0][0][1], d[0][0][2] );
-            let c = Inspect.surfaceCurvature( d );
+            const c = Inspect.surfaceCurvature( d );
             gauss.push( c.gauss ); mean.push( c.mean );
         }
         // at a pole the curvature is undefined: take a neighbour's
-        let fill = (f : Array<number>) => { for (let k = 0; k < f.length; k++) if (!isFinite( f[k] )) {
-            let i = Math.floor( k / (nv + 1) ), j = k % (nv + 1);
-            let nb = [i > 0 ? k - (nv + 1) : -1, i < nu ? k + (nv + 1) : -1, j > 0 ? k - 1 : -1, j < nv ? k + 1 : -1].filter( x => x >= 0 && isFinite( f[x] ) );
+        const fill = (f : Array<number>) => { for (let k = 0; k < f.length; k++) if (!isFinite( f[k] )) {
+            const i = Math.floor( k / (nv + 1) ), j = k % (nv + 1);
+            const nb = [i > 0 ? k - (nv + 1) : -1, i < nu ? k + (nv + 1) : -1, j > 0 ? k - 1 : -1, j < nv ? k + 1 : -1].filter( x => x >= 0 && isFinite( f[x] ) );
             f[k] = nb.length > 0 ? f[nb[0]] : 0;
         } };
         fill( gauss ); fill( mean );
         for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
-            let a = i * (nv + 1) + j, b = a + nv + 1;
+            const a = i * (nv + 1) + j, b = a + nv + 1;
             layer.indices.push( a, b, b + 1, a, b + 1, a + 1 );
         }
         layer.fields = {
@@ -358,8 +361,8 @@ export class Inspect {
     }
 
     public static controlNet( s : NurbsSurfaceData, visible : boolean ) : ViewLayer {
-        let l = Inspect.lines( "Control net", COLORS.net, visible );
-        let cps = s.controlPoints.map( row => Inspect.dehomogenize( row ) );
+        const l = Inspect.lines( "Control net", COLORS.net, visible );
+        const cps = s.controlPoints.map( row => Inspect.dehomogenize( row ) );
         for (let i = 0; i < cps.length; i++) for (let j = 0; j < cps[i].length; j++) {
             if (i + 1 < cps.length) Inspect.segment( l, cps[i][j], cps[i + 1][j] );
             if (j + 1 < cps[i].length) Inspect.segment( l, cps[i][j], cps[i][j + 1] );
@@ -368,36 +371,36 @@ export class Inspect {
     }
 
     public static controlPoints( s : NurbsSurfaceData, visible : boolean ) : ViewLayer {
-        let pts = ([] as Array<Point>).concat( ...s.controlPoints.map( row => Inspect.dehomogenize( row ) ) );
-        let l = Inspect.points( "Control points", COLORS.points, pts, visible );
+        const pts = ([] as Array<Point>).concat( ...s.controlPoints.map( row => Inspect.dehomogenize( row ) ) );
+        const l = Inspect.points( "Control points", COLORS.points, pts, visible );
         l.fields = { weight : { values : ([] as Array<number>).concat( ...s.controlPoints.map( row => row.map( p => p[p.length - 1] ) ) ), unit : "", symmetric : false } };
         return l;
     }
 
     // isocurves at the distinct interior knots: the edges of the surface's polynomial patches
     public static knotLines( s : NurbsSurfaceData ) : ViewLayer {
-        let l = Inspect.lines( "Knot lines", COLORS.knotLines, true );
-        let ku = Analyze.knotMultiplicities( s.knotsU ).map( m => m.knot ), kv = Analyze.knotMultiplicities( s.knotsV ).map( m => m.knot );
+        const l = Inspect.lines( "Knot lines", COLORS.knotLines, true );
+        const ku = Analyze.knotMultiplicities( s.knotsU ).map( m => m.knot ), kv = Analyze.knotMultiplicities( s.knotsV ).map( m => m.knot );
         Inspect.isoLines( l, s, ku, kv, 48 );
         return l;
     }
 
     public static isocurves( s : NurbsSurfaceData, n : number ) : ViewLayer {
-        let l = Inspect.lines( "Isocurves", COLORS.iso, false );
-        let u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
-        let us : Array<number> = [], vs : Array<number> = [];
+        const l = Inspect.lines( "Isocurves", COLORS.iso, false );
+        const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
+        const us : Array<number> = [], vs : Array<number> = [];
         for (let i = 0; i <= n; i++) { us.push( u0 + (u1 - u0) * i / n ); vs.push( v0 + (v1 - v0) * i / n ); }
         Inspect.isoLines( l, s, us, vs, 64 );
         return l;
     }
 
     public static normals( s : NurbsSurfaceData, n : number, length : number ) : ViewLayer {
-        let l = Inspect.lines( "Normals", COLORS.normals, false );
-        let u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
+        const l = Inspect.lines( "Normals", COLORS.normals, false );
+        const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
         for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
-            let d = Eval.rationalSurfaceDerivatives( s, u0 + (u1 - u0) * (i + 0.5) / (n + 1), v0 + (v1 - v0) * (j + 0.5) / (n + 1), 1 );
-            let nr = Vec.cross( d[1][0], d[0][1] );
-            let ln = Vec.norm( nr );
+            const d = Eval.rationalSurfaceDerivatives( s, u0 + (u1 - u0) * (i + 0.5) / (n + 1), v0 + (v1 - v0) * (j + 0.5) / (n + 1), 1 );
+            const nr = Vec.cross( d[1][0], d[0][1] );
+            const ln = Vec.norm( nr );
             if (ln > 0) Inspect.segment( l, d[0][0], Vec.add( d[0][0], Vec.mul( length / ln, nr ) ) );
         }
         return l;
@@ -405,10 +408,11 @@ export class Inspect {
 
     // sides of the domain that collapse to a point (the poles of a sphere, the tip of a cone)
     public static poles( s : NurbsSurfaceData ) : ViewLayer {
-        let u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
-        let found : Array<Point> = [];
-        let side = (f : (t : number) => Point) => {
-            let a = f( 0 ), len = 0;
+        const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
+        const found : Array<Point> = [];
+        const side = (f : (t : number) => Point) => {
+            const a = f( 0 );
+            let len = 0;
             for (let k = 1; k <= 8; k++) len = Math.max( len, Vec.dist( a, f( k / 8 ) ) );
             if (len < 1e-9 * (1 + Vec.norm( a ))) found.push( a );
         };
@@ -421,77 +425,78 @@ export class Inspect {
 
     // curvature of a curve from its first two derivatives, and the principal normal
     public static curvature( d1 : Point, d2 : Point ) : { kappa : number, normal : Point } {
-        let l = Vec.norm( d1 );
+        const l = Vec.norm( d1 );
         if (l == 0) return { kappa : NaN, normal : [0, 0, 0] };
-        let t = Vec.mul( 1 / l, d1 );
-        let k = Vec.norm( Vec.cross( d1, d2 ) ) / (l * l * l);
-        let nrm = Vec.sub( d2, Vec.mul( Vec.dot( d2, t ), t ) );
-        let ln = Vec.norm( nrm );
+        const t = Vec.mul( 1 / l, d1 );
+        const k = Vec.norm( Vec.cross( d1, d2 ) ) / (l * l * l);
+        const nrm = Vec.sub( d2, Vec.mul( Vec.dot( d2, t ), t ) );
+        const ln = Vec.norm( nrm );
         return { kappa : k, normal : ln > 0 ? Vec.mul( 1 / ln, nrm ) : [0, 0, 0] };
     }
 
     // Gaussian and mean curvature from the derivatives SKL[k][l] (k in u, l in v) up to order 2
     public static surfaceCurvature( d : Array<Array<Point>> ) : { gauss : number, mean : number } {
-        let su = d[1][0], sv = d[0][1], suu = d[2][0], suv = d[1][1], svv = d[0][2];
-        let n = Vec.cross( su, sv ), ln = Vec.norm( n );
-        let E = Vec.dot( su, su ), F = Vec.dot( su, sv ), G = Vec.dot( sv, sv );
+        const su = d[1][0], sv = d[0][1], suu = d[2][0], suv = d[1][1], svv = d[0][2];
+        let n = Vec.cross( su, sv );
+        const ln = Vec.norm( n );
+        const E = Vec.dot( su, su ), F = Vec.dot( su, sv ), G = Vec.dot( sv, sv );
         if (ln < 1e-8 * (E + G)) return { gauss : NaN, mean : NaN }; // degenerate: a pole
         n = Vec.mul( 1 / ln, n );
-        let L = Vec.dot( suu, n ), M = Vec.dot( suv, n ), N = Vec.dot( svv, n );
-        let den = E * G - F * F;
+        const L = Vec.dot( suu, n ), M = Vec.dot( suv, n ), N = Vec.dot( svv, n );
+        const den = E * G - F * F;
         return { gauss : (L * N - M * M) / den, mean : (E * N - 2 * F * M + G * L) / (2 * den) };
     }
 
     // ---------- helpers ----------
 
-    private static isoLines( l : ViewLayer, s : NurbsSurfaceData, us : Array<number>, vs : Array<number>, n : number ) {
-        let u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
-        for (let u of us) {
+    private static isoLines( l : IndexedLayer, s : NurbsSurfaceData, us : Array<number>, vs : Array<number>, n : number ) {
+        const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
+        for (const u of us) {
             let prev : Point | null = null;
-            for (let k = 0; k <= n; k++) { let p = Eval.rationalSurfacePoint( s, u, v0 + (v1 - v0) * k / n ); if (prev != null) Inspect.segment( l, prev, p ); prev = p; }
+            for (let k = 0; k <= n; k++) { const p = Eval.rationalSurfacePoint( s, u, v0 + (v1 - v0) * k / n ); if (prev != null) Inspect.segment( l, prev, p ); prev = p; }
         }
-        for (let v of vs) {
+        for (const v of vs) {
             let prev : Point | null = null;
-            for (let k = 0; k <= n; k++) { let p = Eval.rationalSurfacePoint( s, u0 + (u1 - u0) * k / n, v ); if (prev != null) Inspect.segment( l, prev, p ); prev = p; }
+            for (let k = 0; k <= n; k++) { const p = Eval.rationalSurfacePoint( s, u0 + (u1 - u0) * k / n, v ); if (prev != null) Inspect.segment( l, prev, p ); prev = p; }
         }
     }
 
-    private static meshLayer( name : string, color : string, m : TriMesh ) : ViewLayer {
-        let l : ViewLayer = { name : name, kind : "mesh", color : color, visible : true, positions : [], indices : [] };
-        for (let v of m.vertices) l.positions.push( v[0], v[1], v[2] );
-        for (let t of m.triangles) l.indices.push( t[0], t[1], t[2] );
+    private static meshLayer( name : string, color : string, m : TriMesh ) : IndexedLayer {
+        const l : IndexedLayer = { name : name, kind : "mesh", color : color, visible : true, positions : [], indices : [] };
+        for (const v of m.vertices) l.positions.push( v[0], v[1], v[2] );
+        for (const t of m.triangles) l.indices.push( t[0], t[1], t[2] );
         return l;
     }
 
-    private static lines( name : string, color : string, visible : boolean ) : ViewLayer {
+    private static lines( name : string, color : string, visible : boolean ) : IndexedLayer {
         return { name : name, kind : "lines", color : color, visible : visible, positions : [], indices : [] };
     }
 
     private static points( name : string, color : string, pts : Array<Point>, visible : boolean ) : ViewLayer {
-        let l : ViewLayer = { name : name, kind : "points", color : color, visible : visible, positions : [] };
-        for (let p of pts) l.positions.push( p[0], p[1], p[2] );
+        const l : ViewLayer = { name : name, kind : "points", color : color, visible : visible, positions : [] };
+        for (const p of pts) l.positions.push( p[0], p[1], p[2] );
         return l;
     }
 
-    private static segment( l : ViewLayer, a : Point, b : Point ) {
-        let k = l.positions.length / 3;
+    private static segment( l : IndexedLayer, a : Point, b : Point ) {
+        const k = l.positions.length / 3;
         l.positions.push( a[0], a[1], a[2], b[0], b[1], b[2] );
         l.indices.push( k, k + 1 );
     }
 
     private static dehomogenize( pts : Array<Array<number>> ) : Array<Point> {
-        return pts.map( p => { let w = p[p.length - 1]; return [p[0] / w, p[1] / w, p[2] / w]; } );
+        return pts.map( p => { const w = p[p.length - 1]; return [p[0] / w, p[1] / w, p[2] / w]; } );
     }
 
     private static size( pts : Array<Point> ) : number {
-        let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-        for (let p of pts) for (let k = 0; k < 3; k++) { lo[k] = Math.min( lo[k], p[k] ); hi[k] = Math.max( hi[k], p[k] ); }
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const p of pts) for (let k = 0; k < 3; k++) { lo[k] = Math.min( lo[k], p[k] ); hi[k] = Math.max( hi[k], p[k] ); }
         return Vec.dist( lo, hi );
     }
 
     private static num( x : number ) : string {
         if (!isFinite( x )) return String( x );
-        let a = Math.abs( x );
+        const a = Math.abs( x );
         return a != 0 && (a < 1e-3 || a >= 1e6) ? x.toExponential( 2 ) : String( Math.round( x * 1000 ) / 1000 );
     }
 }

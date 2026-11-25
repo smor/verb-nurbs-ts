@@ -9,12 +9,12 @@ import { IBoundingBoxTree } from "../eval/Intersect.js";
 export class LazySurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData> {
 
     _surface : NurbsSurfaceData;
-    _boundingBox : BoundingBox = null;
+    _boundingBox : BoundingBox | null = null;
     _splitV : boolean;
     _knotTolU : number;
     _knotTolV : number;
 
-    constructor(surface : NurbsSurfaceData, splitV? : boolean, knotTolU : number = null, knotTolV : number = null){ if (splitV == null) splitV = false;
+    constructor(surface : NurbsSurfaceData, splitV? : boolean, knotTolU : number | null = null, knotTolV : number | null = null){ if (splitV == null) splitV = false;
         this._surface = surface;
         this._splitV = splitV;
 
@@ -42,10 +42,9 @@ export class LazySurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurface
             max = ArrayExtensions.last(this._surface.knotsU);
         }
 
-        let dom = max - min;
-        let pivot = (min + max) / 2.0; //* dom * 0.01 * Math.random();
+        const pivot = (min + max) / 2.0; //* dom * 0.01 * Math.random();
 
-        let srfs = Divide.surfaceSplit( this._surface, pivot, this._splitV );
+        const srfs = Divide.surfaceSplit( this._surface, pivot, this._splitV );
 
         return new Pair<IBoundingBoxTree<NurbsSurfaceData>, IBoundingBoxTree<NurbsSurfaceData>>(
             new LazySurfaceBoundingBoxTree( srfs[0], !this._splitV, this._knotTolU, this._knotTolV ),
@@ -66,7 +65,7 @@ export class LazySurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurface
         return this._surface;
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return Vec.domain(this._surface.knotsV) < this._knotTolV && Vec.domain(this._surface.knotsU) < this._knotTolU;
     }
 

@@ -20,3 +20,6 @@ out/
 playground/dist/
 viewer/dist/
 scratch/
+docs/api/
+coverage/
+.c8_output/

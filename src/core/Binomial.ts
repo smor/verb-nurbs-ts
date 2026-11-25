@@ -19,8 +19,8 @@ export class Binomial {
             return Binomial.get_memo(n,k);
         }
 
-        let r : number = 1,
-        n_o = n;
+        let r : number = 1;
+        const n_o = n;
 
         for (let d = 1; d < k+1; d++) {
 
@@ -53,8 +53,7 @@ export class Binomial {
             k = n - k;
         }
 
-        let r : number = 1,
-        n_o = n;
+        let r : number = 1;
 
         for (let d = 1; d < k+1; d++) {
             r *= n--;
@@ -65,11 +64,11 @@ export class Binomial {
     }
 
     private static memo_exists(n : number, k : number) : boolean {
-        return ( Binomial.memo.has(n) && Binomial.memo.get(n).has(k) );
+        return ( Binomial.memo.has(n) && Binomial.memo.get(n)!.has(k) );
     }
 
     private static get_memo(n : number, k : number) : number {
-        return Binomial.memo.get(n).get(k);
+        return Binomial.memo.get(n)!.get(k)!;
     }
 
     private static memoize(n : number, k : number, val : number) {
@@ -77,6 +76,6 @@ export class Binomial {
             Binomial.memo.set( n, new Map<number, number>() );
         }
 
-        Binomial.memo.get( n ).set( k, val );
+        Binomial.memo.get( n )!.set( k, val );
     }
 }

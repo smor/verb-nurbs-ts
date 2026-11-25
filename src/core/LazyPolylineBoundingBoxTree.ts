@@ -6,9 +6,9 @@ export class LazyPolylineBoundingBoxTree implements IBoundingBoxTree<number> {
 
     _interval : Interval<number>;
     _polyline : PolylineData;
-    _boundingBox : BoundingBox = null;
+    _boundingBox : BoundingBox | null = null;
 
-    constructor(polyline : PolylineData, interval : Interval<number> = null){
+    constructor(polyline : PolylineData, interval : Interval<number> | null = null){
         this._polyline = polyline;
 
         if (interval == null) {
@@ -18,12 +18,12 @@ export class LazyPolylineBoundingBoxTree implements IBoundingBoxTree<number> {
     }
 
     public split() : Pair<IBoundingBoxTree<number>, IBoundingBoxTree<number>> {
-        let min = this._interval.min;
-        let max = this._interval.max;
+        const min = this._interval.min;
+        const max = this._interval.max;
 
-        let pivot = min + Math.ceil( (max-min) / 2 );
+        const pivot = min + Math.ceil( (max-min) / 2 );
 
-        let l = new Interval( min, pivot )
+        const l = new Interval( min, pivot )
         , r = new Interval( pivot, max );
 
         return new Pair<IBoundingBoxTree<number>, IBoundingBoxTree<number>>(
@@ -44,7 +44,7 @@ export class LazyPolylineBoundingBoxTree implements IBoundingBoxTree<number> {
         return this._interval.min;
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return this._interval.max - this._interval.min == 1;
     }
 
