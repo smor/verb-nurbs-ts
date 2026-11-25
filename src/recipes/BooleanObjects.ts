@@ -1,5 +1,6 @@
 import { NurbsCurveData, NurbsSurfaceData, Point } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
+import { Analyze } from "../eval/Analyze.js";
 import { Divide } from "../eval/Divide.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
@@ -30,6 +31,14 @@ export interface MugParams extends FreeformVesselParams {
     // they meet the body (default 0)
     addons? : Array<BrepSolid>;
     addonFillet? : number;
+    // ribs standing proud of the inner wall, evenly spaced around it (starting half a spacing from the handle): their
+    // number (default 0), the heights they run between as fractions of the height (default [0.15, 0.7]), their section
+    // (width along the wall and depth across it, default [6, 5]; 1 of the depth is sunk into the wall) and the radius
+    // of the fillet where they meet the wall (default 0)
+    ribs? : number;
+    ribHeights? : [number, number];
+    ribSize? : [number, number];
+    ribFillet? : number;
 }
 
 export interface Mug {
@@ -103,10 +112,10 @@ export class BooleanObjectsRecipe {
         let reach = p.handleReach != null ? p.handleReach : 32;
         let r = p.handleRadius != null ? p.handleRadius : 5.5;
         let H1 = H * (1 + solids.extend);
-        let at = (z : number) => {
+        let at = (z : number, vv : number = v) => {
             let u = z / H1;
-            let w = Eval.rationalSurfacePoint( outer, u, v );
-            let n = Offset.surfaceUnitNormal( outer, u, v );
+            let w = Eval.rationalSurfacePoint( outer, u, vv );
+            let n = Offset.surfaceUnitNormal( outer, u, vv );
             n = Vec.normalized( [n[0], n[1], 0] );
             let axis = Vec.sub( w, BrepSolid.curveCentroid( Make.surfaceIsocurve( outer, u, false ) ) );
             if (Vec.dot( n, axis ) < 0) n = Vec.mul( -1, n );
@@ -144,15 +153,54 @@ export class BooleanObjectsRecipe {
         let handle = BrepSolid.cappedTube( pipe, [96, 40] );
 
         let fr = p.fillet != null ? p.fillet : 0;
+        // ribs: a soft section swept up the inner wall, following it, with its back sunk 1 into the wall. At both ends
+        // the rib narrows and dives into the middle of the wall, so it grows out of the wall and its end caps are
+        // buried: it meets the inner wall in one closed loop, which can be filleted
+        let ribs : Array<BrepSolid> = [];
+        let nr = p.ribs != null ? p.ribs : 0;
+        let rh = p.ribHeights != null ? p.ribHeights : [0.15, 0.7], rs = p.ribSize != null ? p.ribSize : [6, 5];
+        let wall = vp.wallThickness as number;
+        let endScale = Math.min( 0.5, 0.7 * wall / rs[1] );
+        for (let k = 0; k < nr; k++) {
+            let vv = ((angle + 2 * Math.PI * (k + 0.5) / nr) / (2 * Math.PI)) % 1;
+            // the ends dive steeply, over about a rib's width, so the rib ends bluntly where it leaves the wall
+            let pts : Array<Point> = [];
+            let z0 = H * rh[0], z1 = H * rh[1], dive = rs[0];
+            let zs = [z0, z0 + dive];
+            let N = 6;
+            for (let i = 1; i < N; i++) zs.push( z0 + dive + (z1 - z0 - 2 * dive) * i / N );
+            zs.push( z1 - dive, z1 );
+            zs.forEach( (z, i) => {
+                let o = at( z, vv );
+                let depth = i == 0 || i == zs.length - 1 ? wall / 2 : wall + rs[1] / 2 - 1;
+                pts.push( Vec.sub( o.w, Vec.mul( depth, o.n ) ) );
+            } );
+            let rail = Make.rationalInterpCurve( pts, 3 );
+            let u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
+            // the parameter where the rail reaches full depth, from each end
+            let ue = Analyze.rationalCurveClosestParam( rail, pts[1] ) - u0;
+            let n0 = at( H * rh[0], vv ).n;
+            let fr0 = new RotationMinimizingFrames( rail ).frameAt( u0 );
+            let tw = Math.atan2( Vec.dot( n0, fr0.binormal ), Vec.dot( n0, fr0.normal ) );
+            let sec = BooleanObjectsRecipe.superellipse( rs[1] / 2, rs[0] / 2, 2.4, 24 );
+            let scale = (u : number) => {
+                let t = Math.min( 1, Math.min( u - u0, u1 - u ) / ue );
+                return endScale + (1 - endScale) * Math.sin( 0.5 * Math.PI * t );
+            };
+            ribs.push( BrepSolid.cappedTube( Sweep.surface( rail, sec, { tolerance : 2e-3, twist : tw, scale : scale } ).surface, [48, 32] ) );
+        }
+
         let addons = p.addons != null ? p.addons : [];
-        let fa = p.addonFillet != null ? p.addonFillet : 0;
-        let n = 2 + addons.length; // the cavity's index
-        let result = BrepBoolean.evaluate( [solids.body, handle].concat( addons, [solids.cavity] ), f => {
+        let fa = p.addonFillet != null ? p.addonFillet : 0, fb = p.ribFillet != null ? p.ribFillet : 0;
+        let n = 2 + addons.length; // the cavity's index; ribs follow it
+        let result = BrepBoolean.evaluate( [solids.body, handle].concat( addons, [solids.cavity], ribs ), f => {
             let joined = false;
             for (let i = 0; i < n; i++) joined = joined || f[i];
-            return joined && !f[n];
+            let rib = false;
+            for (let i = n + 1; i < f.length; i++) rib = rib || f[i];
+            return (joined && !f[n]) || (rib && f[0]);
         }, { fillet : (c : { solids : [number, number] }) =>
-            c.solids[0] != 0 || c.solids[1] == n ? 0 : c.solids[1] == 1 ? fr : fa } );
+            c.solids[1] > n ? (c.solids[0] == n ? fb : 0) : c.solids[0] != 0 || c.solids[1] == n ? 0 : c.solids[1] == 1 ? fr : fa } );
         return { body : solids.body, cavity : solids.cavity, handle : handle, handleRail : rail, result : result };
     }
 

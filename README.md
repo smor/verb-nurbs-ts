@@ -105,7 +105,7 @@ makeable on its own:
   concave.
 * **the bowl**, a conical vessel with a sculpted grip and a keyed foot. The grip is a variable-section sweep: a soft
   superellipse, wider across the handle than it is thick, that swells halfway along (`MugParams.handleSection` and
-  `handleSwell`). The foot is a prism of an uneven three-lobed outline, joined with `MugParams.addons`. It drops into
+  `handleSwell`). Three ribs grow out of the inner wall (`MugParams.ribs`): each narrows and dives into the wall at its ends, so it meets the wall in one closed loop, rounded by a concave fillet. The foot is a prism of an uneven three-lobed outline, joined with `MugParams.addons`. It drops into
   a pocket that is the same outline pushed out by the clearance, so the bowl only fits one way round.
 * **the lid**, (plate + plug) − hollow − hole. The plate is a loft of a round outline with a three-lobed tab, drawn in
   at the top and bottom for a soft edge. The plug is a tapered ring that drops inside the rim. Both edges of the

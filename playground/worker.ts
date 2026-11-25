@@ -76,7 +76,7 @@ function appliance( p : Record<string, number>, fine : boolean ) {
         width : p.width, depth : p.depth, frontHeight : p.front, backHeight : p.back, squareness : p.square,
         bowlHeight : p.bowlH, bowlRadius : [p.foot, p.rim], seatDepth : p.seat, clearance : p.gap, archHeight : p.arch,
         topFillet : p.topF, seatFillet : p.seatF, archFillet : p.archF, handleFillet : p.handleF,
-        couplingRadius : p.key, gripSwell : p.swell, lidTab : p.tab, lidHole : p.hole, cupLip : p.lip, fine : fine
+        couplingRadius : p.key, gripSwell : p.swell, lidTab : p.tab, lidHole : p.hole, cupLip : p.lip, ribs : p.ribs, fine : fine
     } );
     let parts = [{ name : "Base", r : o.base }, { name : "Bowl", r : o.bowl.result }, { name : "Lid", r : o.lid }, { name : "Cup", r : o.cup }];
     let reps = parts.map( q => q.r.report );

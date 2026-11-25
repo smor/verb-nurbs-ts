@@ -115,4 +115,15 @@ describe("verb.solid.Fillet", function(){
 		m.status().should.be.equal('NoError');
 		m.genus().should.be.equal(5);
 	});
+	it('ribs that grow out of a wall: filleted when the ball fits round their ends, left sharp (and watertight) when it does not', function(){
+		var base = { height : 170, radius : [58, 76], linearRadius : true, belly : 0, lean : [0, 0], harmonics : [], wallThickness : 2.5, baseThickness : 4,
+			divsU : 24, divsV : 96, offsetTolerance : 0.08, ribs : 3 };
+		var ok = lib.BooleanObjectsRecipe.mug(Object.assign({ ribFillet : 1.5 }, base)).result.report;
+		ok.manifold.closedManifold.should.be.true();
+		ok.fillets.should.be.equal(3);
+		var big = lib.BooleanObjectsRecipe.mug(Object.assign({ ribFillet : 2.5 }, base)).result.report;
+		big.manifold.closedManifold.should.be.true();
+		big.fillets.should.be.equal(0);
+		big.filletsFailed.should.be.equal(3);
+	});
 });
