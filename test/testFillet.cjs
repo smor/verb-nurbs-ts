@@ -72,8 +72,8 @@ describe("verb.solid.Fillet", function(){
 			var fa = s[e.solids[0]].faces[e.faces[0]], fb = s[e.solids[1]].faces[e.faces[1]];
 			f.blend.side.should.be.equal(1); // concave: the ball rolls in the air
 			f.blend.sections.forEach(function(x){
-				// sections snapped onto a seam are exact only to the swept pipe's small crease there
-				var tol = x.seamA || x.seamB ? 1e-4 : 1e-8;
+				// sections snapped onto a seam too: swept pipes are fitted periodically, smooth across their seams
+				var tol = 1e-8;
 				Vec.dist(x.centre, x.pa).should.be.approximately(2, tol);
 				Vec.dist(x.centre, x.pb).should.be.approximately(2, tol);
 				[[fa, x.a, x.pa], [fb, x.b, x.pb]].forEach(function(t){

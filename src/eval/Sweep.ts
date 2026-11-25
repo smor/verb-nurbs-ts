@@ -184,16 +184,27 @@ export class Sweep {
             return Vec.add( fr.point, Vec.add( Vec.mul( x, fr.normal ), Vec.mul( y, fr.binormal ) ) );
         };
 
+        let pa = Eval.rationalCurvePoint( profile, profile.knots[0] ), pb = Eval.rationalCurvePoint( profile, profile.knots[profile.knots.length - 1] );
+        let closedV = Vec.dist( pa, pb ) < 1e-9 * (1 + Vec.norm( pa ));
+
         let degU = Math.max( 3, rail.degree ), degV = Math.max( profile.degree, 1 );
         let knotsU = Sweep.knotsForDegree( rail, degU );
-        let fit = Fit.approximateSurface( f, degU, degV, knotsU, profile.knots, tol, o.maxIterations );
+        let knotsV = profile.knots;
+        if (closedV) {
+            // a closed profile is fitted periodically, cubic, so the surface is as smooth across its seam as elsewhere;
+            // start from the profile's spans, split until there are at least 8
+            degV = Math.max( 3, profile.degree );
+            let b = Fit.spans( profile.knots ).map( s => s[0] ).concat( [profile.knots[profile.knots.length - 1]] );
+            while (b.length - 1 < 8) b = Fit.insertKnots( b, Fit.spans( b ).map( s => (s[0] + s[1]) / 2 ) );
+            knotsV = b;
+        }
+        let fit = Fit.approximateSurface( f, degU, degV, knotsU, knotsV, tol, o.maxIterations, closedV );
 
-        let pa = Eval.rationalCurvePoint( profile, profile.knots[0] ), pb = Eval.rationalCurvePoint( profile, profile.knots[profile.knots.length - 1] );
         return {
             surface : fit.surface,
             maxError : fit.maxError,
             closedU : frames.closed,
-            closedV : Vec.dist( pa, pb ) < 1e-9 * (1 + Vec.norm( pa )),
+            closedV : closedV,
             frames : frames
         };
     }

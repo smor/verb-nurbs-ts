@@ -98,6 +98,15 @@ describe("verb.eval.Sweep", function(){
 		s.surface.controlPoints[0].length.should.be.equal(profile.controlPoints.length);
 	});
 
+	it('closes a pipe smoothly: across its seam the surface is continuous in position and tangent', function(){
+		var s = Sweep.pipe(helix(1), 3, { tolerance : 1e-3 }).surface;
+		for (var u = 0; u <= 1; u += 0.1) {
+			var d0 = Eval.rationalSurfaceDerivatives(s, u, 0, 1), d1 = Eval.rationalSurfaceDerivatives(s, u, 1, 1);
+			Vec.dist(d0[0][0], d1[0][0]).should.be.lessThan(1e-9);
+			Vec.dist(Vec.normalized(d0[0][1]), Vec.normalized(d1[0][1])).should.be.lessThan(1e-8);
+		}
+	});
+
 	it('meshes an open pipe into a capped, genus 0 solid', function(){
 		var s = Sweep.pipe(helix(1), 2, { tolerance : 1e-2 });
 		var m = Shell.tube(s.surface, s.closedU, { divsU : 80, divsV : 24 });

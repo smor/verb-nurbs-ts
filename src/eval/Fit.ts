@@ -216,23 +216,28 @@ export class Fit {
 
     public static approximateSurface( f : (u : number, v : number) => Point, degreeU : number, degreeV : number,
                                       knotsU : KnotArray, knotsV : KnotArray, tolerance : number,
-                                      maxIterations? : number ) : { surface : NurbsSurfaceData, maxError : number, iterations : number } {
+                                      maxIterations? : number, periodicV? : boolean ) : { surface : NurbsSurfaceData, maxError : number, iterations : number } {
         if (maxIterations == null) maxIterations = 10;
         knotsU = knotsU.slice(); knotsV = knotsV.slice();
+        // a periodic v direction is fitted on a periodic knot structure, given by its breakpoints: the distinct knots
+        let breaksV = periodicV ? Fit.spans( knotsV ).map( s => s[0] ).concat( [knotsV[knotsV.length - 1]] ) : null;
         let result : NurbsSurfaceData = null;
         let err = Infinity;
         let it = 0;
         for (; it <= maxIterations; it++) {
-            let pu = Fit.grevilleAbscissae( knotsU, degreeU ), pv = Fit.grevilleAbscissae( knotsV, degreeV );
+            if (breaksV != null) knotsV = Fit.periodicKnots( breaksV, degreeV );
+            let pu = Fit.grevilleAbscissae( knotsU, degreeU );
+            let pv = breaksV != null ? Fit.periodicGreville( breaksV, degreeV ) : Fit.grevilleAbscissae( knotsV, degreeV );
             let grid = pu.map( u => pv.map( v => f( u, v ) ) );
-            result = Fit.surfaceWithKnots( grid, pu, pv, degreeU, degreeV, knotsU, knotsV );
+            result = breaksV != null ? Fit.surfacePeriodicV( grid, pu, pv, degreeU, degreeV, knotsU, breaksV )
+                                     : Fit.surfaceWithKnots( grid, pu, pv, degreeU, degreeV, knotsU, knotsV );
 
             // test away from the interpolation parameters. The fit interpolates its grid as a tensor product, so along
             // u = (an interpolation parameter) it is the plain interpolant in v of that row, and its error there is
             // the v direction's alone; likewise in u along v = (an interpolation parameter). Each direction is refined
             // only where its own error is too large, so a profile that is exact in v does not gain knots there because
             // the rail needs them in u. Points inside spans in both directions check the whole fit.
-            let spansU = Fit.spans( knotsU ), spansV = Fit.spans( knotsV );
+            let spansU = Fit.spans( knotsU ), spansV = Fit.spans( breaksV != null ? breaksV : knotsV );
             let inU = spansU.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
             let inV = spansV.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
             let allInV = ([] as Array<number>).concat( ...inV ), allInU = ([] as Array<number>).concat( ...inU );
@@ -265,9 +270,87 @@ export class Fit {
             if (badU.length == 0 && badV.length == 0) { badU = mixedU; badV = mixedV; }
             if ((badU.length == 0 && badV.length == 0) || it == maxIterations) break;
             knotsU = Fit.insertKnots( knotsU, badU );
-            knotsV = Fit.insertKnots( knotsV, badV );
+            if (breaksV != null) breaksV = Fit.insertKnots( breaksV, badV );
+            else knotsV = Fit.insertKnots( knotsV, badV );
         }
+        if (breaksV != null) result = Fit.clampV( result, breaksV );
         return { surface : result, maxError : err, iterations : it };
+    }
+
+    // ---------- periodic fitting ----------
+    //
+    // A closed direction fitted on clamped knots meets itself only in position: its tangent jumps across the seam.
+    // Fitted on a periodic knot structure instead (the breakpoints repeated by the period on both sides, one control
+    // point per span, the first `degree` control points reused at the end) it is as smooth across the seam as
+    // anywhere else. The result is then clamped by knot insertion, which leaves its shape unchanged.
+
+    // the knot vector of a periodic B-spline with these breakpoints (first and last are the period's ends)
+    public static periodicKnots( breaks : Array<number>, degree : number ) : KnotArray {
+        let m = breaks.length - 1, period = breaks[m] - breaks[0];
+        let T : KnotArray = [];
+        for (let k = -degree; k <= m + degree; k++) {
+            let w = ((k % m) + m) % m;
+            T.push( breaks[w] + Math.floor( k / m ) * period );
+        }
+        return T;
+    }
+
+    // one interpolation parameter per control point: the Greville abscissae, wrapped into the period
+    public static periodicGreville( breaks : Array<number>, degree : number ) : Array<number> {
+        let m = breaks.length - 1, a = breaks[0], period = breaks[m] - a;
+        let T = Fit.periodicKnots( breaks, degree );
+        let out : Array<number> = [];
+        for (let j = 0; j < m; j++) {
+            let s = 0.0;
+            for (let i = 1; i <= degree; i++) s += T[j + i];
+            let g = s / degree;
+            g = a + (((g - a) % period) + period) % period;
+            out.push( g );
+        }
+        return out;
+    }
+
+    // LU decomposition of the cyclic collocation matrix of a periodic B-spline
+    public static periodicCollocation( params : Array<number>, degree : number, breaks : Array<number> ) : LUDecomp {
+        let m = breaks.length - 1;
+        let T = Fit.periodicKnots( breaks, degree );
+        let n = m + degree - 1;
+        let A : Matrix = [];
+        for (let t of params) {
+            if (t >= breaks[m]) t = breaks[0];
+            let span = Eval.knotSpanGivenN( n, degree, t, T );
+            let basis = Eval.basisFunctionsGivenKnotSpanIndex( span, t, degree, T );
+            let row = new Array<number>( m ).fill( 0.0 );
+            for (let k = 0; k <= degree; k++) row[(span - degree + k) % m] += basis[k];
+            A.push( row );
+        }
+        return Mat.LU( A );
+    }
+
+    // Interpolate a grid with clamped knots in u and a periodic structure in v. The surface returned is unclamped in
+    // v (its first `degreeV` control point columns repeat at the end); `clampV` makes it clamped.
+    public static surfacePeriodicV( grid : Array<Array<Point>>, paramsU : Array<number>, paramsV : Array<number>,
+                                    degreeU : number, degreeV : number, knotsU : KnotArray, breaksV : Array<number> ) : NurbsSurfaceData {
+        let luV = Fit.periodicCollocation( paramsV, degreeV, breaksV );
+        let rows = grid.map( row => Fit.solvePoints( luV, row ) );
+        let luU = Fit.collocation( paramsU, degreeU, knotsU );
+        let cols = Mat.transpose( rows ).map( col => Fit.solvePoints( luU, col ) );
+        let cps = Mat.transpose( cols ).map( row => row.concat( row.slice( 0, degreeV ) ) );
+        return new NurbsSurfaceData( degreeU, degreeV, knotsU.slice(), Fit.periodicKnots( breaksV, degreeV ), Eval.homogenize2d( cps, null ) );
+    }
+
+    // Clamp the v direction of an unclamped periodic surface at the ends of its period
+    public static clampV( s : NurbsSurfaceData, breaks : Array<number> ) : NurbsSurfaceData {
+        let p = s.degreeV, a = breaks[0], b = breaks[breaks.length - 1];
+        let ins : Array<number> = [];
+        for (let i = 0; i < p; i++) ins.push( a );
+        for (let i = 0; i < p; i++) ins.push( b );
+        let r = Modify.surfaceKnotRefine( s, ins, true );
+        let k = r.knotsV;
+        let first = k.indexOf( a ), last = k.lastIndexOf( b );
+        let knots = k.slice( first, last + 1 );
+        let n = knots.length - p - 1;
+        return new NurbsSurfaceData( s.degreeU, p, s.knotsU.slice(), knots, r.controlPoints.map( row => row.slice( first, first + n ) ) );
     }
 
     // where, inside a knot span, a fit is compared with its target (chosen to avoid Greville abscissae)

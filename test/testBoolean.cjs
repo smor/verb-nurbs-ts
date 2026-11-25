@@ -187,6 +187,17 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		m.volume().should.be.approximately(ref.volume(), ref.volume() * 1e-3);
 	});
 
+	it('rim notches at a coarse resolution: a triple point on a coarse branch still joins it (watertight)', function(){
+		[0.5, 0.45].forEach(function(phase){
+			var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, notches : 3, notchPhase : phase, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+			o.result.report.manifold.closedManifold.should.be.true();
+			o.result.report.manifold.genus.should.be.equal(0);
+		});
+		var f = lib.BooleanObjectsRecipe.pierced({ notches : 9, fillet : 0.8, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		f.result.report.manifold.closedManifold.should.be.true();
+		f.result.report.fillets.should.be.equal(36);
+	});
+
 	it('pierced vessel has one handle-like hole per tool', function(){
 		var o = lib.BooleanObjectsRecipe.pierced({ holes : 5, rows : 1, divsU : 32, divsV : 128 });
 		o.result.report.manifold.closedManifold.should.be.true();

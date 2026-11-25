@@ -103,7 +103,8 @@ export class BrepBoolean {
                 let step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 let found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol } );
-                for (let c of found) curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
+                for (let c of BrepBoolean.dropRetraces( found, 0.02 * step ))
+                    curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
         }
 
@@ -200,6 +201,21 @@ export class BrepBoolean {
         return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
+    }
+
+    // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher
+    // can step back along it and close a loop of zero area over the same points.
+    public static dropRetraces( found : Array<IntersectionCurve>, tol : number ) : Array<IntersectionCurve> {
+        let near = (p : Point, c : IntersectionCurve) => {
+            let q = c.points;
+            for (let k = 0; k + 1 < q.length; k++) {
+                let d = Vec.sub( q[k + 1], q[k] ), l2 = Vec.dot( d, d );
+                let t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, q[k] ), d ) / l2 ) ) : 0;
+                if (Vec.dist( p, Vec.add( q[k], Vec.mul( t, d ) ) ) < tol) return true;
+            }
+            return q.length == 1 && Vec.dist( p, q[0] ) < tol;
+        };
+        return found.filter( c => !(c.closed && found.some( o => o !== c && o.points.length >= c.points.length && c.points.every( p => near( p, o ) ) )) );
     }
 
     // The rolling-ball blend of one edge, if both its faces are kept on exactly one side of it.
@@ -444,15 +460,17 @@ export class BrepBoolean {
     // Insert an exact point into a branch, in the segment it lies on (or replacing a vertex it coincides with).
     private static insertPoint( c : IntersectionCurve, p : Point, uvA : UV, uvB : UV, reach : number ) : void {
         let n = c.points.length, m = c.closed ? n : n - 1;
-        let best = -1, bestD = Infinity, bestT = 0;
+        let best = -1, bestD = Infinity, bestT = 0, bestL = 0;
         for (let i = 0; i < m; i++) {
             let a = c.points[i], b = c.points[(i + 1) % n];
             let ab = Vec.sub( b, a ), l2 = Vec.dot( ab, ab );
             let t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) ) : 0;
             let dd = Vec.dist( p, Vec.add( a, Vec.mul( t, ab ) ) );
-            if (dd < bestD) { bestD = dd; best = i; bestT = t; }
+            if (dd < bestD) { bestD = dd; best = i; bestT = t; bestL = Math.sqrt( l2 ); }
         }
-        if (best < 0 || bestD > reach) return;
+        // the point lies on the exact curve, which bulges away from a coarse polyline by up to a fraction of the
+        // segment's length: allow for that, while a different branch of the same pair of faces stays out of reach
+        if (best < 0 || bestD > Math.max( reach, 0.15 * bestL )) return;
         let at = bestT < 1e-6 ? best : bestT > 1 - 1e-6 ? (best + 1) % n : -1;
         if (at >= 0 && c.seamA[at] == 0 && c.seamB[at] == 0) { c.points[at] = p; c.uvA[at] = uvA; c.uvB[at] = uvB; return; }
         let k = best + 1;
