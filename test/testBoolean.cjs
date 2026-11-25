@@ -195,7 +195,36 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		});
 		var f = lib.BooleanObjectsRecipe.pierced({ notches : 9, fillet : 0.8, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
 		f.result.report.manifold.closedManifold.should.be.true();
-		f.result.report.fillets.should.be.equal(36);
+		// 18 holes (two closed edges each) and 9 notches (four edges each, meeting at mitred corners)
+		f.result.report.fillets.should.be.equal(72);
+		f.result.report.filletsSkipped.should.be.equal(0);
+	});
+
+	it('rounds the edges of rim notches through their corners, mitred where two fillets meet a sharp edge', function(){
+		var base = { holes : 0, rows : 0, notches : 3, divsU : 24, divsV : 96, offsetTolerance : 0.08 };
+		var sharp = lib.BooleanObjectsRecipe.pierced(base).result;
+		[0.5, 1, 1.2].forEach(function(r){
+			var o = lib.BooleanObjectsRecipe.pierced(Object.assign({ fillet : r }, base));
+			var rep = o.result.report;
+			rep.manifold.closedManifold.should.be.true();
+			rep.manifold.genus.should.be.equal(0);
+			rep.fillets.should.be.equal(12);
+			rep.filletsSkipped.should.be.equal(0);
+			// rounding convex edges takes material away: about r^2 (1 - pi/4) per unit of edge length
+			var lost = sharp.report.volume - rep.volume;
+			lost.should.be.above(0);
+			lost.should.be.below(12 * 30 * r * r * (1 - Math.PI / 4));
+			var m = manifold(o.result.mesh);
+			m.status().should.be.equal('NoError');
+			// open blends are trimmed: no fillet face reaches beyond its notch
+			o.result.fillets.forEach(function(f){ f.blend.closed.should.be.false(); });
+		});
+	});
+
+	it('leaves a notch sharp when its fillets would swallow the rim (radius near half the wall)', function(){
+		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1.5, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		o.result.report.manifold.closedManifold.should.be.true();
+		o.result.report.filletsSkipped.should.be.equal(12);
 	});
 
 	it('pierced vessel has one handle-like hole per tool', function(){

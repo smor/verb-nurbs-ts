@@ -212,7 +212,7 @@ export class Inspect {
         // the fillets' rails: the contact curves on either side
         for (let fl of r.fillets) {
             let secs = fl.blend.sections;
-            for (let k = 0; k < secs.length; k++) {
+            for (let k = 0; k < (fl.blend.closed ? secs.length : secs.length - 1); k++) {
                 let a = secs[k], b = secs[(k + 1) % secs.length];
                 Inspect.segment( filletEdges, a.pa, b.pa ); Inspect.segment( filletEdges, a.pb, b.pb );
             }
@@ -222,7 +222,7 @@ export class Inspect {
         let facts : Array<[string, string]> = [
             ["Faces", r.faces.length + " (" + r.faces.filter( f => f.solid < 0 ).length + " fillets)"],
             ["Intersection curves", String( rep.intersectionCurves )],
-            ["Fillets", rep.fillets + " rounded, " + rep.filletsFailed + " too large, " + rep.filletsSkipped + " ending at corners"],
+            ["Fillets", rep.fillets + " rounded, " + rep.filletsFailed + " too large, " + rep.filletsSkipped + " left sharp at corners"],
             ["Seam error", rep.maxCurveError.toExponential( 1 )],
             ["Watertight", rep.manifold.closedManifold ? "yes" : "no"],
             ["Genus", rep.manifold.genus != null ? String( rep.manifold.genus ) : "-"],

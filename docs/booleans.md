@@ -88,11 +88,35 @@ area (1 - pi/4) r^2 swept around the hole). The volume removed or added agrees t
 1.5% at 128, converging as the tessellation refines. The ball is at distance r from both contact points, along both
 normals, to 1e-8. The mug and the pierced vessel stay watertight with the same genus, and manifold-3d accepts them.
 
+### Corners
+
+Branches that meet at triple points are split there into runs, the edges of the result; a run is an edge only where
+its two faces are both kept (judged at its middle). A rounded edge that ends at a corner meets another rounded edge
+there. `src/solid/FilletCorner.ts` handles the common case: two rounded edges sharing a face b (a notch's tube) run
+into a sharp edge between their other faces a1 and a2 (the vessel's rim). Each blend is computed along its whole edge,
+with the ball allowed a little past the end of a face that stops there (NURBS end spans carry on), and two more sections
+past each end. Then:
+
+* X, where the two contact curves on b cross, starts the mitre;
+* on a symmetric corner (a box corner) the mitre runs from X along the line where the blends meet, to a point Q on the
+  sharp edge, so the sharp edge carries on as a crease across the corner. With equal radii on a box corner the mitre
+  is the quarter ellipse where the two cylinders meet;
+* on a lopsided one (the vessel's wavy rim) one blend leans over: it reaches the other blend's contact curve with a2
+  (at Y) before the sharp edge. From Y it runs on into a2, which is cut along their intersection down to the sharp
+  edge;
+* each blend's mesh is a constrained triangulation of its (along, across) rectangle between its two trims, its
+  boundary the contact points shared with the faces' cuts and the mitre points shared with the other blend, so the
+  result stays watertight.
+
+The mitre is found on the blends' meshes (column polylines through the other blend's triangles), so it is as accurate
+as the tessellation. A notch's four edges are rounded together: if one corner cannot be built (the fillets would swallow
+a rim narrower than two radii), the four stay sharp.
+
 Limits:
 
-* Only closed edges are filleted. An edge that ends at a corner (an open branch, or one that meets other edges at a
-  triple point, like the rim notches) is left sharp and counted in `report.filletsSkipped`. Rounding a corner needs a
-  vertex blend, where three fillets meet.
+* A corner is rounded only where exactly two rounded edges that share a face meet a sharp edge (see below). Three
+  rounded edges meeting at a point (a ball corner), or a rounded edge meeting an unrounded one, are left sharp and
+  counted in `report.filletsSkipped`, with the other edges around the same corners.
 * If the ball does not fit (the radius is larger than the room between the faces), the edge is left sharp and
   counted in `report.filletsFailed`.
 * Fillets of nearby edges must not overlap: keep the radius under half the distance between edges, for example half
