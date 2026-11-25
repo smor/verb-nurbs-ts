@@ -12,7 +12,8 @@ The goal is a small, open-source, Rhino/Grasshopper-like toolkit that runs in th
 * **Fitting.** `Fit` interpolates curves and surfaces with chosen parameters and knot vectors, lofts compatible sections (`Fit.loft`), and builds closed, smooth periodic curves (`Fit.periodicCurve`).
 * **Solids.** `TriMesh` is an indexed triangle mesh with a closed-manifold check, volume, STL/OBJ export and conversion to manifold-3d's `Mesh`. `Shell.openVessel` turns an outer and an inner wall into one watertight solid, and `Shell.tube` turns a swept surface into a capped solid (open rail) or a ring-shaped solid of genus 1 (closed rail).
 * **NURBS booleans.** `BrepSolid` is a closed solid bounded by NURBS faces (capped tubes, capped walls). `BrepBoolean` computes union, intersection, difference, or any Boolean expression over any number of solids. Seams are surface/surface intersection curves refined onto both faces (to about 1e-9), carried as trim curves in each face's parameters, and shared vertex for vertex by the two faces, so the result is watertight. See [docs/booleans.md](docs/booleans.md) for the method and its current limits.
-* **Recipes.** `FreeformVesselRecipe` builds an Aalto-style free-form vessel end to end, `SweptObjectsRecipe` a torus-knot pipe and a twisted ring, and `BooleanObjectsRecipe` a mug and a pierced vessel with NURBS booleans (see below).
+* **Free form or makeable.** Nothing forces a shape to be a solid: open sheets and self-crossing sweeps are fine for visual work (`Shell.sheet`). When a shape is meant to be fabricated, `Makeable.check(mesh, machine)` says whether it can be: a closed, outward-facing solid that fits the machine's build volume, with no wall thinner than the machine holds. Wall thickness is measured by inward ray casts through a bounding volume hierarchy (`MeshBVH`). Machine presets cover FDM, resin, SLS, 3-axis CNC and ceramic slip casting, and you can pass your own.
+* **Recipes.** `FreeformVesselRecipe` builds an Aalto-style free-form vessel end to end, `SweptObjectsRecipe` a torus-knot pipe, a twisted ring and a ribbon knot (a bare sheet at zero thickness), and `BooleanObjectsRecipe` a mug and a pierced vessel with NURBS booleans (see below).
 
 ## Install and build
 
@@ -93,7 +94,7 @@ BrepBoolean.evaluate([body, handle, cavity], f => (f[0] || f[1]) && !f[2]);
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug and the pierced vessel with sliders. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel and the ribbon knot with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
 
 ## Differences from upstream verb
 

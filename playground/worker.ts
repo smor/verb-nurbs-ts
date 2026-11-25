@@ -1,10 +1,10 @@
 // Builds models off the main thread so the sliders stay responsive.
-import { BooleanObjectsRecipe, FreeformVesselRecipe, SweptObjectsRecipe } from "../src/index.js";
+import { BooleanObjectsRecipe, FreeformVesselRecipe, Makeable, SweptObjectsRecipe } from "../src/index.js";
 import type { TriMesh } from "../src/index.js";
 
-export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced";
+export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon";
 
-export interface BuildRequest { id : number; model : ModelId; params : Record<string, number>; fine : boolean }
+export interface BuildRequest { id : number; model : ModelId; params : Record<string, number>; fine : boolean; make : boolean; machine : string }
 
 function vessel( p : Record<string, number>, fine : boolean ) {
     let base = FreeformVesselRecipe.DEFAULT_HARMONICS;
@@ -47,6 +47,14 @@ function pierced( p : Record<string, number>, fine : boolean ) {
     return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
 }
 
+function ribbon( p : Record<string, number>, fine : boolean ) {
+    let o = SweptObjectsRecipe.ribbonKnot( {
+        p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, width : p.width, thickness : p.thickness, turns : p.turns,
+        tolerance : fine ? 0.02 : 0.1, divsU : fine ? 720 : 300, divsV : fine ? 40 : 20
+    } );
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true };
+}
+
 function knot( p : Record<string, number>, fine : boolean ) {
     let o = SweptObjectsRecipe.knotPipe( {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, pipeRadius : p.pipe, pipeSwell : p.swell,
@@ -72,11 +80,17 @@ function pack( mesh : TriMesh ) {
 }
 
 self.onmessage = (e : MessageEvent<BuildRequest>) => {
-    let { id, model, params, fine } = e.data;
+    let { id, model, params, fine, make, machine } = e.data;
     let t0 = performance.now();
     try {
-        let build = { vessel, knot, ring, mug, pierced }[model];
+        let build = { vessel, knot, ring, mug, pierced, ribbon }[model];
         let r = build( params, fine );
+        let check = null;
+        if (make && fine) {
+            let c = Makeable.check( r.mesh, machine );
+            if (!r.ok) c.issues.unshift( "The wall folds over itself: it is thicker than the tightest fold." );
+            check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits };
+        }
         let ms = performance.now() - t0;
         let { pos, idx } = pack( r.mesh );
         let bb = r.report.manifold ? r.mesh.boundingBox() : null;
@@ -88,6 +102,7 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
                 volume : r.report.volume,
                 error : r.error,
                 selfCheck : r.ok,
+                check,
                 size : bb ? [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]] : null
             }
         }, [pos.buffer, idx.buffer] );

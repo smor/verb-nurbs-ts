@@ -3,6 +3,7 @@ import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
+import { MeshBVH } from "./MeshBVH.js";
 import { ManifoldReport, TriMesh } from "./TriMesh.js";
 
 // A face of the result: a face of one of the operands, trimmed to the loops (in its parameter domain) that bound the
@@ -76,7 +77,7 @@ export class BrepBoolean {
         let o = options != null ? options : {};
         let tol = o.tolerance != null ? o.tolerance : 1e-9;
         let weldTol = Math.max( ...solids.map( s => s.weldTolerance() ) );
-        let meshes = solids.map( s => s.tessellate() );
+        let meshes = solids.map( s => new MeshBVH( s.tessellate() ) );
 
         // 1. intersections
         let cuts : Array<Array<Array<FaceCut>>> = solids.map( s => s.faces.map( _ => [] as Array<FaceCut> ) );
@@ -193,7 +194,7 @@ export class BrepBoolean {
     }
 
     // Inside/outside flags of a region against every other solid, by majority over a few of its largest triangles.
-    private static classify( t : FaceTessellation, region : Array<number>, own : number, meshes : Array<TriMesh> ) : Array<boolean> {
+    private static classify( t : FaceTessellation, region : Array<number>, own : number, meshes : Array<MeshBVH> ) : Array<boolean> {
         let area = (k : number) => {
             let tri = t.triangles[k];
             return Vec.norm( Vec.cross( Vec.sub( t.points[tri[1]], t.points[tri[0]] ), Vec.sub( t.points[tri[2]], t.points[tri[0]] ) ) );
@@ -205,7 +206,7 @@ export class BrepBoolean {
         } );
         return meshes.map( (m, k) => {
             if (k == own) return false;
-            let votes = centres.filter( c => m.containsPoint( c ) ).length;
+            let votes = centres.filter( c => m.contains( c ) ).length;
             return votes * 2 > centres.length;
         } );
     }

@@ -61,6 +61,9 @@ import { Welder, BrepSolid, FaceMesher } from "./solid/Brep.js";
 export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
+import { Makeable } from "./solid/Makeable.js";
+export type { Machine, MakeableReport } from "./solid/Makeable.js";
+import { MeshBVH } from "./solid/MeshBVH.js";
 import { Shell } from "./solid/Shell.js";
 export type { VesselMeshOptions } from "./solid/Shell.js";
 import { SurfaceIntersect } from "./solid/SurfaceIntersect.js";
@@ -72,7 +75,7 @@ export type { MugParams, Mug, PierceParams, PiercedVessel } from "./recipes/Bool
 import { FreeformVesselRecipe } from "./recipes/FreeformVessel.js";
 export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./recipes/FreeformVessel.js";
 import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
-export type { SweptObject, KnotPipeParams, TwistedRingParams } from "./recipes/SweptObjects.js";
+export type { SweptObject, KnotPipeParams, TwistedRingParams, RibbonKnotParams } from "./recipes/SweptObjects.js";
 import { registerSerializable } from "./core/Serialization.js";
 
 export {
@@ -153,6 +156,8 @@ export {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    Makeable,
+    MeshBVH,
     Shell,
     SurfaceIntersect,
     TriMesh,
@@ -248,6 +253,8 @@ export const solid = {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    Makeable,
+    MeshBVH,
     Shell,
     SurfaceIntersect,
     TriMesh,

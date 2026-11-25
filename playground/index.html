@@ -57,6 +57,15 @@ input[type=range]:focus-visible{outline:2px solid var(--teal);outline-offset:2px
 dt{font-size:13px;color:var(--soft)}
 dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .foot{font-size:13px;color:var(--soft);margin:0}
+.purpose{display:flex;flex-direction:column;gap:10px}
+.seg{display:flex;gap:4px;background:var(--stage);padding:4px;border-radius:10px}
+.seg button{flex:1;font:500 14px Inter,sans-serif;color:var(--ink);background:none;border:0;border-radius:7px;min-height:36px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--bg);color:var(--teal);box-shadow:0 1px 2px #0002}
+.seg button:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.purpose .hint{font-size:13px;color:var(--soft);margin:0}
+select{font:14px Inter,sans-serif;min-height:38px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#issues{margin:0;padding:10px 12px 10px 28px;border-radius:10px;font-size:13px;color:var(--bad);border:1px solid var(--line)}
+#issues:empty{display:none}
 .foot a{color:var(--teal)}
 @media(max-width:760px){
  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 55svh auto;height:auto}
@@ -75,6 +84,7 @@ dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap
       <button type="button" data-m="ring" aria-pressed="false">Twisted ring</button>
       <button type="button" data-m="mug" aria-pressed="false">Mug</button>
       <button type="button" data-m="pierced" aria-pressed="false">Pierced</button>
+      <button type="button" data-m="ribbon" aria-pressed="false">Ribbon</button>
     </div>
   </header>
   <main class="stage">
@@ -84,6 +94,15 @@ dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap
   </main>
   <aside>
     <p id="note"></p>
+    <div class="purpose">
+      <div class="seg" id="mode" role="group" aria-label="Purpose">
+        <button type="button" data-mode="free" aria-pressed="true">Free form</button>
+        <button type="button" data-mode="make" aria-pressed="false">Makeable</button>
+      </div>
+      <label id="machineRow" hidden>Machine <select id="machine"></select></label>
+      <p class="hint" id="modeHint"></p>
+      <ul id="issues"></ul>
+    </div>
     <div id="sliders"></div>
     <div class="btns">
       <button type="button" class="btn" id="shuffle">Vary</button>
@@ -91,7 +110,7 @@ dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap
       <button type="button" class="btn primary" id="save">Download STL</button>
     </div>
     <dl id="stats"></dl>
-    <p class="foot">Sliders rebuild a quick preview, then a full-resolution model a moment later. Every shape is checked for watertightness before it can be downloaded. Drag to orbit, scroll or pinch to zoom.</p>
+    <p class="foot">Sliders rebuild a quick preview, then a full-resolution model a moment later. In Makeable mode each final model is checked for a closed solid, wall thickness and fit before it can be downloaded. Drag to orbit, scroll or pinch to zoom.</p>
   </aside>
 </div>
 <!--BUNDLE-->

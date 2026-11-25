@@ -5,7 +5,7 @@ import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.j
 
 declare const WORKER_SOURCE : string;
 
-type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced";
+type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon";
 interface Slider { key : string; label : string; min : number; max : number; step : number; value : number; unit? : string }
 
 const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[] }> = {
@@ -78,19 +78,39 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "rows", label : "Rows", min : 1, max : 3, step : 1, value : 2 },
             { key : "hole", label : "Hole radius", min : 3, max : 12, step : 0.5, value : 7, unit : "mm" },
         ]
+    },
+    ribbon : {
+        name : "Ribbon knot",
+        note : "A flat ribbon swept along a torus knot, twisting as it goes. At zero thickness it is a bare sheet: fine to look at, impossible to make.",
+        sliders : [
+            { key : "p", label : "Loops p", min : 2, max : 5, step : 1, value : 3 },
+            { key : "q", label : "Winds q", min : 3, max : 8, step : 1, value : 5 },
+            { key : "radius", label : "Knot radius", min : 20, max : 60, step : 1, value : 34, unit : "mm" },
+            { key : "tube", label : "Torus tube", min : 6, max : 25, step : 0.5, value : 13, unit : "mm" },
+            { key : "width", label : "Ribbon width", min : 2, max : 20, step : 0.5, value : 9, unit : "mm" },
+            { key : "thickness", label : "Thickness", min : 0, max : 4, step : 0.1, value : 1.6, unit : "mm" },
+            { key : "turns", label : "Twist turns", min : 0, max : 8, step : 1, value : 2 },
+        ]
     }
 };
 
+const MACHINES : [string, string][] = [
+    ["fdm", "FDM printer, 0.8 mm walls"], ["sla", "Resin printer, 0.5 mm walls"], ["sls", "SLS nylon, 0.7 mm walls"],
+    ["cnc", "3-axis CNC, 1.5 mm walls"], ["ceramic", "Ceramic slip casting, 2.5 mm walls"]];
+
 const $ = (id : string) => document.getElementById( id )!;
 let current : ModelId = "vessel";
-const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {} };
+const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {}, ribbon : {} };
+let mode : "free" | "make" = "free", machine = "fdm";
 for (const m of Object.keys( MODELS ) as ModelId[]) for (const s of MODELS[m].sliders) values[m][s.key] = s.value;
 try {
     const saved = JSON.parse( localStorage.getItem( "verb-playground" ) || "null" );
     if (saved && saved.values) for (const m of Object.keys( values ) as ModelId[]) Object.assign( values[m], saved.values[m] || {} );
     if (saved && MODELS[saved.current as ModelId]) current = saved.current;
+    if (saved && (saved.mode == "free" || saved.mode == "make")) mode = saved.mode;
+    if (saved && MACHINES.some( m => m[0] == saved.machine )) machine = saved.machine;
 } catch (e) { /* storage unavailable */ }
-const remember = () => { try { localStorage.setItem( "verb-playground", JSON.stringify( { current, values } ) ); } catch (e) { /* ignore */ } };
+const remember = () => { try { localStorage.setItem( "verb-playground", JSON.stringify( { current, values, mode, machine } ) ); } catch (e) { /* ignore */ } };
 
 // ---------- three.js view ----------
 const canvas = $( "view" ) as HTMLCanvasElement;
@@ -160,7 +180,7 @@ function request( fine : boolean ) {
     latest = ++seq;
     $( "status" ).textContent = fine ? "Refining…" : "Building…";
     $( "status" ).dataset.state = "busy";
-    worker.postMessage( { id : latest, model : current, params : values[current], fine } );
+    worker.postMessage( { id : latest, model : current, params : values[current], fine, make : mode == "make", machine } );
 }
 
 let fineTimer = 0;
@@ -191,21 +211,59 @@ function showError( msg : string ) {
 
 function showStats( s : any, ms : number, fine : boolean ) {
     const m = s.manifold;
-    const ok = m.closedManifold && s.selfCheck;
-    $( "status" ).textContent = ok ? (fine ? "Watertight solid, final resolution" : "Watertight solid, preview") : (s.selfCheck ? "Not watertight" : "Wall folds over itself: thicker than the tightest fold");
-    $( "status" ).dataset.state = ok ? "good" : "bad";
+    const st = $( "status" );
+    const issues = $( "issues" );
+    issues.innerHTML = "";
+    let canSave = true;
+    if (mode == "free") {
+        st.textContent = (m.closedManifold ? "Closed solid" : "Open surface, visual only") + (fine ? ", final resolution" : ", preview");
+        st.dataset.state = "good";
+    } else if (!fine || !s.check) {
+        st.textContent = "Preview: making checks run on the final model";
+        st.dataset.state = "busy";
+        canSave = false;
+    } else {
+        const c = s.check;
+        st.textContent = c.makeable ? "Makeable: " + c.machine : "Not makeable yet: " + c.issues.length + (c.issues.length == 1 ? " issue" : " issues");
+        st.dataset.state = c.makeable ? "good" : "bad";
+        issues.innerHTML = c.issues.map( (x : string) => `<li>${x.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</li>` ).join( "" );
+        canSave = c.makeable;
+    }
     const rows : [string, string][] = [
         ["Triangles", s.triangles.toLocaleString( "en" )],
         ["Watertight", m.closedManifold ? "yes" : "no, " + m.boundaryEdges + " open edges"],
-        ["Genus", String( m.genus )],
-        ["Material", (s.volume / 1000).toFixed( 1 ) + " cm³"],
+        ["Genus", m.genus == null || isNaN( m.genus ) ? "–" : String( m.genus )],
+        ["Material", m.closedManifold ? (s.volume / 1000).toFixed( 1 ) + " cm³" : "–"],
         ["Size", s.size ? s.size.map( (x : number) => x.toFixed( 0 ) ).join( " × " ) + " mm" : "–"],
         current == "mug" || current == "pierced" ? ["Seam error", s.error.toExponential( 1 ) + " mm"] : ["Fit error", s.error.toFixed( 3 ) + " mm"],
-        ["Build", Math.round( ms ) + " ms"],
     ];
+    if (s.check && isFinite( s.check.wall )) rows.push( ["Thinnest wall", s.check.wall.toFixed( 2 ) + " mm"] );
+    rows.push( ["Build", Math.round( ms ) + " ms"] );
     $( "stats" ).innerHTML = rows.map( ([k, v]) => `<div><dt>${k}</dt><dd>${v.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</dd></div>` ).join( "" );
-    ($( "save" ) as HTMLButtonElement).disabled = !m.closedManifold;
+    ($( "save" ) as HTMLButtonElement).disabled = !canSave;
 }
+
+function renderMode() {
+    document.querySelectorAll<HTMLButtonElement>( "#mode button" ).forEach( b => b.setAttribute( "aria-pressed", String( b.dataset.mode == mode ) ) );
+    $( "machineRow" ).hidden = mode != "make";
+    $( "modeHint" ).textContent = mode == "free"
+        ? "Anything goes: open sheets and thin or self-crossing shapes are fine for images and animation."
+        : "Each final model is checked: closed solid, wall thickness for the machine, and fit in its build volume.";
+    const sel = $( "machine" ) as HTMLSelectElement;
+    if (!sel.options.length) sel.innerHTML = MACHINES.map( ([k, n]) => `<option value="${k}">${n}</option>` ).join( "" );
+    sel.value = machine;
+}
+
+$( "mode" ).addEventListener( "click", (e) => {
+    const b = (e.target as HTMLElement).closest( "button" );
+    if (!b) return;
+    mode = b.dataset.mode as "free" | "make";
+    remember(); renderMode(); request( mode == "make" );
+} );
+$( "machine" ).addEventListener( "change", (e) => {
+    machine = (e.target as HTMLSelectElement).value;
+    remember(); request( true );
+} );
 
 // ---------- controls ----------
 function fmt( s : Slider, v : number ) { return (s.step >= 1 ? v.toFixed( 0 ) : s.step >= 0.1 ? v.toFixed( 1 ) : v.toFixed( 2 )) + (s.unit ? " " + s.unit : ""); }
@@ -328,5 +386,6 @@ $( "save" ).addEventListener( "click", async () => {
 } );
 
 renderControls();
+renderMode();
 resize();
 request( false );

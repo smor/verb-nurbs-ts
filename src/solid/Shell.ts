@@ -116,6 +116,24 @@ export class Shell {
         return mesh;
     }
 
+    // Mesh a surface as an open sheet, with no thickness: for visual work only (it encloses no volume and cannot be
+    // made). Directions marked closed wrap around instead of repeating their seam vertices.
+    public static sheet( surface : NurbsSurfaceData, closed : [boolean, boolean], options? : VesselMeshOptions ) : TriMesh {
+        let divsU = options != null && options.divsU != null ? options.divsU : 128;
+        let divsV = options != null && options.divsV != null ? options.divsV : 16;
+        let G = Shell.sampleGrid( surface, divsU, divsV, closed[1] );
+        if (closed[0]) G.pop();
+        let mesh = new TriMesh();
+        let idx = G.map( row => row.map( p => mesh.addVertex( p ) ) );
+        let rows = idx.length, cols = idx[0].length;
+        let qi = closed[0] ? rows : rows - 1, qj = closed[1] ? cols : cols - 1;
+        for (let i = 0; i < qi; i++) for (let j = 0; j < qj; j++) {
+            let a = (i + 1) % rows, b = (j + 1) % cols;
+            mesh.addQuad( idx[i][j], idx[i][b], idx[a][b], idx[a][j] );
+        }
+        return mesh;
+    }
+
     // Check that a closed ring of points, seen along its average normal, turns around `center` monotonically, so a fan
     // of triangles from `center` does not fold over itself.
 
