@@ -760,6 +760,9 @@ export class FilletCorner {
                 } );
             } );
         }
+        FilletCorner.contain( ribbons, touch.map( t => faceOf( t[0].i, t[0].b ) ), curves.map( c => c.uv[0] ),
+                              Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) ), rMax,
+                              Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
         const m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
         // outward, with the faces: the triangles turned one way in the polygon, then all flipped if the one at the
         // patch's first boundary point (on the first face curve, where the patch is tangent to that face) faces against
@@ -790,6 +793,79 @@ export class FilletCorner {
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
                  parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
                  ribbons : ribbons, domain : m.domain };
+    }
+
+    // Keep a setback corner on the blends' side of the three faces it rounds. The patch takes its boundary and its
+    // cross derivatives' directions from the blends and the faces, but their length is free: it sets how full the
+    // patch is (the "fullness" of Salvi, Várady and Rockwood's ribbon-based patches), and the transfinite blend
+    // carries each ribbon on, straight, well into the patch. One length for all six sides, the sides' mean, overshoots
+    // where they are uneven: a corner of a box then bulges past the box's faces (by 0.17 for radii 3, 4 and 5 on
+    // a 40 x 28 x 20 box). So the lengths are scaled down, by bisection, to the fullest patch that crosses none of the
+    // faces: at no sample of the polygon is a point on the other side of a face from the blends' centres. Second
+    // derivatives scale with the square, which keeps a G2 patch G2. Deterministic, and a no-op where nothing crosses.
+    private static contain( ribbons : Array<Ribbon>, faces : Array<FilletSide>, uv0 : Array<UV>, centre : Point, size : number, density : number ) : void {
+        const base = ribbons.map( r => ({ cross : r.cross, second : r.second }) );
+        const scale = (f : number) => ribbons.forEach( (r, j) => {
+            r.cross = base[j].cross.map( v => Vec.mul( f, v ) );
+            if (base[j].second != null) r.second = (base[j].second as Array<Point>).map( v => Vec.mul( f * f, v ) );
+        } );
+        // samples of the polygon: the inner vertices of the patch's mesh (they do not depend on the lengths)
+        const m = Transfinite.mesh( ribbons, density );
+        const samples = m.domain.slice( m.boundary );
+        const tol = 1e-6 * size;
+        const sideOf = faces.map( (F, k) => FilletCorner.signedDistance( F, centre, uv0[k] ).d < 0 ? -1 : 1 );
+        // how far the patch crosses the faces, at worst (0: not at all)
+        const crossing = () => {
+            let worst = 0.0;
+            for (const x of samples) {
+                const p = Transfinite.evaluate( ribbons, x );
+                faces.forEach( (F, k) => { worst = Math.max( worst, -sideOf[k] * FilletCorner.signedDistance( F, p, uv0[k] ).d ); } );
+            }
+            return worst > tol ? worst : 0;
+        };
+        if (crossing() == 0) return;
+        // the fullest length that does not cross (bisection between the steps of a coarse scan); where every length
+        // crosses (the boundary itself curves out, which no length undoes), the one that crosses least
+        let best = 1.0, least = Infinity, lo = -1;
+        // (a curvature-continuous patch keeps its fullness above 0.6: below, the second-order terms that make it G2
+        // dominate the shrinking first-order ones, and its curvature across the sides drifts)
+        const floor = base.every( b => b.second != null ) ? 0.55 : 0.05;
+        for (let f = 0.9; f > floor; f -= 0.1) {
+            scale( f );
+            const c = crossing();
+            if (c == 0) { lo = f; break; }
+            if (c < least) { least = c; best = f; }
+        }
+        if (lo < 0) { scale( best ); return; }
+        let hi = lo + 0.1;
+        for (let it = 0; it < 7; it++) {
+            const mid = 0.5 * (lo + hi);
+            scale( mid );
+            if (crossing() > 0) hi = mid; else lo = mid;
+        }
+        scale( lo );
+    }
+
+    // The signed distance from a point to a face, along the face's normal (as Fillet orients it), at the point's
+    // projection on the face: Newton steps from uv0, clamped to the domain.
+    private static signedDistance( F : FilletSide, p : Point, uv0 : UV ) : { d : number, uv : UV } {
+        const s = F.face.surface, dom = SurfaceIntersect.domain( s );
+        let uv : UV = [uv0[0], uv0[1]];
+        for (let it = 0; it < 20; it++) {
+            const e = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+            const r = Vec.sub( p, e[0][0] ), su = e[1][0], sv = e[0][1];
+            const a = Vec.dot( su, su ), b = Vec.dot( su, sv ), c = Vec.dot( sv, sv );
+            const det = a * c - b * b;
+            if (Math.abs( det ) < 1e-300) break;
+            const f = Vec.dot( r, su ), g = Vec.dot( r, sv );
+            const du = (c * f - b * g) / det, dv = (a * g - b * f) / det;
+            const next = SurfaceIntersect.toDomain( { surface : s, periodic : F.face.periodic }, [uv[0] + du, uv[1] + dv] );
+            const moved = Math.abs( next[0] - uv[0] ) + Math.abs( next[1] - uv[1] );
+            uv = next;
+            if (moved < 1e-14 * (dom[1] - dom[0] + dom[3] - dom[2])) break;
+        }
+        const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] );
+        return { d : Vec.dot( Vec.sub( p, q ), Fillet.normal( F, uv ) ), uv : uv };
     }
 
     // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points
