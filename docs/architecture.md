@@ -10,7 +10,8 @@ through it, which invariants hold everywhere, and where to start reading for eac
    apps          │ viewer/ playground/   (three.js, web workers) │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
-   view, io      │ Inspect: objects → plain display layers       │
+   view, io,     │ Inspect: objects → plain display layers       │
+   model         │ Model: JSON documents → named solids, verdict │
                  │ Step: B-rep results → STEP files              │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
@@ -93,6 +94,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Meshes, fabrication checks | `src/solid/TriMesh.ts`, `src/solid/Makeable.ts` |
 | Display data | `src/view/Inspect.ts` |
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
+| Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |
 
 ## Tests
 

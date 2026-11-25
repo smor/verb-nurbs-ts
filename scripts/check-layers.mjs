@@ -19,6 +19,7 @@ const ALLOWED = {
     recipes : ["core", "eval", "solid"],
     view : ["core", "eval", "solid"],
     io : ["core", "eval", "solid"],    // file formats (STEP); a package of its own, "io"
+    model : ["core", "eval", "solid"], // the feature tree: documents regenerated into solids; package "model"
 
     types : [],
 };
