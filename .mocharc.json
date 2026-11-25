@@ -1,1 +1,0 @@
-{ "spec": "test/*.cjs", "timeout": 20000, "parallel": true }
