@@ -15,3 +15,11 @@ lib-cov
 node_modules/
 *.VC.db
 *.VC.db-wal
+dist/
+out/
+playground/dist/
+viewer/dist/
+scratch/
+docs/api/
+coverage/
+.c8_output/

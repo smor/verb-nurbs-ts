@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NURBS form playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE work tool, calm and exact, for someone shaping objects
+   IDEA a glassmaker's specimen bench: the piece on a lit stage, its datasheet beside it
+   PICTURE the live 3D model, large, rebuilt as sliders move
+   COLOUR white stage fading to pale glass, ink black, glass teal #1f6f6a leads, orange #d9480f for faults
+   TYPE Instrument Sans + Inter
+   LAYOUT laptop: stage left, 340px panel right; phone: stage on top (55svh), panel below */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0e1312);--stage:light-dark(#eef3f2,#131b1a);--ink:light-dark(#121615,#e8efed);--soft:light-dark(#5b6664,#9aa8a5);--line:light-dark(#dde4e2,#26302e);--teal:light-dark(#1f6f6a,#5cc2b8);--tealbg:light-dark(#e3f0ee,#173230);--bad:light-dark(#c2410c,#ff8a50)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto minmax(0,1fr);height:100%}
+header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:14px max(2vw,16px);border-bottom:1px solid var(--line)}
+h1{font:600 22px/1.05 "Instrument Sans",Inter,sans-serif;letter-spacing:-.02em;margin:0}
+h1 small{display:block;font:400 13px/1.4 Inter,sans-serif;color:var(--soft);letter-spacing:0;margin-top:3px}
+#models{display:flex;gap:4px;margin-left:auto;background:var(--stage);padding:4px;border-radius:10px}
+#models button{font:500 14px Inter,sans-serif;color:var(--ink);background:none;border:0;border-radius:7px;padding:0 14px;min-height:38px;cursor:pointer}
+#models button[aria-pressed=true]{background:var(--bg);color:var(--teal);box-shadow:0 1px 2px #0002}
+#models button:focus-visible,.btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.stage{position:relative;background:radial-gradient(120% 90% at 50% 35%,var(--bg),var(--stage));overflow:hidden}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#status{position:absolute;left:16px;bottom:14px;font:500 13px Inter,sans-serif;padding:6px 10px 6px 26px;border-radius:999px;background:var(--bg);border:1px solid var(--line);max-width:calc(100% - 32px)}
+#status::before{content:"";position:absolute;left:10px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--soft)}
+#status[data-state=good]::before{background:var(--teal)}
+#status[data-state=bad]{color:var(--bad)}#status[data-state=bad]::before{background:var(--bad)}
+#status[data-state=busy]::before{animation:pulse .9s infinite alternate}
+@keyframes pulse{to{opacity:.2}}
+@media(prefers-reduced-motion:reduce){#status[data-state=busy]::before{animation:none}}
+#recenter{position:absolute;right:14px;bottom:12px}
+aside{border-left:1px solid var(--line);overflow-y:auto;padding:18px 20px 24px;display:flex;flex-direction:column;gap:18px}
+#note{margin:0;color:var(--soft);font-size:14px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:2px 8px;padding:6px 0}
+.lab{font-weight:500;font-size:14px}
+output{font:500 13px Inter,sans-serif;color:var(--teal);font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{grid-column:1/-1;width:100%;height:28px;margin:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-8px;border-radius:50%;background:var(--teal);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--teal)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--teal);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--teal)}
+input[type=range]:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:4px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 14px Inter,sans-serif;min-height:40px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--teal)}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:var(--bg);flex:1 1 100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+#stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:0;padding:14px;border-radius:10px;background:var(--tealbg)}
+#stats div{display:flex;flex-direction:column}
+dt{font-size:13px;color:var(--soft)}
+dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.foot{font-size:13px;color:var(--soft);margin:0}
+.purpose{display:flex;flex-direction:column;gap:10px}
+.seg{display:flex;gap:4px;background:var(--stage);padding:4px;border-radius:10px}
+.seg button{flex:1;font:500 14px Inter,sans-serif;color:var(--ink);background:none;border:0;border-radius:7px;min-height:36px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--bg);color:var(--teal);box-shadow:0 1px 2px #0002}
+.seg button:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.purpose .hint{font-size:13px;color:var(--soft);margin:0}
+select{font:14px Inter,sans-serif;min-height:38px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#issues{margin:0;padding:10px 12px 10px 28px;border-radius:10px;font-size:13px;color:var(--bad);border:1px solid var(--line)}
+#issues:empty{display:none}
+.foot a{color:var(--teal)}
+@media(max-width:760px){
+ .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 55svh auto;height:auto}
+ aside{border-left:0;border-top:1px solid var(--line);overflow:visible}
+ #models{margin-left:0;width:100%}#models button{flex:1;padding:0 8px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>NURBS form playground<small>verb-nurbs-ts, running in your browser</small></h1>
+    <div id="models" role="group" aria-label="Model">
+      <button type="button" data-m="vessel" aria-pressed="true">Vessel</button>
+      <button type="button" data-m="knot" aria-pressed="false">Knot pipe</button>
+      <button type="button" data-m="ring" aria-pressed="false">Twisted ring</button>
+      <button type="button" data-m="mug" aria-pressed="false">Mug</button>
+      <button type="button" data-m="pierced" aria-pressed="false">Pierced</button>
+      <button type="button" data-m="ribbon" aria-pressed="false">Ribbon</button>
+      <button type="button" data-m="appliance" aria-pressed="false">Appliance</button>
+    </div>
+  </header>
+  <main class="stage">
+    <canvas id="view" aria-label="3D view of the model; drag to orbit, scroll to zoom"></canvas>
+    <div id="status" data-state="busy" role="status">Building…</div>
+    <button type="button" class="btn" id="recenter">Re-frame</button>
+  </main>
+  <aside>
+    <p id="note"></p>
+    <div class="purpose">
+      <div class="seg" id="mode" role="group" aria-label="Purpose">
+        <button type="button" data-mode="free" aria-pressed="true">Free form</button>
+        <button type="button" data-mode="make" aria-pressed="false">Makeable</button>
+      </div>
+      <label id="machineRow" hidden>Machine <select id="machine"></select></label>
+      <p class="hint" id="modeHint"></p>
+      <ul id="issues"></ul>
+    </div>
+    <div id="sliders"></div>
+    <div class="btns">
+      <button type="button" class="btn" id="shuffle">Vary</button>
+      <button type="button" class="btn" id="reset">Reset</button>
+      <button type="button" class="btn primary" id="save">Download STL</button>
+    </div>
+    <dl id="stats"></dl>
+    <p class="foot">Sliders rebuild a quick preview, then a full-resolution model a moment later. In Makeable mode each final model is checked for a closed solid, wall thickness and fit before it can be downloaded. Drag to orbit, scroll or pinch to zoom.</p>
+  </aside>
+</div>
+<!--BUNDLE-->
+</body>
+</html>

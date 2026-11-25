@@ -1,0 +1,78 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: typecheck, layers, lint, ratchets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run layers
+      - run: npm run lint
+      # no gate may be loosened relative to the branch a pull request targets (AGENTS.md, "Ratchets")
+      - name: ratchets
+        if: github.event_name == 'pull_request'
+        run: npm run ratchets -- origin/${{ github.base_ref }}
+
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: test with coverage (fails below the thresholds)
+        if: matrix.node == 22
+        run: npm run coverage
+      - name: test
+        if: matrix.node != 22
+        run: npm test
+      - name: upload coverage report
+        if: matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  demos:
+    name: demos, apps and API docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node examples/aalto-vessel.mjs out
+      - run: node examples/swept-objects.mjs out
+      - run: node examples/boolean-objects.mjs out
+      - run: npm run playground
+      - run: npm run viewer
+      - run: npm run docs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: docs/api/
