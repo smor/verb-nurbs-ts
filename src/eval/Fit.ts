@@ -227,27 +227,42 @@ export class Fit {
             let grid = pu.map( u => pv.map( v => f( u, v ) ) );
             result = Fit.surfaceWithKnots( grid, pu, pv, degreeU, degreeV, knotsU, knotsV );
 
-            // test away from the interpolation parameters: inside each knot span in one direction, against the
-            // interpolation parameters and the span interiors in the other
+            // test away from the interpolation parameters. The fit interpolates its grid as a tensor product, so along
+            // u = (an interpolation parameter) it is the plain interpolant in v of that row, and its error there is
+            // the v direction's alone; likewise in u along v = (an interpolation parameter). Each direction is refined
+            // only where its own error is too large, so a profile that is exact in v does not gain knots there because
+            // the rail needs them in u. Points inside spans in both directions check the whole fit.
             let spansU = Fit.spans( knotsU ), spansV = Fit.spans( knotsV );
             let inU = spansU.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
             let inV = spansV.map( s => Fit.FRACTIONS.map( t => s[0] + (s[1] - s[0]) * t ) );
             let allInV = ([] as Array<number>).concat( ...inV ), allInU = ([] as Array<number>).concat( ...inU );
             let dev = (u : number, v : number) => Vec.dist( Eval.rationalSurfacePoint( result, u, v ), f( u, v ) );
             let badU : Array<number> = [], badV : Array<number> = [];
+            let mixedU : Array<number> = [], mixedV : Array<number> = [];
             err = 0.0;
             for (let i = 0; i < spansU.length; i++) {
-                let worst = 0.0;
-                for (let u of inU[i]) for (let v of pv.concat( allInV )) worst = Math.max( worst, dev( u, v ) );
-                err = Math.max( err, worst );
-                if (worst > tolerance) badU.push( (spansU[i][0] + spansU[i][1]) / 2 );
+                let own = 0.0, mixed = 0.0;
+                for (let u of inU[i]) {
+                    for (let v of pv) own = Math.max( own, dev( u, v ) );
+                    for (let v of allInV) mixed = Math.max( mixed, dev( u, v ) );
+                }
+                err = Math.max( err, own, mixed );
+                if (own > tolerance) badU.push( (spansU[i][0] + spansU[i][1]) / 2 );
+                else if (mixed > tolerance) mixedU.push( (spansU[i][0] + spansU[i][1]) / 2 );
             }
             for (let j = 0; j < spansV.length; j++) {
-                let worst = 0.0;
-                for (let v of inV[j]) for (let u of pu.concat( allInU )) worst = Math.max( worst, dev( u, v ) );
-                err = Math.max( err, worst );
-                if (worst > tolerance) badV.push( (spansV[j][0] + spansV[j][1]) / 2 );
+                let own = 0.0;
+                for (let v of inV[j]) for (let u of pu) own = Math.max( own, dev( u, v ) );
+                err = Math.max( err, own );
+                if (own > tolerance) badV.push( (spansV[j][0] + spansV[j][1]) / 2 );
+                else {
+                    let mixed = 0.0;
+                    for (let v of inV[j]) for (let u of allInU) mixed = Math.max( mixed, dev( u, v ) );
+                    if (mixed > tolerance) mixedV.push( (spansV[j][0] + spansV[j][1]) / 2 );
+                }
             }
+            // where only the combination misses, and neither direction does on its own, refine both there
+            if (badU.length == 0 && badV.length == 0) { badU = mixedU; badV = mixedV; }
             if ((badU.length == 0 && badV.length == 0) || it == maxIterations) break;
             knotsU = Fit.insertKnots( knotsU, badU );
             knotsV = Fit.insertKnots( knotsV, badV );

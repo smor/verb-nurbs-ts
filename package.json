@@ -15,7 +15,8 @@
     "demo:vessel": "npm run build && node examples/aalto-vessel.mjs",
     "demo:sweeps": "npm run build && node examples/swept-objects.mjs",
     "demo:booleans": "npm run build && node examples/boolean-objects.mjs",
-    "playground": "node playground/build.mjs"
+    "playground": "node playground/build.mjs",
+    "viewer": "node viewer/build.mjs"
   },
   "keywords": [
     "NURBS",

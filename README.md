@@ -131,6 +131,25 @@ npm run playground   # writes playground/dist/index.html, a single self-containe
 
 Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the four-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
 
+## Inspector
+
+```
+npm run viewer   # writes viewer/dist/index.html, a single self-contained file
+```
+
+A viewer that shows each kind of object as what it is:
+
+* **NURBS curves**: the control polygon, control points (with their weights), knots on the curve, and a curvature comb.
+* **NURBS surfaces**: the control net, knot lines (the edges of the polynomial patches), isocurves, normals, poles
+  (sides of the domain that collapse to a point), and Gaussian or mean curvature as colour.
+* **B-reps**: each trimmed face in its own colour and fillets in gold. Edges are told apart as trims, natural edges and
+  seams, and fillets' contact curves are drawn. Click a face to list its surface's facts and see its control net.
+* **Meshes**: the wireframe, open edges, non-manifold edges, and wall thickness as colour.
+
+It comes with examples of each kind, and you can drop your own STL or OBJ mesh, or a NURBS curve or surface as
+verb JSON. What it draws is built by `Inspect` (`Inspect.curve`, `.surface`, `.brep`, `.mesh`), which returns plain
+arrays of layers and pickable items, so other front ends can use it too.
+
 ## Differences from upstream verb
 
 * Only TypeScript/JavaScript is supported. The Haxe build and its C#, C++, Python and PHP targets are gone.

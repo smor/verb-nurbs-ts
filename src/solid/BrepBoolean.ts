@@ -32,6 +32,8 @@ export interface BooleanOptions {
 export interface BooleanResult {
     mesh : TriMesh;
     faces : Array<TrimmedFace>;
+    // for each triangle of the mesh, the index of its face in `faces`
+    faceOf : Array<number>;
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
     fillets : Array<{ curve : number, radius : number, blend : FilletResult }>;
@@ -163,6 +165,7 @@ export class BrepBoolean {
         let welder = new Welder( weldTol );
         let out = new TriMesh();
         let faces : Array<TrimmedFace> = [];
+        let faceOf : Array<number> = [];
         solids.forEach( (solid, si) => solid.faces.forEach( (face, fi) => {
             let t = FaceMesher.mesh( face, cuts[si][fi], welder );
             let regions = BrepBoolean.regions( t );
@@ -180,6 +183,7 @@ export class BrepBoolean {
                     let tri = t.triangles[k];
                     let a = t.ids[tri[0]], b = t.ids[tri[1]], c = t.ids[tri[2]];
                     if (flip) out.addTriangle( a, c, b ); else out.addTriangle( a, b, c );
+                    faceOf.push( faces.length );
                 }
                 faces.push( { solid : si, face : fi, name : face.name != null ? face.name : "", surface : face.surface,
                               reversed : flip, loops : BrepBoolean.loops( t, reg ) } );
@@ -187,12 +191,13 @@ export class BrepBoolean {
         } ) );
         for (let b of blends) {
             let ids = b.points.map( p => welder.id( p ) );
-            for (let tri of b.triangles) out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] );
+            for (let tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
             faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed, loops : [] } );
         }
         out.vertices = welder.mesh.vertices;
-        out.compact();
-        return { mesh : out, faces : faces, curves : curves, fillets : filletInfo, report : {
+        faceOf = faceOf.filter( (_, k) => { let t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; } );
+        out.compact(); // drops the same degenerate triangles
+        return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
     }

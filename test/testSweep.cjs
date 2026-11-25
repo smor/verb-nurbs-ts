@@ -89,6 +89,15 @@ describe("verb.eval.Sweep", function(){
 		Vec.dist(b, [10, -3, 0]).should.be.lessThan(1e-4);
 	});
 
+	it('refines only the direction that needs it: a B-spline profile swept with a varying scale keeps its own knots', function(){
+		var lib = require('../dist/index.js');
+		var profile = lib.BooleanObjectsRecipe.superellipse(10, 6, 2.6, 32);
+		var s = Sweep.surface(helix(1), profile, { tolerance : 1e-3, scale : function(u){ return 1 + 0.25 * Math.sin(Math.PI * u); } });
+		s.maxError.should.be.lessThan(1e-3);
+		s.surface.knotsV.length.should.be.equal(profile.knots.length);
+		s.surface.controlPoints[0].length.should.be.equal(profile.controlPoints.length);
+	});
+
 	it('meshes an open pipe into a capped, genus 0 solid', function(){
 		var s = Sweep.pipe(helix(1), 2, { tolerance : 1e-2 });
 		var m = Shell.tube(s.surface, s.closedU, { divsU : 80, divsV : 24 });

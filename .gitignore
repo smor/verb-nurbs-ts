@@ -18,4 +18,5 @@ node_modules/
 dist/
 out/
 playground/dist/
+viewer/dist/
 scratch/
