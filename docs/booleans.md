@@ -131,6 +131,29 @@ the ball's foot on it. The patch is tangent to all three blends along their end 
 inner rim rounded too, each notch has two ball corners (tube, rim top, inner wall) and two mitres (tube, rim top,
 outer wall, whose edge stays sharp).
 
+Where three rounded edges of **different radii** meet (again all convex or all concave), no ball touches all three
+faces, and the corner is a **setback vertex blend** (Várady and Rockwood, "Vertex blending based on the setback
+split", 1995):
+
+* on each face, the two contact curves that run onto it cross at a point X; each blend stops a setback short of the
+  nearer of its two crossings, 0.6 times the largest radius by default (`FilletCorner.setbackFactor`), and no more
+  than a quarter of the room left to its edge's other end. Contact curves are carried on straight past their ends to
+  find X, since a small blend can stop before its contact meets its large neighbour's;
+* on each face a cubic curve, tangent to both contact curves (Hermite in the face's parameters, its end tangents scaled
+  to the chord), joins their ends and cuts the face;
+* the corner is the six-sided patch between the three end sections and the three face curves: a transfinite surface
+  (`src/eval/Transfinite.ts`, Kato's side-based patch in the ribbon form of Salvi, Várady and Rockwood 2014). Each
+  side carries a ribbon, its boundary and the derivative across it: along a blend's end section, the blend's own
+  derivative along the edge; along a face curve, the direction in the face's tangent plane square to the curve, the
+  way the blends' sections leave the face. The patch interpolates every boundary and matches every ribbon's tangent
+  plane, so it is G1 with the blends and the faces all round. The surface reported for the corner face is a bicubic
+  B-spline fitted to the patch over a square whose sides map onto the hexagon's.
+
+The setback makes the corner a smooth "pillow" in place of the crease a ball corner would need between unequal
+blends.
+`Transfinite` is general: any n-sided hole bounded by curves with cross-derivative ribbons can be filled with it (n-sided
+hole filling, the base of later vertex blends with more edges).
+
 The mitre is found on the blends' meshes (column polylines through the other blend's triangles), so it is as accurate
 as the tessellation. A notch's four edges are rounded together: if one corner cannot be built (the fillets would swallow
 a rim narrower than two radii), the four stay sharp.
@@ -138,9 +161,11 @@ a rim narrower than two radii), the four stay sharp.
 Limits:
 
 * A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges of one
-  radius and one kind (convex or concave) meet (see above). Three edges of different radii (which need a setback
-  vertex blend), or a rounded edge meeting an unrounded one, are left sharp and counted in `report.filletsSkipped`,
-  with the other edges around the same corners.
+  kind (convex or concave) meet: a ball for one radius, a setback vertex blend for different radii (see above). Three
+  edges of mixed kinds, more than three edges, or a rounded edge meeting an unrounded one, are left sharp and counted
+  in `report.filletsSkipped`, with the other edges around the same corners.
+* A setback needs room: on a short edge between two corners (a notch top across a thin rim) the two trims can overlap,
+  and the edge and its partners stay sharp.
 * If the ball does not fit (the radius is larger than the room between the faces), the edge is left sharp and
   counted in `report.filletsFailed`.
 * Fillets of nearby edges must not overlap: keep the radius under half the distance between edges, for example half

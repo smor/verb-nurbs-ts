@@ -30,6 +30,8 @@ import { Check } from "./eval/Check.js";
 import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
 import { Fit } from "./eval/Fit.js";
+import { Transfinite } from "./eval/Transfinite.js";
+export type { Ribbon } from "./eval/Transfinite.js";
 import { Intersect as EvalIntersect } from "./eval/Intersect.js";
 export type { IBoundingBoxTree } from "./eval/Intersect.js";
 import { Make } from "./eval/Make.js";
@@ -64,7 +66,7 @@ export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoo
 import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
 import { FilletCorner } from "./solid/FilletCorner.js";
-export type { OpenBlend, TrimPoint, ThirdEdge } from "./solid/FilletCorner.js";
+export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
 import { Makeable } from "./solid/Makeable.js";
 export type { Machine, MakeableReport } from "./solid/Makeable.js";
 import { MeshBVH } from "./solid/MeshBVH.js";
@@ -135,6 +137,7 @@ export {
     CurveLengthSample,
     Eval,
     Fit,
+    Transfinite,
     EvalIntersect,
     Make,
     Modify,
@@ -230,6 +233,7 @@ export const eval_ = {
     CurveLengthSample,
     Eval,
     Fit,
+    Transfinite,
     Intersect: EvalIntersect,
     Make,
     Modify,

@@ -4,6 +4,7 @@ import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
+import { Transfinite } from "../eval/Transfinite.js";
 import { BrepBoolean } from "./BrepBoolean.js";
 import { BrepFace, BrepSolid, FaceCut } from "./Brep.js";
 import { Fillet, FilletResult, FilletSection, FilletShape, FilletSide } from "./Fillet.js";
@@ -30,6 +31,17 @@ interface Crossing { point : Point; sOwn : number; sOther : number; tOther : num
 interface Bend { i : number; j : number; total : number; angle : Array<number>; shift : Array<Point>; }
 // Where a contact curve reaches the third edge.
 interface Reach { point : Point; s : number; uv : UV; f : number | null; isA1 : boolean; }
+
+// The patch that closes a corner where three blends meet.
+export interface CornerPatch {
+    kind : "ball" | "setback";
+    points : Array<Point>;
+    triangles : Array<[number, number, number]>;
+    reversed : boolean;
+    surface : NurbsSurfaceData;
+    centre : Point;
+    radius : number;
+}
 
 export interface OpenBlend {
     A : FilletSide;
@@ -146,11 +158,12 @@ export class FilletCorner {
     }
 
     // rows from the end inwards, as far as a few radii from the corner
-    private static near( F : OpenBlend, e : number ) : Array<number> {
+    private static near( F : OpenBlend, e : number, radius : number = F.radius ) : Array<number> {
         let idx = F.rows.map( (_, k) => k );
         if (e == 1) idx.reverse();
-        let s0 = F.rows[idx[0]].s, reach = 6 * F.radius;
-        return idx.filter( (k, j) => Math.abs( F.rows[k].s - s0 ) <= reach || j <= 4 );
+        let s0 = F.rows[idx[0]].s, reach = 6 * radius;
+        // and one row past the reach
+        return idx.filter( (k, j) => j <= 4 || Math.abs( F.rows[idx[j - 1]].s - s0 ) <= reach );
     }
 
     private static uvOn( F : OpenBlend, side : number, k : number ) : UV { return side == 0 ? F.rows[k].uvA : F.rows[k].uvB; }
@@ -385,7 +398,7 @@ export class FilletCorner {
     // spherical triangle on that ball between the three end arcs, and each face's two contact curves meet at the
     // ball's foot on it. Returns the corner patch, or null where the ball cannot be placed.
     public static ball( ends : Array<{ F : OpenBlend, e : number, keys : [string, string] }>, tol : number )
-        : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData, centre : Point, radius : number } | null {
+        : CornerPatch | null {
         if (ends.length != 3) return null;
         // the radius at each blend's end (a variable fillet's radius changes along it)
         let endRadius = (x : typeof ends[0]) => { let s = x.F.sections[x.e == 0 ? 0 : x.F.sections.length - 1]; return Vec.dist( s.pa, s.centre ); };
@@ -474,7 +487,199 @@ export class FilletCorner {
             arcs.push( pts );
         }
         let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side, bends );
-        return patch == null ? null : Object.assign( patch, { centre : c, radius : r } );
+        return patch == null ? null : Object.assign( patch, { kind : "ball" as const, centre : c, radius : r } );
+    }
+
+    // How far a setback corner stops each blend short of where its contact curves meet the others', in radii.
+    public static setbackFactor = 0.6;
+
+    // A setback vertex blend: three blends of any radii, all convex or all concave, between three faces that meet at a
+    // point. Each blend stops a setback short of where its contact curves cross its neighbours' (on the face they
+    // share); on each face a curve tangent to the two contact curves joins their ends, and cuts the face; the corner is
+    // the six-sided patch between the three end sections and the three face curves, a transfinite surface that meets
+    // the blends and the faces with G1 continuity along its sides (T. Várady, A. Rockwood, "Vertex blending based on
+    // the setback split", 1995; Kato's side-based patch, `Transfinite`). Returns the patch, or null.
+    public static setback( ends : Array<{ F : OpenBlend, e : number, keys : [string, string] }>, tol : number )
+        : CornerPatch | null {
+        if (ends.length != 3) return null;
+        let side = ends[0].F.side;
+        if (ends.some( x => x.F.side != side )) return null;
+        let keys : Array<string> = [];
+        for (let x of ends) for (let k of x.keys) if (!keys.includes( k )) keys.push( k );
+        if (keys.length != 3) return null;
+        // the two ends on each face, and which side of each blend that face is (0: its face A)
+        let touch = keys.map( k => ends.map( (x, i) => ({ i : i, b : x.keys.indexOf( k ) }) ).filter( y => y.b >= 0 ) );
+        if (touch.some( t => t.length != 2 )) return null;
+        let faceOf = (i : number, b : number) => b == 0 ? ends[i].F.A : ends[i].F.B;
+        let endRadius = (x : typeof ends[0]) => { let s = x.F.sections[x.e == 0 ? 0 : x.F.sections.length - 1]; return Vec.dist( s.pa, s.centre ); };
+        let rMax = Math.max( ...ends.map( endRadius ) );
+        let near = ends.map( x => FilletCorner.near( x.F, x.e, rMax ) );
+        // where each face's two contact curves cross: the s on both blends
+        let sX : Array<Array<number>> = ends.map( _ => [] as Array<number> );
+        for (let t of touch) {
+            let [p, q] = t;
+            let face = faceOf( p.i, p.b ).face;
+            // the contact curves, carried on straight past their ends by a few radii: a blend much smaller than its
+            // neighbour stops before its contact meets the neighbour's
+            let line = (x : { i : number, b : number }) => {
+                let F = ends[x.i].F, idx = near[x.i];
+                let uv = idx.map( k => FilletCorner.uvOn( F, x.b, k ) );
+                let a = F.rows[idx[0]], b = F.rows[idx[1]], col = x.b == 0 ? 0 : F.m;
+                let K = 3 * rMax / Math.max( Vec.dist( a.points[col], b.points[col] ), 1e-300 );
+                let ext : UV = [uv[0][0] + K * (uv[0][0] - uv[1][0]), uv[0][1] + K * (uv[0][1] - uv[1][1])];
+                return { uv : [ext].concat( uv ), s : (z : number) => z >= 1 ? FilletCorner.lerpRow( F, idx, z - 1 ).s : a.s + (1 - z) * K * (a.s - b.s) };
+            };
+            let lp = line( p ), lq = line( q );
+            let cx = FilletCorner.polyCross( face, lp.uv, lq.uv );
+            if (cx == null) return null;
+            sX[p.i].push( lp.s( cx[0] ) );
+            sX[q.i].push( lq.s( cx[1] ) );
+        }
+        // each blend's end section, a setback short of its crossings
+        // (on a short edge, no more than a quarter of the room left to its other end, which may have a corner too)
+        let cut = ends.map( (x, i) => {
+            let F = x.F, n = F.rows.length;
+            let inner = x.e == 1 ? Math.min( ...sX[i] ) : Math.max( ...sX[i] );
+            let room = x.e == 1 ? inner - F.rows[2].s : F.rows[n - 3].s - inner;
+            let back = Math.min( FilletCorner.setbackFactor * rMax, 0.25 * room );
+            let s = x.e == 1 ? inner - back : inner + back;
+            if (s < F.rows[2].s || s > F.rows[n - 3].s) return null;
+            return FilletCorner.rowAt( F, s, x.e == 1 ? 1 : -1 );
+        } );
+        if (cut.some( c => c == null )) return null;
+        let rows = cut as Array<NonNullable<ReturnType<typeof FilletCorner.rowAt>>>;
+        ends.forEach( (x, i) => {
+            let r = rows[i], m = x.F.m;
+            x.F.trims[x.e] = r.points.map( (p, k) => ({ point : p, s : r.s, t : k / m, uv : k == 0 ? r.uvA : k == m ? r.uvB : undefined }) );
+        } );
+        // the domain's scale: world length per unit of the patch's polygon, the sides' mean length
+        let arcLen = (p : Array<Point>) => { let l = 0; for (let k = 1; k < p.length; k++) l += Vec.dist( p[k], p[k - 1] ); return l; };
+        // the face curves, from blend p's foot to blend q's
+        let foot = (i : number, b : number) => { let r = rows[i]; return { point : r.points[b == 0 ? 0 : r.points.length - 1], uv : b == 0 ? r.uvA : r.uvB }; };
+        let curves = touch.map( t => {
+            let [p, q] = t;
+            let S = faceOf( p.i, p.b ), D = BrepSolid.domainOf( S.face );
+            let fp = foot( p.i, p.b ), fq = foot( q.i, q.b );
+            let L = Vec.dist( fp.point, fq.point );
+            // the contact curves' directions towards the corner, in parameters per unit of length
+            let dir = (i : number, b : number) => {
+                let r = rows[i], col = b == 0 ? 0 : r.points.length - 1;
+                let speed = Math.max( Vec.norm( r.dP[col] ), 1e-300 );
+                return (b == 0 ? r.duvA : r.duvB).map( v => v / speed );
+            };
+            let m0 = dir( p.i, p.b ).map( v => v * L ), m1 = dir( q.i, q.b ).map( v => -v * L );
+            let a = fp.uv;
+            // the end unwrapped next to the start across a seam
+            let span = SurfaceIntersect.domain( S.face.surface );
+            let b2 : UV = [fq.uv[0], fq.uv[1]];
+            for (let k = 0; k < 2; k++) if (S.face.periodic[k]) {
+                let per = span[2 * k + 1] - span[2 * k];
+                while (b2[k] - a[k] > per / 2) b2[k] -= per;
+                while (a[k] - b2[k] > per / 2) b2[k] += per;
+            }
+            let N = Math.max( 4, ends[p.i].F.m );
+            let uv : Array<UV> = [], points : Array<Point> = [];
+            for (let k = 0; k <= N; k++) {
+                let t = k / N, t2 = t * t, t3 = t2 * t;
+                let h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+                let w : UV = [0, 1].map( c => h00 * a[c] + h10 * m0[c] + h01 * b2[c] + h11 * m1[c] ) as UV;
+                if (k == 0) { uv.push( fp.uv ); points.push( fp.point ); continue; }
+                if (k == N) { uv.push( fq.uv ); points.push( fq.point ); continue; }
+                let wd = SurfaceIntersect.toDomain( D, w );
+                uv.push( wd ); points.push( Eval.rationalSurfacePoint( S.face.surface, wd[0], wd[1] ) );
+            }
+            return { uv : uv, points : points, side : S };
+        } );
+        // the six sides in order round the corner: face curve, end section, face curve, ...
+        let order : Array<{ kind : "face", f : number, reverse : boolean } | { kind : "end", i : number, fromB : boolean }> = [];
+        let f = 0, cur = touch[0][0].i;
+        for (let n = 0; n < 3; n++) {
+            let t = touch[f];
+            let p = t[0].i == cur ? t[0] : t[1], q = t[0].i == cur ? t[1] : t[0];
+            order.push( { kind : "face", f : f, reverse : p !== t[0] } );
+            // q's end section, from its foot on f to its foot on its other face
+            order.push( { kind : "end", i : q.i, fromB : q.b == 1 } );
+            let other = ends[q.i].keys[1 - q.b];
+            f = keys.indexOf( other ); cur = q.i;
+        }
+        if (cur != touch[0][0].i || f != 0) return null;
+        let sides = order.map( o => {
+            if (o.kind == "face") { let c = curves[o.f]; return o.reverse ? c.points.slice().reverse() : c.points; }
+            let r = rows[o.i];
+            return o.fromB ? r.points.slice().reverse() : r.points;
+        } );
+        let lambda = sides.reduce( (a, p) => a + arcLen( p ), 0 ) / sides.length;
+        // the cross derivatives: along each blend, onwards into the corner; on each face, across its curve in the face's
+        // tangent plane, the way the blends' sections leave the face
+        let ribbons = order.map( (o, j) => {
+            let pts = sides[j];
+            if (o.kind == "end") {
+                let r = rows[o.i];
+                let d = r.dP.map( v => Vec.mul( lambda, v ) );
+                return { points : pts, cross : o.fromB ? d.reverse() : d };
+            }
+            let c = curves[o.f];
+            let uvs = o.reverse ? c.uv.slice().reverse() : c.uv;
+            let fs = c.side;
+            // the section leaving the face at the first foot
+            let t0 = touch[o.f].find( y => (o.reverse ? y === touch[o.f][1] : y === touch[o.f][0]) ) as { i : number, b : number };
+            let r0 = rows[t0.i], m = r0.points.length - 1;
+            let leave = t0.b == 0 ? Vec.sub( r0.points[1], r0.points[0] ) : Vec.sub( r0.points[m - 1], r0.points[m] );
+            let cross = pts.map( (p, k) => {
+                let uv = uvs[k];
+                let d = Eval.rationalSurfaceDerivatives( fs.face.surface, uv[0], uv[1], 1 );
+                let nrm = Vec.normalized( Vec.cross( d[1][0], d[0][1] ) );
+                let tan = Vec.normalized( Vec.sub( pts[Math.min( k + 1, pts.length - 1 )], pts[Math.max( k - 1, 0 )] ) );
+                return Vec.normalized( Vec.cross( nrm, tan ) );
+            } );
+            let sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
+            return { points : pts, cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
+        } );
+        let m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
+        // outward: away from the end sections' centres on a convex corner, towards them on a concave one
+        let c = Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) );
+        let triangles = m.triangles.map( t => {
+            let nrm = Vec.cross( Vec.sub( m.points[t[1]], m.points[t[0]] ), Vec.sub( m.points[t[2]], m.points[t[0]] ) );
+            let mid = Vec.mul( 1 / 3, Vec.add( m.points[t[0]], Vec.add( m.points[t[1]], m.points[t[2]] ) ) );
+            let out = Vec.dot( nrm, Vec.sub( mid, c ) ) * -side > 0;
+            return (out ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
+        } );
+        // the face curves cut their faces, as more cuts of the first blend on each
+        touch.forEach( (t, k) => {
+            let F = ends[t[0].i].F, cv = curves[k];
+            F.extra.push( { side : t[0].b, uv : cv.uv, points : cv.points } );
+        } );
+        let surface = Transfinite.surface( ribbons, 1e-3 * rMax );
+        return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surface, centre : c, radius : rMax };
+    }
+
+    // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points
+    // and of its feet's parameters along the blend (per unit of s, times dir), and its ball's centre.
+    private static rowAt( F : OpenBlend, s : number, dir : number ) {
+        let k = 0;
+        while (k + 2 < F.rows.length && F.rows[k + 1].s < s) k++;
+        let r0 = F.rows[k], r1 = F.rows[k + 1];
+        let ds = Math.max( r1.s - r0.s, 1e-300 ), f = Math.max( 0, Math.min( 1, (s - r0.s) / ds ) );
+        let DA = BrepSolid.domainOf( F.A.face ), DB = BrepSolid.domainOf( F.B.face );
+        let uvA = SurfaceIntersect.lerpUV( DA, f, r0.uvA, r1.uvA ), uvB = SurfaceIntersect.lerpUV( DB, f, r0.uvB, r1.uvB );
+        let points = r0.points.map( (p, i) => Vec.add( Vec.mul( 1 - f, p ), Vec.mul( f, r1.points[i] ) ) );
+        let m = points.length - 1;
+        points[0] = Eval.rationalSurfacePoint( F.A.face.surface, uvA[0], uvA[1] );
+        points[m] = Eval.rationalSurfacePoint( F.B.face.surface, uvB[0], uvB[1] );
+        let dP = r0.points.map( (p, i) => Vec.mul( dir / ds, Vec.sub( r1.points[i], p ) ) );
+        let duv = (D : ReturnType<typeof BrepSolid.domainOf>, a : UV, b : UV) : UV => {
+            let bb = SurfaceIntersect.lerpUV( D, 1, a, b ), dd = SurfaceIntersect.domain( D.surface );
+            // lerpUV wraps into the domain: undo the wrap
+            let out : UV = [bb[0] - a[0], bb[1] - a[1]];
+            for (let c = 0; c < 2; c++) if (D.periodic != null && D.periodic[c]) {
+                let per = dd[2 * c + 1] - dd[2 * c];
+                while (out[c] > per / 2) out[c] -= per;
+                while (out[c] < -per / 2) out[c] += per;
+            }
+            return [out[0] * dir / ds, out[1] * dir / ds];
+        };
+        return { s : s, points : points, uvA : uvA, uvB : uvB, dP : dP, duvA : duv( DA, r0.uvA, r1.uvA ), duvB : duv( DB, r0.uvB, r1.uvB ),
+                 centre : Vec.add( Vec.mul( 1 - f, r0.centre ), Vec.mul( f, r1.centre ) ) };
     }
 
     // The triangle on a sphere bounded by three arcs between three feet (each arc's points given from one foot to

@@ -43,9 +43,9 @@ export interface BooleanResult {
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
     fillets : Array<{ curve : number, radius : FilletRadius, blend : FilletResult }>;
-    // ball corners, where three fillets of one radius meet: the ball's centre and radius, and the corner's face in
-    // `faces`
-    corners : Array<{ centre : Point, radius : number, face : number }>;
+    // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
+    // centre and radius), a setback vertex blend otherwise (the mean of the end sections' centres, the largest radius)
+    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
@@ -253,7 +253,10 @@ export class BrepBoolean {
                 }
             }
             if (filleted.length == 3 && others.length == 0 && new Set( filleted.map( x => x.g ) ).size == 3) {
-                let patch = FilletCorner.ball( filleted.map( x => ({ F : openBlends.get( x.g ) as OpenBlend, e : x.end, keys : faceKeys( x.g ) as [string, string] }) ), tol );
+                let three = filleted.map( x => ({ F : openBlends.get( x.g ) as OpenBlend, e : x.end, keys : faceKeys( x.g ) as [string, string] }) );
+                // a ball where the three radii are equal there, a setback vertex blend otherwise
+                let patch = FilletCorner.ball( three, tol );
+                if (patch == null) patch = FilletCorner.setback( three, tol );
                 if (patch != null) {
                     ok = true;
                     balls.push( { g : filleted.map( x => x.g ), patch : patch } );
@@ -350,7 +353,7 @@ export class BrepBoolean {
         }
         let cornerInfo : BooleanResult["corners"] = [];
         for (let b of ballPatches) {
-            cornerInfo.push( { centre : b.centre, radius : b.radius, face : faces.length } );
+            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : faces.length } );
             let ids = b.points.map( p => welder.id( p ) );
             for (let tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
             faces.push( { solid : -1, face : -1, name : "fillet corner", surface : b.surface, reversed : b.reversed, loops : [] } );

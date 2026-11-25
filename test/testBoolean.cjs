@@ -235,6 +235,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		// each corner lies on its ball, which touches all three faces: every vertex at the radius from its centre
 		o.result.corners.length.should.be.equal(6);
 		o.result.corners.forEach(function(c){
+			c.kind.should.be.equal('ball');
 			c.radius.should.be.approximately(1, 1e-9);
 			var n = 0;
 			o.result.mesh.triangles.forEach(function(t, k){
@@ -245,6 +246,37 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 			n.should.be.above(3);
 		});
 		manifold(o.result.mesh).status().should.be.equal('NoError');
+	});
+
+	it('where three fillets of different radii meet, a setback vertex blend joins them smoothly', function(){
+		[[1, 0.6], [0.5, 1]].forEach(function(r){
+			var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : r[0], rimFillet : r[1], divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+			var R = o.result, rep = R.report;
+			rep.manifold.closedManifold.should.be.true();
+			rep.manifold.genus.should.be.equal(0);
+			rep.fillets.should.be.equal(15);
+			rep.filletsSkipped.should.be.equal(0);
+			R.corners.length.should.be.equal(6);
+			R.corners.forEach(function(c){ c.kind.should.be.equal('setback'); c.radius.should.be.approximately(Math.max(r[0], r[1]), 1e-6); });
+			// the corner patches meet the blends and the faces without a crease: the angle between the normals of
+			// triangles across a patch's boundary is no more than across the blends' own triangles
+			var V = R.mesh.vertices;
+			var nrm = function(t){ return lib.Vec.normalized(lib.Vec.cross(lib.Vec.sub(V[t[1]], V[t[0]]), lib.Vec.sub(V[t[2]], V[t[0]]))); };
+			var edges = new Map();
+			R.mesh.triangles.forEach(function(t, k){ for (var i = 0; i < 3; i++) {
+				var key = Math.min(t[i], t[(i + 1) % 3]) + ',' + Math.max(t[i], t[(i + 1) % 3]);
+				if (!edges.has(key)) edges.set(key, []); edges.get(key).push(k); } });
+			var name = function(k){ return R.faces[R.faceOf[k]].name; };
+			var across = 0, blend = 0;
+			edges.forEach(function(l){
+				var a = name(l[0]), b = name(l[1]);
+				var ang = Math.acos(Math.max(-1, Math.min(1, lib.Vec.dot(nrm(R.mesh.triangles[l[0]]), nrm(R.mesh.triangles[l[1]]))))) * 180 / Math.PI;
+				if ((a == 'fillet corner') != (b == 'fillet corner')) across = Math.max(across, ang);
+				if (a == 'fillet' && b == 'fillet') blend = Math.max(blend, ang);
+			});
+			across.should.be.below(Math.max(blend, 20));
+			manifold(R.mesh).status().should.be.equal('NoError');
+		});
 	});
 
 	it('curvature-continuous fillets go round the same corners: the ball corners bend to meet their sections', function(){

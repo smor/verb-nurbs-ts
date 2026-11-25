@@ -7,7 +7,7 @@ boundaries and how they would map to packages, so new code respects them now.
 
 | Folder | What it holds | Depends on |
 |---|---|---|
-| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`) | each other |
+| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
 | `solid` | B-reps, surface/surface intersection, Booleans, fillets, triangle meshes, makeability checks | core, eval |
