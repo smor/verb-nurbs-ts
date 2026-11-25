@@ -169,6 +169,68 @@ export class FilletCorner {
         return ok;
     }
 
+    // A blend that runs out onto a face: at a corner where its edge meets two sharp edges, A|C and B|C, the blend ends
+    // where it goes through the third face C. The trim is the blend's section by C: each column of the blend where it
+    // crosses C, from A's contact curve on edge A|C (t = 0) to B's on edge B|C (t = 1). Returns that section as a cut
+    // of C (its parameters on C and its points, which are the trim's), and the functions that put its ends into the
+    // edges where they are branches; null if the blend does not cross C there.
+    public static runout( F : OpenBlend, e : number, C : BrepFace, edgeA : ThirdEdge, edgeB : ThirdEdge, tol : number )
+        : { uv : Array<UV>, points : Array<Point>, inserts : Array<() => void> } | null {
+        const n = FilletCorner.near( F, e );
+        const ends : Array<TrimPoint> = [], endUV : Array<UV> = [], inserts : Array<() => void> = [];
+        for (const [b, edge] of [[1, edgeA], [0, edgeB]] as Array<[number, ThirdEdge]>) {
+            const c : Corner = { F : F, e : e, b : b, n : n, sX : 0 };
+            const r = FilletCorner.reach( c, edge, true, tol );
+            if (r == null) return null;
+            let point = r.point, uvOwn = r.uv, uvC : UV;
+            if (edge.kind == "curve") {
+                const q = FilletCorner.onCurve( edge, r.f as number, tol );
+                if (q == null) return null;
+                point = q.point; uvOwn = q.uv1; uvC = q.uv2;
+                inserts.push( q.insert );
+            } else {
+                const guess = SurfaceIntersect.project( C.surface, point );
+                guess[edge.axis2] = edge.value2;
+                uvC = FilletCorner.onSide( C, guess, edge.axis2, point );
+            }
+            ends.push( { point : point, s : r.s, t : b == 1 ? 0 : 1, uv : uvOwn } );
+            endUV.push( uvC );
+        }
+        // the inner columns: where each goes through C, by the sign of the distance to C along C's normal
+        const signed = (p : Point, seed : UV) => {
+            const uv = SurfaceIntersect.project( C.surface, p, 12, seed );
+            const d = Eval.rationalSurfaceDerivatives( C.surface, uv[0], uv[1], 1 );
+            return { g : Vec.dot( Vec.sub( p, d[0][0] ), Vec.cross( d[1][0], d[0][1] ) ), uv : uv };
+        };
+        const m = F.m, mid : Array<TrimPoint> = [], midUV : Array<UV> = [];
+        let seed = endUV[0];
+        for (let i = 1; i < m; i++) {
+            let found = false;
+            let prev = signed( F.rows[n[0]].points[i], seed );
+            for (let j = 1; j < n.length && !found; j++) {
+                const cur = signed( F.rows[n[j]].points[i], prev.uv );
+                if (prev.g == 0 || prev.g * cur.g <= 0) {
+                    const f = prev.g == cur.g ? 0 : prev.g / (prev.g - cur.g);
+                    const r0 = F.rows[n[j - 1]], r1 = F.rows[n[j]];
+                    const p = Vec.lerp( f, r1.points[i], r0.points[i] );
+                    const uv = SurfaceIntersect.project( C.surface, p, 12, prev.uv );
+                    // off C's domain (the blend's end would need C carried on past its edge): not done
+                    if (Vec.dist( Eval.rationalSurfacePoint( C.surface, uv[0], uv[1] ), p ) > 0.05 * F.radius) return null;
+                    mid.push( { point : Eval.rationalSurfacePoint( C.surface, uv[0], uv[1] ), s : r0.s + f * (r1.s - r0.s), t : i / m } );
+                    midUV.push( uv );
+                    seed = uv;
+                    found = true;
+                }
+                prev = cur;
+            }
+            if (!found) return null;
+        }
+        // the section must stay near the corner (within a few radii of the ends)
+        if (mid.some( x => Vec.dist( x.point, ends[0].point ) > 4 * F.radius )) return null;
+        F.trims[e] = [ends[0]].concat( mid, [ends[1]] );
+        return { uv : [endUV[0]].concat( midUV, [endUV[1]] ), points : F.trims[e]!.map( x => x.point ), inserts : inserts };
+    }
+
     // rows from the end inwards, as far as a few radii from the corner
     private static near( F : OpenBlend, e : number, radius : number = F.radius ) : Array<number> {
         const idx = F.rows.map( (_, k) => k );

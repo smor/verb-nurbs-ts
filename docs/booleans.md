@@ -201,8 +201,16 @@ Limits:
 * A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges meet:
   a ball for one radius and one kind (convex or concave), a setback vertex blend otherwise, including mixed corners
   (a convex fillet flaring into two concave ones, as where a rounded boss's vertical edge meets the fillets round its
-  base). More than three edges, or a rounded edge meeting an unrounded one, are left sharp and counted in
-  `report.filletsSkipped`, with the other edges around the same corners.
+  base). More than three edges are left sharp and counted in `report.filletsSkipped`, with the other edges around
+  the same corners.
+* A rounded edge that meets two sharp ones **runs out** onto the third face there (the vertical edges of a box under a
+  sharp top, a slot's rim where it leaves the block, the inside corners of an open tray at the rim). The blend ends
+  at its section by that face: each column of the blend where it crosses the face, from one contact curve on the
+  first sharp edge to the other on the second, and that section is cut into the face. On a convex edge the face's
+  corner outside the section is cut off; on a concave one it is filled in, on the side the rest of the face is kept.
+  The third face may be a face of either solid, met at a slant. Where the section leaves the third face's surface
+  (a fillet at a narrow step's foot, running off its side into the air) the face would have to be carried on past its
+  edge: that is not done, and the edge is left sharp and counted.
 * Where contact curves cross beyond a blend's end (two concave fillets round a convex edge, at a boss's base), they
   are carried on straight past their ends to find the crossing, for mitres as for setbacks.
 * An own edge that a Boolean's branch ends on (a boss's vertical edge, where it enters the base) is split there; each

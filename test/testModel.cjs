@@ -271,3 +271,60 @@ describe("verb.model.Model shells", function(){
 		bad({ box : box(), s : { type : 'shell', of : 'box', thickness : 1 }, s2 : { type : 'shell', of : 's', thickness : 1 } }, 's2').should.throw(/cannot be shelled again/);
 	});
 });
+
+describe("verb.model.Model fillets that run out onto a face", function(){
+	this.timeout(budget(120000));
+
+	var block = function(){ return { type : 'box', min : [0, 0, 0], max : [40, 30, 20] }; };
+	var slot = function(){ return { type : 'box', min : [15, -5, 12], max : [25, 35, 25] }; };
+	var quarter = function(r){ return (4 - Math.PI) * r * r / 4; }; // the corner area a radius takes off a right angle
+	var evaluate = function(features, rules){ features.r = { type : 'round', of : features.out, rules : rules }; var out = features.out; delete features.out; return new Model().evaluate({ version : 1, features : features, output : 'r' }); };
+
+	it('rounds only the vertical edges of a box: each blend ends on the top and the bottom, cut by them', function(){
+		var r = evaluate({ block : block(), out : 'block' }, [{ edges : '*z*', radius : 0 }, { edges : '*', radius : 4 }]);
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.fillets.should.be.equal(4);
+		r.result.report.volume.should.be.approximately(24000 - 4 * quarter(4) * 20, 1e-3 * 24000);
+	});
+
+	it('rounds a slot: rims cut off where they leave the block, the bottom filled in on the block\'s sides', function(){
+		var f = function(){ return { block : block(), slot : slot(), d : { type : 'difference', from : 'block', minus : ['slot'] }, out : 'd' }; };
+		var rims = evaluate(f(), [{ edges : 'block.+z|slot.*', radius : 2 }]);
+		rims.verdict.kind.should.be.equal('buildable');
+		// (the blends' chords take off a little more than the arcs: within a sixth of what the fillets take)
+		rims.result.report.volume.should.be.approximately(21600 - 2 * quarter(2) * 30, 2 * quarter(2) * 30 / 6);
+		var bottom = evaluate(f(), [{ edges : 'block.*|slot.-z', radius : 0 }, { edges : '*slot.-z*', radius : 2 }]);
+		bottom.verdict.kind.should.be.equal('buildable');
+		bottom.result.report.volume.should.be.approximately(21600 + 2 * quarter(2) * 30, 2 * quarter(2) * 30 / 6);
+		// turned, the blends meet the sides at a slant
+		var turned = f(); turned.t = { type : 'transform', of : 'slot', rotate : { axis : [0, 0, 1], degrees : 20, about : [20, 15, 0] } }; turned.d.minus = ['t'];
+		var slant = evaluate(turned, [{ edges : 'block.+z|t/slot.*', radius : 2 }, { edges : 'block.*|t/slot.-z', radius : 0 }, { edges : '*t/slot.-z*', radius : 2 }]);
+		slant.verdict.kind.should.be.equal('buildable');
+		slant.result.report.fillets.should.be.equal(4);
+	});
+
+	it('rounds the vertical edges of a block with a slanted top, ending on the cut', function(){
+		var r = evaluate({ block : block(), cutter : { type : 'box', min : [-10, -10, 16], max : [50, 40, 40] },
+			tilt : { type : 'transform', of : 'cutter', rotate : { axis : [1, 0, 0], degrees : 15, about : [0, 0, 16] } },
+			d : { type : 'difference', from : 'block', minus : ['tilt'] }, out : 'd' }, [{ edges : 'block.*x|block.*y', radius : 3 }, { edges : 'block.*y|block.*x', radius : 3 }]);
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.fillets.should.be.equal(4);
+	});
+
+	it('rounds an open tray inside and out, the inside corners filled in up to the rim', function(){
+		var r = new Model().evaluate({ version : 1, features : { box : block(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] },
+			r : { type : 'round', of : 'tray', rules : [{ edges : '*box.+z*', radius : 0 }, { edges : 'box.*', radius : 4 }, { edges : '*', radius : 2 }] } }, output : 'r' });
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.fillets.should.be.equal(16);
+		r.walls[0].thinnest.should.be.above(2 * (1 - Model.WALL_TOLERANCE));
+	});
+
+	it('leaves sharp, and says so, a blend that would need its face carried on past an edge', function(){
+		// a step narrower than the block: the fillet at its foot runs off the step's side into the air
+		var r = evaluate({ block : block(), step : { type : 'box', min : [0, 5, 20], max : [20, 25, 30] }, u : { type : 'union', of : ['block', 'step'] }, out : 'u' },
+			[{ edges : 'block.+z|step.+x', radius : 3 }]);
+		r.verdict.kind.should.be.equal('visual');
+		r.result.report.filletsSkipped.should.be.equal(1);
+		r.result.report.manifold.closedManifold.should.be.true();
+	});
+});

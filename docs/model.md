@@ -128,8 +128,8 @@ How the inside is built, after J. R. Rossignac and A. A. G. Requicha, "Offsettin
   away), Booleans and rigid or uniformly scaled transforms. Revolves, and a shell of a shell, are refused with a
   message. An open face's offset goes `thickness` past it: a feature standing over an open face is cut there (the
   wall check reports it).
-* A fillet that runs out onto a face (an edge ending where two sharp edges meet, such as the vertical edges of a
-  box under an open top) is left sharp, and the verdict says so.
+* A fillet that runs out onto a face is cut by it (see `docs/booleans.md`), unless the face would have to be carried on
+  past its edge to take it (a fillet at the foot of a narrow step): that edge is left sharp, and the verdict says so.
 * The same primitive cannot appear twice in one Boolean without a transform (its faces' names would clash).
 * Fillets on a Boolean's new edges can still fail for some placements, such as a bore's rim on some positions and
   radii. The verdict reports these as visual (open edges). Making the Boolean and fillet engine robust there is the
