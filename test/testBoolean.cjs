@@ -1,6 +1,7 @@
 var should = require('should');
 
 var lib = require('../dist/index.js');
+var budget = require('./support/budget.cjs');
 var verb = lib.default;
 var Sweep = lib.Sweep, Make = verb.eval.Make, Eval = verb.eval.Eval, Vec = verb.core.Vec;
 var BrepSolid = lib.BrepSolid, BrepBoolean = lib.BrepBoolean, SurfaceIntersect = lib.SurfaceIntersect;
@@ -162,7 +163,7 @@ describe("verb.solid.BrepBoolean across face edges", function(){
 });
 
 describe("verb.recipes.BooleanObjectsRecipe", function(){
-	this.timeout(60000);
+	this.timeout(budget(60000));
 
 	it('mug: (body + handle) - cavity is a genus 1 solid accepted by manifold-3d', function(){
 		var o = lib.BooleanObjectsRecipe.mug({ divsU : 32, divsV : 128 });

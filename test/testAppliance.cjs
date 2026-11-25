@@ -1,5 +1,6 @@
 var should = require('should');
 var lib = require('../dist/index.js');
+var budget = require('./support/budget.cjs');
 
 var wasm;
 before(async function(){
@@ -10,7 +11,7 @@ before(async function(){
 function manifold(mesh) { return new wasm.Manifold(new wasm.Mesh(mesh.toManifoldMesh())); }
 
 describe("verb.recipes.ApplianceRecipe", function(){
-	this.timeout(120000);
+	this.timeout(budget(120000));
 	var a;
 	before(function(){ a = lib.ApplianceRecipe.build({ fine : false }); });
 
@@ -88,7 +89,7 @@ describe("verb.recipes.ApplianceRecipe", function(){
 });
 
 describe("verb.solid.BrepBoolean with surfaces of revolution", function(){
-	this.timeout(60000);
+	this.timeout(budget(60000));
 	it('a perfectly round mug (both seams crossing a branch at one point) is watertight', function(){
 		var m = lib.BooleanObjectsRecipe.mug({ height : 170, radius : [58, 76], linearRadius : true, belly : 0, lean : [0, 0], harmonics : [],
 			divsU : 24, divsV : 96, offsetTolerance : 0.08 });

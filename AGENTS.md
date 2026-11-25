@@ -55,7 +55,9 @@ and explain why.
 - Commit messages say what changed and why, in the imperative.
 - Run one spec while iterating: `npm run build && npx mocha --no-config --timeout 60000 test/testFillet.cjs -g "box"`.
   `.mocharc.json` otherwise runs every spec.
-- The full suite takes about 3 to 4 minutes. Run it before pushing, not after every edit.
+- The suite runs spec files in parallel and takes about a minute and a half on four cores (several minutes under
+  coverage). Run it before pushing, not after every edit. Slow suites take their time budget from
+  `test/support/budget.cjs`, which scales it under coverage only.
 
 ## For AI agents in particular
 

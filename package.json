@@ -15,7 +15,7 @@
     "lint": "eslint . --max-warnings $npm_package_config_maxLintWarnings",
     "test": "npm run build && mocha",
     "test:fast": "mocha",
-    "coverage": "npm run build && c8 --check-coverage --lines 94 --branches 88 --functions 90 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
+    "coverage": "npm run build && c8 --check-coverage --lines 95 --branches 89 --functions 91 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
     "docs": "typedoc",
     "check": "npm run typecheck && npm run layers && npm run lint && npm test",
     "prepare": "git config core.hooksPath .githooks || true",
