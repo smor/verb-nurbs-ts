@@ -41,6 +41,8 @@ export interface CornerPatch {
     surface : NurbsSurfaceData;
     centre : Point;
     radius : number;
+    // a patch carried by several surfaces (a setback corner's six four-sided pieces): each with its triangles
+    parts? : Array<{ surface : NurbsSurfaceData, triangles : Array<[number, number, number]> }>;
 }
 
 export interface OpenBlend {
@@ -668,8 +670,14 @@ export class FilletCorner {
             let F = ends[t[0].i].F, cv = curves[k];
             F.extra.push( { side : t[0].b, uv : cv.uv, points : cv.points } );
         } );
-        let surface = Transfinite.surface( ribbons, 1e-3 * rMax );
-        return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surface, centre : c, radius : rMax };
+        // six four-sided B-spline surfaces, each carrying the triangles in its part of the polygon
+        let surfaces = Transfinite.surfaces( ribbons, 1e-3 * rMax );
+        let part = m.triangles.map( t => {
+            let x = m.domain[t[0]], y = m.domain[t[1]], z = m.domain[t[2]];
+            return Transfinite.quadOf( ribbons.length, [(x[0] + y[0] + z[0]) / 3, (x[1] + y[1] + z[1]) / 3] );
+        } );
+        return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
+                 parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ) };
     }
 
     // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points

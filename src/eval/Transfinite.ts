@@ -90,29 +90,33 @@ export class Transfinite {
         return { points : points, triangles : tris, boundary : nb, domain : xy };
     }
 
-    // The patch as one B-spline surface: the polygon is the image of the square [0, 1]^2 by a radial map, so the
-    // surface's four sides together trace the patch's n sides.
-    public static surface( ribbons : Array<Ribbon>, tolerance : number ) : NurbsSurfaceData {
+    // The patch as n B-spline surfaces, the usual way to carry an n-sided patch in a four-sided world: the polygon is
+    // split into n quadrilaterals, each from a vertex to the midpoints of its two sides and the centre, and each is the
+    // image of the unit square by a bilinear map (smooth, unlike a radial map of one square onto the whole polygon,
+    // whose kinks along the diagonals the fit would have to follow). Surface i has (0, 0) at vertex i, u along side i
+    // to its midpoint, v along side i - 1 back to its midpoint; neighbours share their sides from a midpoint to the
+    // centre, where both fit the same smooth patch, to within the tolerance.
+    public static surfaces( ribbons : Array<Ribbon>, tolerance : number ) : Array<NurbsSurfaceData> {
         let n = ribbons.length;
         let P = Transfinite.polygon( n );
-        let r0 = 0.5 / Math.tan( Math.PI / n );
-        let f = (u : number, v : number) : Point => {
-            let x = 2 * u - 1, y = 2 * v - 1;
-            let m = Math.max( Math.abs( x ), Math.abs( y ) );
-            if (m < 1e-15) return Transfinite.evaluate( ribbons, [0, 0], P );
-            // the polygon's boundary in direction (x, y): the smallest distance along it to a side's line
-            let len = Math.sqrt( x * x + y * y ), dx = x / len, dy = y / len;
-            let reach = Infinity;
-            for (let i = 0; i < n; i++) {
-                let a = P[i], b = P[(i + 1) % n];
-                let nx = b[1] - a[1], ny = a[0] - b[0], nl = Math.sqrt( nx * nx + ny * ny );
-                let dot = (dx * nx + dy * ny) / nl;
-                if (dot > 1e-12) reach = Math.min( reach, r0 / dot );
-            }
-            return Transfinite.evaluate( ribbons, [dx * reach * m, dy * reach * m], P );
-        };
-        let knots = [0, 0, 0, 0, 0.25, 0.5, 0.75, 1, 1, 1, 1];
-        return Fit.approximateSurface( f, 3, 3, knots, knots, tolerance, 4 ).surface;
+        let mid = P.map( (a, i) => { let b = P[(i + 1) % n]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as [number, number]; } );
+        let knots = [0, 0, 0, 0, 0.5, 1, 1, 1, 1];
+        return P.map( (v, i) => {
+            let m1 = mid[i], m0 = mid[(i + n - 1) % n];
+            let f = (u : number, w : number) : Point => {
+                let x : [number, number] = [0, 1].map( k => (1 - u) * (1 - w) * v[k] + u * (1 - w) * m1[k] + u * w * 0 + (1 - u) * w * m0[k] ) as [number, number];
+                return Transfinite.evaluate( ribbons, x, P );
+            };
+            return Fit.approximateSurface( f, 3, 3, knots, knots, tolerance, 6 ).surface;
+        } );
+    }
+
+    // Which of the `surfaces` a point of the polygon lies on: the nearest vertex's.
+    public static quadOf( n : number, x : [number, number] ) : number {
+        let P = Transfinite.polygon( n );
+        let best = 0;
+        for (let i = 1; i < n; i++) if (Math.hypot( P[i][0] - x[0], P[i][1] - x[1] ) < Math.hypot( P[best][0] - x[0], P[best][1] - x[1] )) best = i;
+        return best;
     }
 
     // Distances from x to each side's line, positive inside.

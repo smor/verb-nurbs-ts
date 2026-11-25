@@ -45,7 +45,8 @@ export interface BooleanResult {
     fillets : Array<{ curve : number, radius : FilletRadius, blend : FilletResult }>;
     // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
     // centre and radius), a setback vertex blend otherwise (the mean of the end sections' centres, the largest radius)
-    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number }>;
+    // (`faces`: all the corner's faces, one for a ball, six four-sided ones for a setback; `face`: the first)
+    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number, faces : Array<number> }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
@@ -353,10 +354,14 @@ export class BrepBoolean {
         }
         let cornerInfo : BooleanResult["corners"] = [];
         for (let b of ballPatches) {
-            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : faces.length } );
+            let first = faces.length;
             let ids = b.points.map( p => welder.id( p ) );
-            for (let tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
-            faces.push( { solid : -1, face : -1, name : "fillet corner", surface : b.surface, reversed : b.reversed, loops : [] } );
+            let parts = b.parts != null ? b.parts : [{ surface : b.surface, triangles : b.triangles }];
+            for (let part of parts) {
+                for (let tri of part.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
+                faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed, loops : [] } );
+            }
+            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ) } );
         }
         out.vertices = welder.mesh.vertices;
         faceOf = faceOf.filter( (_, k) => { let t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; } );

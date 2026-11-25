@@ -69,13 +69,22 @@ describe("Transfinite n-sided patches", function(){
 		});
 	});
 
-	it('fits one B-spline surface whose sides trace the patch', function(){
-		var S = function(x, y){ return [x, y, 0.3 * (x * x - y * y)]; };
-		var dS = function(x, y){ return [[1, 0, 0.6 * x], [0, 1, -0.6 * y]]; };
+	it('fits n four-sided B-spline surfaces that meet along their shared sides and trace the patch', function(){
+		var S = function(x, y){ return [x, y, 0.3 * (x * x - y * y) + 0.1 * x * x * x]; };
+		var dS = function(x, y){ return [[1, 0, 0.6 * x + 0.3 * x * x], [0, 1, -0.6 * y]]; };
 		var R = ribbonsOf(S, dS, 6, 128);
-		var srf = Transfinite.surface(R, 1e-4);
-		// the surface's corner (u, v) = (0, 0) maps onto the polygon's boundary, so onto the source surface
-		var p = Eval.rationalSurfacePoint(srf, 0, 0.5);
-		Math.abs(p[2] - S(p[0], p[1])[2]).should.be.below(1e-3);
+		var srf = Transfinite.surfaces(R, 1e-5);
+		srf.length.should.be.equal(6);
+		srf.forEach(function(s, i){
+			var next = srf[(i + 1) % 6];
+			for (var k = 0; k <= 8; k++) {
+				var t = k / 8;
+				// u = 1 (side i's midpoint to the centre) is the next surface's v = 1, from its side's midpoint
+				Vec.dist(Eval.rationalSurfacePoint(s, 1, t), Eval.rationalSurfacePoint(next, t, 1)).should.be.below(1e-4);
+				// and each one's patch matches the evaluated patch along v = 0 (the boundary)
+				var p = Eval.rationalSurfacePoint(s, t, 0);
+				Math.abs(p[2] - S(p[0], p[1])[2]).should.be.below(1e-3);
+			}
+		});
 	});
 });

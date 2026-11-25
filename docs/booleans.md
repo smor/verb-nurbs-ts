@@ -154,8 +154,11 @@ split", 1995):
   side carries a ribbon, its boundary and the derivative across it: along a blend's end section, the blend's own
   derivative along the edge; along a face curve, the direction in the face's tangent plane square to the curve, the
   way the blends' sections leave the face. The patch interpolates every boundary and matches every ribbon's tangent
-  plane, so it is G1 with the blends and the faces all round. The surface reported for the corner face is a bicubic
-  B-spline fitted to the patch over a square whose sides map onto the hexagon's.
+  plane, so it is G1 with the blends and the faces all round. The corner is carried by six four-sided bicubic B-spline
+  surfaces, the usual CAD form of an n-sided patch: the hexagon is split into six quadrilaterals (a vertex, the
+  midpoints of its two sides, the centre), each mapped bilinearly from the unit square and fitted to the patch, so
+  neighbours meet along their shared sides to within the fit's tolerance. (A single square mapped radially onto the
+  hexagon was tried first: the map's kinks along the diagonals showed up as creases in the fit.)
 
 The setback makes the corner a smooth "pillow" in place of the crease a ball corner would need between unequal
 blends.
