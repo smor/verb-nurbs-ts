@@ -246,6 +246,30 @@ sat on the seam was taken for the wrong end of the domain. `BrepBoolean.cleanSea
 exactly on a periodic seam and merges repeated vertices, combining their flags. `facePieces` reads which end of the
 domain a seam vertex stands for from the first neighbour that is not itself on the seam.
 
+## Coincident faces
+
+Solids placed flush with each other are everyday modelling: a slot through a plate, a boss standing on a face, two
+parts sharing a face. Three things make them work.
+
+* **On-classification (regularised set operations, after Requicha).** A region of a face that lies on a face of
+  another solid is neither inside nor outside it. Just behind the region, that solid is inside where its face points
+  the same way and outside where it points against; just in front, the reverse. The region is a face of the result
+  where the expression differs across it, and of all the solids sharing it, the first keeps it. Coincidence is
+  decided at the centres of the region's largest triangles, projected exactly onto the other solid's faces
+  (`SurfaceIntersect.project`: a grid seed, then Newton).
+* **Sides lying on faces.** When a side of one face's domain lies on the other surface along its whole length (a
+  tube ending on a plane, a box's edge on another box's face), the meshes touch along an edge and their intersection
+  breaks up. `SurfaceIntersect.sidesOn` gives that branch exactly (the side, sampled, and its projection), and the
+  pieces found along it are dropped. A cut that lies along a face's side gives that side its points (the grid nodes
+  inside it are left out), and the face across that edge of the same solid gets the same cut, so the three faces
+  that meet there share their vertices.
+* **One cut per curve.** Two coincident faces crossing a third face (a boss's cap on a box's top, both crossed by a
+  bore) give two branches along the same curve. The third face is cut by the first of them only.
+
+The test "BrepBoolean degenerate configurations" runs 21 such cases (flush slots, notches, pockets, equal solids,
+boxes touching at a vertex, bores through a corner or along an edge, bosses, stacked cylinders, counterbores): each
+is closed, with the exact volume. On the code before this, 17 of them failed.
+
 ## How it is checked
 
 * The intersection points lie on both surfaces to about 1e-9 (`report.maxCurveError`).
@@ -264,9 +288,13 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
 * **More than two branches crossing at one point** (four or more faces meeting) is not handled.
-* **Tangent and coincident faces.** Isolated points of tangency are detected and reported. Faces that touch along a
-  curve, or that overlap over an area, are not handled. Leave tools long and let the Boolean cut them, as the mug
-  does with its handle and cavity, rather than placing faces flush.
+* **Tangent faces.** Isolated points of tangency are detected and reported. Faces tangent along a curve (a
+  cylinder lying on a plane) and near-tangent pairs are not handled; the result can be open. Coincident faces and
+  sides lying on faces are handled (see "Coincident faces" above).
+* **Symmetric seeds.** Branches are seeded from the intersection of the two faces' grid meshes. Where both meshes put
+  vertices on the branch (a bore at exactly half a coaxial cap's radius), the seeds break up and the bore can be lost
+  with the result still closed. Topology-guaranteeing subdivision tests (Barton, Elber and Hanniel's no-loop and
+  single-component tests) are the planned fix.
 * **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).

@@ -134,6 +134,47 @@ describe("verb.solid.BrepBoolean", function(){
 	});
 });
 
+describe("verb.solid.BrepBoolean degenerate configurations", function(){
+	// faces that coincide, sides that lie on faces, edges and vertices that touch: each comes out a closed manifold
+	// with the exact volume (to the tessellation, for curved faces). Near-tangent and tangent pairs are not here yet.
+	var P = Math.PI;
+	function B(a, b) { return BrepSolid.box(a, b, 12); }
+	function C(a, b, r) { return BrepSolid.cappedTube(Sweep.pipe(line(a, b), r).surface, [24, 96]); }
+	var cases = [
+		['two boxes sharing a face', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([10,0,0],[20,10,10])]); }, 2000],
+		['offset boxes, coplanar tops and bottoms (union)', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([5,5,0],[15,15,10])]); }, 1750],
+		['offset boxes, coplanar tops and bottoms (difference)', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([5,5,0],[15,15,10])]); }, 750],
+		['a slot flush with top and bottom', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([3,-1,0],[7,11,10])]); }, 600],
+		['a pocket flush with the top', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([3,3,5],[7,7,10])]); }, 920],
+		['a notch with three flush faces', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([5,5,5],[10,10,10])]); }, 875],
+		['a box on a box, an edge on a face', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([2,2,10],[8,8,14])]); }, 1144],
+		['a box on a box, partly over the edge', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([5,5,10],[15,15,20])]); }, 2000],
+		['a box flush with a corner, its edges on the faces', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([5,5,5],[10,10,15])]); }, 1125],
+		['equal boxes (union)', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([0,0,0],[10,10,10])]); }, 1000],
+		['equal boxes (intersection)', function(){ return BrepBoolean.intersection([B([0,0,0],[10,10,10]), B([0,0,0],[10,10,10])]); }, 1000],
+		['boxes touching at a vertex', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), B([10,10,10],[20,20,20])]); }, 2000],
+		['a bore through a box\'s corner', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [C([10,10,-5],[10,10,15],3)]); }, 1000 - P * 9 * 10 / 4],
+		['a bore whose axis is a box\'s edge', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [C([10,5,-5],[10,5,15],3)]); }, 1000 - P * 9 * 10 / 2],
+		['a blind bore flush with the top', function(){ return BrepBoolean.difference(B([0,0,0],[10,10,10]), [C([5,5,3],[5,5,10],2)]); }, 1000 - P * 4 * 7],
+		['a boss standing on a face', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), C([5,5,10],[5,5,15],3)]); }, 1000 + P * 9 * 5],
+		['a boss and a coaxial bore through both (three solids)', function(){ return BrepBoolean.evaluate([B([0,0,0],[10,10,10]), C([5,5,10],[5,5,15],3), C([5,5,-1],[5,5,16],1.4)], function(f){ return (f[0] || f[1]) && !f[2]; }); }, 1000 + P * 9 * 5 - P * 1.96 * 15],
+		['stacked cylinders', function(){ return BrepBoolean.union([C([0,0,0],[0,0,10],3), C([0,0,10],[0,0,20],3)]); }, P * 9 * 20],
+		['stacked cylinders of two radii', function(){ return BrepBoolean.union([C([0,0,0],[0,0,10],3), C([0,0,10],[0,0,20],2)]); }, P * 9 * 10 + P * 4 * 10],
+		['a counterbore flush with a cylinder\'s end', function(){ return BrepBoolean.difference(C([0,0,0],[0,0,10],5), [C([0,0,5],[0,0,10],2)]); }, P * 25 * 10 - P * 4 * 5]
+	];
+	cases.forEach(function(c){
+		it(c[0], function(){
+			var r = c[1]();
+			r.report.manifold.closedManifold.should.be.true();
+			r.report.volume.should.be.approximately(c[2], 2e-3 * c[2]);
+		});
+	});
+	it('equal boxes (difference) leave nothing', function(){
+		var r = BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([0,0,0],[10,10,10])]);
+		r.mesh.triangles.length.should.be.equal(0);
+	});
+});
+
 describe("verb.solid.BrepBoolean fillets across a seam", function(){
 	// a contact curve on the bore's tube ends a rounding error off its seam (v = 1e-15 instead of 0): that end must
 	// still close the cut, or a sliver triangle bridges it and the tube merges with the fillet's strip and is dropped

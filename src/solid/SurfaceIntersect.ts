@@ -103,6 +103,25 @@ export class SurfaceIntersect {
             c = SurfaceIntersect.insertSeams( A, B, c, tol );
             out.push( c );
         }
+        // a side of one domain lying on the other surface (a boss standing on a face, a tube ending on a plane): the
+        // meshes touch there along a whole edge, which their intersection resolves poorly; the branch is that side,
+        // exactly, and the branches found along it are dropped
+        const eps = Math.max( 1e3 * tol, 1e-7 * Math.max( SurfaceIntersect.size( ma ), SurfaceIntersect.size( mb ) ) );
+        const sides = SurfaceIntersect.sidesOn( A, B, step, eps ).map( x => ({ c : x.c, side : x.side, a : true }) ).concat(
+            SurfaceIntersect.sidesOn( B, A, step, eps ).map( x => ({ c : SurfaceIntersect.swap( x.c ), side : x.side, a : false }) ) );
+        if (sides.length > 0) {
+            const da = SurfaceIntersect.domain( a ), db = SurfaceIntersect.domain( b );
+            const on = (c : IntersectionCurve) => sides.some( x => {
+                const d = x.a ? da : db, uv = x.a ? c.uvA : c.uvB, w = d[2 * x.side.axis + 1] - d[2 * x.side.axis];
+                return uv.every( p => Math.abs( p[x.side.axis] - x.side.value ) < 1e-6 * w );
+            } );
+            for (let k = out.length - 1; k >= 0; k--) if (on( out[k] )) out.splice( k, 1 );
+            // a side of each lying on the other (two faces meeting at a right angle along both their edges): once
+            sides.forEach( (x, k) => {
+                if (!x.a && sides.some( (y, j) => j < k && y.a && x.c.uvA.every( p => Math.abs( p[y.side.axis] - y.side.value ) < 1e-6 * (da[2 * y.side.axis + 1] - da[2 * y.side.axis]) ) )) return;
+                out.push( SurfaceIntersect.insertSeams( A, B, x.c, tol ) );
+            } );
+        }
         const touching : Array<CriticalPoint> = [];
         if (o.loops !== false) {
             const found = SurfaceLoops.seeds( A, B, { cells : o.loopCells } );
@@ -197,6 +216,93 @@ export class SurfaceIntersect {
         const p = S.periodic != null ? S.periodic : [false, false];
         for (let k = 0; k < 2; k++) if (!p[k] && (uv[k] < d[2 * k] - 1e-12 || uv[k] > d[2 * k + 1] + 1e-12)) return false;
         return true;
+    }
+
+    // The sides of A's domain that lie on B along their whole length (not where the surfaces coincide), each as a
+    // branch with A's parameters exactly on the side.
+    public static sidesOn( A : SurfaceDomain, B : SurfaceDomain, step : number, eps : number ) : Array<{ c : IntersectionCurve, side : { axis : number, value : number } }> {
+        const a = A.surface, b = B.surface, d = SurfaceIntersect.domain( a );
+        const onB = (p : Point) : UV | null => {
+            const uv = SurfaceIntersect.project( b, p );
+            return Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), p ) < eps ? uv : null;
+        };
+        const normal = (s : NurbsSurfaceData, uv : UV) => {
+            const x = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+            return Vec.normalized( Vec.cross( x[1][0], x[0][1] ) );
+        };
+        const out : Array<{ c : IntersectionCurve, side : { axis : number, value : number } }> = [];
+        for (let axis = 0; axis < 2; axis++) {
+            const periodic = A.periodic != null && A.periodic[axis];
+            if (periodic) continue; // a seam is inside the face
+            const other = 1 - axis, closed = A.periodic != null && A.periodic[other];
+            const lo = d[2 * other], hi = d[2 * other + 1];
+            for (const value of [d[2 * axis], d[2 * axis + 1]]) {
+                const at = (t : number) : UV => axis == 0 ? [value, t] : [t, value];
+                // a quick test at a few points, then the whole side
+                const probe = [0.13, 0.37, 0.61, 0.89].map( f => lo + (hi - lo) * f );
+                const probeUV = probe.map( t => onB( Eval.rationalSurfacePoint( a, at( t )[0], at( t )[1] ) ) );
+                if (probeUV.some( x => x == null )) continue;
+                // where the surfaces coincide next to the side, it is not an edge of their intersection
+                const inner = at( probe[1] );
+                inner[axis] = value + (axis == 0 ? (d[1] - d[0]) : (d[3] - d[2])) * (value == d[2 * axis] ? 0.01 : -0.01);
+                const qi = onB( Eval.rationalSurfacePoint( a, inner[0], inner[1] ) );
+                if (qi != null && Math.abs( Vec.dot( normal( a, inner ), normal( b, qi ) ) ) > 1 - 1e-6) continue;
+                let len = 0, prev : Point | null = null;
+                for (let k = 0; k <= 64; k++) {
+                    const uv = at( lo + (hi - lo) * k / 64 );
+                    const p = Eval.rationalSurfacePoint( a, uv[0], uv[1] );
+                    if (prev != null) len += Vec.dist( p, prev );
+                    prev = p;
+                }
+                const n = Math.max( 8, Math.ceil( len / step ) );
+                const pts : Array<Point> = [], ua : Array<UV> = [], ub : Array<UV> = [];
+                let ok = true;
+                for (let k = 0; k < (closed ? n : n + 1); k++) {
+                    const uv = at( lo + (hi - lo) * k / n );
+                    const p = Eval.rationalSurfacePoint( a, uv[0], uv[1] );
+                    const q = onB( p );
+                    if (q == null) { ok = false; break; }
+                    pts.push( p ); ua.push( uv ); ub.push( q );
+                }
+                if (!ok) continue;
+                out.push( { c : { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed },
+                            side : { axis : axis, value : value } } );
+            }
+        }
+        return out;
+    }
+
+    // The parameters of the point of a surface nearest to p: the nearest of a grid of samples, then Newton steps on
+    // the distance, clamped to the domain (a point beyond the surface's side ends on that side). Cheap enough to call
+    // per point, unlike a closest point that tessellates.
+    public static project( s : NurbsSurfaceData, p : Point, grid : number = 12 ) : UV {
+        const d = SurfaceIntersect.domain( s );
+        let best : UV = [d[0], d[2]], bd = Infinity;
+        for (let i = 0; i <= grid; i++) for (let j = 0; j <= grid; j++) {
+            const uv : UV = [d[0] + (d[1] - d[0]) * i / grid, d[2] + (d[3] - d[2]) * j / grid];
+            const x = Vec.distSquared( Eval.rationalSurfacePoint( s, uv[0], uv[1] ), p );
+            if (x < bd) { bd = x; best = uv; }
+        }
+        let uv = best;
+        for (let it = 0; it < 30; it++) {
+            const e = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 2 );
+            const r = Vec.sub( e[0][0], p ), su = e[1][0], sv = e[0][1];
+            const f = Vec.dot( r, su ), g = Vec.dot( r, sv );
+            const a = Vec.dot( su, su ) + Vec.dot( r, e[2][0] ), b = Vec.dot( su, sv ) + Vec.dot( r, e[1][1] ), c = Vec.dot( sv, sv ) + Vec.dot( r, e[0][2] );
+            const det = a * c - b * b;
+            if (Math.abs( det ) < 1e-300) break;
+            const du = (c * f - b * g) / det, dv = (a * g - b * f) / det;
+            const next : UV = [Math.min( d[1], Math.max( d[0], uv[0] - du ) ), Math.min( d[3], Math.max( d[2], uv[1] - dv ) )];
+            const moved = Math.abs( next[0] - uv[0] ) + Math.abs( next[1] - uv[1] );
+            uv = next;
+            if (moved < 1e-15 * (d[1] - d[0] + d[3] - d[2])) break;
+        }
+        return uv;
+    }
+
+    // a branch with its surfaces swapped
+    private static swap( c : IntersectionCurve ) : IntersectionCurve {
+        return { points : c.points, uvA : c.uvB, uvB : c.uvA, seamA : c.seamB, seamB : c.seamA, closed : c.closed };
     }
 
     // Refine an estimate onto both surfaces. Periodic parameters are wrapped into the domain, others clamped.

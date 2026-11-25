@@ -254,7 +254,29 @@ export class FaceMesher {
                 }
             }
         }
+        // a cut lying along a domain side (where another face meets this one exactly at its edge): its points are the
+        // side's vertices over its span, so that both faces have the same ones there; the grid nodes inside the span
+        // are left out (see `covered`)
+        const spans : Array<{ alongU : boolean, sd : number, lo : number, hi : number, at : Array<number> }> = [];
+        for (const c of cuts) for (let sd = 0; sd < 2; sd++) for (const alongU of [true, false]) {
+            const fixed = alongU ? 1 : 0, value = alongU ? d[2 + sd] : d[sd];
+            if (c.uv.length < 2 || !c.uv.every( p => p[fixed] == value )) continue;
+            if (alongU ? f.periodic[1] : f.periodic[0]) continue; // along a seam: inside the face
+            const at = c.uv.map( p => p[1 - fixed] );
+            spans.push( { alongU : alongU, sd : sd, lo : Math.min( ...at ), hi : Math.max( ...at ), at : at } );
+            c.uv.forEach( (p, k) => { (alongU ? atU : atV)[sd].push( p[1 - fixed] ); endpoints.set( keyOf( p ), c.points[k] ); } );
+        }
         const addB = (p : UV) => { const e = endpoints.get( keyOf( p ) ); return add( p, e != null ? e : null ); };
+        // a boundary grid node strictly inside the span of a cut along its side, and not at one of the cut's points
+        const covered = (i : number, j : number) : boolean => {
+            if ((i == 0 || i == nu) && (j == 0 || j == nv)) return false; // the face's corners stay
+            return spans.some( sp => {
+                const onSide = sp.alongU ? j == (sp.sd == 0 ? 0 : nv) : i == (sp.sd == 0 ? 0 : nu);
+                if (!onSide) return false;
+                const x = sp.alongU ? us[i] : vs[j], w = sp.alongU ? d[1] - d[0] : d[3] - d[2];
+                return x > sp.lo + 1e-7 * w && x < sp.hi - 1e-7 * w && !sp.at.some( y => Math.abs( y - x ) < 1e-7 * w );
+            } );
+        };
 
         // a boundary grid node that (almost) coincides with a cut end becomes that cut end
         const snapU = [0, 1].map( sd => us.map( u => { const e = atU[sd].find( x => Math.abs( x - u ) < (d[1] - d[0]) * 1e-7 ); return e != null ? e : u; } ) );
@@ -310,6 +332,8 @@ export class FaceMesher {
             }
         }
 
+        if (spans.length > 0) for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) if (covered( i, j ))
+            for (const [ci, cj] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) if (ci >= 0 && ci < nu && cj >= 0 && cj < nv) blocked[ci * nv + cj] = 1;
         const triangles : Array<Array<number>> = [];
         for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
             if (blocked[i * nv + j]) continue;
@@ -325,16 +349,18 @@ export class FaceMesher {
             for (const e of edges) { used.add( e[0] ); used.add( e[1] ); }
             const constrain = (a : number, b : number) => { if (a != b) { edges.push( [a, b] ); used.add( a ); used.add( b ); } };
             // a boundary side of a cell, with the cut ends that lie on it
-            const chain = (p : UV, q : UV, axis : number, extra : Array<number>, a : number, b : number) => {
+            // (a covered node is left out: the cut's own segment there stands for the side)
+            const chain = (p : UV, q : UV, axis : number, extra : Array<number>, a : number, b : number, coverA : boolean, coverB : boolean) => {
                 const lo = Math.min( p[axis], q[axis] ), hi = Math.max( p[axis], q[axis] );
                 const mids = extra.filter( x => x > lo && x < hi ).sort( (x, y) => p[axis] < q[axis] ? x - y : y - x );
-                let prev = a;
+                let prev = coverA ? -1 : a;
                 for (const x of mids) {
                     const m : UV = axis == 0 ? [x, p[1]] : [p[0], x];
                     const id = addB( m );
-                    constrain( prev, id ); prev = id;
+                    if (prev >= 0) constrain( prev, id );
+                    prev = id;
                 }
-                constrain( prev, b );
+                if (prev >= 0 && !coverB) constrain( prev, b );
             };
             for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
                 if (!blocked[i * nv + j]) continue;
@@ -342,7 +368,7 @@ export class FaceMesher {
                 for (const c of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
                     const ci = c[0], cj = c[1];
                     const interior = ci > 0 && ci < nu && cj > 0 && cj < nv && isBlocked( ci - 1, cj - 1 ) && isBlocked( ci, cj - 1 ) && isBlocked( ci - 1, cj ) && isBlocked( ci, cj );
-                    if (!(interior && near[ci * (nv + 1) + cj])) used.add( node( ci, cj ) );
+                    if (!(interior && near[ci * (nv + 1) + cj]) && !(spans.length > 0 && covered( ci, cj ))) used.add( node( ci, cj ) );
                 }
                 // sides facing kept cells or the domain edge are constrained
                 const sides : Array<[number, number, number, number, number, number]> = [
@@ -354,7 +380,8 @@ export class FaceMesher {
                     if (inside( ni, nj )) constrain( a, b );
                     else {
                         const alongU = sd[1] == sd[3];
-                        chain( uv[a], uv[b], alongU ? 0 : 1, alongU ? atU[sd[1] == 0 ? 0 : 1] : atV[sd[0] == 0 ? 0 : 1], a, b );
+                        chain( uv[a], uv[b], alongU ? 0 : 1, alongU ? atU[sd[1] == 0 ? 0 : 1] : atV[sd[0] == 0 ? 0 : 1], a, b,
+                               spans.length > 0 && covered( sd[0], sd[1] ), spans.length > 0 && covered( sd[2], sd[3] ) );
                     }
                 }
             }
