@@ -18,6 +18,8 @@ const ALLOWED = {
     solid : ["core", "eval"],
     recipes : ["core", "eval", "solid"],
     view : ["core", "eval", "solid"],
+    io : ["core", "eval", "solid"],    // file formats (STEP); a package of its own, "io"
+
     types : [],
 };
 // the mesh package: these files may only import these modules, so they can serve any mesh, not just B-reps

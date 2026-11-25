@@ -270,7 +270,7 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).
-* **Trim curves are polylines.** `TrimmedFace.loops` are dense polylines in `(u, v)`. Fitting them with B-splines
-  (`Fit.curve`) would give IGES 142/144 or STEP style trimmed surfaces for export.
+* **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
+  for export (see [step.md](step.md)); p-curves are left to the reader.
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
   hierarchy would make it scale to many tools.

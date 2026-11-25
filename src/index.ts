@@ -90,6 +90,8 @@ import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
 export type { SweptObject, KnotPipeParams, TwistedRingParams, RibbonKnotParams } from "./recipes/SweptObjects.js";
 import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
+import { Step } from "./io/Step.js";
+export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
 
 export {
@@ -185,6 +187,7 @@ export {
     FreeformVesselRecipe,
     SweptObjectsRecipe,
     Inspect,
+    Step,
     registerSerializable,
 };
 
@@ -295,7 +298,11 @@ export const view = {
     Inspect,
 };
 
-const verb = { core, eval: eval_, geom, exe, solid, recipes, view };
+export const io = {
+    Step,
+};
+
+const verb = { core, eval: eval_, geom, exe, solid, recipes, view, io };
 export default verb;
 
 // register every class so that `Deserializer.deserialize` can rebuild serialized objects
