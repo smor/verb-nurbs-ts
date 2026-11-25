@@ -5,7 +5,7 @@ import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.j
 
 declare const WORKER_SOURCE : string;
 
-type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon";
+type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance";
 interface Slider { key : string; label : string; min : number; max : number; step : number; value : number; unit? : string }
 
 const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[] }> = {
@@ -83,6 +83,27 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "fillet", label : "Hole edge fillet", min : 0, max : 1.4, step : 0.05, value : 0.8, unit : "mm" },
         ]
     },
+    appliance : {
+        name : "Appliance",
+        note : "Two parts, each a closed solid: a base (tapered block − sloped slab − conical seat + carry arch) and a bowl that drops into the seat with a set clearance. Every new edge is a rolling-ball fillet.",
+        sliders : [
+            { key : "width", label : "Base width", min : 160, max : 260, step : 1, value : 200, unit : "mm" },
+            { key : "depth", label : "Base depth", min : 200, max : 320, step : 1, value : 250, unit : "mm" },
+            { key : "front", label : "Front height", min : 100, max : 160, step : 1, value : 120, unit : "mm" },
+            { key : "back", label : "Back height", min : 150, max : 240, step : 1, value : 190, unit : "mm" },
+            { key : "square", label : "Squareness", min : 2, max : 5, step : 0.1, value : 3.2 },
+            { key : "bowlH", label : "Bowl height", min : 120, max : 220, step : 1, value : 170, unit : "mm" },
+            { key : "foot", label : "Bowl foot radius", min : 45, max : 70, step : 0.5, value : 58, unit : "mm" },
+            { key : "rim", label : "Bowl rim radius", min : 55, max : 85, step : 0.5, value : 76, unit : "mm" },
+            { key : "seat", label : "Seat depth", min : 50, max : 100, step : 1, value : 80, unit : "mm" },
+            { key : "gap", label : "Clearance", min : 0.2, max : 2, step : 0.05, value : 0.6, unit : "mm" },
+            { key : "arch", label : "Arch height", min : 40, max : 110, step : 1, value : 70, unit : "mm" },
+            { key : "topF", label : "Top edge fillet", min : 0, max : 16, step : 0.5, value : 10, unit : "mm" },
+            { key : "seatF", label : "Seat edge fillet", min : 0, max : 8, step : 0.25, value : 4, unit : "mm" },
+            { key : "archF", label : "Arch foot fillet", min : 0, max : 10, step : 0.25, value : 6, unit : "mm" },
+            { key : "handleF", label : "Handle fillet", min : 0, max : 6, step : 0.25, value : 4, unit : "mm" },
+        ]
+    },
     ribbon : {
         name : "Ribbon knot",
         note : "A flat ribbon swept along a torus knot, twisting as it goes. At zero thickness it is a bare sheet: fine to look at, impossible to make.",
@@ -104,7 +125,7 @@ const MACHINES : [string, string][] = [
 
 const $ = (id : string) => document.getElementById( id )!;
 let current : ModelId = "vessel";
-const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {}, ribbon : {} };
+const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {}, ribbon : {}, appliance : {} };
 let mode : "free" | "make" = "free", machine = "fdm";
 for (const m of Object.keys( MODELS ) as ModelId[]) for (const s of MODELS[m].sliders) values[m][s.key] = s.value;
 try {
@@ -247,7 +268,7 @@ function showStats( s : any, ms : number, fine : boolean ) {
         ["Genus", m.genus == null || isNaN( m.genus ) ? "–" : String( m.genus )],
         ["Material", m.closedManifold ? (s.volume / 1000).toFixed( 1 ) + " cm³" : "–"],
         ["Size", s.size ? s.size.map( (x : number) => x.toFixed( 0 ) ).join( " × " ) + " mm" : "–"],
-        current == "mug" || current == "pierced" ? ["Seam error", s.error.toExponential( 1 ) + " mm"] : ["Fit error", s.error.toFixed( 3 ) + " mm"],
+        current == "mug" || current == "pierced" || current == "appliance" ? ["Seam error", s.error.toExponential( 1 ) + " mm"] : ["Fit error", s.error.toFixed( 3 ) + " mm"],
     ];
     if (s.fillets != null && (s.fillets > 0 || s.filletsFailed > 0))
         rows.push( ["Fillets", s.fillets + (s.filletsFailed > 0 ? ", " + s.filletsFailed + " too big to fit" : "") + (s.filletsSkipped > 0 ? ", " + s.filletsSkipped + " sharp at corners" : "")] );

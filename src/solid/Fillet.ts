@@ -94,10 +94,25 @@ export class Fillet {
         let ts : Array<number> = [];
         let sections : Array<FilletSection> = [];
         let prev : { a : UV, b : UV } | null = null;
+        // one section per edge vertex, skipping vertices very close to the last one used (where the edge has a
+        // near-duplicate vertex, the two sections' contacts could come out in the wrong order and fold the
+        // contact curve back on itself)
+        let spacing = 0.0;
+        for (let k = 0; k < n; k++) spacing += Vec.dist( edge.points[k], edge.points[(k + 1) % n] );
+        spacing /= n;
         for (let k = 0; k < n; k++) {
+            if (sections.length > 0 && Vec.dist( edge.points[k], edge.points[ts[ts.length - 1]] ) < 0.3 * spacing) continue;
+            if (k == n - 1 && Vec.dist( edge.points[k], edge.points[ts[0]] ) < 0.3 * spacing) continue;
             let sec = solve( k, prev );
             if (sec == null) return null;
             ts.push( k ); sections.push( sec ); prev = sec;
+        }
+        // drop any section whose contacts step backwards along the edge
+        for (let k = 1; k < sections.length; k++) {
+            let tg = tangentAt( ts[k] );
+            if (Vec.dot( Vec.sub( sections[k].pa, sections[k - 1].pa ), tg ) <= 0 || Vec.dot( Vec.sub( sections[k].pb, sections[k - 1].pb ), tg ) <= 0) {
+                sections.splice( k, 1 ); ts.splice( k, 1 ); k--;
+            }
         }
 
         // where a contact curve crosses a seam, put a section exactly on it
@@ -108,6 +123,8 @@ export class Fillet {
                 let p = side == 0 ? x.a : x.b, q = side == 0 ? y.a : y.b;
                 for (let ax = 0; ax < 2; ax++) {
                     if (!F.periodic[ax]) continue;
+                    // a section on the seam stands for both ends of the domain
+                    if (((side == 0 ? x.seamA | y.seamA : x.seamB | y.seamB) & (1 << ax)) != 0) continue;
                     if (Math.abs( p[ax] - q[ax] ) > (d[2 * ax + 1] - d[2 * ax]) / 2) return [side, ax];
                 }
             }
@@ -134,7 +151,7 @@ export class Fillet {
             if (side == 0) { sec.a[ax] = d[2 * ax]; sec.seamA = 1 << ax; sec.pa = Eval.rationalSurfacePoint( A.face.surface, sec.a[0], sec.a[1] ); }
             else { sec.b[ax] = d[2 * ax]; sec.seamB = 1 << ax; sec.pb = Eval.rationalSurfacePoint( B.face.surface, sec.b[0], sec.b[1] ); }
             sections.splice( k + 1, 0, sec ); ts.splice( k + 1, 0, lo );
-            k++; // the new section is on the seam; the next jump test starts after it
+            // the new section is on the seam; test the pair after it too (the other face's seam may lie there)
         }
 
         // the contact curves as face cuts
@@ -271,23 +288,33 @@ export class Fillet {
         let n = uv.length;
         let first = seam.findIndex( m => m != 0 );
         if (first < 0) return [{ uv : uv.slice(), points : points.slice(), closed : true }];
-        let side = (k : number, nb : number) : UV => {
+        let closedLoop = true;
+        // the parameters of a seam vertex as seen from its neighbours in one direction (+1 or -1): the first
+        // neighbour not on that seam tells which end of the domain the vertex stands for
+        let side = (k : number, dir : number) : UV => {
             let p : UV = [uv[k][0], uv[k][1]];
             for (let a = 0; a < 2; a++) {
                 if ((seam[k] & (1 << a)) == 0) continue;
-                let lo = d[2 * a], hi = d[2 * a + 1];
+                let lo = d[2 * a], hi = d[2 * a + 1], eps = (hi - lo) * 1e-9;
+                let nb = k;
+                for (let step = 1; step < n; step++) {
+                    let j = k + dir * step;
+                    if (j < 0 || j >= n) { if (!closedLoop) break; j = ((j % n) + n) % n; }
+                    nb = j;
+                    if (Math.abs( uv[j][a] - lo ) > eps && Math.abs( uv[j][a] - hi ) > eps) break;
+                }
                 p[a] = uv[nb][a] > (lo + hi) / 2 ? hi : lo;
             }
             return p;
         };
         let out : Array<FaceCut> = [];
-        let cur : FaceCut = { uv : [side( first, (first + 1) % n )], points : [points[first]], closed : false };
+        let cur : FaceCut = { uv : [side( first, 1 )], points : [points[first]], closed : false };
         for (let s = 1; s <= n; s++) {
             let k = (first + s) % n;
             if (seam[k] != 0) {
-                cur.uv.push( side( k, (k - 1 + n) % n ) ); cur.points.push( points[k] );
+                cur.uv.push( side( k, -1 ) ); cur.points.push( points[k] );
                 if (cur.uv.length >= 2) out.push( cur );
-                cur = { uv : [side( k, (k + 1) % n )], points : [points[k]], closed : false };
+                cur = { uv : [side( k, 1 )], points : [points[k]], closed : false };
             } else { cur.uv.push( uv[k] ); cur.points.push( points[k] ); }
         }
         return out;

@@ -20,6 +20,8 @@ export interface FreeformVesselParams {
     height? : number;
     // mean radius at the base and at the rim (default [70, 80])
     radius? : [number, number];
+    // radius changes linearly with height (a cone) instead of easing in and out (default false)
+    linearRadius? : boolean;
     // extra bulge of the mean radius at mid height (default 1.5)
     belly? : number;
     // horizontal drift of the section centre between base and rim (default [4, -2])
@@ -104,7 +106,7 @@ export class FreeformVesselRecipe {
             let sc = Math.min( s, 1 );
             let z = H * s;
             let e = ease( sc );
-            let radius = lerp( R[0], R[1], e ) + belly * Math.sin( Math.PI * sc );
+            let radius = lerp( R[0], R[1], p.linearRadius ? s : e ) + belly * Math.sin( Math.PI * sc );
             let cx = lean[0] * e, cy = lean[1] * Math.sin( Math.PI * sc );
             let cps : Array<Point> = [];
             for (let i = 0; i < M; i++) {

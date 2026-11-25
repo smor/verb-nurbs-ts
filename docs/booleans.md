@@ -101,6 +101,14 @@ Limits:
   fitted as a clamped curve rather than a periodic one. The ball's contact jumps across that crease by a few
   hundredths of a millimetre. Fitting periodic profiles would remove it.
 
+## Seams of surfaces of revolution
+
+When both faces are perfectly round about the same axis, their seams can cross a branch at the very same point. The
+intersection then returns that point two or three times, each copy flagged for one face's seam, and an unflagged copy
+sat on the seam was taken for the wrong end of the domain. `BrepBoolean.cleanSeams` flags every vertex that lies
+exactly on a periodic seam and merges repeated vertices, combining their flags. `facePieces` reads which end of the
+domain a seam vertex stands for from the first neighbour that is not itself on the seam.
+
 ## How it is checked
 
 * The intersection points lie on both surfaces to about 1e-9 (`report.maxCurveError`).

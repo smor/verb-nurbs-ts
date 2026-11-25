@@ -1,8 +1,8 @@
 // Builds models off the main thread so the sliders stay responsive.
-import { BooleanObjectsRecipe, FreeformVesselRecipe, Makeable, SweptObjectsRecipe } from "../src/index.js";
+import { ApplianceRecipe, BooleanObjectsRecipe, FreeformVesselRecipe, Makeable, SweptObjectsRecipe } from "../src/index.js";
 import type { TriMesh } from "../src/index.js";
 
-export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon";
+export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance";
 
 export interface BuildRequest { id : number; model : ModelId; params : Record<string, number>; fine : boolean; make : boolean; machine : string }
 
@@ -71,6 +71,27 @@ function ring( p : Record<string, number>, fine : boolean ) {
     return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true };
 }
 
+function appliance( p : Record<string, number>, fine : boolean ) {
+    let o = ApplianceRecipe.build( {
+        width : p.width, depth : p.depth, frontHeight : p.front, backHeight : p.back, squareness : p.square,
+        bowlHeight : p.bowlH, bowlRadius : [p.foot, p.rim], seatDepth : p.seat, clearance : p.gap, archHeight : p.arch,
+        topFillet : p.topF, seatFillet : p.seatF, archFillet : p.archF, handleFillet : p.handleF, fine : fine
+    } );
+    let b = o.base.report, w = o.bowl.result.report;
+    let bowlMesh = o.bowl.result.mesh;
+    return {
+        mesh : o.assembly,
+        report : { manifold : { ...b.manifold, closedManifold : b.manifold.closedManifold && w.manifold.closedManifold,
+                                boundaryEdges : b.manifold.boundaryEdges + w.manifold.boundaryEdges,
+                                genus : b.manifold.genus != null && w.manifold.genus != null ? b.manifold.genus + w.manifold.genus : null },
+                   volume : b.volume + w.volume, fillets : b.fillets + w.fillets, filletsFailed : b.filletsFailed + w.filletsFailed,
+                   filletsSkipped : b.filletsSkipped + w.filletsSkipped },
+        error : Math.max( b.maxCurveError, w.maxCurveError ),
+        ok : b.manifold.closedManifold && w.manifold.closedManifold,
+        parts : [{ name : "Base", mesh : o.base.mesh }, { name : "Bowl", mesh : bowlMesh }]
+    };
+}
+
 function pack( mesh : TriMesh ) {
     let pos = new Float32Array( mesh.vertices.length * 3 );
     mesh.vertices.forEach( (v, i) => { pos[3*i] = v[0]; pos[3*i+1] = v[1]; pos[3*i+2] = v[2]; } );
@@ -83,13 +104,21 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
     let { id, model, params, fine, make, machine } = e.data;
     let t0 = performance.now();
     try {
-        let build = { vessel, knot, ring, mug, pierced, ribbon }[model];
+        let build = { vessel, knot, ring, mug, pierced, ribbon, appliance }[model] as (p : Record<string, number>, fine : boolean) => any;
         let r = build( params, fine );
         let check = null;
         if (make && fine) {
-            let c = Makeable.check( r.mesh, machine );
-            if (!r.ok) c.issues.unshift( "The wall folds over itself: it is thicker than the tightest fold." );
-            check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits };
+            if (r.parts) {
+                // separate parts are made separately: check each on its own (the gap between them is not a wall)
+                let cs = r.parts.map( (x : { name : string, mesh : TriMesh }) => ({ name : x.name, c : Makeable.check( x.mesh, machine ) }) );
+                check = { makeable : cs.every( (x : any) => x.c.makeable ), machine : cs[0].c.machine.name,
+                          issues : cs.flatMap( (x : any) => x.c.issues.map( (i : string) => x.name + ": " + i ) ),
+                          wall : Math.min( ...cs.map( (x : any) => x.c.wall.p01 ) ), fits : cs.every( (x : any) => x.c.fits ) };
+            } else {
+                let c = Makeable.check( r.mesh, machine );
+                if (!r.ok) c.issues.unshift( "The wall folds over itself: it is thicker than the tightest fold." );
+                check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits };
+            }
         }
         let ms = performance.now() - t0;
         let { pos, idx } = pack( r.mesh );

@@ -72,6 +72,8 @@ import { SurfaceIntersect } from "./solid/SurfaceIntersect.js";
 export type { SurfaceDomain, IntersectionCurve, SurfaceIntersectOptions } from "./solid/SurfaceIntersect.js";
 import { TriMesh } from "./solid/TriMesh.js";
 export type { ManifoldMeshArrays, ManifoldReport } from "./solid/TriMesh.js";
+import { ApplianceRecipe } from "./recipes/Appliance.js";
+export type { ApplianceParams, Appliance } from "./recipes/Appliance.js";
 import { BooleanObjectsRecipe } from "./recipes/BooleanObjects.js";
 export type { MugParams, Mug, PierceParams, PiercedVessel } from "./recipes/BooleanObjects.js";
 import { FreeformVesselRecipe } from "./recipes/FreeformVessel.js";
@@ -164,6 +166,7 @@ export {
     Shell,
     SurfaceIntersect,
     TriMesh,
+    ApplianceRecipe,
     BooleanObjectsRecipe,
     FreeformVesselRecipe,
     SweptObjectsRecipe,
@@ -264,6 +267,7 @@ export const solid = {
     TriMesh,
 };
 export const recipes = {
+    ApplianceRecipe,
     BooleanObjectsRecipe,
     FreeformVesselRecipe,
     SweptObjectsRecipe,

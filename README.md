@@ -93,13 +93,32 @@ r.curves;        // the intersection curves, with parameters on both faces
 BrepBoolean.evaluate([body, handle, cavity], f => (f[0] || f[1]) && !f[2]);
 ```
 
+## Demo: an appliance in two parts
+
+`ApplianceRecipe.build()` is an original kitchen-appliance study made of two separate solids, each checked as makeable
+on its own:
+
+* **the base**, which is (tapered block − sloped slab − conical seat) + carry arch. The block is a loft of
+  rounded-square sections. The sloped top is the flat end of a wide cylinder used as a cutting tool. The seat is the
+  bowl's own cone, widened by the clearance. The arch is a soft rectangular section swept over the back. All four new
+  edges are rolling-ball fillets: the top edge and the seat's edge are convex, the arch's feet concave.
+* **the bowl**, a conical vessel with a handle and a filleted joint. It drops into the seat with a set radial
+  clearance: manifold-3d finds no overlap in place, and a collision as soon as the bowl is pushed 1 mm deeper.
+
+```ts
+const a = ApplianceRecipe.build({ clearance : 0.6, topFillet : 10 });
+a.base.mesh; a.bowl.result.mesh;   // two watertight solids, genus 1 each
+a.bowlOffset;                      // where the bowl sits on the base
+a.assembly;                        // both, for display
+```
+
 ## Playground
 
 ```
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel and the ribbon knot with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the two-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
 
 ## Differences from upstream verb
 

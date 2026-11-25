@@ -101,7 +101,7 @@ export class BrepBoolean {
                 let step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 let found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol } );
-                for (let c of found) curves.push( { solids : [i, j], faces : [ia, ib], curve : c } );
+                for (let c of found) curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
         }
 
@@ -237,6 +237,49 @@ export class BrepBoolean {
         return out;
     }
 
+    // Make seam crossings unambiguous: a vertex lying exactly on a periodic seam is flagged as a seam vertex (its
+    // parameter stored as the start of the domain), and consecutive vertices at the same point are merged, their
+    // flags combined. Where both faces' seams cross the curve at one point, the intersection may return that point
+    // two or three times, flagged for one face each.
+    public static cleanSeams( c : IntersectionCurve, fa : BrepFace, fb : BrepFace ) : IntersectionCurve {
+        let flag = (f : BrepFace, uv : Array<UV>, seam : Array<number>) => {
+            let d = SurfaceIntersect.domain( f.surface );
+            for (let k = 0; k < uv.length; k++) for (let a = 0; a < 2; a++) {
+                if (!f.periodic[a]) continue;
+                let lo = d[2 * a], hi = d[2 * a + 1], eps = (hi - lo) * 1e-12;
+                if (Math.abs( uv[k][a] - lo ) <= eps || Math.abs( uv[k][a] - hi ) <= eps) {
+                    let p : UV = [uv[k][0], uv[k][1]]; p[a] = lo; uv[k] = p;
+                    seam[k] |= 1 << a;
+                }
+            }
+        };
+        flag( fa, c.uvA, c.seamA ); flag( fb, c.uvB, c.seamB );
+        let scale = 0.0;
+        for (let p of c.points) scale = Math.max( scale, Math.abs( p[0] ), Math.abs( p[1] ), Math.abs( p[2] ) );
+        let same = 1e-10 * Math.max( 1, scale );
+        let out : IntersectionCurve = { points : [], uvA : [], uvB : [], seamA : [], seamB : [], closed : c.closed };
+        for (let k = 0; k < c.points.length; k++) {
+            let m = out.points.length;
+            if (m > 0 && Vec.dist( out.points[m - 1], c.points[k] ) < same) {
+                // keep the merged vertex's parameters from whichever copy is flagged
+                if (c.seamA[k] != 0) out.uvA[m - 1] = c.uvA[k];
+                if (c.seamB[k] != 0) out.uvB[m - 1] = c.uvB[k];
+                out.seamA[m - 1] |= c.seamA[k]; out.seamB[m - 1] |= c.seamB[k];
+                continue;
+            }
+            out.points.push( c.points[k] ); out.uvA.push( c.uvA[k] ); out.uvB.push( c.uvB[k] );
+            out.seamA.push( c.seamA[k] ); out.seamB.push( c.seamB[k] );
+        }
+        let m = out.points.length;
+        if (c.closed && m > 2 && Vec.dist( out.points[0], out.points[m - 1] ) < same) {
+            out.seamA[0] |= out.seamA[m - 1]; out.seamB[0] |= out.seamB[m - 1];
+            if (out.seamA[m - 1] != 0) out.uvA[0] = out.uvA[m - 1];
+            if (out.seamB[m - 1] != 0) out.uvB[0] = out.uvB[m - 1];
+            for (let arr of [out.points, out.uvA, out.uvB, out.seamA, out.seamB] as Array<Array<any>>) arr.pop();
+        }
+        return out;
+    }
+
     // Split a curve, given by its parameters on one face, into the polylines it makes in that face's domain: a loop
     // that crosses a seam is cut there, and the seam vertex appears at both ends of the domain.
     public static facePieces( f : BrepFace, uv : Array<UV>, seam : Array<number>, points : Array<Point>, closed : boolean = true ) : Array<FaceCut> {
@@ -245,24 +288,34 @@ export class BrepBoolean {
         if (first < 0) return [{ uv : uv.slice(), points : points.slice(), closed : closed }];
         let d = SurfaceIntersect.domain( f.surface );
         // the parameters of a seam vertex as seen from a neighbouring vertex
-        let side = (k : number, nb : number) : UV => {
+        let closedLoop = closed;
+        // the parameters of a seam vertex as seen from its neighbours in one direction (+1 or -1): the first
+        // neighbour not on that seam tells which end of the domain the vertex stands for
+        let side = (k : number, dir : number) : UV => {
             let p : UV = [uv[k][0], uv[k][1]];
             for (let a = 0; a < 2; a++) {
                 if ((seam[k] & (1 << a)) == 0) continue;
-                let lo = d[2 * a], hi = d[2 * a + 1];
+                let lo = d[2 * a], hi = d[2 * a + 1], eps = (hi - lo) * 1e-9;
+                let nb = k;
+                for (let step = 1; step < n; step++) {
+                    let j = k + dir * step;
+                    if (j < 0 || j >= n) { if (!closedLoop) break; j = ((j % n) + n) % n; }
+                    nb = j;
+                    if (Math.abs( uv[j][a] - lo ) > eps && Math.abs( uv[j][a] - hi ) > eps) break;
+                }
                 p[a] = uv[nb][a] > (lo + hi) / 2 ? hi : lo;
             }
             return p;
         };
         let pieces : Array<FaceCut> = [];
         if (closed) {
-            let cur : FaceCut = { uv : [side( first, (first + 1) % n )], points : [points[first]], closed : false };
+            let cur : FaceCut = { uv : [side( first, 1 )], points : [points[first]], closed : false };
             for (let s = 1; s <= n; s++) {
                 let k = (first + s) % n;
                 if (seam[k] != 0) {
-                    cur.uv.push( side( k, (k - 1 + n) % n ) ); cur.points.push( points[k] );
+                    cur.uv.push( side( k, -1 ) ); cur.points.push( points[k] );
                     if (cur.uv.length >= 2) pieces.push( cur );
-                    cur = { uv : [side( k, (k + 1) % n )], points : [points[k]], closed : false };
+                    cur = { uv : [side( k, 1 )], points : [points[k]], closed : false };
                 } else { cur.uv.push( uv[k] ); cur.points.push( points[k] ); }
             }
             return pieces;
@@ -270,11 +323,11 @@ export class BrepBoolean {
         let cur : FaceCut = { uv : [], points : [], closed : false };
         for (let k = 0; k < n; k++) {
             if (seam[k] != 0 && k > 0 && k < n - 1) {
-                cur.uv.push( side( k, k - 1 ) ); cur.points.push( points[k] );
+                cur.uv.push( side( k, -1 ) ); cur.points.push( points[k] );
                 if (cur.uv.length >= 2) pieces.push( cur );
-                cur = { uv : [side( k, k + 1 )], points : [points[k]], closed : false };
+                cur = { uv : [side( k, 1 )], points : [points[k]], closed : false };
             } else if (seam[k] != 0) {
-                cur.uv.push( side( k, k == 0 ? 1 : k - 1 ) ); cur.points.push( points[k] );
+                cur.uv.push( side( k, k == 0 ? 1 : -1 ) ); cur.points.push( points[k] );
             } else { cur.uv.push( uv[k] ); cur.points.push( points[k] ); }
         }
         if (cur.uv.length >= 2) pieces.push( cur );
