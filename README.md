@@ -66,6 +66,14 @@ npm run demo:sweeps
 
 `SweptObjectsRecipe.knotPipe()` sweeps a circle whose radius swells and thins along a trefoil knot; `SweptObjectsRecipe.twistedRing()` sweeps a rounded-square section along a wavy ring with one full turn of twist. Both rails are closed, so both objects are genus 1 solids, checked by `TriMesh` and by manifold-3d.
 
+## Playground
+
+```
+npm run playground   # writes playground/dist/index.html, a single self-contained file
+```
+
+Open the file in a browser to shape the vessel, the knot pipe and the twisted ring with sliders. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+
 ## Differences from upstream verb
 
 * Only TypeScript/JavaScript is supported. The Haxe build and its C#, C++, Python and PHP targets are gone.
