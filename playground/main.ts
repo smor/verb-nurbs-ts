@@ -85,7 +85,7 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
     },
     appliance : {
         name : "Appliance",
-        note : "Three parts, each a closed solid: a base (tapered block − sloped slab − conical seat − key pocket + carry arch), a bowl with a sculpted grip and a lobed foot that keys into the pocket, and a lid with a lobed tab, a plug and a filler hole. Every new edge is a rolling-ball fillet.",
+        note : "Four parts, each a closed solid: a base (tapered block − sloped slab − conical seat − key pocket + carry arch), a bowl with a sculpted grip and a lobed foot that keys into the pocket, a lid with a lobed tab, a plug and a filler hole, and a measuring cup with a teardrop flange that plugs the hole. Every new edge is a rolling-ball fillet.",
         sliders : [
             { key : "width", label : "Base width", min : 160, max : 260, step : 1, value : 200, unit : "mm" },
             { key : "depth", label : "Base depth", min : 200, max : 320, step : 1, value : 250, unit : "mm" },
@@ -106,6 +106,7 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "key", label : "Coupling radius", min : 0, max : 44, step : 1, value : 34, unit : "mm" },
             { key : "tab", label : "Lid tab", min : 0, max : 24, step : 1, value : 16, unit : "mm" },
             { key : "hole", label : "Lid hole radius", min : 10, max : 40, step : 1, value : 24, unit : "mm" },
+            { key : "lip", label : "Cup lip", min : 0, max : 30, step : 1, value : 18, unit : "mm" },
         ]
     },
     ribbon : {

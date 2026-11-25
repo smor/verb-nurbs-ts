@@ -71,6 +71,19 @@ describe("verb.recipes.ApplianceRecipe", function(){
 		lid.translate([0, 0, -1]).intersect(bowl).volume().should.be.above(100);
 		lid.translate([1, 0, 0]).intersect(bowl).volume().should.be.above(10);
 	});
+
+	it('measuring cup: teardrop flange + tapered body - cavity, two fillets; it plugs the lid\'s hole and rests on the lid', function(){
+		var r = a.cup.report;
+		r.fillets.should.be.equal(2);
+		r.manifold.closedManifold.should.be.true();
+		r.manifold.genus.should.be.equal(0);
+		var cup = manifold(a.cup.mesh).translate(a.bowlOffset), lid = manifold(a.lid.mesh).translate(a.bowlOffset);
+		cup.status().should.be.equal('NoError');
+		Math.abs(cup.intersect(lid).volume()).should.be.below(1e-6);
+		cup.intersect(manifold(a.bowl.result.mesh).translate(a.bowlOffset)).volume().should.be.below(1e-6);
+		cup.translate([0, 0, -1]).intersect(lid).volume().should.be.above(100);
+		cup.translate([1, 0, 0]).intersect(lid).volume().should.be.above(1);
+	});
 });
 
 describe("verb.solid.BrepBoolean with surfaces of revolution", function(){

@@ -50,6 +50,11 @@ export interface ApplianceParams {
     plugWall? : number;
     lidHole? : number;
     lidFillet? : number;
+    // the measuring cup that plugs the lid's hole: the reach of its flange's pouring lip, how deep it drops into the
+    // hole, its wall (default 18, 28, 2)
+    cupLip? : number;
+    cupDepth? : number;
+    cupWall? : number;
     // tessellation of the base's wall (around)
     divs? : number;
     fine? : boolean;
@@ -60,6 +65,8 @@ export interface Appliance {
     bowl : Mug;
     // the lid, in the bowl's frame: it rests on the rim
     lid : BooleanResult;
+    // the measuring cup, in the bowl's frame: it plugs the lid's hole, its flange resting on the lid
+    cup : BooleanResult;
     // where the bowl sits on the base: translate the bowl's mesh by this
     bowlOffset : Point;
     // both parts, the bowl moved into its seat
@@ -76,6 +83,8 @@ export interface Appliance {
 //   pocket in the seat's floor: the pocket is the foot's outline offset by the clearance.
 // * the lid: a plate with a soft edge and a lobed tab, a plug that drops inside the rim, and a central filler hole
 //   with rounded edges.
+// * the measuring cup: a tapered cup that plugs the lid's hole, under a teardrop flange that rests on the lid and
+//   draws out into a pouring lip.
 //
 // Built only from lofts, sweeps and Booleans with fillets: (block - slab - seat) + arch for the base, and
 // (body + handle) - cavity for the bowl.
@@ -174,15 +183,16 @@ export class ApplianceRecipe {
             divsU : fine ? 48 : 24, divsV : fine ? 192 : 96, offsetTolerance : fine ? 0.02 : 0.08
         } );
         let lid = ApplianceRecipe.lid( p, bH, bR, p.bowlWall != null ? p.bowlWall : 2.5, gap, fine );
+        let cup = ApplianceRecipe.cup( p, bH + (p.lidThickness != null ? p.lidThickness : 6), gap, fine );
         let bowlOffset : Point = [0, yb, zf];
         let assembly = new TriMesh();
-        for (let m of [base.mesh, bowl.result.mesh, lid.mesh]) {
+        for (let m of [base.mesh, bowl.result.mesh, lid.mesh, cup.mesh]) {
             let o = assembly.vertices.length;
             let shift = m === base.mesh ? [0, 0, 0] : bowlOffset;
             for (let v of m.vertices) assembly.addVertex( Vec.add( v, shift ) );
             for (let t of m.triangles) assembly.addTriangle( t[0] + o, t[1] + o, t[2] + o );
         }
-        return { base : base, bowl : bowl, lid : lid, bowlOffset : bowlOffset, assembly : assembly };
+        return { base : base, bowl : bowl, lid : lid, cup : cup, bowlOffset : bowlOffset, assembly : assembly };
     }
 
     // The lid, in the bowl's frame (the rim is the circle of radius bR[1] at height bH):
@@ -223,6 +233,39 @@ export class ApplianceRecipe {
             // the hole's edge on the plate's top (face 2) and on the hollow's ceiling (its end cap, face 2)
             fillet : (c : { solids : [number, number], faces : [number, number] }) =>
                 c.solids[1] == 3 && c.faces[0] == 2 && (c.solids[0] == 0 || c.solids[0] == 2) ? (c.solids[0] == 0 ? fl : 0.5 * fl) : 0
+        } );
+    }
+
+    // The measuring cup, in the bowl's frame, with the lid's top at height zTop: (flange + body) - cavity. The flange
+    // is a soft-edged loft of a teardrop outline; the body is a cone that drops into the lid's hole with the clearance;
+    // the cavity opens at the top. The flange's joint with the body and the cavity's rim are filleted.
+    public static cup( p : ApplianceParams, zTop : number, gap : number, fine : boolean ) : BooleanResult {
+        let hole = p.lidHole != null ? p.lidHole : 24;
+        let lip = p.cupLip != null ? p.cupLip : 18, depth = p.cupDepth != null ? p.cupDepth : 28, w = p.cupWall != null ? p.cupWall : 2;
+        let T = 5, around = fine ? 192 : 128;
+        let R = hole + 8; // the flange's round part overhangs the hole all round
+        // the teardrop: a circle drawn out towards -x (the lip) by a smooth bump, tightest at its tip
+        let outline = (t : number) => {
+            let d = Math.atan2( Math.sin( t - Math.PI ), Math.cos( t - Math.PI ) );
+            let c = Math.cos( d / 2 );
+            return R + lip * Math.pow( Math.max( 0, c ), 36 );
+        };
+        let e = 1.6, K = 7;
+        let sections : Array<NurbsCurveData> = [];
+        for (let k = 0; k < K; k++) {
+            let phi = Math.PI * k / (K - 1);
+            sections.push( ApplianceRecipe.polar( outline, -e * (1 - Math.sin( phi )), zTop + T / 2 - T / 2 * Math.cos( phi ), 160 ) );
+        }
+        let flange = BrepSolid.cappedWall( Fit.loft( sections, 3, sections.map( (_, k) => k / (K - 1) ) ), [fine ? 24 : 16, around] );
+        let taper = 0.06; // the body narrows by this much per mm downwards
+        let rTop = hole - gap, z0 = zTop - depth, z1 = zTop + T / 2;
+        let body = ApplianceRecipe.tube( [rTop - taper * depth, rTop + taper * T / 2], z0, z1, [8, around] );
+        let c0 = z0 + w, c1 = zTop + T + 4;
+        let cavity = ApplianceRecipe.tube( [rTop - w - taper * (zTop - c0), rTop - w + taper * (c1 - zTop)], c0, c1, [8, around] );
+        return BrepBoolean.evaluate( [flange, body, cavity], f => (f[0] || f[1]) && !f[2], {
+            // the joint under the flange (its bottom, face 1) and the cavity's rim on the flange's top (face 2)
+            fillet : (c : { solids : [number, number], faces : [number, number] }) =>
+                c.solids[0] == 0 && c.solids[1] == 1 && c.faces[0] == 1 ? 1 : c.solids[0] == 0 && c.solids[1] == 2 && c.faces[0] == 2 ? 1.2 : 0
         } );
     }
 

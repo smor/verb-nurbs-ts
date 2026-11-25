@@ -93,9 +93,9 @@ r.curves;        // the intersection curves, with parameters on both faces
 BrepBoolean.evaluate([body, handle, cavity], f => (f[0] || f[1]) && !f[2]);
 ```
 
-## Demo: an appliance in three parts
+## Demo: an appliance in four parts
 
-`ApplianceRecipe.build()` is an original kitchen-appliance study made of three separate solids, each checked as
+`ApplianceRecipe.build()` is an original kitchen-appliance study made of four separate solids, each checked as
 makeable on its own:
 
 * **the base**, which is (tapered block − sloped slab − conical seat − key pocket) + carry arch. The block is a loft
@@ -110,15 +110,17 @@ makeable on its own:
 * **the lid**, (plate + plug) − hollow − hole. The plate is a loft of a round outline with a three-lobed tab, drawn in
   at the top and bottom for a soft edge. The plug is a tapered ring that drops inside the rim. Both edges of the
   central hole are rounded.
+* **the measuring cup**, (flange + body) − cavity. A teardrop flange (a soft-edged loft, drawn out into a pouring
+  lip) rests on the lid; the tapered body plugs the hole with the clearance.
 
 manifold-3d checks the fits: no overlap in place; a collision as soon as the bowl is pushed 1 mm deeper, turned by a
-third of a turn, or the lid is moved 1 mm sideways.
+third of a turn, or the lid or the cup is moved 1 mm.
 
 ```ts
 const a = ApplianceRecipe.build({ clearance : 0.6, topFillet : 10, gripSwell : 1.2 });
-a.base.mesh; a.bowl.result.mesh; a.lid.mesh;   // three watertight solids, genus 1 each
-a.bowlOffset;                                   // where the bowl (and the lid on it) sits on the base
-a.assembly;                                     // all three, for display
+a.base.mesh; a.bowl.result.mesh; a.lid.mesh; a.cup.mesh;   // four watertight solids
+a.bowlOffset;                                               // where the bowl (with its lid and cup) sits on the base
+a.assembly;                                                 // all four, for display
 ```
 
 ## Playground
@@ -127,7 +129,7 @@ a.assembly;                                     // all three, for display
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the three-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the four-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
 
 ## Differences from upstream verb
 
