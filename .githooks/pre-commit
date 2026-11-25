@@ -5,4 +5,10 @@
 set -e
 npm run --silent typecheck
 node scripts/check-layers.mjs
-npx eslint . --max-warnings "$(node -p "require('./package.json').config.maxLintWarnings")"
+cap="$(node -p "require('./package.json').config.maxLintWarnings")"
+# print the full report only when lint fails; otherwise one summary line
+if ! out="$(npx eslint . --max-warnings "$cap" 2>&1)"; then
+    echo "$out"
+    exit 1
+fi
+echo "Lint: $(echo "$out" | tail -n 1 | sed 's/^✖ //') (cap $cap)"
