@@ -145,6 +145,7 @@ A viewer that shows each kind of object as what it is:
   (sides of the domain that collapse to a point), and Gaussian or mean curvature as colour.
 * **B-reps**: each trimmed face in its own colour and fillets in gold. Edges are told apart as trims, natural edges and
   seams, and fillets' contact curves are drawn. Click a face to list its surface's facts and see its control net.
+  **Download STEP** saves the solid on show as a STEP file for any CAD system (see [docs/step.md](docs/step.md)).
 * **Meshes**: the wireframe, open edges, non-manifold edges, and wall thickness as colour.
 
 It comes with examples of each kind, and you can drop your own STL or OBJ mesh, or a NURBS curve or surface as
