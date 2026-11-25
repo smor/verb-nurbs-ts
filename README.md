@@ -150,6 +150,19 @@ It comes with examples of each kind, and you can drop your own STL or OBJ mesh, 
 verb JSON. What it draws is built by `Inspect` (`Inspect.curve`, `.surface`, `.brep`, `.mesh`), which returns plain
 arrays of layers and pickable items, so other front ends can use it too.
 
+## Development
+
+```
+npm ci
+npm run check      # strict typecheck, lint, build, and the full test suite (416 tests)
+npm run coverage   # line coverage of src/ (about 95%), HTML report in coverage/
+npm run docs       # API reference in docs/api/
+```
+
+CI runs the same steps on Node 20, 22 and 24, builds the demos and both web apps, and publishes the coverage report
+and API docs as build artifacts. To take the code over, start with [docs/architecture.md](docs/architecture.md),
+then read [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Differences from upstream verb
 
 * Only TypeScript/JavaScript is supported. The Haxe build and its C#, C++, Python and PHP targets are gone.

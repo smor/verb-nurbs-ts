@@ -14,7 +14,7 @@
     "lint": "eslint . --max-warnings 64",
     "test": "npm run build && mocha",
     "test:fast": "mocha",
-    "coverage": "npm run build && c8 --reporter=text-summary --reporter=html --reporter=lcov --src src --include 'dist/**' --exclude-after-remap mocha",
+    "coverage": "npm run build && c8 --reporter=text-summary --reporter=html --reporter=lcov --include 'src/**' --exclude-after-remap mocha",
     "docs": "typedoc",
     "check": "npm run typecheck && npm run lint && npm test",
     "demo:vessel": "npm run build && node examples/aalto-vessel.mjs",
