@@ -7,13 +7,13 @@ export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" 
 export interface BuildRequest { id : number; model : ModelId; params : Record<string, number>; fine : boolean; make : boolean; machine : string }
 
 function vessel( p : Record<string, number>, fine : boolean ) {
-    let base = FreeformVesselRecipe.DEFAULT_HARMONICS;
-    let harmonics = base.map( h => ({
+    const base = FreeformVesselRecipe.DEFAULT_HARMONICS;
+    const harmonics = base.map( h => ({
         frequency : h.frequency,
         amplitude : [h.amplitude[0] * p.folds, h.amplitude[1] * p.folds] as [number, number],
         phase : [h.phase[0], h.phase[0] + (h.phase[1] - h.phase[0]) * p.drift + p.turn] as [number, number]
     }) );
-    let v = FreeformVesselRecipe.build( {
+    const v = FreeformVesselRecipe.build( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], belly : p.belly, lean : [p.lean, -p.lean / 2],
         harmonics, wallThickness : p.wall, baseThickness : p.floor,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 64 : 28, divsV : fine ? 256 : 112
@@ -28,27 +28,27 @@ function folds( k : number ) {
 }
 
 function mug( p : Record<string, number>, fine : boolean ) {
-    let o = BooleanObjectsRecipe.mug( {
+    const o = BooleanObjectsRecipe.mug( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
         handleRadius : p.handle, handleReach : p.reach, handleHeights : [p.low, p.high], fillet : p.fillet,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
     } );
-    let r = o.result.report;
+    const r = o.result.report;
     return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
 }
 
 function pierced( p : Record<string, number>, fine : boolean ) {
-    let o = BooleanObjectsRecipe.pierced( {
+    const o = BooleanObjectsRecipe.pierced( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
         holes : p.holes, rows : p.rows, holeRadius : p.hole, notches : p.notches, notchRadius : p.notch, fillet : p.fillet,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
     } );
-    let r = o.result.report;
+    const r = o.result.report;
     return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
 }
 
 function ribbon( p : Record<string, number>, fine : boolean ) {
-    let o = SweptObjectsRecipe.ribbonKnot( {
+    const o = SweptObjectsRecipe.ribbonKnot( {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, width : p.width, thickness : p.thickness, turns : p.turns,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 720 : 300, divsV : fine ? 40 : 20
     } );
@@ -56,7 +56,7 @@ function ribbon( p : Record<string, number>, fine : boolean ) {
 }
 
 function knot( p : Record<string, number>, fine : boolean ) {
-    let o = SweptObjectsRecipe.knotPipe( {
+    const o = SweptObjectsRecipe.knotPipe( {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, pipeRadius : p.pipe, pipeSwell : p.swell,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 480 : 200, divsV : fine ? 40 : 20
     } );
@@ -64,7 +64,7 @@ function knot( p : Record<string, number>, fine : boolean ) {
 }
 
 function ring( p : Record<string, number>, fine : boolean ) {
-    let o = SweptObjectsRecipe.twistedRing( {
+    const o = SweptObjectsRecipe.twistedRing( {
         radius : p.radius, wave : p.wave, waves : p.waves, width : p.width, height : p.height, exponent : p.exponent, turns : p.turns,
         tolerance : fine ? 0.01 : 0.05, divsU : fine ? 360 : 160, divsV : fine ? 64 : 32
     } );
@@ -72,16 +72,16 @@ function ring( p : Record<string, number>, fine : boolean ) {
 }
 
 function appliance( p : Record<string, number>, fine : boolean ) {
-    let o = ApplianceRecipe.build( {
+    const o = ApplianceRecipe.build( {
         width : p.width, depth : p.depth, frontHeight : p.front, backHeight : p.back, squareness : p.square,
         bowlHeight : p.bowlH, bowlRadius : [p.foot, p.rim], seatDepth : p.seat, clearance : p.gap, archHeight : p.arch,
         topFillet : p.topF, seatFillet : p.seatF, archFillet : p.archF, handleFillet : p.handleF,
         couplingRadius : p.key, gripSwell : p.swell, lidTab : p.tab, lidHole : p.hole, cupLip : p.lip, ribs : p.ribs, fine : fine
     } );
-    let parts = [{ name : "Base", r : o.base }, { name : "Bowl", r : o.bowl.result }, { name : "Lid", r : o.lid }, { name : "Cup", r : o.cup }];
-    let reps = parts.map( q => q.r.report );
-    let sum = (f : (r : any) => number) => reps.reduce( (a, r) => a + f( r ), 0 );
-    let closed = reps.every( r => r.manifold.closedManifold );
+    const parts = [{ name : "Base", r : o.base }, { name : "Bowl", r : o.bowl.result }, { name : "Lid", r : o.lid }, { name : "Cup", r : o.cup }];
+    const reps = parts.map( q => q.r.report );
+    const sum = (f : (r : any) => number) => reps.reduce( (a, r) => a + f( r ), 0 );
+    const closed = reps.every( r => r.manifold.closedManifold );
     return {
         mesh : o.assembly,
         report : { manifold : { ...reps[0].manifold, closedManifold : closed, boundaryEdges : sum( r => r.manifold.boundaryEdges ),
@@ -95,36 +95,36 @@ function appliance( p : Record<string, number>, fine : boolean ) {
 }
 
 function pack( mesh : TriMesh ) {
-    let pos = new Float32Array( mesh.vertices.length * 3 );
+    const pos = new Float32Array( mesh.vertices.length * 3 );
     mesh.vertices.forEach( (v, i) => { pos[3*i] = v[0]; pos[3*i+1] = v[1]; pos[3*i+2] = v[2]; } );
-    let idx = new Uint32Array( mesh.triangles.length * 3 );
+    const idx = new Uint32Array( mesh.triangles.length * 3 );
     mesh.triangles.forEach( (t, i) => { idx[3*i] = t[0]; idx[3*i+1] = t[1]; idx[3*i+2] = t[2]; } );
     return { pos, idx };
 }
 
 self.onmessage = (e : MessageEvent<BuildRequest>) => {
-    let { id, model, params, fine, make, machine } = e.data;
-    let t0 = performance.now();
+    const { id, model, params, fine, make, machine } = e.data;
+    const t0 = performance.now();
     try {
-        let build = { vessel, knot, ring, mug, pierced, ribbon, appliance }[model] as (p : Record<string, number>, fine : boolean) => any;
-        let r = build( params, fine );
+        const build = { vessel, knot, ring, mug, pierced, ribbon, appliance }[model] as (p : Record<string, number>, fine : boolean) => any;
+        const r = build( params, fine );
         let check = null;
         if (make && fine) {
             if (r.parts) {
                 // separate parts are made separately: check each on its own (the gap between them is not a wall)
-                let cs = r.parts.map( (x : { name : string, mesh : TriMesh }) => ({ name : x.name, c : Makeable.check( x.mesh, machine ) }) );
+                const cs = r.parts.map( (x : { name : string, mesh : TriMesh }) => ({ name : x.name, c : Makeable.check( x.mesh, machine ) }) );
                 check = { makeable : cs.every( (x : any) => x.c.makeable ), machine : cs[0].c.machine.name,
                           issues : cs.flatMap( (x : any) => x.c.issues.map( (i : string) => x.name + ": " + i ) ),
                           wall : Math.min( ...cs.map( (x : any) => x.c.wall.p01 ) ), fits : cs.every( (x : any) => x.c.fits ) };
             } else {
-                let c = Makeable.check( r.mesh, machine );
+                const c = Makeable.check( r.mesh, machine );
                 if (!r.ok) c.issues.unshift( "The wall folds over itself: it is thicker than the tightest fold." );
                 check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits };
             }
         }
-        let ms = performance.now() - t0;
-        let { pos, idx } = pack( r.mesh );
-        let bb = r.report.manifold ? r.mesh.boundingBox() : null;
+        const ms = performance.now() - t0;
+        const { pos, idx } = pack( r.mesh );
+        const bb = r.report.manifold ? r.mesh.boundingBox() : null;
         (self as any).postMessage( {
             id, model, ok : true, pos, idx, ms, fine,
             stats : {

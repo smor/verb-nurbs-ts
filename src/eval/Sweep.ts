@@ -49,12 +49,12 @@ export class RotationMinimizingFrames {
         this.rail = rail;
         this.u0 = rail.knots[0];
         this.u1 = rail.knots[rail.knots.length - 1];
-        let spans = Fit.spans( rail.knots ).length;
-        let n = options != null && options.samples != null ? options.samples : Math.max( 512, 64 * spans );
+        const spans = Fit.spans( rail.knots ).length;
+        const n = options != null && options.samples != null ? options.samples : Math.max( 512, 64 * spans );
 
-        let t0 = this.tangentAt( this.u0 ), t1 = this.tangentAt( this.u1 );
-        let p0 = Eval.rationalCurvePoint( rail, this.u0 ), p1 = Eval.rationalCurvePoint( rail, this.u1 );
-        let size = Vec.norm( Vec.sub( Eval.rationalCurvePoint( rail, (this.u0 + this.u1) / 2 ), p0 ) ) + 1e-12;
+        const t0 = this.tangentAt( this.u0 ), t1 = this.tangentAt( this.u1 );
+        const p0 = Eval.rationalCurvePoint( rail, this.u0 ), p1 = Eval.rationalCurvePoint( rail, this.u1 );
+        const size = Vec.norm( Vec.sub( Eval.rationalCurvePoint( rail, (this.u0 + this.u1) / 2 ), p0 ) ) + 1e-12;
         this.closed = options != null && options.closed != null ? options.closed
             : Vec.dist( p0, p1 ) < 1e-7 * size && Vec.dot( t0, t1 ) > 1 - 1e-6;
 
@@ -66,14 +66,14 @@ export class RotationMinimizingFrames {
         r = Vec.normalized( r );
 
         for (let i = 0; i <= n; i++) {
-            let u = this.u0 + (this.u1 - this.u0) * i / n;
-            let x = Eval.rationalCurvePoint( rail, u ), t = this.tangentAt( u );
+            const u = this.u0 + (this.u1 - this.u0) * i / n;
+            const x = Eval.rationalCurvePoint( rail, u ), t = this.tangentAt( u );
             if (i > 0) r = RotationMinimizingFrames.reflect( this.pts[i-1], this.tans[i-1], this.nors[i-1], x, t );
             this.us.push( u ); this.pts.push( x ); this.tans.push( t ); this.nors.push( r );
         }
 
         if (this.closed) {
-            let tEnd = this.tans[n], rEnd = this.nors[n], rStart = this.nors[0];
+            const tEnd = this.tans[n], rEnd = this.nors[n], rStart = this.nors[0];
             this.closureAngle = Math.atan2( Vec.dot( Vec.cross( rEnd, rStart ), tEnd ), Vec.dot( rEnd, rStart ) );
         }
     }
@@ -81,12 +81,12 @@ export class RotationMinimizingFrames {
     // The frame at parameter u.
     public frameAt( u : number ) : Frame {
         u = Math.min( Math.max( u, this.u0 ), this.u1 );
-        let n = this.us.length - 1;
-        let i = Math.min( Math.floor( (u - this.u0) / (this.u1 - this.u0) * n ), n );
-        let x = Eval.rationalCurvePoint( this.rail, u ), t = this.tangentAt( u );
+        const n = this.us.length - 1;
+        const i = Math.min( Math.floor( (u - this.u0) / (this.u1 - this.u0) * n ), n );
+        const x = Eval.rationalCurvePoint( this.rail, u ), t = this.tangentAt( u );
         let r = u == this.us[i] ? this.nors[i] : RotationMinimizingFrames.reflect( this.pts[i], this.tans[i], this.nors[i], x, t );
         if (this.closed && this.closureAngle != 0.0) {
-            let a = this.closureAngle * (u - this.u0) / (this.u1 - this.u0);
+            const a = this.closureAngle * (u - this.u0) / (this.u1 - this.u0);
             r = Vec.add( Vec.mul( Math.cos( a ), r ), Vec.mul( Math.sin( a ), Vec.cross( t, r ) ) );
         }
         r = Vec.normalized( Vec.sub( r, Vec.mul( Vec.dot( r, t ), t ) ) );
@@ -95,7 +95,7 @@ export class RotationMinimizingFrames {
 
     // `count` frames at evenly spaced parameters, including both ends.
     public frames( count : number ) : Array<Frame> {
-        let out : Array<Frame> = [];
+        const out : Array<Frame> = [];
         for (let i = 0; i < count; i++) out.push( this.frameAt( this.u0 + (this.u1 - this.u0) * i / (count - 1) ) );
         return out;
     }
@@ -103,7 +103,7 @@ export class RotationMinimizingFrames {
     private tangentAt( u : number ) : Vector {
         let d = Eval.rationalCurveDerivatives( this.rail, u, 1 )[1];
         if (Vec.norm( d ) < 1e-12) {
-            let du = 1e-6 * (this.u1 - this.u0);
+            const du = 1e-6 * (this.u1 - this.u0);
             d = Eval.rationalCurveDerivatives( this.rail, u + du <= this.u1 ? u + du : u - du, 1 )[1];
         }
         return Vec.normalized( d );
@@ -111,15 +111,15 @@ export class RotationMinimizingFrames {
 
     // one double reflection step: carry normal r at (x0, t0) to (x1, t1)
     private static reflect( x0 : Point, t0 : Vector, r0 : Vector, x1 : Point, t1 : Vector ) : Vector {
-        let v1 = Vec.sub( x1, x0 );
-        let c1 = Vec.dot( v1, v1 );
+        const v1 = Vec.sub( x1, x0 );
+        const c1 = Vec.dot( v1, v1 );
         let rL = r0, tL = t0;
         if (c1 > 1e-24) {
             rL = Vec.sub( r0, Vec.mul( 2 / c1 * Vec.dot( v1, r0 ), v1 ) );
             tL = Vec.sub( t0, Vec.mul( 2 / c1 * Vec.dot( v1, t0 ), v1 ) );
         }
-        let v2 = Vec.sub( t1, tL );
-        let c2 = Vec.dot( v2, v2 );
+        const v2 = Vec.sub( t1, tL );
+        const c2 = Vec.dot( v2, v2 );
         if (c2 < 1e-24) return rL;
         return Vec.sub( rL, Vec.mul( 2 / c2 * Vec.dot( v2, rL ), v2 ) );
     }
@@ -157,38 +157,39 @@ export class Sweep {
     // non-rational B-spline surface within `tolerance` of that exact sweep; u follows the rail and v the profile.
 
     public static surface( rail : NurbsCurveData, profile : NurbsCurveData, options? : SweepOptions ) : SweepResult {
-        let o = options != null ? options : {};
-        let frames = new RotationMinimizingFrames( rail, o );
-        let twist = Sweep.paramFunction( o.twist, 0.0, rail );
-        let scale = Sweep.paramFunction( o.scale, 1.0, rail );
-        let tol = o.tolerance != null ? o.tolerance : 1e-3;
+        const o = options != null ? options : {};
+        const frames = new RotationMinimizingFrames( rail, o );
+        const twist = Sweep.paramFunction( o.twist, 0.0, rail );
+        const scale = Sweep.paramFunction( o.scale, 1.0, rail );
+        const tol = o.tolerance != null ? o.tolerance : 1e-3;
 
         // frames are expensive: cache them per rail parameter during one fit
-        let cache = new Map<number, Frame>();
-        let frameAt = (u : number) => {
+        const cache = new Map<number, Frame>();
+        const frameAt = (u : number) => {
             let f = cache.get( u );
             if (f == null) { f = frames.frameAt( u ); cache.set( u, f ); }
             return f;
         };
-        let profileCache = new Map<number, Point>();
-        let profileAt = (v : number) => {
+        const profileCache = new Map<number, Point>();
+        const profileAt = (v : number) => {
             let p = profileCache.get( v );
             if (p == null) { p = Eval.rationalCurvePoint( profile, v ); profileCache.set( v, p ); }
             return p;
         };
-        let f = (u : number, v : number) : Point => {
-            let fr = frameAt( u ), p = profileAt( v );
-            let a = twist( u ), s = scale( u );
-            let x = s * (p[0] * Math.cos( a ) - p[1] * Math.sin( a ));
-            let y = s * (p[0] * Math.sin( a ) + p[1] * Math.cos( a ));
+        const f = (u : number, v : number) : Point => {
+            const fr = frameAt( u ), p = profileAt( v );
+            const a = twist( u ), s = scale( u );
+            const x = s * (p[0] * Math.cos( a ) - p[1] * Math.sin( a ));
+            const y = s * (p[0] * Math.sin( a ) + p[1] * Math.cos( a ));
             return Vec.add( fr.point, Vec.add( Vec.mul( x, fr.normal ), Vec.mul( y, fr.binormal ) ) );
         };
 
-        let pa = Eval.rationalCurvePoint( profile, profile.knots[0] ), pb = Eval.rationalCurvePoint( profile, profile.knots[profile.knots.length - 1] );
-        let closedV = Vec.dist( pa, pb ) < 1e-9 * (1 + Vec.norm( pa ));
+        const pa = Eval.rationalCurvePoint( profile, profile.knots[0] ), pb = Eval.rationalCurvePoint( profile, profile.knots[profile.knots.length - 1] );
+        const closedV = Vec.dist( pa, pb ) < 1e-9 * (1 + Vec.norm( pa ));
 
-        let degU = Math.max( 3, rail.degree ), degV = Math.max( profile.degree, 1 );
-        let knotsU = Sweep.knotsForDegree( rail, degU );
+        const degU = Math.max( 3, rail.degree );
+        let degV = Math.max( profile.degree, 1 );
+        const knotsU = Sweep.knotsForDegree( rail, degU );
         let knotsV = profile.knots;
         if (closedV) {
             // a closed profile is fitted periodically, cubic, so the surface is as smooth across its seam as elsewhere;
@@ -198,7 +199,7 @@ export class Sweep {
             while (b.length - 1 < 8) b = Fit.insertKnots( b, Fit.spans( b ).map( s => (s[0] + s[1]) / 2 ) );
             knotsV = b;
         }
-        let fit = Fit.approximateSurface( f, degU, degV, knotsU, knotsV, tol, o.maxIterations, closedV );
+        const fit = Fit.approximateSurface( f, degU, degV, knotsU, knotsV, tol, o.maxIterations, closedV );
 
         return {
             surface : fit.surface,
@@ -212,30 +213,30 @@ export class Sweep {
     // Sweep a circle along a rail: a pipe, optionally with a varying radius.
 
     public static pipe( rail : NurbsCurveData, radius : number | [number, number] | ((u : number) => number), options? : SweepOptions ) : SweepResult {
-        let o : SweepOptions = Object.assign( {}, options != null ? options : {} );
+        const o : SweepOptions = Object.assign( {}, options != null ? options : {} );
         o.scale = radius;
-        let circle = Make.arc( [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0, 0.0, 2 * Math.PI );
+        const circle = Make.arc( [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0, 0.0, 2 * Math.PI );
         return Sweep.surface( rail, circle, o );
     }
 
     // a uniform knot vector of the given degree spanning the rail's domain, with as many spans as the rail
     private static knotsForDegree( rail : NurbsCurveData, degree : number ) : Array<number> {
         if (degree == rail.degree) return rail.knots.slice();
-        let u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
-        let spans = Math.max( 1, Fit.spans( rail.knots ).length );
-        let k : Array<number> = [];
+        const u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
+        const spans = Math.max( 1, Fit.spans( rail.knots ).length );
+        const k : Array<number> = [];
         for (let i = 0; i <= degree; i++) k.push( u0 );
         for (let i = 1; i < spans; i++) k.push( u0 + (u1 - u0) * i / spans );
         for (let i = 0; i <= degree; i++) k.push( u1 );
         return k;
     }
 
-    private static paramFunction( spec : number | [number, number] | ((u : number) => number), dflt : number, rail : NurbsCurveData ) : (u : number) => number {
+    private static paramFunction( spec : number | [number, number] | ((u : number) => number) | undefined, dflt : number, rail : NurbsCurveData ) : (u : number) => number {
         if (spec == null) return () => dflt;
-        if (typeof spec == "number") { let c = spec; return () => c; }
+        if (typeof spec == "number") { const c = spec; return () => c; }
         if (typeof spec == "function") return spec;
-        let pair = spec as [number, number];
-        let u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
+        const pair = spec as [number, number];
+        const u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
         return (u : number) => pair[0] + (pair[1] - pair[0]) * (u - u0) / (u1 - u0);
     }
 }

@@ -140,8 +140,8 @@ inner rim rounded too, each notch has two ball corners (tube, rim top, inner wal
 outer wall, whose edge stays sharp).
 
 Where three rounded edges of **different radii** meet (again all convex or all concave), no ball touches all three
-faces, and the corner is a **setback vertex blend** (Várady and Rockwood, "Vertex blending based on the setback
-split", 1995):
+faces, and the corner is a **setback vertex blend** (T. Várady and A. Rockwood, "Geometric construction for
+setback vertex blending", Computer-Aided Design 29(6):413–425, 1997):
 
 * on each face, the two contact curves that run onto it cross at a point X; each blend stops a setback short of the
   nearer of its two crossings, 0.6 times the largest radius by default (`FilletCorner.setbackFactor`), and no more

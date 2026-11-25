@@ -5,21 +5,21 @@ import { Vec } from "./Vec.js";
 
 export class Minimizer {
 
-    public static uncmin(f : ((a0: Vector) => number), x0 : Vector, tol : number = null, gradient : ((a0: Vector) => Vector) = null, maxit : number = null) : MinimizationResult {
+    public static uncmin(f : ((a0: Vector) => number), x0 : Vector, tol : number | null = null, gradient : ((a0: Vector) => Vector) | null = null, maxit : number | null = null) : MinimizationResult {
 
         if(tol == null) { tol = 1e-8; }
         if(gradient == null) { gradient = function(x) { return Minimizer.numericalGradient(f,x); }; }
         if(maxit == null) maxit = 1000;
 
         x0 = x0.slice(0);
-        let n = x0.length;
+        const n = x0.length;
         let f0 = f(x0),f1 = f0, df0;
 
         if(Number.isNaN(f0)) throw 'uncmin: f(x0) is a NaN!';
 
         tol = Math.max(tol, Constants.EPSILON);
         let step,g0,g1,H1 = Mat.identity(n);
-        let it=0,i,s : any =[],x1,y,Hy,Hs,ys,i0,t,nstep,t1,t2;
+        let it=0,s : any =[],x1,y,Hy,ys,t,nstep;
         let msg = "";
         g0 = gradient( x0 );
 
@@ -72,14 +72,18 @@ export class Minimizer {
 
     private static numericalGradient(f : ((a0: Vector) => number), x : Vector) : Vector {
 
-        let n = x.length;
-        let f0 = f(x);
+        const n = x.length;
+        const f0 = f(x);
 
         if(Number.isNaN(f0)) throw 'gradient: f(x) is a NaN!';
 
-        let i, x0 = x.slice(0),f1,f2, J = [];
+        const x0 = x.slice(0);
+        let f1;
+        let f2;
+        const J = [];
 
-        let errest,roundoff,eps = 1e-3;
+        let errest;
+        const eps = 1e-3;
         let t0,t1,t2,it=0,d1,d2,N;
 
         for (let i = 0; i < n; i++) {
@@ -116,7 +120,11 @@ export class Minimizer {
 
     private static tensor(x : Vector, y : Vector) : Matrix {
 
-        let m = x.length, n = y.length, A = [], Ai, xi;
+        const m = x.length;
+        const n = y.length;
+        const A = [];
+        let Ai;
+        let xi;
 
         let i = m-1;
         while (i >= 0){

@@ -54,8 +54,8 @@ export class Tess {
 			numSamples = 2;
 		}
 
-		let p = [];
-		let span : number = (end - start) / (numSamples - 1);
+		const p = [];
+		const span : number = (end - start) / (numSamples - 1);
 		let u : number = 0;
 
 		for (let i = 0; i < numSamples; i++) {
@@ -117,24 +117,24 @@ export class Tess {
 	public static rationalCurveAdaptiveSampleRange( curve : NurbsCurveData, start : number, end : number, tol : number, includeU : boolean ) : Array<Point>{
 
 		//sample curve at three pts
-		let p1 = Eval.rationalCurvePoint(curve, start),
+		const p1 = Eval.rationalCurvePoint(curve, start),
 			p3 = Eval.rationalCurvePoint(curve, end),
 			t = 0.5 + 0.2 * Math.random(),
 			mid = start + (end - start) * t,
 			p2 = Eval.rationalCurvePoint(curve, mid);
 
 		//if the two end control points are coincident, the three point test will always return 0, let's split the curve
-		let diff = Vec.sub( p1, p3);
-		let diff2 = Vec.sub( p1, p2);
+		const diff = Vec.sub( p1, p3);
+		const diff2 = Vec.sub( p1, p2);
 
 		//the first condition checks if the curve makes up a loop, if so, we will need to continue evaluation
 		if ( ( Vec.dot( diff, diff ) < tol && Vec.dot( diff2, diff2 ) > tol ) || !Trig.threePointsAreFlat( p1, p2, p3, tol ) ) {
 
 			//get the exact middle
-			let exact_mid = start + (end - start) * 0.5;
+			const exact_mid = start + (end - start) * 0.5;
 
 			//recurse on the two halves
-			let left_pts = Tess.rationalCurveAdaptiveSampleRange( curve, start, exact_mid, tol, includeU )
+			const left_pts = Tess.rationalCurveAdaptiveSampleRange( curve, start, exact_mid, tol, includeU )
 			, right_pts = Tess.rationalCurveAdaptiveSampleRange( curve, exact_mid, end, tol, includeU );
 
 			//concatenate the two
@@ -166,45 +166,42 @@ export class Tess {
 		if ( divs_u < 1 ) { divs_u = 1; }
 		if ( divs_v < 1 ) { divs_v = 1; }
 
-		let degreeU = surface.degreeU
-		, degreeV = surface.degreeV
-		, controlPoints = surface.controlPoints
-		, knotsU = surface.knotsU
+		const knotsU = surface.knotsU
 		, knotsV = surface.knotsV;
 
-		let u_span = ArrayExtensions.last(knotsU) - knotsU[0];
-		let v_span = ArrayExtensions.last(knotsV) - knotsV[0];
+		const u_span = ArrayExtensions.last(knotsU) - knotsU[0];
+		const v_span = ArrayExtensions.last(knotsV) - knotsV[0];
 
-		let span_u = u_span / divs_u,
+		const span_u = u_span / divs_u,
 		span_v = v_span / divs_v;
 
-		let points = [];
-		let uvs = [];
-		let normals = [];
+		const points = [];
+		const uvs = [];
+		const normals = [];
 
 		for (let i = 0; i < divs_u+1; i++) {
 			for (let j = 0; j < divs_v+1; j++) {
 
-				let pt_u = i * span_u,
+				const pt_u = i * span_u,
 				pt_v = j * span_v;
 
 				uvs.push( [pt_u, pt_v] );
 
-				let derivs = Eval.rationalSurfaceDerivatives( surface, pt_u, pt_v, 1 );
-				let pt = derivs[0][0];
+				const derivs = Eval.rationalSurfaceDerivatives( surface, pt_u, pt_v, 1 );
+				const pt = derivs[0][0];
 
 				points.push( pt );
 
-				let normal = Vec.normalized( Vec.cross(  derivs[1][0], derivs[0][1] ) );
+				const normal = Vec.normalized( Vec.cross(  derivs[1][0], derivs[0][1] ) );
 				normals.push( normal );
 			}
 		}
 
-		let faces = [];
+		const faces = [];
 
 		for (let i = 0; i < divs_u; i++) {
 			for (let j = 0; j < divs_v; j++) {
-				let a_i = i * (divs_v + 1) + j,
+				const a_i = i * (divs_v + 1) + j,
 				b_i = (i + 1) * (divs_v + 1) + j,
 				c_i = b_i + 1,
 				d_i = a_i + 1,
@@ -231,7 +228,7 @@ export class Tess {
     //
     //* MeshData object
 
-    public static divideRationalSurfaceAdaptive( surface : NurbsSurfaceData, options : AdaptiveRefinementOptions = null ): Array<AdaptiveRefinementNode> {
+    public static divideRationalSurfaceAdaptive( surface : NurbsSurfaceData, options : AdaptiveRefinementOptions | null = null ): Array<AdaptiveRefinementNode> {
 
 		if (options == null) options = new AdaptiveRefinementOptions();
 
@@ -239,36 +236,36 @@ export class Tess {
             options.minDivsU = options.minDivsV != null ? options.minDivsV : 1;
             options.refine = options.refine != null ? options.refine : true;
 
-		let minU = (surface.controlPoints.length - 1) * 2;
-		let minV = (surface.controlPoints[0].length - 1) * 2;
+		const minU = (surface.controlPoints.length - 1) * 2;
+		const minV = (surface.controlPoints[0].length - 1) * 2;
 
-		let divsU = options.minDivsU = options.minDivsU > minU ? options.minDivsU : minU;
-		let divsV = options.minDivsV = options.minDivsV > minV ? options.minDivsV : minV;
+		const divsU = options.minDivsU = options.minDivsU > minU ? options.minDivsU : minU;
+		const divsV = options.minDivsV = options.minDivsV > minV ? options.minDivsV : minV;
 
 		//get necessary intervals
-		let umax = ArrayExtensions.last(surface.knotsU);
-		let umin = surface.knotsU[0];
-		let vmax =	ArrayExtensions.last(surface.knotsV);
-		let vmin = surface.knotsV[0];
+		const umax = ArrayExtensions.last(surface.knotsU);
+		const umin = surface.knotsU[0];
+		const vmax =	ArrayExtensions.last(surface.knotsV);
+		const vmin = surface.knotsV[0];
 
-		let du = (umax - umin) / divsU
+		const du = (umax - umin) / divsU
 		, dv = (vmax - vmin) / divsV;
 
-		let divs = [];
-		let pts = [];
+		const divs = [];
+		const pts = [];
 
 		// 1) evaluate all of the corners
 		for (let i = 0; i < divsV + 1; i++) {
-			let ptrow = [];
+			const ptrow = [];
 			for (let j = 0; j < divsU + 1; j++) {
 
-				let u = umin + du * j
+				const u = umin + du * j
 				, v = vmin + dv * i;
 
 				//todo: make this faster by specifying n,m
-				let ds = Eval.rationalSurfaceDerivatives( surface, u, v, 1 );
+				const ds = Eval.rationalSurfaceDerivatives( surface, u, v, 1 );
 
-				let norm = Vec.normalized( Vec.cross(  ds[0][1], ds[1][0] ) );
+				const norm = Vec.normalized( Vec.cross(  ds[0][1], ds[1][0] ) );
 				ptrow.push( new SurfacePoint( ds[0][0], norm, [u,v], -1, Vec.isZero( norm ) ) );
 			}
 			pts.push( ptrow );
@@ -277,7 +274,7 @@ export class Tess {
 		// 2) make all of the nodes
 		for (let i = 0; i < divsV; i++) {
 			for (let j = 0; j < divsU; j++) {
-				let corners = [ pts[divsV - i - 1][j],
+				const corners = [ pts[divsV - i - 1][j],
 				pts[divsV - i - 1][j+1],
 				pts[divsV - i][j+1],
 				pts[divsV - i][j] ];
@@ -292,7 +289,7 @@ export class Tess {
 		for (let i = 0; i < divsV; i++) {
 			for (let j = 0; j < divsU; j++) {
 
-				let ci = i * divsU + j
+				const ci = i * divsU + j
 				, n = Tess.north( ci, i, j, divsU, divsV, divs )
 				, e = Tess.east( ci, i, j, divsU, divsV, divs  )
 				, s = Tess.south( ci, i, j, divsU, divsV, divs )
@@ -329,18 +326,18 @@ export class Tess {
 	private static triangulateAdaptiveRefinementNodeTree( arrTree : Array<AdaptiveRefinementNode> ) : MeshData {
 
 		//triangulate all of the nodes of the tree
-		let mesh = MeshData.empty();
+		const mesh = MeshData.empty();
 		for (const x of arrTree)  x.triangulate( mesh );
 		return mesh;
 
 	}
 
-	public static rationalSurfaceAdaptive( surface : NurbsSurfaceData, options : AdaptiveRefinementOptions = null ) : MeshData {
+	public static rationalSurfaceAdaptive( surface : NurbsSurfaceData, options : AdaptiveRefinementOptions | null = null ) : MeshData {
 
 		options = options != null ? options : new AdaptiveRefinementOptions();
 
 		//adaptive divide
-		let arrTrees = Tess.divideRationalSurfaceAdaptive( surface, options );
+		const arrTrees = Tess.divideRationalSurfaceAdaptive( surface, options );
 
 		//triangulation
 		return Tess.triangulateAdaptiveRefinementNodeTree( arrTrees );
@@ -387,10 +384,10 @@ export class AdaptiveRefinementOptions {
 export class AdaptiveRefinementNode {
 
     srf : NurbsSurfaceData;
-    public neighbors : Array<AdaptiveRefinementNode>;
+    public neighbors : Array<AdaptiveRefinementNode | null>;
     children : Array<AdaptiveRefinementNode>;
     corners : Array<SurfacePoint>;
-    midPoints : Array<SurfacePoint>;
+    midPoints : Array<SurfacePoint | null>;
     centerPoint : SurfacePoint;
     splitVert : boolean;
     splitHoriz : boolean;
@@ -398,7 +395,7 @@ export class AdaptiveRefinementNode {
     u05 : number;
     v05 : number;
 
-    constructor(srf : NurbsSurfaceData, corners : Array<SurfacePoint>, neighbors : Array<AdaptiveRefinementNode> = null) {
+    constructor(srf : NurbsSurfaceData, corners : Array<SurfacePoint>, neighbors : Array<AdaptiveRefinementNode | null> | null = null) {
 
 
         this.srf = srf;
@@ -408,10 +405,10 @@ export class AdaptiveRefinementNode {
 
         //if no corners, we need to construct initial corners from the surface
         if (this.corners == null){
-            let u0 : number = srf.knotsU[0];
-            let u1 : number = ArrayExtensions.last(srf.knotsU);
-            let v0 : number = srf.knotsV[0];
-            let v1 : number = ArrayExtensions.last(srf.knotsV);
+            const u0 : number = srf.knotsU[0];
+            const u1 : number = ArrayExtensions.last(srf.knotsU);
+            const v0 : number = srf.knotsV[0];
+            const v1 : number = ArrayExtensions.last(srf.knotsV);
 
             this.corners = [
             SurfacePoint.fromUv( u0, v0 ),
@@ -439,20 +436,20 @@ export class AdaptiveRefinementNode {
 //eval all of the corners
         for (let i = 0; i < 4; i++) {
 //if it's not already evaluated
-            if ( this.corners[i].point == null ){
+            if ( this.corners[i].point.length == 0 ){
 //evaluate it
-                let c = this.corners[i];
+                const c = this.corners[i];
                 this.evalSrf( c.uv[0], c.uv[1], c );
             }
         }
     }
 
-    public evalSrf( u : number, v : number, srfPt : SurfacePoint = null ) : SurfacePoint {
+    public evalSrf( u : number, v : number, srfPt : SurfacePoint | null = null ) : SurfacePoint {
 
-        let derivs = Eval.rationalSurfaceDerivatives( this.srf, u, v, 1 );
-        let pt = derivs[0][0];
+        const derivs = Eval.rationalSurfaceDerivatives( this.srf, u, v, 1 );
+        const pt = derivs[0][0];
         let norm = Vec.cross(  derivs[0][1], derivs[1][0] );
-        let degen = Vec.isZero( norm );
+        const degen = Vec.isZero( norm );
 
         if (!degen) norm = Vec.normalized( norm );
 
@@ -498,42 +495,42 @@ export class AdaptiveRefinementNode {
                 return this.children[0].getEdgeCorners( 3 );
         }
 
-        return null;
+        throw new Error( `edge index ${edgeIndex} is not in 0..3` );
     }
 
     public getAllCorners( edgeIndex : number ) : Array<SurfacePoint> {
 
-        let baseArr = [ this.corners[edgeIndex] ];
+        const baseArr = [ this.corners[edgeIndex] ];
 
         if ( this.neighbors[edgeIndex] == null ) {
             return baseArr;
         }
 
 //get opposite edges uvs
-        let corners = this.neighbors[edgeIndex].getEdgeCorners( ( edgeIndex + 2 ) % 4 );
+        const corners = this.neighbors[edgeIndex]!.getEdgeCorners( ( edgeIndex + 2 ) % 4 );
 
-        let funcIndex = edgeIndex % 2;
+        const funcIndex = edgeIndex % 2;
 
-        let e = Constants.EPSILON;
-        let that = this;
+        const e = Constants.EPSILON;
 
 //range clipping functions
-        let rangeFuncMap = [
-        function(c : SurfacePoint){ return c.uv[0] > that.corners[0].uv[0] + e && c.uv[0] < that.corners[2].uv[0] - e;  },
-        function(c : SurfacePoint){ return c.uv[1] > that.corners[0].uv[1] + e && c.uv[1] < that.corners[2].uv[1] - e;  }
+        const rangeFuncMap = [
+        (c : SurfacePoint) => c.uv[0] > this.corners[0].uv[0] + e && c.uv[0] < this.corners[2].uv[0] - e,
+        (c : SurfacePoint) => c.uv[1] > this.corners[0].uv[1] + e && c.uv[1] < this.corners[2].uv[1] - e
         ];
 
 //clip the range of uvs to match this one
-        let cornercopy = corners.filter( rangeFuncMap[ funcIndex ] );
+        const cornercopy = corners.filter( rangeFuncMap[ funcIndex ] );
         cornercopy.reverse();
         return baseArr.concat( cornercopy );
 
     }
 
-    public midpoint( index : number ){
+    public midpoint( index : number ) : SurfacePoint {
 
         if (this.midPoints == null) this.midPoints = [null, null, null, null];
-        if (!(this.midPoints[index] == null)) return this.midPoints[index];
+        const known = this.midPoints[index];
+        if (known != null) return known;
 
         switch (index){
             case 0:
@@ -549,7 +546,7 @@ export class AdaptiveRefinementNode {
                 this.midPoints[3] = this.evalSrf( this.corners[0].uv[0], this.v05 );
         }
 
-        return this.midPoints[index];
+        return this.midPoints[index]!;
 
     }
 
@@ -558,15 +555,13 @@ export class AdaptiveRefinementNode {
     }
 
     public fixNormals() : void {
-        let l = this.corners.length;
+        const l = this.corners.length;
 
         for (let i = 0; i < l; i++) {
-            let corn = this.corners[i];
-
             if (this.corners[i].degen) {
 //get neighbors
-                let v1 = this.corners[(i + 1) % l];
-                let v2 = this.corners[(i + 3) % l];
+                const v1 = this.corners[(i + 1) % l];
+                const v2 = this.corners[(i + 3) % l];
 
 //correct the normal
                 this.corners[i].normal = v1.degen ? v2.normal : v1.normal;
@@ -593,7 +588,7 @@ export class AdaptiveRefinementNode {
 
         if ( this.splitVert || this.splitHoriz ) return true;
 
-        let center = this.center();
+        const center = this.center();
 
         return Vec.normSquared( Vec.sub( center.normal, this.corners[0].normal ) ) > options.normTol ||
         Vec.normSquared( Vec.sub( center.normal, this.corners[1].normal ) ) > options.normTol ||
@@ -601,7 +596,7 @@ export class AdaptiveRefinementNode {
         Vec.normSquared( Vec.sub( center.normal, this.corners[3].normal ) ) > options.normTol;
     }
 
-    public divide( options : AdaptiveRefinementOptions = null ) : void {
+    public divide( options : AdaptiveRefinementOptions | null = null ) : void {
         if (options == null) options = new AdaptiveRefinementOptions();
             if (options.normTol == null) options.normTol = 8.5e-2;
         if (options.minDepth == null) options.minDepth = 0;
@@ -629,8 +624,8 @@ export class AdaptiveRefinementNode {
 
         if (this.horizontal){
 
-            let bott = 	[ this.corners[0], this.corners[1], this.midpoint(1), this.midpoint(3)  ];
-            let top = 	[ this.midpoint(3), this.midpoint(1), this.corners[2], this.corners[3]  ];
+            const bott = 	[ this.corners[0], this.corners[1], this.midpoint(1), this.midpoint(3)  ];
+            const top = 	[ this.midpoint(3), this.midpoint(1), this.corners[2], this.corners[3]  ];
 
             this.children = [ new AdaptiveRefinementNode( this.srf, bott ), new AdaptiveRefinementNode( this.srf, top ) ];
 
@@ -642,8 +637,8 @@ export class AdaptiveRefinementNode {
 
         } else {
 
-            let left = [ this.corners[0], this.midpoint(0), this.midpoint(2), this.corners[3]  ];
-            let right = [ this.midpoint(0), this.corners[1], this.corners[2], this.midpoint(2)  ];
+            const left = [ this.corners[0], this.midpoint(0), this.midpoint(2), this.corners[3]  ];
+            const right = [ this.midpoint(0), this.corners[1], this.corners[2], this.midpoint(2)  ];
 
             this.children = [ new AdaptiveRefinementNode( this.srf, left ),  new AdaptiveRefinementNode( this.srf, right ) ];
 
@@ -659,7 +654,7 @@ export class AdaptiveRefinementNode {
 
     }
 
-    public triangulate( mesh : MeshData = null ) : MeshData {
+    public triangulate( mesh : MeshData | null = null ) : MeshData {
 
         if (mesh == null) mesh = MeshData.empty();
 
@@ -676,15 +671,15 @@ export class AdaptiveRefinementNode {
 
     public triangulateLeaf( mesh : MeshData ) : MeshData{
 
-        let baseIndex = mesh.points.length
-        , uvs = []
-        , ids = []
-        , splitid = 0;
+        let baseIndex = mesh.points.length;
+        const uvs = [];
+        const ids = [];
+        let splitid = 0;
 
 //enumerate all uvs in counter clockwise direction
         for (let i = 0; i < 4; i++) {
 
-            let edgeCorners = this.getAllCorners(i);
+            const edgeCorners = this.getAllCorners(i);
 
 //this is the vertex that is split
             if (edgeCorners.length == 2 ) splitid = i + 1;
@@ -725,7 +720,7 @@ export class AdaptiveRefinementNode {
         } else if (uvs.length == 5){
 
 //use the splitcorner to triangulate
-            let il = ids.length;
+            const il = ids.length;
 
 //there will be 3 triangles
             mesh.faces.push( [ ids[ splitid ], ids[ (splitid + 2) % il ], ids[ (splitid + 1) % il ] ] );
@@ -737,14 +732,14 @@ export class AdaptiveRefinementNode {
         }
 
 //make point at center of face
-        let center = this.center();
+        const center = this.center();
 
         mesh.uvs.push( center.uv );
         mesh.points.push( center.point );
         mesh.normals.push( center.normal );
 
 //get index
-        let centerIndex = mesh.points.length - 1;
+        const centerIndex = mesh.points.length - 1;
 
 //build triangle fan from center
         let i = 0;

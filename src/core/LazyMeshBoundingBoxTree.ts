@@ -7,9 +7,9 @@ import { IBoundingBoxTree } from "../eval/Intersect.js";
 export class LazyMeshBoundingBoxTree implements IBoundingBoxTree<number> {
     _mesh : MeshData;
     _faceIndices : Array<number>;
-    _boundingBox : BoundingBox = null;
+    _boundingBox : BoundingBox | null = null;
 
-    constructor(mesh : MeshData, faceIndices : Array<number> = null){
+    constructor(mesh : MeshData, faceIndices : Array<number> | null = null){
         this._mesh = mesh;
         if (faceIndices == null) {
             faceIndices = Array.from({ length: mesh.faces.length }, (_, i) => i);
@@ -18,7 +18,7 @@ export class LazyMeshBoundingBoxTree implements IBoundingBoxTree<number> {
     }
 
     public split() : Pair<IBoundingBoxTree<number>, IBoundingBoxTree<number>> {
-        let as = Mesh.sortTrianglesOnLongestAxis( this.boundingBox(), this._mesh, this._faceIndices )
+        const as = Mesh.sortTrianglesOnLongestAxis( this.boundingBox(), this._mesh, this._faceIndices )
         , l = ArrayExtensions.left(as)
         , r = ArrayExtensions.right(as);
 
@@ -38,7 +38,7 @@ export class LazyMeshBoundingBoxTree implements IBoundingBoxTree<number> {
         return this._faceIndices[0];
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return this._faceIndices.length == 1;
     }
 

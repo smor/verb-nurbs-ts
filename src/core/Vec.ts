@@ -11,18 +11,18 @@ export class Vec {
     }
 
     public static positiveAngleBetween(a : Array<number>, b : Array<number>, n : Array<number>) : number{
-        let nab = Vec.cross(a,b);
+        const nab = Vec.cross(a,b);
 
-        let al = Vec.norm(a);
-        let bl = Vec.norm(b);
-        let abl = al * bl;
-        let adb = Vec.dot(a,b);
+        const al = Vec.norm(a);
+        const bl = Vec.norm(b);
+        const abl = al * bl;
+        const adb = Vec.dot(a,b);
 
-        let sina = Vec.norm(nab) / abl;
-        let cosa = adb / abl;
+        const sina = Vec.norm(nab) / abl;
+        const cosa = adb / abl;
 
-        let w = Math.atan2( sina, cosa );
-        let s = Vec.dot(n, nab);
+        const w = Math.atan2( sina, cosa );
+        const s = Vec.dot(n, nab);
 
         if (Math.abs(s) < Constants.EPSILON) return w;
 
@@ -30,24 +30,24 @@ export class Vec {
     }
 
     public static signedAngleBetween(a : Array<number>, b : Array<number>, n : Array<number>) : number{
-        let nab = Vec.cross(a,b);
+        const nab = Vec.cross(a,b);
 
-        let al = Vec.norm(a);
-        let bl = Vec.norm(b);
-        let abl = al * bl;
-        let adb = Vec.dot(a,b);
+        const al = Vec.norm(a);
+        const bl = Vec.norm(b);
+        const abl = al * bl;
+        const adb = Vec.dot(a,b);
 
-        let sina = Vec.norm(nab) / abl;
-        let cosa = adb / abl;
+        const sina = Vec.norm(nab) / abl;
+        const cosa = adb / abl;
 
-        let w = Math.atan2( sina, cosa );
-        let s = Vec.dot(n, nab);
+        const w = Math.atan2( sina, cosa );
+        const s = Vec.dot(n, nab);
 
         return s > 0.0 ? w : 2 * Math.PI - w;
     }
 
     public static angleBetweenNormalized2d(a : Array<number>, b : Array<number>) : number {
-        let perpDot = a[0] * b[1]-a[1] * b[0];
+        const perpDot = a[0] * b[1]-a[1] * b[0];
         return Math.atan2(perpDot, Vec.dot(a, b));
     }
 
@@ -56,7 +56,7 @@ export class Vec {
     }
 
     public static range(max : number) : Array<number> {
-        let l = [];
+        const l = [];
         let f = 0.0;
         for (let i = 0; i < max; i++) {
             l.push(f);
@@ -71,7 +71,7 @@ export class Vec {
         if (min > max && step > 0.0) return []; //infinite
         if (max > min && step < 0.0) return []; //infinite
 
-        let l = [];
+        const l = [];
         let cur = min;
 
         while( cur <= max ){
@@ -130,16 +130,16 @@ export class Vec {
         return a.reduce(function(a, x){ return a + x; }, 0);
     }
 
-    public static addAll(a : Array<Array<number>>) : Array<number> {
+    public static addAll(a : Array<Array<number>>) : Array<number> | null {
         if (a.length == 0) return null;
 
-        let f = a[0].length;
+        const f = a[0].length;
 
         return a.reduce(function(a, x){ return Vec.add(a,x); }, Vec.rep(f, 0.0));
     }
 
     public static addAllMutate(a : Array<Array<number>>) {
-        let f = a[0];
+        const f = a[0];
         for (let i = 1; i < a.length; i++) 
             Vec.addMutate(f, a[i]);
     }
@@ -170,7 +170,7 @@ export class Vec {
     }
 
     public static norm(a : Array<number> ) : number {
-        let norm2 = Vec.normSquared(a);
+        const norm2 = Vec.normSquared(a);
         return norm2 != 0.0 ? Math.sqrt( norm2 ) : norm2;
     }
 
@@ -179,19 +179,19 @@ export class Vec {
     }
 
     public static rep<T>(num : number, ele : T ) : Array<T> {
-        let r = new Array( num ); for (let i = 0; i < num; i++) r[i] = ele; return r;
+        const r = new Array( num ); for (let i = 0; i < num; i++) r[i] = ele; return r;
     }
 
     public static zeros1d(rows : number) : Array<number> {
-        let r = new Array<number>( rows ); for (let i = 0; i < rows; i++) r[i] = 0.0; return r;
+        const r = new Array<number>( rows ); for (let i = 0; i < rows; i++) r[i] = 0.0; return r;
     }
 
     public static zeros2d(rows : number, cols : number) : Array<Array<number>> {
-        let r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros1d( cols ); return r;
+        const r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros1d( cols ); return r;
     }
 
     public static zeros3d(rows : number, cols : number, depth : number) : Array<Array<Array<number>>> {
-        let r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros2d( cols, depth ); return r;
+        const r = new Array( rows ); for (let i = 0; i < rows; i++) r[i] = Vec.zeros2d( cols, depth ); return r;
     }
 
     public static dot(a : Array<number>, b : Array<number>) : number {
@@ -203,19 +203,19 @@ export class Vec {
     }
 
     public static add(a : Array<number>, b : Array<number>) : Array<number>{
-        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] + b[i]; return r;
+        const n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] + b[i]; return r;
     }
 
     public static mul(a : number, b : Array<number>) : Array<number>{
-        let n = b.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a * b[i]; return r;
+        const n = b.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a * b[i]; return r;
     }
 
     public static div(a : Array<number>, b : number ) : Array<number>{
-        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] / b; return r;
+        const n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] / b; return r;
     }
 
     public static sub(a : Array<number>, b : Array<number>) : Array<number>{
-        let n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] - b[i]; return r;
+        const n = a.length, r = new Array<number>( n ); for (let i = 0; i < n; i++) r[i] = a[i] - b[i]; return r;
     }
 
     public static isZero( vec : Array<number> ){
@@ -229,7 +229,7 @@ export class Vec {
 
     public static sortedSetUnion( a : Array<number>, b : Array<number>) : Array<number> {
 
-        let merged = [];
+        const merged = [];
 
         let ai = 0;
         let bi = 0;
@@ -245,7 +245,7 @@ export class Vec {
                 continue;
             }
 
-            let diff = a[ai] - b[bi];
+            const diff = a[ai] - b[bi];
 
             if ( Math.abs(diff) < Constants.EPSILON ){
                 merged.push( a[ai] );
@@ -273,7 +273,7 @@ export class Vec {
     //a is superset, hence it is always longer or equal
     public static sortedSetSub( a : Array<number>, b : Array<number>) : Array<number> {
 
-        let result = [];
+        const result = [];
 
         let ai = 0;
         let bi = 0;

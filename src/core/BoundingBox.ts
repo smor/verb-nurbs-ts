@@ -17,17 +17,17 @@ export class BoundingBox {
     //
     //* Points to add, if desired.  Otherwise, will not be initialized until add is called.
 
-    constructor(pts : Array<Point> = null) {
+    constructor(pts : Array<Point> | null = null) {
         if ( pts != null ) {
             this.addRange( pts );
         }
     }
 
     // The minimum point of the BoundingBox - the coordinates of this point are always <= max.
-    public min : Point = null;
+    public min : Point = [];
 
     // The maximum point of the BoundingBox. The coordinates of this point are always >= min.
-    public max : Point = null;
+    public max : Point = [];
 
     //Create a bounding box initialized with a single element
     //
@@ -87,7 +87,7 @@ export class BoundingBox {
 
     public addRange( points : Array<Point> ) : BoundingBox
     {
-        let l = points.length;
+        const l = points.length;
 
         for (let i = 0; i < l; i++) {
             this.add(points[i]);
@@ -133,7 +133,7 @@ export class BoundingBox {
     public static intervalsOverlap( a1 : number, a2: number, b1: number, b2: number, tol? : number) : boolean { if (tol == null) tol = -1;
 
         tol = tol < -0.5 ? Constants.TOLERANCE : tol;
-        let x1 = Math.min(a1, a2) - tol
+        const x1 = Math.min(a1, a2) - tol
         , x2 = Math.max(a1, a2) + tol
         , y1 = Math.min(b1, b2) - tol
         , y2 = Math.max(b1, b2) + tol;
@@ -155,7 +155,7 @@ export class BoundingBox {
 
         if ( !this.initialized || !bb.initialized ) return false;
 
-        let a1 = this.min
+        const a1 = this.min
         , a2 = this.max
         , b1 = bb.min
         , b2 = bb.max;
@@ -191,7 +191,7 @@ export class BoundingBox {
         let id = 0;
 
         for (let i = 0; i < this.dim; i++) {
-            let l = this.getAxisLength(i);
+            const l = this.getAxisLength(i);
             if (l > max) {
                 max = l;
                 id = i;
@@ -227,18 +227,18 @@ export class BoundingBox {
     //
     //* The bounding box formed by the intersection or null if there is no intersection.
 
-    public intersect( bb : BoundingBox, tol : number ) : BoundingBox {
+    public intersect( bb : BoundingBox, tol : number ) : BoundingBox | null {
 
         if ( !this.initialized ) return null;
 
-        let a1 = this.min
+        const a1 = this.min
         , a2 = this.max
         , b1 = bb.min
         , b2 = bb.max;
 
         if ( !this.intersects( bb, tol ) ) return null;
 
-        let maxbb = []
+        const maxbb = []
         , minbb = [];
 
         for (let i = 0; i < this.dim; i++) {

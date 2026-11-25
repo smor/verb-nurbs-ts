@@ -1,4 +1,4 @@
-import { NurbsCurveData, NurbsSurfaceData, Point, Vector, KnotArray } from "../core/Data.js";
+import { NurbsCurveData, NurbsSurfaceData, Point, Vector } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "./Eval.js";
 import { Fit } from "./Fit.js";
@@ -48,20 +48,20 @@ export class Offset {
 
     public static curve( curve : NurbsCurveData, distance : number, normal? : Vector, options? : OffsetOptions ) : OffsetResult<NurbsCurveData> {
         if (normal == null) normal = [0.0, 0.0, 1.0];
-        let n = Vec.normalized( normal );
-        let tol = options != null && options.tolerance != null ? options.tolerance : 1e-4;
-        let maxIt = options != null && options.maxIterations != null ? options.maxIterations : 10;
+        const n = Vec.normalized( normal );
+        const tol = options != null && options.tolerance != null ? options.tolerance : 1e-4;
+        const maxIt = options != null && options.maxIterations != null ? options.maxIterations : 10;
 
-        let offsetPoint = (u : number) : Point => {
-            let ders = Eval.rationalCurveDerivatives( curve, u, 1 );
+        const offsetPoint = (u : number) : Point => {
+            const ders = Eval.rationalCurveDerivatives( curve, u, 1 );
             let t = ders[1];
             if (Vec.norm( t ) < 1e-12) {
                 // degenerate derivative: use a nearby tangent
-                let du = 1e-6 * (curve.knots[curve.knots.length - 1] - curve.knots[0]);
-                let u2 = u + du <= curve.knots[curve.knots.length - 1] ? u + du : u - du;
+                const du = 1e-6 * (curve.knots[curve.knots.length - 1] - curve.knots[0]);
+                const u2 = u + du <= curve.knots[curve.knots.length - 1] ? u + du : u - du;
                 t = Eval.rationalCurveDerivatives( curve, u2, 1 )[1];
             }
-            let side = Vec.normalized( Vec.cross( t, n ) );
+            const side = Vec.normalized( Vec.cross( t, n ) );
             return Vec.add( ders[0], Vec.mul( distance, side ) );
         };
 
@@ -69,7 +69,7 @@ export class Offset {
             return { result : Offset.polylineOffset( curve, distance, n ), maxError : 0.0, iterations : 0 };
         }
 
-        let fit = Fit.approximateCurve( offsetPoint, curve.degree, curve.knots, tol, maxIt );
+        const fit = Fit.approximateCurve( offsetPoint, curve.degree, curve.knots, tol, maxIt );
         return { result : fit.curve, maxError : fit.maxError, iterations : fit.iterations };
     }
 
@@ -86,32 +86,32 @@ export class Offset {
     //* the offset surface, its measured maximum error, and the number of refinement rounds
 
     public static surface( surface : NurbsSurfaceData, distance : number, options? : OffsetOptions ) : OffsetResult<NurbsSurfaceData> {
-        let tol = options != null && options.tolerance != null ? options.tolerance : 1e-4;
-        let maxIt = options != null && options.maxIterations != null ? options.maxIterations : 10;
+        const tol = options != null && options.tolerance != null ? options.tolerance : 1e-4;
+        const maxIt = options != null && options.maxIterations != null ? options.maxIterations : 10;
 
-        let offsetPoint = (u : number, v : number) : Point => {
+        const offsetPoint = (u : number, v : number) : Point => {
             return Vec.add( Eval.rationalSurfacePoint( surface, u, v ), Vec.mul( distance, Offset.surfaceUnitNormal( surface, u, v ) ) );
         };
 
         // a surface that closes smoothly on itself in v (a lofted wall of periodic sections) gets a periodic fit, so the
         // offset is as smooth across the seam as elsewhere and not just closed
-        let periodicV = options != null && options.periodicV != null ? options.periodicV : Offset.closesSmoothlyInV( surface );
-        let fit = Fit.approximateSurface( offsetPoint, surface.degreeU, surface.degreeV, surface.knotsU, surface.knotsV, tol, maxIt, periodicV );
+        const periodicV = options != null && options.periodicV != null ? options.periodicV : Offset.closesSmoothlyInV( surface );
+        const fit = Fit.approximateSurface( offsetPoint, surface.degreeU, surface.degreeV, surface.knotsU, surface.knotsV, tol, maxIt, periodicV );
         return { result : fit.surface, maxError : fit.maxError, iterations : fit.iterations };
     }
 
     // Whether a surface's v = start and v = end edges coincide with matching tangent planes (checked at a few u).
     public static closesSmoothlyInV( surface : NurbsSurfaceData ) : boolean {
         if (surface.degreeV < 2) return false;
-        let ku = surface.knotsU, kv = surface.knotsV;
-        let u0 = ku[0], u1 = ku[ku.length - 1], v0 = kv[0], v1 = kv[kv.length - 1];
+        const ku = surface.knotsU, kv = surface.knotsV;
+        const u0 = ku[0], u1 = ku[ku.length - 1], v0 = kv[0], v1 = kv[kv.length - 1];
         let size = 0.0;
         for (let i = 0; i <= 8; i++) {
-            let u = u0 + (u1 - u0) * (0.05 + 0.9 * i / 8);
-            let a = Eval.rationalSurfaceDerivatives( surface, u, v0, 1 ), b = Eval.rationalSurfaceDerivatives( surface, u, v1, 1 );
+            const u = u0 + (u1 - u0) * (0.05 + 0.9 * i / 8);
+            const a = Eval.rationalSurfaceDerivatives( surface, u, v0, 1 ), b = Eval.rationalSurfaceDerivatives( surface, u, v1, 1 );
             size = Math.max( size, Vec.norm( a[0][1] ) );
             if (Vec.dist( a[0][0], b[0][0] ) > 1e-9 * (1 + Vec.norm( a[0][0] ))) return false;
-            let na = Vec.cross( a[1][0], a[0][1] ), nb = Vec.cross( b[1][0], b[0][1] );
+            const na = Vec.cross( a[1][0], a[0][1] ), nb = Vec.cross( b[1][0], b[0][1] );
             if (Vec.norm( na ) < 1e-12 || Vec.norm( nb ) < 1e-12) continue;
             if (Vec.angleBetween( na, nb ) > 0.05) return false;
         }
@@ -125,12 +125,12 @@ export class Offset {
         let n = Eval.rationalSurfaceNormal( surface, u, v );
         let len = Vec.norm( n );
         if (len > 1e-10) return Vec.mul( 1 / len, n );
-        let u0 = surface.knotsU[0], u1 = surface.knotsU[surface.knotsU.length - 1];
-        let v0 = surface.knotsV[0], v1 = surface.knotsV[surface.knotsV.length - 1];
+        const u0 = surface.knotsU[0], u1 = surface.knotsU[surface.knotsU.length - 1];
+        const v0 = surface.knotsV[0], v1 = surface.knotsV[surface.knotsV.length - 1];
         for (let k = 1; k <= 6; k++) {
-            let e = Math.pow( 10, -7 + k );
-            let uu = Math.min( Math.max( u, u0 + e * (u1 - u0) ), u1 - e * (u1 - u0) );
-            let vv = Math.min( Math.max( v, v0 + e * (v1 - v0) ), v1 - e * (v1 - v0) );
+            const e = Math.pow( 10, -7 + k );
+            const uu = Math.min( Math.max( u, u0 + e * (u1 - u0) ), u1 - e * (u1 - u0) );
+            const vv = Math.min( Math.max( v, v0 + e * (v1 - v0) ), v1 - e * (v1 - v0) );
             n = Eval.rationalSurfaceNormal( surface, uu, vv );
             len = Vec.norm( n );
             if (len > 1e-10) return Vec.mul( 1 / len, n );
@@ -142,19 +142,19 @@ export class Offset {
     // at the intersection of their offset lines (a miter join).
 
     public static polylineOffset( curve : NurbsCurveData, distance : number, normal : Vector ) : NurbsCurveData {
-        let pts = Eval.dehomogenize1d( curve.controlPoints );
-        let closed = Vec.dist( pts[0], pts[pts.length - 1] ) < 1e-10;
-        let dirs : Array<Vector> = [];
+        const pts = Eval.dehomogenize1d( curve.controlPoints );
+        const closed = Vec.dist( pts[0], pts[pts.length - 1] ) < 1e-10;
+        const dirs : Array<Vector> = [];
         for (let i = 0; i < pts.length - 1; i++) dirs.push( Vec.normalized( Vec.sub( pts[i+1], pts[i] ) ) );
-        let sides = dirs.map( d => Vec.normalized( Vec.cross( d, normal ) ) );
-        let out : Array<Point> = [];
+        const sides = dirs.map( d => Vec.normalized( Vec.cross( d, normal ) ) );
+        const out : Array<Point> = [];
         for (let i = 0; i < pts.length; i++) {
-            let prev = i > 0 ? i - 1 : (closed ? dirs.length - 1 : -1);
-            let next = i < dirs.length ? i : (closed ? 0 : -1);
+            const prev = i > 0 ? i - 1 : (closed ? dirs.length - 1 : -1);
+            const next = i < dirs.length ? i : (closed ? 0 : -1);
             if (prev < 0) { out.push( Vec.add( pts[i], Vec.mul( distance, sides[next] ) ) ); continue; }
             if (next < 0) { out.push( Vec.add( pts[i], Vec.mul( distance, sides[prev] ) ) ); continue; }
-            let bis = Vec.add( sides[prev], sides[next] );
-            let c = Vec.dot( Vec.normalized( bis ), sides[next] );
+            const bis = Vec.add( sides[prev], sides[next] );
+            const c = Vec.dot( Vec.normalized( bis ), sides[next] );
             out.push( Vec.add( pts[i], Vec.mul( distance / c, Vec.normalized( bis ) ) ) );
         }
         return new NurbsCurveData( 1, curve.knots.slice(), Eval.homogenize1d( out, null ) );

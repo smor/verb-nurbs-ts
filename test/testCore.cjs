@@ -824,3 +824,11 @@ describe("verb.core.Mat.mult",function(){
     });
 });
 
+
+describe("verb.core.MeshIntersectionPoint",function(){
+    it("keeps the indices of the two faces it lies on (upstream verb dropped them)", function(){
+        var p = new verb.core.MeshIntersectionPoint( [0,0], [1,1], [1,2,3], 4, 7 );
+        p.faceIndex0.should.equal( 4 );
+        p.faceIndex1.should.equal( 7 );
+    });
+});

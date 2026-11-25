@@ -11,7 +11,7 @@ export class MeshBoundingBoxTree implements IBoundingBoxTree<number> {
     _face : number = -1;
     _empty : boolean = false;
 
-    constructor(mesh : MeshData, faceIndices : Array<number> = null){
+    constructor(mesh : MeshData, faceIndices : Array<number> | null = null){
 
         if (faceIndices == null) {
             faceIndices = Array.from({ length: mesh.faces.length }, (_, i) => i);
@@ -27,9 +27,9 @@ export class MeshBoundingBoxTree implements IBoundingBoxTree<number> {
             return;
         }
 
-        let as = Mesh.sortTrianglesOnLongestAxis( this._boundingBox, mesh, faceIndices );
-        let l = ArrayExtensions.left(as);
-        let r = ArrayExtensions.right(as);
+        const as = Mesh.sortTrianglesOnLongestAxis( this._boundingBox, mesh, faceIndices );
+        const l = ArrayExtensions.left(as);
+        const r = ArrayExtensions.right(as);
 
         this._children = new Pair<IBoundingBoxTree<number>, IBoundingBoxTree<number>>(
             new MeshBoundingBoxTree(mesh, l),
@@ -49,7 +49,7 @@ export class MeshBoundingBoxTree implements IBoundingBoxTree<number> {
         return this._face;
     }
 
-    public indivisible( tolerance : number ){
+    public indivisible( _tolerance : number ){
         return this._children == null;
     }
 

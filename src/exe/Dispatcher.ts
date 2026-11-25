@@ -10,7 +10,7 @@ export class Dispatcher {
     public static dispatchMethod<T>(classType: any, methodName: string, args: Array<any>): Promise<T | any> {
         return new Promise<T>((resolve, reject) => {
             try {
-                resolve(classType[methodName].apply(classType, args));
+                resolve(classType[methodName](...args));
             } catch (e) {
                 reject(e);
             }

@@ -38,13 +38,13 @@ export class Divide {
             degree = surface.degreeV;
         }
 
-        let knots_to_insert = Array.from({ length: degree+1 }, (_, i) => u);
+        const knots_to_insert = Array.from({ length: degree+1 }, () => u);
 
         let newpts0 = new Array<Array<Point>>()
         , newpts1 = new Array<Array<Point>>();
 
-        let s = Eval.knotSpan( degree, u, knots );
-        let res : NurbsCurveData = null;
+        const s = Eval.knotSpan( degree, u, knots );
+        let res! : NurbsCurveData;
 
         for (const cps of controlPoints) {
             res = Modify.curveKnotRefine( new NurbsCurveData(degree, knots, cps), knots_to_insert );
@@ -53,8 +53,8 @@ export class Divide {
             newpts1.push( res.controlPoints.slice( s + 1 ) );
         }
 
-        let knots0 = res.knots.slice(0, s + degree + 2);
-        let knots1 = res.knots.slice( s + 1 );
+        const knots0 = res.knots.slice(0, s + degree + 2);
+        const knots1 = res.knots.slice( s + 1 );
 
         if (!useV){
             newpts0 = Mat.transpose( newpts0 );
@@ -82,20 +82,19 @@ export class Divide {
 
     public static curveSplit( curve : NurbsCurveData, u : number ) : Array<NurbsCurveData> {
 
-        let degree = curve.degree
-        , controlPoints = curve.controlPoints
+        const degree = curve.degree
         , knots = curve.knots;
 
-        let knots_to_insert = Array.from({ length: degree+1 }, (_, i) => u);
-        let res = Modify.curveKnotRefine( curve, knots_to_insert );
+        const knots_to_insert = Array.from({ length: degree+1 }, () => u);
+        const res = Modify.curveKnotRefine( curve, knots_to_insert );
 
-        let s = Eval.knotSpan( degree, u, knots );
+        const s = Eval.knotSpan( degree, u, knots );
 
-        let knots0 = res.knots.slice(0, s + degree + 2);
-        let knots1 = res.knots.slice( s + 1 );
+        const knots0 = res.knots.slice(0, s + degree + 2);
+        const knots1 = res.knots.slice( s + 1 );
 
-        let cpts0 = res.controlPoints.slice( 0, s + 1 );
-        let cpts1 = res.controlPoints.slice( s + 1 );
+        const cpts0 = res.controlPoints.slice( 0, s + 1 );
+        const cpts1 = res.controlPoints.slice( s + 1 );
 
         return [
             new NurbsCurveData( degree, knots0, cpts0 ),
@@ -119,8 +118,8 @@ export class Divide {
 
     public static rationalCurveByEqualArcLength(curve : NurbsCurveData, num : number) : Array<CurveLengthSample> {
 
-        let tlen = Analyze.rationalCurveArcLength( curve );
-        let inc = tlen / num;
+        const tlen = Analyze.rationalCurveArcLength( curve );
+        const inc = tlen / num;
 
         return Divide.rationalCurveByArcLength(curve, inc);
 
@@ -139,19 +138,19 @@ export class Divide {
 
     public static rationalCurveByArcLength(curve : NurbsCurveData, l : number) : Array<CurveLengthSample> {
 
-        let crvs = Modify.decomposeCurveIntoBeziers( curve )
+        const crvs = Modify.decomposeCurveIntoBeziers( curve )
         , crvlens = crvs.map(function(x){ return Analyze.rationalBezierCurveArcLength(x); })
         , totlen = Vec.sum(crvlens)
         , pts = [ new CurveLengthSample( curve.knots[0], 0.0 ) ];
 
         if (l > totlen) return pts;
 
-        let inc = l
-        , i = 0
-        , lc = inc
-        , runsum = 0.0
-        , runsum1 = 0.0
-        , u;
+        const inc = l;
+        let i = 0;
+        let lc = inc;
+        let runsum = 0.0;
+        let runsum1 = 0.0;
+        let u;
 
         while ( i < crvs.length ){
 
