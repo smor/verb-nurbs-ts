@@ -52,7 +52,7 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
     },
     mug : {
         name : "Mug",
-        note : "NURBS Boolean: (body + handle) − cavity. Seams are exact surface/surface intersections, trimmed on both faces.",
+        note : "NURBS Boolean: (body + handle) − cavity. Seams are exact surface/surface intersections; the handle joint is blended by a rolling-ball fillet.",
         sliders : [
             { key : "height", label : "Height", min : 70, max : 160, step : 1, value : 110, unit : "mm" },
             { key : "baseRadius", label : "Base radius", min : 28, max : 70, step : 1, value : 40, unit : "mm" },
@@ -63,11 +63,12 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "reach", label : "Handle reach", min : 20, max : 50, step : 1, value : 32, unit : "mm" },
             { key : "low", label : "Lower joint", min : 0.12, max : 0.45, step : 0.01, value : 0.25, unit : "×H" },
             { key : "high", label : "Upper joint", min : 0.55, max : 0.85, step : 0.01, value : 0.75, unit : "×H" },
+            { key : "fillet", label : "Joint fillet", min : 0, max : 6, step : 0.25, value : 3, unit : "mm" },
         ]
     },
     pierced : {
         name : "Pierced vessel",
-        note : "NURBS Boolean: body − cavity − round tools. Holes go through the wall; notches cut the rim, where three faces meet at exact triple points.",
+        note : "NURBS Boolean: body − cavity − round tools. Holes go through the wall; notches cut the rim, where three faces meet at exact triple points. Hole edges are rounded by rolling-ball fillets.",
         sliders : [
             { key : "height", label : "Height", min : 80, max : 220, step : 1, value : 140, unit : "mm" },
             { key : "baseRadius", label : "Base radius", min : 40, max : 90, step : 1, value : 55, unit : "mm" },
@@ -79,6 +80,7 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "hole", label : "Hole radius", min : 3, max : 12, step : 0.5, value : 7, unit : "mm" },
             { key : "notches", label : "Rim notches", min : 0, max : 14, step : 1, value : 9 },
             { key : "notch", label : "Notch radius", min : 3, max : 9, step : 0.5, value : 7, unit : "mm" },
+            { key : "fillet", label : "Hole edge fillet", min : 0, max : 1.4, step : 0.05, value : 0.8, unit : "mm" },
         ]
     },
     ribbon : {
@@ -191,7 +193,15 @@ worker.onmessage = (e : MessageEvent) => {
     const r = e.data;
     if (queued) { const q = queued; queued = null; request( q.fine ); }
     if (r.model != current) return; // a build for a model the user has since left
-    if (!r.ok) { showError( r.message ); return; }
+    if (!r.ok) {
+        // a coarse preview can fail where the final resolution works: go on to the final build before giving up
+        if (!r.fine && !queued) {
+            $( "status" ).textContent = "Preview failed, building at final resolution…";
+            clearTimeout( fineTimer ); fineTimer = window.setTimeout( () => request( true ), 50 );
+            return;
+        }
+        showError( r.message ); return;
+    }
     const indexed = new THREE.BufferGeometry();
     indexed.setAttribute( "position", new THREE.BufferAttribute( r.pos, 3 ) );
     indexed.setIndex( new THREE.BufferAttribute( r.idx, 1 ) );
@@ -239,6 +249,8 @@ function showStats( s : any, ms : number, fine : boolean ) {
         ["Size", s.size ? s.size.map( (x : number) => x.toFixed( 0 ) ).join( " × " ) + " mm" : "–"],
         current == "mug" || current == "pierced" ? ["Seam error", s.error.toExponential( 1 ) + " mm"] : ["Fit error", s.error.toFixed( 3 ) + " mm"],
     ];
+    if (s.fillets != null && (s.fillets > 0 || s.filletsFailed > 0))
+        rows.push( ["Fillets", s.fillets + (s.filletsFailed > 0 ? ", " + s.filletsFailed + " too big to fit" : "") + (s.filletsSkipped > 0 ? ", " + s.filletsSkipped + " sharp at corners" : "")] );
     if (s.check && isFinite( s.check.wall )) rows.push( ["Thinnest wall", s.check.wall.toFixed( 2 ) + " mm"] );
     rows.push( ["Build", Math.round( ms ) + " ms"] );
     $( "stats" ).innerHTML = rows.map( ([k, v]) => `<div><dt>${k}</dt><dd>${v.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</dd></div>` ).join( "" );

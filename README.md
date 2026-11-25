@@ -76,6 +76,11 @@ npm run demo:booleans
 
 `BooleanObjectsRecipe.mug()` evaluates (body + handle) − cavity: the body is the solid inside a free-form outer wall, the handle a pipe swept along a C-shaped rail whose ends go through the wall, and the cavity the solid inside the inner wall, running a little above the rim. Subtracting the cavity opens the top and trims the handle's ends flush with the inner wall. `BooleanObjectsRecipe.pierced()` subtracts the cavity and 18 round tools from a vessel, and can notch its rim (`notches`). Both results are checked by `TriMesh` (watertight, genus 1 and genus 18) and by manifold-3d, whose own mesh boolean of the same operands gives the same genus and a volume within 0.02%.
 
+New edges can be rounded with rolling-ball fillets: `BrepBoolean.union(solids, { fillet : 2 })`, or a function that
+gives each edge its own radius. Concave edges are filled, as at the mug's handle joint (`mug({ fillet : 3 })`), and
+convex ones are rounded off, as at the edges of the holes (`pierced({ fillet : 0.8 })`). The results stay watertight.
+See [docs/booleans.md](docs/booleans.md#rolling-ball-fillets) for the method and its checks.
+
 ```ts
 import { BrepSolid, BrepBoolean, Sweep, Make } from "verb-nurbs-ts";
 const rod = (a, b, r) => BrepSolid.cappedTube(Sweep.pipe(Make.rationalBezierCurve([a, b]), r).surface, [24, 64]);

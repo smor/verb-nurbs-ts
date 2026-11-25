@@ -18,6 +18,8 @@ export interface MugParams extends FreeformVesselParams {
     handleHeights? : [number, number];
     // angle around the vessel where the handle sits, in radians (default 3.77, away from the wall's seam at 0)
     handleAngle? : number;
+    // radius of the rolling-ball fillet where the handle meets the body (default 0: a sharp joint)
+    fillet? : number;
 }
 
 export interface Mug {
@@ -38,6 +40,9 @@ export interface PierceParams extends FreeformVesselParams {
     // round notches cut into the rim, and their radius (default 0 and 8)
     notches? : number;
     notchRadius? : number;
+    // radius of the rolling-ball fillet that rounds the edges of the holes (default 0: sharp edges; notch edges end at
+    // corners on the rim and stay sharp)
+    fillet? : number;
 }
 
 export interface PiercedVessel {
@@ -99,7 +104,9 @@ export class BooleanObjectsRecipe {
         let pipe = Sweep.pipe( rail, r, { tolerance : 2e-3 } ).surface;
         let handle = BrepSolid.cappedTube( pipe, [96, 40] );
 
-        let result = BrepBoolean.evaluate( [solids.body, handle, solids.cavity], f => (f[0] || f[1]) && !f[2] );
+        let fr = p.fillet != null ? p.fillet : 0;
+        let result = BrepBoolean.evaluate( [solids.body, handle, solids.cavity], f => (f[0] || f[1]) && !f[2],
+            { fillet : (c : { solids : [number, number] }) => c.solids[0] == 0 && c.solids[1] == 1 ? fr : 0 } );
         return { body : solids.body, cavity : solids.cavity, handle : handle, handleRail : rail, result : result };
     }
 
@@ -134,8 +141,9 @@ export class BooleanObjectsRecipe {
             let a = Vec.add( [0, 0, H], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
             tools.push( BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), nr ).surface, [12, 32] ) );
         }
+        let fr = p.fillet != null ? p.fillet : 0;
         let result = BrepBoolean.evaluate( [solids.body, solids.cavity].concat( tools ),
-            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ) );
+            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { fillet : (c : { solids : [number, number] }) => c.solids[1] >= 2 ? fr : 0 } );
         return { body : solids.body, cavity : solids.cavity, tools : tools, result : result };
     }
 

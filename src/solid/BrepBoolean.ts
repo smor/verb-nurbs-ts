@@ -5,6 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
 import { MeshBVH } from "./MeshBVH.js";
+import { Fillet, FilletResult, FilletSide } from "./Fillet.js";
 import { ManifoldReport, TriMesh } from "./TriMesh.js";
 
 // A face of the result: a face of one of the operands, trimmed to the loops (in its parameter domain) that bound the
@@ -23,18 +24,28 @@ export interface BooleanOptions {
     step? : number;
     // refinement tolerance of intersection points (default 1e-9)
     tolerance? : number;
+    // rolling-ball fillet radius for the new edges: one radius for all, or per intersection curve (0: no fillet).
+    // Only closed edges between two kept faces are filleted.
+    fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => number);
 }
 
 export interface BooleanResult {
     mesh : TriMesh;
     faces : Array<TrimmedFace>;
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
+    // the rolling-ball blends added, with the index of the edge each one rounds
+    fillets : Array<{ curve : number, radius : number, blend : FilletResult }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
         intersectionCurves : number;
         // the largest distance between the two surfaces at the vertices of the intersection curves
         maxCurveError : number;
+        // edges rounded; edges that asked for a fillet the ball could not roll along (too large a radius); and edges
+        // left sharp because they end at corners (open branches, or branches meeting others at triple points)
+        fillets : number;
+        filletsFailed : number;
+        filletsSkipped : number;
     };
 }
 
@@ -108,18 +119,45 @@ export class BrepBoolean {
             if (p !== q && Vec.dist( p, q ) < snap) ends[y].c.points[ends[y].k] = p;
         }
 
-        for (let e of curves) {
+        curves.forEach( (e, ci) => {
             let c = e.curve, i = e.solids[0], j = e.solids[1];
             let fa = solids[i].faces[e.faces[0]], fb = solids[j].faces[e.faces[1]];
-            cuts[i][e.faces[0]].push( ...BrepBoolean.facePieces( fa, c.uvA, c.seamA, c.points, c.closed ) );
-            cuts[j][e.faces[1]].push( ...BrepBoolean.facePieces( fb, c.uvB, c.seamB, c.points, c.closed ) );
+            let tag = (x : Array<FaceCut>) => { for (let p of x) p.tag = ci; return x; };
+            cuts[i][e.faces[0]].push( ...tag( BrepBoolean.facePieces( fa, c.uvA, c.seamA, c.points, c.closed ) ) );
+            cuts[j][e.faces[1]].push( ...tag( BrepBoolean.facePieces( fb, c.uvB, c.seamB, c.points, c.closed ) ) );
             for (let k = 0; k < c.points.length; k++) {
                 let err = Vec.dist( BrepBoolean.eval( fa.surface, c.uvA[k] ), BrepBoolean.eval( fb.surface, c.uvB[k] ) );
                 maxErr = Math.max( maxErr, err );
             }
-        }
+        } );
         // within a face, ends of pieces that meet get the same parameters
         solids.forEach( (solid, si) => solid.faces.forEach( (face, fi) => BrepBoolean.joinEnds( face, cuts[si][fi] ) ) );
+
+        // rolling-ball fillets: the contact curves are extra cuts (tagged curves.length + the edge's index); the strip
+        // of each face between the edge and its contact curve is dropped, and the blend takes its place
+        let blends : Array<FilletResult> = [];
+        let filletInfo : BooleanResult["fillets"] = [];
+        let failed = 0, skipped = 0;
+        // an edge that meets another at a triple point ends at a corner, which a rolling ball cannot round alone
+        let owners = new Map<Point, number>();
+        let cornered = new Set<number>();
+        curves.forEach( (e, ci) => { for (let p of e.curve.points) {
+            let k = owners.get( p );
+            if (k != null && k != ci) { cornered.add( k ); cornered.add( ci ); } else owners.set( p, ci );
+        } } );
+        if (o.fillet != null) curves.forEach( (e, ci) => {
+            let r = typeof o.fillet == "number" ? o.fillet : o.fillet( { solids : e.solids, faces : e.faces }, ci );
+            if (!(r > 0)) return;
+            if (!e.curve.closed || cornered.has( ci )) { skipped++; return; }
+            let fr = BrepBoolean.fillet( solids, meshes, expr, e, r, tol );
+            if (fr == null) { failed++; return; }
+            for (let x of fr.cutA) x.tag = curves.length + ci;
+            for (let x of fr.cutB) x.tag = curves.length + ci;
+            cuts[e.solids[0]][e.faces[0]].push( ...fr.cutA );
+            cuts[e.solids[1]][e.faces[1]].push( ...fr.cutB );
+            blends.push( fr ); filletInfo.push( { curve : ci, radius : r, blend : fr } );
+        } );
+        let strip = new Set<number>( curves.map( (_, ci) => ci ).filter( ci => cuts.some( s => s.some( f => f.some( x => x.tag == curves.length + ci ) ) ) ) );
 
         // 2.-5. tessellate, group, classify, keep
         let welder = new Welder( weldTol );
@@ -129,6 +167,10 @@ export class BrepBoolean {
             let t = FaceMesher.mesh( face, cuts[si][fi], welder );
             let regions = BrepBoolean.regions( t );
             for (let reg of regions) {
+                if (strip.size > 0) {
+                    let tags = BrepBoolean.regionTags( t, reg );
+                    if (Array.from( strip ).some( ci => tags.has( ci ) && tags.has( curves.length + ci ) )) continue;
+                }
                 let inside = BrepBoolean.classify( t, reg, si, meshes );
                 let fin = expr( inside.map( (x, k) => k == si ? true : x ) );
                 let fout = expr( inside.map( (x, k) => k == si ? false : x ) );
@@ -143,10 +185,56 @@ export class BrepBoolean {
                               reversed : flip, loops : BrepBoolean.loops( t, reg ) } );
             }
         } ) );
+        for (let b of blends) {
+            let ids = b.points.map( p => welder.id( p ) );
+            for (let tri of b.triangles) out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] );
+            faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed, loops : [] } );
+        }
         out.vertices = welder.mesh.vertices;
         out.compact();
-        return { mesh : out, faces : faces, curves : curves, report : {
-            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr } };
+        return { mesh : out, faces : faces, curves : curves, fillets : filletInfo, report : {
+            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
+            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
+    }
+
+    // The rolling-ball blend of one edge, if both its faces are kept on exactly one side of it.
+    private static fillet( solids : Array<BrepSolid>, meshes : Array<MeshBVH>, expr : (inside : Array<boolean>) => boolean,
+                           e : BooleanResult["curves"][0], radius : number, tol : number ) : FilletResult | null {
+        let i = e.solids[0], j = e.solids[1];
+        let p = e.curve.points[0];
+        let flags = solids.map( (_, k) => k == i || k == j ? false : meshes[k].contains( p ) );
+        // the side of the edge kept on the face of solid `own`: inside the other solid or outside it
+        let side = (own : number, other : number, face : BrepFace) : FilletSide | null => {
+            let keep : Array<{ inside : boolean, fin : boolean }> = [];
+            for (let x of [true, false]) {
+                let f = flags.slice(); f[other] = x;
+                f[own] = true; let fin = expr( f );
+                f[own] = false; let fout = expr( f );
+                if (fin != fout) keep.push( { inside : x, fin : fin } );
+            }
+            if (keep.length != 1) return null;
+            let flip = face.reversed != !keep[0].fin;
+            return { face : face, sign : flip ? -1 : 1, keptInsideOther : keep[0].inside };
+        };
+        let A = side( i, j, solids[i].faces[e.faces[0]] ), B = side( j, i, solids[j].faces[e.faces[1]] );
+        if (A == null || B == null) return null;
+        return Fillet.rollingBall( A, B, e.curve, radius, tol );
+    }
+
+    // the tags of the cut edges around a region
+    private static regionTags( t : FaceTessellation, region : Array<number> ) : Set<number> {
+        let key = (a : number, b : number) => a < b ? a + "," + b : b + "," + a;
+        let tagOf = new Map<string, number>();
+        t.cutEdges.forEach( (e, k) => tagOf.set( key( t.ids[e[0]], t.ids[e[1]] ), t.cutTags[k] ) );
+        let out = new Set<number>();
+        for (let k of region) {
+            let tri = t.triangles[k];
+            for (let x = 0; x < 3; x++) {
+                let g = tagOf.get( key( t.ids[tri[x]], t.ids[tri[(x + 1) % 3]] ) );
+                if (g != null) out.add( g );
+            }
+        }
+        return out;
     }
 
     // Split a curve, given by its parameters on one face, into the polylines it makes in that face's domain: a loop

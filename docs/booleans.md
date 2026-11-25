@@ -57,6 +57,50 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
    This handles any expression over any number of solids in one pass. `union`, `intersection` and `difference` are
    one-line wrappers, and the mug is `(body || handle) && !cavity`.
 
+## Rolling-ball fillets
+
+`BooleanOptions.fillet` rounds the new edges: one radius for every edge, or a function of the edge (its solids and
+faces) that returns a radius, or 0 to leave it sharp. `src/solid/Fillet.ts` builds each blend.
+
+The blend is the surface swept by a ball of radius r that rolls while touching both faces (Choi and Ju,
+"Constant-radius blending in surface modelling", *Computer-Aided Design* 21(4), 1989). The ball's centre runs along
+the intersection of the two faces offset by r. The textbook route intersects the offset surfaces. Here each centre is
+found directly instead, with no offset surfaces: at a vertex p of the edge, with tangent t, Newton's method solves
+four equations in the four contact parameters (a on face A, b on face B):
+
+    A(a) + s r nA(a) = B(b) + s r nB(b)        (both offsets reach the same centre)
+    (A(a) + s r nA(a) - p) . t = 0              (the centre lies in the plane across the edge at p)
+
+Here n is the result's outward normal and s says where the ball rolls. On a concave edge (s = +1) it rolls in the
+air, so the fillet adds material, as at the mug's handle joint. On a convex edge (s = -1) it rolls in the material,
+so the fillet removes some, as at the edges of a hole. The sign follows from which side of the edge each face keeps,
+and that comes from the same CSG evaluation as step 5. The start for Newton is the centre that the two tangent planes
+at p would give.
+
+Each section is an exact circular arc from one contact point to the other, written as a rational quadratic. The blend
+surface is the loft of those arcs. The contact curves become extra cuts on the two faces, with a section placed
+exactly where a contact curve crosses a periodic seam. The strip of each face between the edge and its contact curve
+is dropped: it is the region bounded by both curves. The blend's mesh uses the contact points themselves on its two
+boundary rows, so it welds to the faces and the result stays watertight.
+
+Checks: a disc with a hole and a rod through a disc have exactly known fillet volumes (Pappus: the corner region of
+area (1 - pi/4) r^2 swept around the hole). The volume removed or added agrees to 0.3% at 256 divisions around, and to
+1.5% at 128, converging as the tessellation refines. The ball is at distance r from both contact points, along both
+normals, to 1e-8. The mug and the pierced vessel stay watertight with the same genus, and manifold-3d accepts them.
+
+Limits:
+
+* Only closed edges are filleted. An edge that ends at a corner (an open branch, or one that meets other edges at a
+  triple point, like the rim notches) is left sharp and counted in `report.filletsSkipped`. Rounding a corner needs a
+  vertex blend, where three fillets meet.
+* If the ball does not fit (the radius is larger than the room between the faces), the edge is left sharp and
+  counted in `report.filletsFailed`.
+* Fillets of nearby edges must not overlap: keep the radius under half the distance between edges, for example half
+  the wall thickness for hole edges.
+* `Sweep.pipe` surfaces close with a small crease at their seam (about 0.35 degrees), because the swept profile is
+  fitted as a clamped curve rather than a periodic one. The ball's contact jumps across that crease by a few
+  hundredths of a millimetre. Fitting periodic profiles would remove it.
+
 ## How it is checked
 
 * The intersection points lie on both surfaces to about 1e-9 (`report.maxCurveError`).

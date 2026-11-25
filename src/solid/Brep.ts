@@ -27,6 +27,8 @@ export interface FaceCut {
     uv : Array<UV>;
     points : Array<Point>;
     closed : boolean;
+    // which curve the cut comes from, to tell regions apart by the cuts around them
+    tag? : number;
 }
 
 // The tessellation of one face, with the cut curves as constrained edges.
@@ -39,6 +41,8 @@ export interface FaceTessellation {
     triangles : Array<Array<number>>;
     // the cut edges, as pairs of local vertices
     cutEdges : Array<[number, number]>;
+    // the tag of each cut edge's curve (-1 when untagged)
+    cutTags : Array<number>;
 }
 
 // Merges points closer than a tolerance into one vertex of a TriMesh, through a hash grid of cells of that size.
@@ -251,6 +255,7 @@ export class FaceMesher {
 
         // the cuts, as constrained segments
         let cutEdges : Array<[number, number]> = [];
+        let cutTags : Array<number> = [];
         let edges : Array<Array<number>> = [];
         let segs : Array<[Array<number>, Array<number>]> = [];
         for (let c of cuts) {
@@ -259,7 +264,7 @@ export class FaceMesher {
             for (let k = 0; k < m; k++) {
                 let a = ids[k], b = ids[(k + 1) % n];
                 if (a == b) continue;
-                edges.push( [a, b] ); cutEdges.push( [a, b] );
+                edges.push( [a, b] ); cutEdges.push( [a, b] ); cutTags.push( c.tag != null ? c.tag : -1 );
                 segs.push( [X( uv[a] ), X( uv[b] )] );
             }
         }
@@ -350,7 +355,7 @@ export class FaceMesher {
                 triangles.push( area > 0 ? [a, b, c] : [a, c, b] );
             }
         }
-        return { uv : uv, points : pts, ids : pts.map( p => welder.id( p ) ), triangles : triangles, cutEdges : cutEdges };
+        return { uv : uv, points : pts, ids : pts.map( p => welder.id( p ) ), triangles : triangles, cutEdges : cutEdges, cutTags : cutTags };
     }
 
     // mean length of the u and v isocurves

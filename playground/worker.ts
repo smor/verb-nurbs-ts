@@ -30,7 +30,7 @@ function folds( k : number ) {
 function mug( p : Record<string, number>, fine : boolean ) {
     let o = BooleanObjectsRecipe.mug( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
-        handleRadius : p.handle, handleReach : p.reach, handleHeights : [p.low, p.high],
+        handleRadius : p.handle, handleReach : p.reach, handleHeights : [p.low, p.high], fillet : p.fillet,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
     } );
     let r = o.result.report;
@@ -40,7 +40,7 @@ function mug( p : Record<string, number>, fine : boolean ) {
 function pierced( p : Record<string, number>, fine : boolean ) {
     let o = BooleanObjectsRecipe.pierced( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
-        holes : p.holes, rows : p.rows, holeRadius : p.hole, notches : p.notches, notchRadius : p.notch,
+        holes : p.holes, rows : p.rows, holeRadius : p.hole, notches : p.notches, notchRadius : p.notch, fillet : p.fillet,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
     } );
     let r = o.result.report;
@@ -102,11 +102,12 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
                 volume : r.report.volume,
                 error : r.error,
                 selfCheck : r.ok,
+                fillets : r.report.fillets, filletsFailed : r.report.filletsFailed, filletsSkipped : r.report.filletsSkipped,
                 check,
                 size : bb ? [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]] : null
             }
         }, [pos.buffer, idx.buffer] );
     } catch (err) {
-        (self as any).postMessage( { id, model, ok : false, message : String( err ) } );
+        (self as any).postMessage( { id, model, fine, ok : false, message : String( err ) } );
     }
 };

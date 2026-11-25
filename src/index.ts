@@ -61,6 +61,8 @@ import { Welder, BrepSolid, FaceMesher } from "./solid/Brep.js";
 export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
+import { Fillet } from "./solid/Fillet.js";
+export type { FilletSide, FilletSection, FilletResult } from "./solid/Fillet.js";
 import { Makeable } from "./solid/Makeable.js";
 export type { Machine, MakeableReport } from "./solid/Makeable.js";
 import { MeshBVH } from "./solid/MeshBVH.js";
@@ -156,6 +158,7 @@ export {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    Fillet,
     Makeable,
     MeshBVH,
     Shell,
@@ -253,6 +256,7 @@ export const solid = {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    Fillet,
     Makeable,
     MeshBVH,
     Shell,
