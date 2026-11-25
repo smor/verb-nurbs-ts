@@ -33,8 +33,10 @@ export type FilletRadius = number | ((t : number) => number);
 
 // The shape of a blend's cross-section between its two contact points: "circular", the rolling ball's arc (tangent to
 // both faces, G1), or "curvature", a quintic that also matches each face's normal curvature where it meets it (G2), so
-// the reflections flow across the joint with no jump in curvature. Both use the ball's contact curves.
-export type FilletShape = "circular" | "curvature";
+// the reflections flow across the joint with no jump in curvature; or "chamfer", the straight line between the contact
+// points, a bevel (on a square edge, cut back by the radius on both faces; on others, where the ball would touch). All
+// use the ball's contact curves.
+export type FilletShape = "circular" | "curvature" | "chamfer";
 
 export interface FilletResult {
     sections : Array<FilletSection>;
@@ -416,6 +418,7 @@ export class Fillet {
     // A section's curve from its contact on A to its contact on B: the ball's arc, or the curvature-matching quintic.
     public static crossSection( A : FilletSide, B : FilletSide, x : FilletSection, shape : FilletShape ) : NurbsCurveData {
         if (shape == "circular") return Fillet.arc( x.pa, x.centre, x.pb );
+        if (shape == "chamfer") return Make.rationalBezierCurve( [x.pa, Vec.lerp( 0.5, x.pa, x.pb ), x.pb] );
         let g = Fillet.g2( A, x.a, x.pa, B, x.b, x.pb );
         return g != null ? g : Fillet.arc( x.pa, x.centre, x.pb );
     }

@@ -103,6 +103,14 @@ jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 t
 follow: the sphere patch is bent so its sides meet the three G2 end sections, each side's departure from the ball's arc
 carried inside with Nielsen's side-vertex weights (w_j w_k)^2.
 
+### Chamfers
+
+`filletShape : "chamfer"` cuts the edge with a straight section between the ball's contact points (a bevel; on a
+square edge it cuts back the radius on both faces). Everything else is shared with the fillets: open edges, mitres,
+variable radius. Where three equal chamfers meet the corner is the flat triangle between the ball's feet; where they
+differ it is a setback facet: straight cuts across each face, and a six-sided transfinite patch whose ribbons all lie in
+the plane that best fits its boundary, so it comes out nearly flat.
+
 ### Corners
 
 Branches that meet at triple points are split there into runs, the edges of the result; a run is an edge only where

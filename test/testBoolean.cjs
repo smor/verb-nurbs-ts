@@ -290,6 +290,32 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		manifold(o.result.mesh).status().should.be.equal('NoError');
 	});
 
+	it('chamfers the same edges: straight sections, flat corners where equal chamfers meet, facets where unequal ones do', function(){
+		var round = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 1, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 1, filletShape : 'chamfer', divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		var R = o.result;
+		R.report.manifold.closedManifold.should.be.true();
+		R.report.fillets.should.be.equal(15);
+		R.report.filletsSkipped.should.be.equal(0);
+		// the edges are convex: a chamfer cuts off more than a round of the same contacts
+		R.report.volume.should.be.below(round.result.report.volume);
+		R.corners.length.should.be.equal(6);
+		R.corners.forEach(function(c){
+			c.kind.should.be.equal('ball');
+			// a flat triangle: every vertex on the plane of the first triangle
+			var tri = R.mesh.triangles.filter(function(t, k){ return R.faceOf[k] == c.face; });
+			var V = R.mesh.vertices, t0 = tri[0];
+			var n = lib.Vec.normalized(lib.Vec.cross(lib.Vec.sub(V[t0[1]], V[t0[0]]), lib.Vec.sub(V[t0[2]], V[t0[0]])));
+			tri.forEach(function(t){ t.forEach(function(v){ Math.abs(lib.Vec.dot(lib.Vec.sub(V[v], V[t0[0]]), n)).should.be.below(1e-6); }); });
+		});
+		manifold(R.mesh).status().should.be.equal('NoError');
+		var u = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 0.6, filletShape : 'chamfer', divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		u.result.report.manifold.closedManifold.should.be.true();
+		u.result.report.filletsSkipped.should.be.equal(0);
+		u.result.corners.map(function(c){ return c.kind; }).should.be.eql(['setback', 'setback', 'setback', 'setback', 'setback', 'setback']);
+		manifold(u.result.mesh).status().should.be.equal('NoError');
+	});
+
 	it('leaves a notch sharp when its fillets would swallow the rim (radius near half the wall)', function(){
 		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1.5, divsU : 24, divsV : 96, offsetTolerance : 0.08 });
 		o.result.report.manifold.closedManifold.should.be.true();

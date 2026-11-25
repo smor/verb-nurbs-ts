@@ -467,7 +467,8 @@ export class FilletCorner {
                 if (dd < best) { best = dd; sAt = F.rows[k].s + t * (F.rows[k + 1].s - F.rows[k].s); }
             }
             if (best > 0.25 * r) return null;
-            let arc = Fillet.arc( feet[ia], c, feet[ib] );
+            let arc = shape == "chamfer" ? Fillet.crossSection( faces[ia].side, faces[ib].side, { centre : c, a : uv[ia], b : uv[ib], pa : feet[ia], pb : feet[ib], seamA : 0, seamB : 0 }, shape )
+                                         : Fillet.arc( feet[ia], c, feet[ib] );
             if (shape == "curvature") {
                 let g = Fillet.g2( faces[ia].side, uv[ia], feet[ia], faces[ib].side, uv[ib], feet[ib] );
                 if (g == null) return null;
@@ -486,7 +487,7 @@ export class FilletCorner {
             F.trims[x.e] = pts.map( (p, i) => ({ point : p, s : sAt, t : i / F.m, uv : i == 0 ? uv[ia] : i == F.m ? uv[ib] : undefined }) );
             arcs.push( pts );
         }
-        let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side, bends );
+        let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side, bends, shape == "chamfer" );
         return patch == null ? null : Object.assign( patch, { kind : "ball" as const, centre : c, radius : r } );
     }
 
@@ -568,6 +569,7 @@ export class FilletCorner {
                 return (b == 0 ? r.duvA : r.duvB).map( v => v / speed );
             };
             let m0 = dir( p.i, p.b ).map( v => v * L ), m1 = dir( q.i, q.b ).map( v => -v * L );
+            let chamfer = ends[0].F.shape == "chamfer";
             let a = fp.uv;
             // the end unwrapped next to the start across a seam
             let span = SurfaceIntersect.domain( S.face.surface );
@@ -582,7 +584,8 @@ export class FilletCorner {
             for (let k = 0; k <= N; k++) {
                 let t = k / N, t2 = t * t, t3 = t2 * t;
                 let h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
-                let w : UV = [0, 1].map( c => h00 * a[c] + h10 * m0[c] + h01 * b2[c] + h11 * m1[c] ) as UV;
+                // a chamfer's corner is cut straight across each face
+                let w : UV = [0, 1].map( c => chamfer ? a[c] + t * (b2[c] - a[c]) : h00 * a[c] + h10 * m0[c] + h01 * b2[c] + h11 * m1[c] ) as UV;
                 if (k == 0) { uv.push( fp.uv ); points.push( fp.point ); continue; }
                 if (k == N) { uv.push( fq.uv ); points.push( fq.point ); continue; }
                 let wd = SurfaceIntersect.toDomain( D, w );
@@ -635,6 +638,22 @@ export class FilletCorner {
             let sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
             return { points : pts, cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
         } );
+        if (ends[0].F.shape == "chamfer") {
+            // a chamfer's corner is a facet: each side's cross derivative lies in the plane that best fits the six
+            // sides (Newell's normal, oriented by the loop), square to the side, inwards
+            let loop = ([] as Array<Point>).concat( ...sides.map( p => p.slice( 0, p.length - 1 ) ) );
+            let nn : Point = [0, 0, 0];
+            loop.forEach( (p, k) => { let q = loop[(k + 1) % loop.length]; nn = Vec.add( nn, Vec.cross( p, q ) ); } );
+            let n = Vec.normalized( nn );
+            ribbons.forEach( rb => {
+                let pts = rb.points;
+                rb.cross = pts.map( (_, k) => {
+                    let t = Vec.sub( pts[Math.min( k + 1, pts.length - 1 )], pts[Math.max( k - 1, 0 )] );
+                    let c = Vec.cross( n, t );
+                    return Vec.mul( lambda, Vec.normalized( Vec.sub( c, Vec.mul( Vec.dot( c, n ), n ) ) ) );
+                } );
+            } );
+        }
         let m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
         // outward: away from the end sections' centres on a convex corner, towards them on a concave one
         let c = Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) );
@@ -684,7 +703,8 @@ export class FilletCorner {
 
     // The triangle on a sphere bounded by three arcs between three feet (each arc's points given from one foot to
     // another, in any direction): a constrained triangulation of its gnomonic projection, with points inside.
-    private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number, bends : Array<Bend> = [] )
+    // Flat: the plane triangle between the feet (a chamfer's corner).
+    private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number, bends : Array<Bend> = [], flat : boolean = false )
         : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData } | null {
         // chain the arcs into one loop: foot 0 -> ... -> back to foot 0
         let loop : Array<Point> = [];
@@ -701,15 +721,16 @@ export class FilletCorner {
         let d = feet.map( f => Vec.normalized( Vec.sub( f, c ) ) );
         let axis = Vec.normalized( Vec.add( d[0], Vec.add( d[1], d[2] ) ) );
         let e1 = Vec.normalized( Vec.cross( axis, Math.abs( axis[0] ) < 0.9 ? [1, 0, 0] : [0, 1, 0] ) ), e2 = Vec.cross( axis, e1 );
-        let flat = (p : Point) : [number, number] => { let x = Vec.sub( p, c ), z = Vec.dot( x, axis ); return [Vec.dot( x, e1 ) / z, Vec.dot( x, e2 ) / z]; };
-        let points = loop.slice(), xy = loop.map( flat );
+        let project = (p : Point) : [number, number] => { let x = Vec.sub( p, c ), z = Vec.dot( x, axis ); return [Vec.dot( x, e1 ) / z, Vec.dot( x, e2 ) / z]; };
+        let points = loop.slice(), xy = loop.map( project );
         let n = loop.length;
         let edges : Array<[number, number]> = loop.map( (_, k) => [k, (k + 1) % n] as [number, number] );
         // inside: a barycentric grid of the three directions, pushed onto the sphere
         let g = Math.max( 2, Math.round( n / 3 ) );
         for (let i = 1; i < g; i++) for (let j = 1; i + j < g; j++) {
             let w = [i / g, j / g, 1 - (i + j) / g];
-            let p = Vec.add( c, Vec.mul( r, Vec.normalized( Vec.add( Vec.mul( w[0], d[0] ), Vec.add( Vec.mul( w[1], d[1] ), Vec.mul( w[2], d[2] ) ) ) ) ) );
+            let p = flat ? Vec.add( Vec.mul( w[0], feet[0] ), Vec.add( Vec.mul( w[1], feet[1] ), Vec.mul( w[2], feet[2] ) ) )
+                         : Vec.add( c, Vec.mul( r, Vec.normalized( Vec.add( Vec.mul( w[0], d[0] ), Vec.add( Vec.mul( w[1], d[1] ), Vec.mul( w[2], d[2] ) ) ) ) ) );
             // curvature-continuous sides: carry their departure from the ball's arcs inside, each side's weighted by
             // (w_j w_k)^2 (Nielsen's side-vertex weights: 1 on that side, 0 on the others)
             if (bends.length == 3) {
@@ -723,7 +744,7 @@ export class FilletCorner {
                 }
                 p = Vec.add( p, shift );
             }
-            points.push( p ); xy.push( flat( p ) );
+            points.push( p ); xy.push( project( p ) );
         }
         let tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         if (tris.length == 0) return null;
@@ -733,7 +754,9 @@ export class FilletCorner {
             let out = Vec.dot( nrm, Vec.sub( points[t[0]], c ) ) * -side > 0;
             return (out ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
         } );
-        let surface = Make.sphericalSurface( c, axis, e1, r );
+        // a chamfer's corner lies on the plane of its feet: a parallelogram round the triangle
+        let surface = flat ? Make.fourPointSurface( feet[0], feet[1], Vec.add( feet[1], Vec.sub( feet[2], feet[0] ) ), feet[2], 1 )
+                           : Make.sphericalSurface( c, axis, e1, r );
         return { points : points, triangles : triangles, reversed : false, surface : surface };
     }
 
