@@ -186,4 +186,44 @@ describe("verb.solid.Fillet", function(){
 		big.fillets.should.be.equal(0);
 		big.filletsFailed.should.be.equal(3);
 	});
+
+	it("rounds a solid's own edges, with no boolean: the disc's rims become tori", function(){
+		var disc = discAndRod(16)[0];
+		var edges = lib.BrepEdges.all(disc);
+		edges.length.should.be.equal(2);
+		edges.forEach(function(e){ e.curve.closed.should.be.true(); });
+		var r = 2;
+		var res = BrepBoolean.evaluate([disc], function(f){ return f[0]; }, { edges : [{ solid : 0, faces : [0, 1], radius : r }, { solid : 0, faces : [0, 2], radius : r }] });
+		res.report.fillets.should.be.equal(2);
+		res.report.manifold.closedManifold.should.be.true();
+		res.report.manifold.genus.should.be.equal(0);
+		manifold(res.mesh).status().should.be.equal('NoError');
+		// every vertex of the blends lies on its torus: r from the circle of radius 30 - r, r inside each cap
+		res.mesh.triangles.forEach(function(t, k){
+			if (res.faces[res.faceOf[k]].name != 'fillet') return;
+			t.forEach(function(v){
+				var p = res.mesh.vertices[v], rho = Math.hypot(p[0], p[1]), zc = p[2] > 0 ? 5 - r : r - 5;
+				Math.hypot(rho - (30 - r), p[2] - zc).should.be.approximately(r, 1e-3);
+			});
+		});
+		// Pappus, on a convex edge: the corner's centroid lies 0.22337 r inside the rim (the blend's chords cut a
+		// little more, by up to 10% here with four chords a quarter turn)
+		var sharp = BrepBoolean.evaluate([disc], function(f){ return f[0]; }, {});
+		var removed = sharp.report.volume - res.report.volume, exact = 2 * 2 * Math.PI * (30 - 0.22337 * r) * (1 - Math.PI / 4) * r * r;
+		removed.should.be.above(exact * 0.99);
+		removed.should.be.below(exact * 1.1);
+	});
+
+	it("rounds own edges and new edges together: a disc and a rod, every edge rounded, in each section shape", function(){
+		['circular', 'curvature', 'chamfer'].forEach(function(shape){
+			var s = discAndRod(64);
+			var res = BrepBoolean.union(s, { fillet : 2, filletShape : shape, edges : [
+				{ solid : 0, faces : [0, 1], radius : 3 }, { solid : 0, faces : [0, 2], radius : 3 },
+				{ solid : 1, faces : [0, 1], radius : 2 }, { solid : 1, faces : [0, 2], radius : 2 }] });
+			res.report.fillets.should.be.equal(6);
+			res.report.filletsFailed.should.be.equal(0);
+			res.report.manifold.closedManifold.should.be.true();
+			manifold(res.mesh).status().should.be.equal('NoError');
+		});
+	});
 });

@@ -186,6 +186,23 @@ Limits:
   about 1e-6 degrees there; a clamped fit left a 0.35 degree crease). Where the seams of both faces cross the contact
   curve at the same point, the section put there is flagged as on both seams.
 
+## Rounding a solid's own edges
+
+`BooleanOptions.edges` rounds edges that the solids already have, between two of their own faces (a disc's rims, a
+rod's ends), alone or together with the new edges of a Boolean. `BrepEdges` finds them: a face is a NURBS surface over
+its whole domain, so its edges are the sides of the domain that are not seams and do not collapse to a point, and two
+faces share an edge where every sample of a side of one lies on a side of the other (refined by Newton's method along
+that side). The edge becomes a curve on both faces, like an intersection branch, and goes through the same rolling
+ball: the faces' outward normals are their own, and the edge is convex or concave as one face's kept side runs behind
+the other or in front of it. Only the contact curves cut the faces (the edge already lies on their sides); the strip
+of each face between its side and the contact curve is the region bounded by the contact curve that reaches that
+side, and is dropped. Every section shape works (circular, curvature-continuous, chamfer).
+
+`BrepBoolean.evaluate([solid], f => f[0], { edges : [...] })` rounds one solid with no Boolean at all. On a disc of
+radius 30, both rims rounded with r = 2 give exact tori (every blend vertex r from its centre circle, to the fit of
+the pipe's surface), and remove Pappus's volume to within the chords' sag. Closed edges only for now; open ones (a
+box's) need the corners above, between own edges.
+
 ## Seams of surfaces of revolution
 
 When both faces are perfectly round about the same axis, their seams can cross a branch at the very same point. The

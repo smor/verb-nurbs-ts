@@ -5,6 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
 import { MeshBVH } from "./MeshBVH.js";
+import { BrepEdges, DomainSide } from "./BrepEdges.js";
 import { Fillet, FilletRadius, FilletResult, FilletShape, FilletSide } from "./Fillet.js";
 import { FilletCorner, OpenBlend, ThirdEdge } from "./FilletCorner.js";
 import { ManifoldReport, TriMesh } from "./TriMesh.js";
@@ -33,6 +34,9 @@ export interface BooleanOptions {
     // the shape of the fillets' cross-sections (default "circular"; see `FilletShape`)
     filletShape? : FilletShape;
     fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => FilletRadius);
+    // edges of the solids' own faces to round too (see `BrepEdges`): the solid, its two faces, and the radius. They take
+    // the same fillet shape. Closed edges only for now (a cap's rim, a wall's top).
+    edges? : Array<{ solid : number, faces : [number, number], radius : FilletRadius }>;
 }
 
 export interface BooleanResult {
@@ -40,7 +44,8 @@ export interface BooleanResult {
     faces : Array<TrimmedFace>;
     // for each triangle of the mesh, the index of its face in `faces`
     faceOf : Array<number>;
-    curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
+    // the intersection branches, then any own edges rounded (`own` set: the domain sides they run along)
+    curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve, own? : [DomainSide, DomainSide] }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
     fillets : Array<{ curve : number, radius : FilletRadius, blend : FilletResult }>;
     // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
@@ -140,7 +145,7 @@ export class BrepBoolean {
             set.add( ci );
         } } );
         let isCorner = (p : Point) => (owners.get( p ) as Set<number>).size > 1;
-        type Run = { ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : FilletRadius };
+        type Run = { ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : FilletRadius, own? : boolean };
         let runs : Array<Run> = [];
         curves.forEach( (e, ci) => {
             let c = e.curve, n = c.points.length;
@@ -165,18 +170,36 @@ export class BrepBoolean {
             for (let x = 0; x + 1 < at.length; x++) take( Array.from( { length : at[x + 1] - at[x] + 1 }, (_, k) => at[x] + k ), false );
         } );
 
+        // the solids' own edges to round: runs that are not cut into their faces (they lie on the faces' sides)
+        let ownFailed = 0;
+        for (let x of o.edges || []) {
+            let solid = solids[x.solid];
+            let e = BrepEdges.between( solid, x.faces[0], x.faces[1] );
+            if (e == null || !e.curve.closed) { ownFailed++; continue; }
+            // an edge of the result where the other solids leave its solid's boundary there
+            let mid = e.curve.points[e.curve.points.length >> 1];
+            let flags = solids.map( (_, k) => k == x.solid ? false : meshes[k].contains( mid ) );
+            let fin = expr( flags.map( (f, k) => k == x.solid ? true : f ) ), fout = expr( flags );
+            if (fin == fout) continue;
+            curves.push( { solids : [x.solid, x.solid], faces : x.faces, curve : e.curve, own : e.sides } );
+            runs.push( { ci : curves.length - 1, curve : e.curve, sides : BrepEdges.filletSides( solid, e, 0 ), radius : x.radius, own : true } );
+        }
+
         // rolling-ball fillets: the contact curves are extra cuts (tagged runs.length + the run's index); the strip of
         // each face between the edge and its contact curve is dropped, and the blend takes its place. A blend along an
         // open edge ends at corners, where it meets another blend along a mitre (`FilletCorner`).
         let blends : Array<FilletResult> = [];
         let filletInfo : BooleanResult["fillets"] = [];
-        let failed = 0, skipped = 0;
+        let failed = ownFailed, skipped = 0;
         let closedBlends = new Map<number, FilletResult>();
         let openBlends = new Map<number, OpenBlend>();
-        if (o.fillet != null) runs.forEach( (r, g) => {
+        runs.forEach( (r, g) => {
             if (r.sides == null) return;
             let e = curves[r.ci];
-            r.radius = typeof o.fillet == "number" ? o.fillet : o.fillet( { solids : e.solids, faces : e.faces }, r.ci );
+            if (!r.own) {
+                if (o.fillet == null) return;
+                r.radius = typeof o.fillet == "number" ? o.fillet : o.fillet( { solids : e.solids, faces : e.faces }, r.ci );
+            }
             // a variable radius must stay positive along the edge
             let rad = r.radius;
             let positive = typeof rad == "number" ? rad > 0 : Array.from( { length : 33 }, (_, k) => k / 32 ).every( t => (rad as (t : number) => number)( t ) > 0 );
@@ -288,6 +311,7 @@ export class BrepBoolean {
         skipped = Array.from( openBlends.keys() ).filter( g => unsupported.has( g ) ).length;
         for (let x of inserts) if (built.has( x.g[0] ) && built.has( x.g[1] )) x.insert();
         let strip : Array<[number, number]> = [];
+        let ownStrips : Array<{ solid : number, face : number, tag : number, side : DomainSide }> = [];
         let addBlend = (g : number, fr : FilletResult) => {
             let r = runs[g], e = curves[r.ci];
             for (let x of fr.cutA) x.tag = runs.length + g;
@@ -296,6 +320,7 @@ export class BrepBoolean {
             cuts[e.solids[1]][e.faces[1]].push( ...fr.cutB );
             blends.push( fr ); filletInfo.push( { curve : r.ci, radius : r.radius, blend : fr } );
             strip.push( [g, runs.length + g] );
+            if (r.own) for (let k = 0; k < 2; k++) ownStrips.push( { solid : e.solids[k], face : e.faces[k], tag : runs.length + g, side : (e.own as [DomainSide, DomainSide])[k] } );
         };
         runs.forEach( (_, g) => { let fr = closedBlends.get( g ) || built.get( g ); if (fr != null) addBlend( g, fr ); } );
         // ball corners whose three blends were built
@@ -303,6 +328,7 @@ export class BrepBoolean {
 
         // the runs as cuts of their faces
         runs.forEach( (r, g) => {
+            if (r.own) return;
             let c = r.curve, e = curves[r.ci], i = e.solids[0], j = e.solids[1];
             let fa = solids[i].faces[e.faces[0]], fb = solids[j].faces[e.faces[1]];
             let tag = (x : Array<FaceCut>) => { for (let p of x) p.tag = g; return x; };
@@ -331,6 +357,8 @@ export class BrepBoolean {
                 if (strip.length > 0) {
                     let tags = BrepBoolean.regionTags( t, reg );
                     if (strip.some( x => tags.has( x[0] ) && tags.has( x[1] ) )) continue;
+                    // the strip along an own edge: bounded by the contact curve, and reaching the face's side
+                    if (ownStrips.some( x => x.solid == si && x.face == fi && tags.has( x.tag ) && BrepBoolean.touches( face, t, reg, x.side ) )) continue;
                 }
                 let inside = BrepBoolean.classify( t, reg, si, meshes );
                 let fin = expr( inside.map( (x, k) => k == si ? true : x ) );
@@ -409,6 +437,14 @@ export class BrepBoolean {
         let A = side( i, j, solids[i].faces[e.faces[0]] ), B = side( j, i, solids[j].faces[e.faces[1]] );
         if (A == null || B == null) return null;
         return [A, B];
+    }
+
+    // Whether a region of a face's tessellation has a vertex on a side of the face's domain.
+    private static touches( f : BrepFace, t : FaceTessellation, region : Array<number>, side : DomainSide ) : boolean {
+        let d = SurfaceIntersect.domain( f.surface );
+        let eps = 1e-9 * (d[2 * side.axis + 1] - d[2 * side.axis]);
+        for (let k of region) for (let v of t.triangles[k]) if (Math.abs( t.uv[v][side.axis] - side.value ) <= eps) return true;
+        return false;
     }
 
     // the tags of the cut edges around a region

@@ -10,7 +10,7 @@ boundaries and how they would map to packages, so new code respects them now.
 | `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
-| `solid` | B-reps, surface/surface intersection, Booleans, fillets, triangle meshes, makeability checks | core, eval |
+| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks | core, eval |
 | `recipes` | parametric objects (vessels, mug, appliance, …) | core, eval, solid |
 | `view` | `Inspect`, display data for curves, surfaces, B-reps and meshes | core, eval, solid |
 | `playground/`, `viewer/` | single-file web apps (three.js) | the library |
