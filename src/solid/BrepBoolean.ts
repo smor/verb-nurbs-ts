@@ -103,7 +103,8 @@ export class BrepBoolean {
                 let step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 let found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol } );
-                for (let c of found) curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
+                for (let c of BrepBoolean.dropRetraces( found, 0.02 * step ))
+                    curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
         }
 
@@ -200,6 +201,21 @@ export class BrepBoolean {
         return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
+    }
+
+    // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher
+    // can step back along it and close a loop of zero area over the same points.
+    public static dropRetraces( found : Array<IntersectionCurve>, tol : number ) : Array<IntersectionCurve> {
+        let near = (p : Point, c : IntersectionCurve) => {
+            let q = c.points;
+            for (let k = 0; k + 1 < q.length; k++) {
+                let d = Vec.sub( q[k + 1], q[k] ), l2 = Vec.dot( d, d );
+                let t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, q[k] ), d ) / l2 ) ) : 0;
+                if (Vec.dist( p, Vec.add( q[k], Vec.mul( t, d ) ) ) < tol) return true;
+            }
+            return q.length == 1 && Vec.dist( p, q[0] ) < tol;
+        };
+        return found.filter( c => !(c.closed && found.some( o => o !== c && o.points.length >= c.points.length && c.points.every( p => near( p, o ) ) )) );
     }
 
     // The rolling-ball blend of one edge, if both its faces are kept on exactly one side of it.

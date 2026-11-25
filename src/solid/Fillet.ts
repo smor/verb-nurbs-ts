@@ -130,10 +130,12 @@ export class Fillet {
             }
             return null;
         };
+        let inserted = 0;
         for (let k = 0; k < sections.length; k++) {
             let k1 = (k + 1) % sections.length;
             let j = jump( sections[k], sections[k1] );
             if (j == null) continue;
+            if (++inserted > 16) return null; // each seam crossing needs one section, or two where seams meet
             let side = j[0], ax = j[1];
             let d = side == 0 ? dA : dB;
             let lo = ts[k], hi = k1 == 0 ? n : ts[k1];
@@ -150,8 +152,24 @@ export class Fillet {
                                         pa : best.pa, pb : best.pb, seamA : 0, seamB : 0 };
             if (side == 0) { sec.a[ax] = d[2 * ax]; sec.seamA = 1 << ax; sec.pa = Eval.rationalSurfacePoint( A.face.surface, sec.a[0], sec.a[1] ); }
             else { sec.b[ax] = d[2 * ax]; sec.seamB = 1 << ax; sec.pb = Eval.rationalSurfacePoint( B.face.surface, sec.b[0], sec.b[1] ); }
+            // the other face's seam may cross at the same place (two surfaces of revolution about one axis, with their
+            // seams at the same angle): if its contact jumps there too and the section sits on its seam, flag it as well
+            let os = 1 - side, OF = os == 0 ? A.face : B.face, od = os == 0 ? dA : dB;
+            for (let ax2 = 0; ax2 < 2; ax2++) {
+                if (!OF.periodic[ax2]) continue;
+                let period = od[2 * ax2 + 1] - od[2 * ax2];
+                let p0 = os == 0 ? sections[k].a : sections[k].b, p1 = os == 0 ? sections[k1].a : sections[k1].b;
+                let x = os == 0 ? sec.a : sec.b;
+                if (Math.abs( p0[ax2] - p1[ax2] ) <= period / 2) continue;
+                if (Math.abs( x[ax2] - od[2 * ax2] ) > 1e-7 * period && Math.abs( x[ax2] - od[2 * ax2 + 1] ) > 1e-7 * period) continue;
+                x[ax2] = od[2 * ax2];
+                if (os == 0) { sec.seamA |= 1 << ax2; sec.pa = Eval.rationalSurfacePoint( A.face.surface, sec.a[0], sec.a[1] ); }
+                else { sec.seamB |= 1 << ax2; sec.pb = Eval.rationalSurfacePoint( B.face.surface, sec.b[0], sec.b[1] ); }
+            }
             sections.splice( k + 1, 0, sec ); ts.splice( k + 1, 0, lo );
-            // the new section is on the seam; test the pair after it too (the other face's seam may lie there)
+            // test the pair before the new section again (the other face may still jump between them), then the pair
+            // after it
+            k--;
         }
 
         // the contact curves as face cuts

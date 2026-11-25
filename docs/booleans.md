@@ -97,9 +97,10 @@ Limits:
   counted in `report.filletsFailed`.
 * Fillets of nearby edges must not overlap: keep the radius under half the distance between edges, for example half
   the wall thickness for hole edges.
-* `Sweep.pipe` surfaces close with a small crease at their seam (about 0.35 degrees), because the swept profile is
-  fitted as a clamped curve rather than a periodic one. The ball's contact jumps across that crease by a few
-  hundredths of a millimetre. Fitting periodic profiles would remove it.
+* Sweeps of closed profiles (pipes among them) are fitted on a periodic knot structure in the profile's direction,
+  then clamped by knot insertion, so they are as smooth across their seam as anywhere else (the tangent turns by
+  about 1e-6 degrees there; a clamped fit left a 0.35 degree crease). Where the seams of both faces cross the contact
+  curve at the same point, the section put there is flagged as on both seams.
 
 ## Seams of surfaces of revolution
 
