@@ -52,14 +52,22 @@ every edge curve against both faces at 0.01 mm.
 
 ## Checking a file
 
-What OpenCascade 7.8 (cadquery-ocp) says, reading each file with `STEPControl_Reader`:
+What OpenCascade says (cadquery-ocp 8.0.1), reading each file with `STEPControl_Reader`. Volumes are
+`BRepGProp.VolumeProperties` at eps 1e-6 against `report.volume`, which comes from the mesh.
 
-| Model | Faces | `BRepCheck_Analyzer` | Volume against `report.volume` | Max edge tolerance |
-|---|---|---|---|---|
-| Box, G2 fillets of radii 3, 4, 5 and setback corners | 66 | valid | +0.31% (the mesh's volume is a chordal approximation) | 0.0082 |
-| Rod on a disc, filleted | 6 | valid | −0.04% | 0.0054 |
-| Mug (genus 1) | 8 | see the PR | | |
+| Model | Faces | Shells | `BRepCheck_Analyzer` | Seam edges | Volume | Max edge tolerance |
+|---|---|---|---|---|---|---|
+| Box with G2 fillets of radii 3, 4, 5 and setback corners | 66 | 1, closed | valid | 0 | +0.31% | 0.0082 |
+| Rod on a disc, filleted | 6 | 1, closed | valid | 1 per face | +0.07% | 0.0055 |
+| Mug (genus 1) | 8 | 1, closed | valid | 6 | +0.16% | 0.0029 |
 
+`ShapeFix_Shape` changes none of them.
+
+The volume gaps come from the mesh, not the file. The mesh is a chordal approximation, so its volume converges as
+it is refined. The mug's mesh volume extrapolates to within 0.03% of OpenCascade's value, and the two surface areas
+agree to 0.02%.
+
+OpenCascade's default integration precision is too coarse on these B-spline faces: it gave +2.5% on the mug.
 
 `test/testStep.cjs` checks the topology (each edge used once each way, loops closed, Euler's formula), the edge
 curves (on both faces, ends at the vertices) and the file (every reference resolves, every `EDGE_CURVE` used once
