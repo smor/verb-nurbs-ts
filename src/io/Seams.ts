@@ -13,7 +13,14 @@ export interface SeamEdge {
     left : number;
     right : number;
     curve? : NurbsCurveData;
+    // a seam edge: its curve runs along the seam from w0 to w1 (the surface's other parameter, linearly in the curve's
+    // parameter from 0 to 1), and the face's boundary uses it forwards on the low side (at the domain's start) when
+    // lowForward, on the high side (at its end) otherwise
+    seam? : { w0 : number, w1 : number, lowForward : boolean };
 }
+
+// Where a face was cut: along the seam of its surface's closed direction d (0: u, 1: v), at c0, the period per.
+export interface SeamCut { d : number, c0 : number, per : number }
 
 // A face while the B-rep is built: its surface, whether the surface's normal points out of the solid, and the nearest
 // point of the surface to a point (its parameters, in the surface's domain, and the point).
@@ -48,7 +55,7 @@ export class Seams {
 
     public static cut( faces : Array<SeamFace>, edges : Array<SeamEdge>, vertices : Array<Point>, loops : Array<Array<Array<[number, boolean]>>>,
                        tol : number, onBoth : (e : SeamEdge, p : Point) => Point )
-        : { edges : Array<SeamEdge>, loops : Array<Array<SeamLoop>> } {
+        : { edges : Array<SeamEdge>, loops : Array<Array<SeamLoop>>, cuts : Array<SeamCut | null> } {
         const splits = edges.map( () => [] as Array<{ pos : number, vertex : number }> );
         // a vertex on edge e at pos (along its polyline: segment index plus fraction)
         const vertexAt = (e : number, pos : number) : number => {
@@ -167,7 +174,8 @@ export class Seams {
                 };
                 const curve = Fit.approximateCurve( iso, 3, [0, 0, 0, 0, 1, 1, 1, 1], 0.25 * tol, 8 ).curve;
                 seamUse.set( out.length, lowFwd ? 0 : 1 );
-                out.push( { pts : [vertices[sm.a], vertices[sm.b]], start : sm.a, end : sm.b, left : fi, right : fi, curve : curve } );
+                out.push( { pts : [vertices[sm.a], vertices[sm.b]], start : sm.a, end : sm.b, left : fi, right : fi, curve : curve,
+                            seam : { w0 : sm.wa, w1 : sm.wb, lowForward : lowFwd } } );
             }
             const uses : Array<[number, boolean]> = ([] as Array<[number, boolean]>).concat( ...loops[fi].map( expand ) );
             for (const e of seamUse.keys()) uses.push( [e, true], [e, false] );
@@ -210,7 +218,7 @@ export class Seams {
             }
             return Seams.outer( F, ls, out, { d : d, c0 : c0, per : per, seamUse : seamUse } );
         } );
-        return { edges : out, loops : result };
+        return { edges : out, loops : result, cuts : plans.map( p => p == null ? null : { d : p.d, c0 : p.c0, per : p.per } ) };
     }
 
     // The loops, the one with the largest area in the parameter plane marked outer (none on a surface closed both
