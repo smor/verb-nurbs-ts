@@ -34,6 +34,10 @@ export interface BooleanOptions {
     // fillet.
     // the shape of the fillets' cross-sections (default "circular"; see `FilletShape`)
     filletShape? : FilletShape;
+    // corners where three rounded edges of one radius and kind meet: "auto" (default) gives a ball, unless the blends
+    // are curvature-continuous, which get a G2 setback vertex blend; "ball" always gives a ball (a bent one for
+    // curvature-continuous blends: G1 with them, and spherical in look)
+    filletCorner? : "auto" | "ball";
     fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => FilletRadius);
     // edges of the solids' own faces to round too (see `BrepEdges`): the solid, its two faces, and the radius. They take
     // the same fillet shape. Closed edges only for now (a cap's rim, a wall's top).
@@ -305,7 +309,7 @@ export class BrepBoolean {
                 // a ball where the three radii are equal there, a setback vertex blend otherwise. Curvature-continuous
                 // blends always get a setback blend, which is G2 with them; a sphere cannot be (their sections are
                 // not circular arcs)
-                const g2 = three.every( x => x.F.shape == "curvature" );
+                const g2 = o.filletCorner != "ball" && three.every( x => x.F.shape == "curvature" );
                 let patch = g2 ? FilletCorner.setback( three, tol ) : FilletCorner.ball( three, tol );
                 if (patch == null) patch = g2 ? FilletCorner.ball( three, tol ) : FilletCorner.setback( three, tol );
                 if (patch != null) {

@@ -296,6 +296,13 @@ describe("verb.solid.Fillet", function(){
 			// the same corner built G1 (without second derivatives) jumps by 2.3 to 4 / r; this one by under 0.1 / r
 			res.corners.forEach(function(c){ c.kind.should.be.equal('setback'); worstAcross(c).should.be.below(0.1); });
 		});
+		// ball corners on request: the sphere, bent to meet the three curvature-continuous end sections (G1)
+		var balls = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', filletCorner : 'ball', edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : 2 }; }) });
+		balls.report.fillets.should.be.equal(12);
+		balls.report.manifold.closedManifold.should.be.true();
+		manifold(balls.mesh).status().should.be.equal('NoError');
+		balls.corners.length.should.be.equal(8);
+		balls.corners.forEach(function(c){ c.kind.should.be.equal('ball'); c.radius.should.be.approximately(2, 1e-9); });
 	});
 
 	it("rounds the edges around a boss on a box: concave mitres at a sharp boss, and mixed corners when the boss is rounded too", function(){
