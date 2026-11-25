@@ -5,6 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { Fit } from "../eval/Fit.js";
 import { BooleanResult } from "../solid/BrepBoolean.js";
 import { SurfaceLoops } from "../solid/SurfaceLoops.js";
+import { SeamEdge, SeamFace, SeamLoop, Seams } from "./Seams.js";
 
 export interface StepOptions {
     // the product's name in the file (default "verb-nurbs-ts solid")
@@ -26,6 +27,13 @@ export interface StepTopology {
     loops : Array<Array<Array<[number, boolean]>>>;
 }
 
+// The B-rep written to a STEP file (see `Step.model`).
+export interface StepModel {
+    vertices : Array<Point>;
+    edges : Array<{ curve : NurbsCurveData, start : number, end : number, left : number, right : number }>;
+    faces : Array<{ surface : NurbsSurfaceData, sameSense : boolean, closed : [boolean, boolean], loops : Array<SeamLoop> }>;
+}
+
 // STEP export (ISO 10303-21) of a B-rep result as a closed shell of trimmed NURBS faces: a MANIFOLD_SOLID_BREP of
 // ADVANCED_FACEs on B_SPLINE_SURFACE_WITH_KNOTS (rational where they are), bounded by EDGE_LOOPs of EDGE_CURVEs that
 // neighbouring faces share. These entities are common to AP203, AP214 and AP242; the file names the AP214 schema, the
@@ -42,44 +50,69 @@ export interface StepTopology {
 // p-curves: readers compute them from the 3D edge curves, as they do for most files.
 export class Step {
 
-    // The B-rep that `write` puts in the file: the topology, each edge's curve (from its chain's first point to its
-    // last), and for each face whether its surface's normal points out of the solid.
-    public static model( r : BooleanResult, options? : StepOptions )
-        : { topology : StepTopology, curves : Array<NurbsCurveData>, sameSense : Array<boolean> } {
+    // The B-rep that `write` puts in the file: its vertices, its edges (each a curve from its start vertex to its end
+    // vertex, with the faces on its left and right; a seam has the same face on both), and its faces (each surface,
+    // whether its normal points out of the solid, and its loops of oriented edges, the face on their left, one of
+    // them outer where the surface has a parameter rectangle to bound). Faces on surfaces closed in one direction
+    // are cut along their seams (`Seams`).
+    public static model( r : BooleanResult, options? : StepOptions ) : StepModel {
         const tol = options != null && options.tolerance != null ? options.tolerance : 0.01;
         const T = Step.topology( r );
-        const on = r.faces.map( f => Step.projector( f.surface ) );
-        const curves = T.edges.map( e => {
-            const pts = Step.refine( e.chain.map( i => r.mesh.vertices[i] ), on[e.left], on[e.right], 0.25 * tol );
-            return Step.fitChain( pts, 0.25 * tol );
-        } );
-        return { topology : T, curves : curves, sameSense : r.faces.map( (_, fi) => Step.sameSense( r, fi ) ) };
+        const faces : Array<SeamFace> = r.faces.map( (f, fi) => ({ surface : f.surface, sameSense : Step.sameSense( r, fi ), project : Step.projector( f.surface ) }) );
+        const on = faces.map( F => (p : Point) => F.project( p ).p );
+        const onBoth = (e : { left : number, right : number }, p : Point) => { let q = p; for (let k = 0; k < 4; k++) q = on[e.right]( on[e.left]( q ) ); return q; };
+        const vertices : Array<Point> = [], index = new Map<number, number>();
+        const vertexOf = (m : number) => {
+            let k = index.get( m );
+            if (k == null) { k = vertices.length; vertices.push( r.mesh.vertices[m] ); index.set( m, k ); }
+            return k;
+        };
+        const edges : Array<SeamEdge> = T.edges.map( e => ({
+            pts : Step.refine( e.chain.map( i => r.mesh.vertices[i] ), on[e.left], on[e.right], 0.25 * tol ),
+            start : vertexOf( e.chain[0] ), end : vertexOf( e.chain[e.chain.length - 1] ), left : e.left, right : e.right,
+        }) );
+        const cut = Seams.cut( faces, edges, vertices, T.loops, tol, onBoth );
+        // only the vertices that edges use, renumbered in order
+        const used = new Map<number, number>(), vs : Array<Point> = [];
+        const keep = (v : number) => { let k = used.get( v ); if (k == null) { k = vs.length; vs.push( vertices[v] ); used.set( v, k ); } return k; };
+        return {
+            vertices : vs,
+            edges : cut.edges.map( e => {
+                const curve = e.curve != null ? e.curve : Step.fitChain( e.pts, 0.25 * tol );
+                // the ends exactly at the vertices (clamped: the end control points are the ends)
+                const cp = curve.controlPoints, a = vertices[e.start], b = vertices[e.end];
+                const at = (p : Point, w : number) => cp[0].length == 4 ? [p[0] * w, p[1] * w, p[2] * w, w] : p.slice();
+                cp[0] = at( a, cp[0].length == 4 ? cp[0][3] : 1 );
+                cp[cp.length - 1] = at( b, cp[0].length == 4 ? cp[cp.length - 1][3] : 1 );
+                return { curve : curve, start : keep( e.start ), end : keep( e.end ), left : e.left, right : e.right };
+            } ),
+            faces : faces.map( (F, fi) => ({
+                surface : F.surface, sameSense : F.sameSense,
+                closed : [Analyze.isRationalSurfaceClosed( F.surface, true ), Analyze.isRationalSurfaceClosed( F.surface, false )] as [boolean, boolean],
+                loops : cut.loops[fi],
+            }) ),
+        };
     }
 
     public static write( r : BooleanResult, options? : StepOptions ) : string {
         const o = options != null ? options : {};
         const tol = o.tolerance != null ? o.tolerance : 0.01;
         const name = Step.text( o.name != null ? o.name : "verb-nurbs-ts solid" );
-        const M = Step.model( r, o ), T = M.topology;
+        const M = Step.model( r, o );
         const w = new StepWriter();
 
         // geometry: surfaces, edge curves, vertex points
-        const surfaces = r.faces.map( f => Step.surface( w, f.surface ) );
-        const sense = M.sameSense;
-        const vertexOf = new Map<number, string>();
-        for (const v of T.vertices) vertexOf.set( v, w.add( `VERTEX_POINT('',${w.add( Step.point( r.mesh.vertices[v] ) )})` ) );
-        const edges = T.edges.map( (e, k) => {
-            const curve = Step.curve( w, M.curves[k] );
-            return w.add( `EDGE_CURVE('',${vertexOf.get( e.chain[0] )},${vertexOf.get( e.chain[e.chain.length - 1] )},${curve},.T.)` );
-        } );
+        const vertices = M.vertices.map( p => w.add( `VERTEX_POINT('',${w.add( Step.point( p ) )})` ) );
+        const edges = M.edges.map( e => w.add( `EDGE_CURVE('',${vertices[e.start]},${vertices[e.end]},${Step.curve( w, e.curve )},.T.)` ) );
 
         // topology: faces, shell, solid
-        const faces = r.faces.map( (_, fi) => {
-            const bounds = T.loops[fi].map( loop => {
-                const oriented = loop.map( ([e, fwd]) => w.add( `ORIENTED_EDGE('',*,*,${edges[e]},${fwd ? ".T." : ".F."})` ) );
-                return w.add( `FACE_BOUND('',${w.add( `EDGE_LOOP('',(${oriented.join( "," )}))` )},.T.)` );
+        const faces = M.faces.map( F => {
+            const surface = Step.surface( w, F.surface, F.closed );
+            const bounds = F.loops.map( loop => {
+                const oriented = loop.edges.map( ([e, fwd]) => w.add( `ORIENTED_EDGE('',*,*,${edges[e]},${fwd ? ".T." : ".F."})` ) );
+                return w.add( `${loop.outer ? "FACE_OUTER_BOUND" : "FACE_BOUND"}('',${w.add( `EDGE_LOOP('',(${oriented.join( "," )}))` )},.T.)` );
             } );
-            return w.add( `ADVANCED_FACE('',(${bounds.join( "," )}),${surfaces[fi]},${sense[fi] ? ".T." : ".F."})` );
+            return w.add( `ADVANCED_FACE('',(${bounds.join( "," )}),${surface},${F.sameSense ? ".T." : ".F."})` );
         } );
         const shell = w.add( `CLOSED_SHELL('',(${faces.join( "," )}))` );
         const brep = w.add( `MANIFOLD_SOLID_BREP('${name}',${shell})` );
@@ -207,7 +240,7 @@ export class Step {
     // ---------- geometry ----------
 
     // The point of a surface nearest p: from the nearest of a grid of samples, by Newton's method.
-    private static projector( s : NurbsSurfaceData ) : (p : Point) => Point {
+    private static projector( s : NurbsSurfaceData ) : (p : Point) => { uv : UV, p : Point } {
         const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
         const periodic : [boolean, boolean] = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
         const seeds : Array<{ uv : UV, p : Point }> = [];
@@ -216,11 +249,30 @@ export class Step {
             const uv : UV = [d[0] + (d[1] - d[0]) * i / g, d[2] + (d[3] - d[2]) * j / g];
             seeds.push( { uv : uv, p : Eval.rationalSurfacePoint( s, uv[0], uv[1] ) } );
         }
+        const span = [d[1] - d[0], d[3] - d[2]];
+        const inDomain = (x : number, c : number) => {
+            if (!periodic[c]) return Math.max( d[2 * c], Math.min( d[2 * c + 1], x ) );
+            const t = (x - d[2 * c]) / span[c];
+            return d[2 * c] + (t - Math.floor( t )) * span[c];
+        };
         return (p : Point) => {
-            let best = seeds[0];
-            for (const x of seeds) if (Vec.distSquared( x.p, p ) < Vec.distSquared( best.p, p )) best = x;
+            let best = seeds[0], bd = Vec.distSquared( best.p, p );
+            for (const x of seeds) { const dd = Vec.distSquared( x.p, p ); if (dd < bd) { best = x; bd = dd; } }
+            // closer, on finer grids round the nearest sample (Newton alone can run off along a surface of revolution)
+            let h = [span[0] / g, span[1] / g];
+            for (let round = 0; round < 4; round++) {
+                const c = best;
+                for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+                    const uv : UV = [inDomain( c.uv[0] + i * h[0] / 2, 0 ), inDomain( c.uv[1] + j * h[1] / 2, 1 )];
+                    const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] ), dd = Vec.distSquared( q, p );
+                    if (dd < bd) { best = { uv : uv, p : q }; bd = dd; }
+                }
+                h = [h[0] / 2.5, h[1] / 2.5];
+            }
             const uv = SurfaceLoops.project( { surface : s, periodic : periodic }, p, best.uv );
-            return uv == null ? best.p : Eval.rationalSurfacePoint( s, uv[0], uv[1] );
+            if (uv == null) return { uv : best.uv, p : best.p };
+            const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] );
+            return Vec.distSquared( q, p ) <= bd ? { uv : uv, p : q } : { uv : best.uv, p : best.p };
         };
     }
 
@@ -294,15 +346,16 @@ export class Step {
 
     // ---------- entities ----------
 
-    private static surface( w : StepWriter, s : NurbsSurfaceData ) : string {
+    private static surface( w : StepWriter, s : NurbsSurfaceData, closed : [boolean, boolean] ) : string {
         const [mu, ku] = Step.knots( s.knotsU ), [mv, kv] = Step.knots( s.knotsV );
         const pts = s.controlPoints.map( row => "(" + row.map( p => w.add( Step.point( Step.dehomogenize( p ) ) ) ).join( "," ) + ")" );
         const net = "(" + pts.join( "," ) + ")";
         const knots = `(${mu.join( "," )}),(${mv.join( "," )}),(${ku.map( Step.real ).join( "," )}),(${kv.map( Step.real ).join( "," )}),.UNSPECIFIED.`;
         const rational = s.controlPoints.some( row => row.some( p => Math.abs( p[3] - 1 ) > 1e-12 ) );
-        if (!rational) return w.add( `B_SPLINE_SURFACE_WITH_KNOTS('',${s.degreeU},${s.degreeV},${net},.UNSPECIFIED.,.F.,.F.,.F.,${knots})` );
+        const flags = `${closed[0] ? ".T." : ".F."},${closed[1] ? ".T." : ".F."},.F.`;
+        if (!rational) return w.add( `B_SPLINE_SURFACE_WITH_KNOTS('',${s.degreeU},${s.degreeV},${net},.UNSPECIFIED.,${flags},${knots})` );
         const weights = "(" + s.controlPoints.map( row => "(" + row.map( p => Step.real( p[3] ) ).join( "," ) + ")" ).join( "," ) + ")";
-        return w.add( `( BOUNDED_SURFACE() B_SPLINE_SURFACE(${s.degreeU},${s.degreeV},${net},.UNSPECIFIED.,.F.,.F.,.F.) ` +
+        return w.add( `( BOUNDED_SURFACE() B_SPLINE_SURFACE(${s.degreeU},${s.degreeV},${net},.UNSPECIFIED.,${flags}) ` +
             `B_SPLINE_SURFACE_WITH_KNOTS(${knots}) GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(${weights}) ` +
             "REPRESENTATION_ITEM('') SURFACE() )" );
     }
