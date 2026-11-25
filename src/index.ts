@@ -62,7 +62,7 @@ export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { Fillet } from "./solid/Fillet.js";
-export type { FilletSide, FilletSection, FilletResult } from "./solid/Fillet.js";
+export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
 import { FilletCorner } from "./solid/FilletCorner.js";
 export type { OpenBlend, TrimPoint, ThirdEdge } from "./solid/FilletCorner.js";
 import { Makeable } from "./solid/Makeable.js";

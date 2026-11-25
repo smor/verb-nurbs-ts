@@ -63,6 +63,66 @@ describe("verb.solid.Fillet", function(){
 		(round.report.volume - sharp.report.volume).should.be.approximately(exact, exact * 0.015);
 	});
 
+	it('a variable radius: the ball grows and shrinks along the edge, and the volume follows the integral of r^2', function(){
+		var s = discAndRod(128);
+		var rad = function(t){ return 2 + Math.sin(2 * Math.PI * t); }; // from 1 to 3 and back
+		var sharp = BrepBoolean.union(s);
+		var round = BrepBoolean.union(s, { fillet : function(){ return rad; } });
+		round.report.fillets.should.be.equal(2);
+		round.report.manifold.closedManifold.should.be.true();
+		manifold(round.mesh).status().should.be.equal('NoError');
+		round.fillets.forEach(function(f){
+			var rs = f.blend.sections.map(function(x){ return Vec.dist(x.centre, x.pa); });
+			f.blend.sections.forEach(function(x, k){ Vec.dist(x.centre, x.pb).should.be.approximately(rs[k], 1e-8); });
+			Math.min.apply(null, rs).should.be.approximately(1, 0.02);
+			Math.max.apply(null, rs).should.be.approximately(3, 0.02);
+		});
+		// Pappus with the radius varying round the edge
+		var exact = 0, n = 2000;
+		for (var i = 0; i < n; i++) { var r = rad((i + 0.5) / n); exact += 2 * Math.PI * (5 + 0.22337 * r) * (1 - Math.PI / 4) * r * r / n; }
+		(round.report.volume - sharp.report.volume).should.be.approximately(2 * exact, 2 * exact * 0.03);
+	});
+
+	it('a curvature-continuous section matches each face\'s position, tangent and normal curvature at its ends (G2)', function(){
+		// a sphere of radius 10 standing on the plane z = -6: a ball of radius 2 in the concave corner between them
+		var sphere = verb.eval.Make.sphericalSurface([0,0,0], [0,0,1], [1,0,0], 10);
+		var plane = new verb.core.NurbsSurfaceData(1, 1, [0,0,1,1], [0,0,1,1], [[[-20,-20,-6,1],[-20,20,-6,1]],[[20,-20,-6,1],[20,20,-6,1]]]);
+		var A = { face : BrepSolid.face(sphere, [false, true], [8, 8]), sign : 1, keptInsideOther : false };
+		var B = { face : BrepSolid.face(plane, [false, false], [2, 2]), sign : 1, keptInsideOther : false };
+		var centre = [Math.sqrt(144 - 16), 0, -4];
+		var ua = verb.eval.Analyze.rationalSurfaceClosestParam(sphere, Vec.mul(10 / 12, centre)), pa = Eval.rationalSurfacePoint(sphere, ua[0], ua[1]);
+		var ub = [(centre[0] + 20) / 40, 0.5], pb = Eval.rationalSurfacePoint(plane, ub[0], ub[1]);
+		var c = Fillet.g2(A, ua, pa, B, ub, pb);
+		should.exist(c);
+		[[0, sphere, ua, pa], [1, plane, ub, pb]].forEach(function(e){
+			var d = Eval.rationalCurveDerivatives(c, e[0], 2);
+			Vec.dist(d[0], e[3]).should.be.below(1e-12);
+			var sd = Eval.rationalSurfaceDerivatives(e[1], e[2][0], e[2][1], 2);
+			var n = Vec.normalized(Vec.cross(sd[1][0], sd[0][1]));
+			Math.abs(Vec.dot(Vec.normalized(d[1]), n)).should.be.below(1e-9); // tangent to the face
+			// normal curvature of the curve against the face's, along the curve's tangent
+			var t = Vec.normalized(d[1]), kc = Vec.dot(d[2], n) / Vec.dot(d[1], d[1]);
+			var st = [Vec.dot(t, sd[1][0]), Vec.dot(t, sd[0][1])];
+			var E = Vec.dot(sd[1][0], sd[1][0]), F = Vec.dot(sd[1][0], sd[0][1]), G = Vec.dot(sd[0][1], sd[0][1]), det = E * G - F * F;
+			var du = (G * st[0] - F * st[1]) / det, dv = (E * st[1] - F * st[0]) / det;
+			var I = du * du * E + 2 * du * dv * F + dv * dv * G;
+			var II = du * du * Vec.dot(sd[2][0], n) + 2 * du * dv * Vec.dot(sd[1][1], n) + dv * dv * Vec.dot(sd[0][2], n);
+			kc.should.be.approximately(II / I, 1e-6);
+		});
+	});
+
+	it('curvature-continuous fillets keep a Boolean watertight, and fill a little less than circular ones', function(){
+		var s = discAndRod(128);
+		var sharp = BrepBoolean.union(s), circ = BrepBoolean.union(s, { fillet : 2 });
+		var g2 = BrepBoolean.union(s, { fillet : 2, filletShape : 'curvature' });
+		g2.report.fillets.should.be.equal(2);
+		g2.report.manifold.closedManifold.should.be.true();
+		manifold(g2.mesh).status().should.be.equal('NoError');
+		var added = g2.report.volume - sharp.report.volume, addedCirc = circ.report.volume - sharp.report.volume;
+		added.should.be.above(0.3 * addedCirc);
+		added.should.be.below(addedCirc);
+	});
+
 	it('the ball touches both faces: each section centre is at the radius from both contacts, along their normals', function(){
 		var s = discAndRod(64);
 		var round = BrepBoolean.union(s, { fillet : 2 });

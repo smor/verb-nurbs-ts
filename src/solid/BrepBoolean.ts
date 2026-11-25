@@ -5,7 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
 import { MeshBVH } from "./MeshBVH.js";
-import { Fillet, FilletResult, FilletSide } from "./Fillet.js";
+import { Fillet, FilletRadius, FilletResult, FilletShape, FilletSide } from "./Fillet.js";
 import { FilletCorner, OpenBlend, ThirdEdge } from "./FilletCorner.js";
 import { ManifoldReport, TriMesh } from "./TriMesh.js";
 
@@ -28,7 +28,11 @@ export interface BooleanOptions {
     // rolling-ball fillet radius for the new edges: one radius for all, or per intersection curve (0: no fillet).
     // Edges are the runs of the branches between corners; only runs that are edges of the result are filleted. A run
     // that ends at corners is rounded where each corner joins it to one other rounded edge across a sharp one.
-    fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => number);
+    // The function may also return a function of the position along the edge (see `FilletRadius`): a variable-radius
+    // fillet.
+    // the shape of the fillets' cross-sections (default "circular"; see `FilletShape`)
+    filletShape? : FilletShape;
+    fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => FilletRadius);
 }
 
 export interface BooleanResult {
@@ -38,7 +42,7 @@ export interface BooleanResult {
     faceOf : Array<number>;
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
-    fillets : Array<{ curve : number, radius : number, blend : FilletResult }>;
+    fillets : Array<{ curve : number, radius : FilletRadius, blend : FilletResult }>;
     // ball corners, where three fillets of one radius meet: the ball's centre and radius, and the corner's face in
     // `faces`
     corners : Array<{ centre : Point, radius : number, face : number }>;
@@ -135,7 +139,7 @@ export class BrepBoolean {
             set.add( ci );
         } } );
         let isCorner = (p : Point) => (owners.get( p ) as Set<number>).size > 1;
-        type Run = { ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : number };
+        type Run = { ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : FilletRadius };
         let runs : Array<Run> = [];
         curves.forEach( (e, ci) => {
             let c = e.curve, n = c.points.length;
@@ -172,16 +176,19 @@ export class BrepBoolean {
             if (r.sides == null) return;
             let e = curves[r.ci];
             r.radius = typeof o.fillet == "number" ? o.fillet : o.fillet( { solids : e.solids, faces : e.faces }, r.ci );
-            if (!(r.radius > 0)) return;
+            // a variable radius must stay positive along the edge
+            let rad = r.radius;
+            let positive = typeof rad == "number" ? rad > 0 : Array.from( { length : 33 }, (_, k) => k / 32 ).every( t => (rad as (t : number) => number)( t ) > 0 );
+            if (!positive) return;
             let A = r.sides[0], B = r.sides[1];
             if (r.curve.closed) {
-                let fr = Fillet.rollingBall( A, B, r.curve, r.radius, tol );
+                let fr = Fillet.rollingBall( A, B, r.curve, r.radius, tol, o.filletShape );
                 if (fr == null) failed++; else closedBlends.set( g, fr );
                 return;
             }
             let sec = Fillet.sections( A, B, r.curve, r.radius, tol );
             if (sec == null) { failed++; return; }
-            openBlends.set( g, FilletCorner.open( A, B, sec, r.radius ) );
+            openBlends.set( g, FilletCorner.open( A, B, sec, o.filletShape ) );
         } );
         // corners: the ends of the runs that are edges of the result
         let key = (s : number, f : number) => s + ":" + f;

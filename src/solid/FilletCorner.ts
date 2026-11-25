@@ -6,7 +6,7 @@ import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
 import { BrepBoolean } from "./BrepBoolean.js";
 import { BrepFace, BrepSolid, FaceCut } from "./Brep.js";
-import { Fillet, FilletResult, FilletSection, FilletSide } from "./Fillet.js";
+import { Fillet, FilletResult, FilletSection, FilletShape, FilletSide } from "./Fillet.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
 
 // A point where a blend along an open edge is trimmed: its position across the blend (t, 0 on face A's side and 1 on
@@ -25,6 +25,9 @@ export interface TrimPoint {
 interface Corner { F : OpenBlend; e : number; b : number; n : Array<number>; sX : number; }
 // Where a contact curve goes through another blend.
 interface Crossing { point : Point; sOwn : number; sOther : number; tOther : number; uv : UV; }
+// A ball corner's side whose section is not the ball's arc: its departure from the arc (shift) at fractions of the
+// arc's angle (from foot i to foot j).
+interface Bend { i : number; j : number; total : number; angle : Array<number>; shift : Array<Point>; }
 // Where a contact curve reaches the third edge.
 interface Reach { point : Point; s : number; uv : UV; f : number | null; isA1 : boolean; }
 
@@ -34,6 +37,7 @@ export interface OpenBlend {
     radius : number;
     side : number;
     sections : Array<FilletSection>;
+    shape : FilletShape;
     rows : Array<{ s : number, points : Array<Point>, uvA : UV, uvB : UV, seamA : number, seamB : number, centre : Point }>;
     m : number;
     // the trims at the start and at the end, ordered by t from 0 to 1
@@ -60,15 +64,18 @@ export class FilletCorner {
     public static pending : (() => void) | null = null;
 
     // An open blend's rows, from the sections of `Fillet.sections`.
-    public static open( A : FilletSide, B : FilletSide, found : { sections : Array<FilletSection>, side : number, before : Array<FilletSection>, after : Array<FilletSection> }, radius : number ) : OpenBlend {
+    public static open( A : FilletSide, B : FilletSide, found : { sections : Array<FilletSection>, side : number, before : Array<FilletSection>, after : Array<FilletSection> },
+                        shape : FilletShape = "circular" ) : OpenBlend {
         let sections = found.sections, side = found.side;
-        let m = Fillet.arcDivisions( sections, radius, false );
+        let m = Fillet.arcDivisions( sections, false );
+        // the largest radius (a variable fillet's radius changes along it)
+        let radius = Math.max( ...sections.map( x => Vec.dist( x.pa, x.centre ) ) );
         let rows : OpenBlend["rows"] = [];
         let s = 0.0;
         // sections solved past the ends where the faces carry on; extrapolated rows where they do not
         let all = found.before.length == 2 && found.after.length == 2 ? found.before.concat( sections, found.after ) : sections;
         all.forEach( (x, k) => {
-            let arc = Fillet.arc( x.pa, x.centre, x.pb );
+            let arc = Fillet.crossSection( A, B, x, shape );
             let pts : Array<Point> = [x.pa];
             for (let i = 1; i < m; i++) pts.push( Eval.rationalCurvePoint( arc, i / m ) );
             pts.push( x.pb );
@@ -97,11 +104,11 @@ export class FilletCorner {
             if (FilletCorner.inside( B.face, uvB )) pts[m] = Eval.rationalSurfacePoint( B.face.surface, uvB[0], uvB[1] );
             return { s : r0.s + j * (r0.s - r1.s) / d * d, points : pts, uvA : uvA, uvB : uvB, seamA : 0, seamB : 0, centre : move( r0.centre, r1.centre ) };
         };
-        if (all !== sections) return { A : A, B : B, radius : radius, side : side, sections : sections, rows : rows, m : m, trims : [null, null], extra : [] };
+        if (all !== sections) return { A : A, B : B, radius : radius, side : side, sections : sections, shape : shape, rows : rows, m : m, trims : [null, null], extra : [] };
         let n = rows.length;
         let before = [2, 1].map( j => extend( rows[0], rows[1], j ) );
         let after = [1, 2].map( j => extend( rows[n - 1], rows[n - 2], j ) );
-        return { A : A, B : B, radius : radius, side : side, sections : sections, rows : before.concat( rows, after ), m : m, trims : [null, null], extra : [] };
+        return { A : A, B : B, radius : radius, side : side, sections : sections, shape : shape, rows : before.concat( rows, after ), m : m, trims : [null, null], extra : [] };
     }
 
     // Trim blends F1 and F2 where they meet, at their ends e1 and e2 (0: start, 1: end). b1 and b2 say which face of
@@ -380,8 +387,12 @@ export class FilletCorner {
     public static ball( ends : Array<{ F : OpenBlend, e : number, keys : [string, string] }>, tol : number )
         : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData, centre : Point, radius : number } | null {
         if (ends.length != 3) return null;
-        let r = ends[0].F.radius, side = ends[0].F.side;
-        if (ends.some( x => Math.abs( x.F.radius - r ) > 1e-9 * Math.max( 1, r ) || x.F.side != side )) return null;
+        // the radius at each blend's end (a variable fillet's radius changes along it)
+        let endRadius = (x : typeof ends[0]) => { let s = x.F.sections[x.e == 0 ? 0 : x.F.sections.length - 1]; return Vec.dist( s.pa, s.centre ); };
+        let r = endRadius( ends[0] ), side = ends[0].F.side;
+        if (ends.some( x => Math.abs( endRadius( x ) - r ) > 1e-6 * Math.max( 1, r ) || x.F.side != side )) return null;
+        let shape = ends[0].F.shape;
+        if (ends.some( x => x.F.shape != shape )) return null;
         // the three faces, each with its side as some blend sees it and a starting guess from that blend's end row
         let keys : Array<string> = [];
         for (let x of ends) for (let k of x.keys) if (!keys.includes( k )) keys.push( k );
@@ -431,6 +442,7 @@ export class FilletCorner {
         let feet = [0, 1, 2].map( i => Eval.rationalSurfacePoint( faces[i].side.face.surface, uv[i][0], uv[i][1] ) );
         // the centre must lie near the corner, within reach of each blend's rows
         let arcs : Array<Array<Point>> = [];
+        let bends : Array<Bend> = [];
         for (let x of ends) {
             let F = x.F, ia = keys.indexOf( x.keys[0] ), ib = keys.indexOf( x.keys[1] );
             // where the blend's centres pass the ball's centre
@@ -443,19 +455,31 @@ export class FilletCorner {
             }
             if (best > 0.25 * r) return null;
             let arc = Fillet.arc( feet[ia], c, feet[ib] );
+            if (shape == "curvature") {
+                let g = Fillet.g2( faces[ia].side, uv[ia], feet[ia], faces[ib].side, uv[ib], feet[ib] );
+                if (g == null) return null;
+                // the end section's curve, and how far it lies from the ball's arc, by angle along the arc
+                let samples = Array.from( { length : 65 }, (_, k) => k / 64 );
+                let ap = samples.map( t => Eval.rationalCurvePoint( arc, t ) ), gp = samples.map( t => Eval.rationalCurvePoint( g, t ) );
+                let total = Vec.angleBetween( Vec.sub( feet[ia], c ), Vec.sub( feet[ib], c ) );
+                bends.push( { i : ia, j : ib, total : total,
+                              angle : ap.map( q => FilletCorner.angle( Vec.sub( feet[ia], c ), Vec.sub( q, c ) ) / total ),
+                              shift : ap.map( (q, k) => Vec.sub( gp[k], q ) ) } );
+                arc = g;
+            }
             let pts : Array<Point> = [feet[ia]];
             for (let i = 1; i < F.m; i++) pts.push( Eval.rationalCurvePoint( arc, i / F.m ) );
             pts.push( feet[ib] );
             F.trims[x.e] = pts.map( (p, i) => ({ point : p, s : sAt, t : i / F.m, uv : i == 0 ? uv[ia] : i == F.m ? uv[ib] : undefined }) );
             arcs.push( pts );
         }
-        let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side );
+        let patch = FilletCorner.sphereTriangle( c, r, feet, arcs, side, bends );
         return patch == null ? null : Object.assign( patch, { centre : c, radius : r } );
     }
 
     // The triangle on a sphere bounded by three arcs between three feet (each arc's points given from one foot to
     // another, in any direction): a constrained triangulation of its gnomonic projection, with points inside.
-    private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number )
+    private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number, bends : Array<Bend> = [] )
         : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData } | null {
         // chain the arcs into one loop: foot 0 -> ... -> back to foot 0
         let loop : Array<Point> = [];
@@ -481,6 +505,19 @@ export class FilletCorner {
         for (let i = 1; i < g; i++) for (let j = 1; i + j < g; j++) {
             let w = [i / g, j / g, 1 - (i + j) / g];
             let p = Vec.add( c, Vec.mul( r, Vec.normalized( Vec.add( Vec.mul( w[0], d[0] ), Vec.add( Vec.mul( w[1], d[1] ), Vec.mul( w[2], d[2] ) ) ) ) ) );
+            // curvature-continuous sides: carry their departure from the ball's arcs inside, each side's weighted by
+            // (w_j w_k)^2 (Nielsen's side-vertex weights: 1 on that side, 0 on the others)
+            if (bends.length == 3) {
+                let sum = 0.0, shift : Point = [0, 0, 0];
+                for (let b of bends) sum += Math.pow( w[b.i] * w[b.j], 2 );
+                for (let b of bends) {
+                    let wt = Math.pow( w[b.i] * w[b.j], 2 ) / sum;
+                    let dir = Vec.add( Vec.mul( w[b.i], d[b.i] ), Vec.mul( w[b.j], d[b.j] ) );
+                    let phi = FilletCorner.angle( d[b.i], dir ) / b.total;
+                    shift = Vec.add( shift, Vec.mul( wt, FilletCorner.lookup( b, phi ) ) );
+                }
+                p = Vec.add( p, shift );
+            }
             points.push( p ); xy.push( flat( p ) );
         }
         let tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
@@ -493,6 +530,20 @@ export class FilletCorner {
         } );
         let surface = Make.sphericalSurface( c, axis, e1, r );
         return { points : points, triangles : triangles, reversed : false, surface : surface };
+    }
+
+    // The angle between two vectors, robust where they are parallel.
+    private static angle( a : Point, b : Point ) : number {
+        return Math.atan2( Vec.norm( Vec.cross( a, b ) ), Vec.dot( a, b ) );
+    }
+
+    // A side's departure from the ball's arc at a fraction of the arc's angle, interpolated from its samples.
+    private static lookup( b : Bend, phi : number ) : Point {
+        let k = 0;
+        while (k + 2 < b.angle.length && b.angle[k + 1] < phi) k++;
+        let a0 = b.angle[k], a1 = b.angle[k + 1];
+        let f = a1 - a0 > 1e-15 ? Math.max( 0, Math.min( 1, (phi - a0) / (a1 - a0) ) ) : 0;
+        return Vec.add( Vec.mul( 1 - f, b.shift[k] ), Vec.mul( f, b.shift[k + 1] ) );
     }
 
     // The blend between its two trims: triangles over a constrained triangulation of its (s, t) rectangle, and its
@@ -566,7 +617,7 @@ export class FilletCorner {
             return BrepBoolean.facePieces( face, uv, seam, points, false );
         };
         let real = F.rows.slice( 2, F.rows.length - 2 );
-        let arcs = real.map( r => Fillet.arc( r.points[0], r.centre, r.points[m] ) );
+        let arcs = real.map( (r, k) => Fillet.crossSection( F.A, F.B, F.sections[Math.min( k, F.sections.length - 1 )], F.shape ) );
         let surface = Make.loftedSurface( arcs, Math.min( 3, arcs.length - 1 ) );
         let cutA = contact( 0, sideA, F.A.face ), cutB = contact( m, sideB, F.B.face );
         for (let x of F.extra) {

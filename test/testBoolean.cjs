@@ -235,7 +235,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		// each corner lies on its ball, which touches all three faces: every vertex at the radius from its centre
 		o.result.corners.length.should.be.equal(6);
 		o.result.corners.forEach(function(c){
-			c.radius.should.be.equal(1);
+			c.radius.should.be.approximately(1, 1e-9);
 			var n = 0;
 			o.result.mesh.triangles.forEach(function(t, k){
 				if (o.result.faceOf[k] != c.face) return;
@@ -244,6 +244,17 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 			});
 			n.should.be.above(3);
 		});
+		manifold(o.result.mesh).status().should.be.equal('NoError');
+	});
+
+	it('curvature-continuous fillets go round the same corners: the ball corners bend to meet their sections', function(){
+		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, rows : 0, notches : 3, fillet : 1, rimFillet : 1, filletShape : 'curvature', divsU : 24, divsV : 96, offsetTolerance : 0.08 });
+		var rep = o.result.report;
+		rep.manifold.closedManifold.should.be.true();
+		rep.manifold.genus.should.be.equal(0);
+		rep.fillets.should.be.equal(15);
+		rep.filletsSkipped.should.be.equal(0);
+		o.result.corners.length.should.be.equal(6);
 		manifold(o.result.mesh).status().should.be.equal('NoError');
 	});
 
