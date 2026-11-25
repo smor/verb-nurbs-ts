@@ -460,15 +460,17 @@ export class BrepBoolean {
     // Insert an exact point into a branch, in the segment it lies on (or replacing a vertex it coincides with).
     private static insertPoint( c : IntersectionCurve, p : Point, uvA : UV, uvB : UV, reach : number ) : void {
         let n = c.points.length, m = c.closed ? n : n - 1;
-        let best = -1, bestD = Infinity, bestT = 0;
+        let best = -1, bestD = Infinity, bestT = 0, bestL = 0;
         for (let i = 0; i < m; i++) {
             let a = c.points[i], b = c.points[(i + 1) % n];
             let ab = Vec.sub( b, a ), l2 = Vec.dot( ab, ab );
             let t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) ) : 0;
             let dd = Vec.dist( p, Vec.add( a, Vec.mul( t, ab ) ) );
-            if (dd < bestD) { bestD = dd; best = i; bestT = t; }
+            if (dd < bestD) { bestD = dd; best = i; bestT = t; bestL = Math.sqrt( l2 ); }
         }
-        if (best < 0 || bestD > reach) return;
+        // the point lies on the exact curve, which bulges away from a coarse polyline by up to a fraction of the
+        // segment's length: allow for that, while a different branch of the same pair of faces stays out of reach
+        if (best < 0 || bestD > Math.max( reach, 0.15 * bestL )) return;
         let at = bestT < 1e-6 ? best : bestT > 1 - 1e-6 ? (best + 1) % n : -1;
         if (at >= 0 && c.seamA[at] == 0 && c.seamB[at] == 0) { c.points[at] = p; c.uvA[at] = uvA; c.uvB[at] = uvB; return; }
         let k = best + 1;
