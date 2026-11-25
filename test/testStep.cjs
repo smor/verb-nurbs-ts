@@ -137,6 +137,23 @@ describe("verb.io.Step", function(){
 				worst.should.be.below(0.01);
 			});
 
+			it('carries each edge on both its faces: p-curves inside the surfaces\' domains, mapped onto the edge curve within the tolerance', function(){
+				var worst = 0, outside = 0;
+				M.edges.forEach(function(e){
+					[e.left, e.right].forEach(function(fi, j){
+						var pc = e.pcurves[j], s = M.faces[fi].surface;
+						var d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+						for (var i = 0; i <= 16; i++) {
+							var uv = Eval.rationalCurvePoint(pc, i / 16);
+							outside = Math.max(outside, d[0] - uv[0], uv[0] - d[1], d[2] - uv[1], uv[1] - d[3]);
+							worst = Math.max(worst, Vec.dist(Eval.rationalSurfacePoint(s, uv[0], uv[1]), Eval.rationalCurvePoint(e.curve, i / 16)));
+						}
+					});
+				});
+				outside.should.be.below(1e-9);
+				worst.should.be.below(0.01);
+			});
+
 			it('writes a well-formed exchange file: every reference defined, one face per face, one edge curve per edge', function(){
 				text.indexOf('ISO-10303-21;').should.be.equal(0);
 				text.should.containEql('END-ISO-10303-21;');
@@ -147,6 +164,9 @@ describe("verb.io.Step", function(){
 				var count = function(name){ return Object.keys(ents).filter(function(id){ return ents[id].indexOf(name + '(') == 0; }).length; };
 				count('ADVANCED_FACE').should.be.equal(r.faces.length);
 				count('EDGE_CURVE').should.be.equal(M.edges.length);
+				count('PCURVE').should.be.equal(2 * M.edges.length);
+				(count('SURFACE_CURVE') + count('SEAM_CURVE')).should.be.equal(M.edges.length);
+				count('SEAM_CURVE').should.be.equal(M.edges.filter(function(e){ return e.left == e.right; }).length);
 				count('VERTEX_POINT').should.be.equal(M.vertices.length);
 				count('FACE_OUTER_BOUND').should.be.equal(M.faces.filter(function(f){ return f.loops.some(function(l){ return l.outer; }); }).length);
 				// each edge curve is used by two oriented edges, one each way
@@ -161,6 +181,13 @@ describe("verb.io.Step", function(){
 				(text.match(/[(,]-?\d+E/g) || []).length.should.be.equal(0);
 			});
 		});
+	});
+
+	it('leaves p-curves out when asked', function(){
+		var text = Step.write(boss(), { pcurves : false });
+		text.should.not.containEql('PCURVE');
+		text.should.not.containEql('SURFACE_CURVE');
+		text.should.containEql('EDGE_CURVE');
 	});
 
 	it('writes reals the way STEP wants them', function(){

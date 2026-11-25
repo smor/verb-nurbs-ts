@@ -22,6 +22,7 @@ writeFileSync("box.step", Step.write(r, { name: "rounded box", tolerance: 0.01 }
 | `ADVANCED_FACE` + `FACE_BOUND`s | the face, `same_sense` from a vote of its triangles' normals against the surface normal |
 | `EDGE_LOOP` of `ORIENTED_EDGE`s | the face's boundary loops, face on the left |
 | `EDGE_CURVE` on `B_SPLINE_CURVE_WITH_KNOTS` | an edge between two faces, shared by both |
+| `SURFACE_CURVE` / `SEAM_CURVE` with two `PCURVE`s | the edge's curve in each face's surface parameters (2D B-splines in the edge's own parameter); a seam's two are its face's two sides of the cut (`pcurves: false` leaves them out) |
 | `VERTEX_POINT` | a point where three or more faces meet (or one point of a closed edge), where an edge crosses a seam, or a pole |
 | `FACE_OUTER_BOUND` | the loop that bounds the largest area of the face's parameter rectangle |
 
@@ -38,7 +39,12 @@ and AP242. Units are millimetres. The context carries the tolerance as its uncer
    a point is put on both faces by alternating projections onto the two surfaces. Then a cubic B-spline is fitted to
    the refined run. Each step takes a quarter of the tolerance, so the curve lies within half of it of both faces.
 3. **End points exact.** Each curve starts and ends exactly at its vertices, so the shell is closed by construction.
-4. **Seams** (`src/io/Seams.ts`). A surface closed in one direction (a pipe, a wall of revolution, a disc with a pole
+4. **P-curves.** Each edge's curve is projected onto each of its faces' surfaces and fitted with a cubic B-spline in
+   the parameter plane, in the same parameter as the 3D curve (so a reader can treat them as one), within 5% of the
+   tolerance once mapped back onto the surface, and kept inside the surface's domain. Seam edges get straight
+   p-curves along the seam, one on each side of the cut. Readers that rebuild p-curves themselves (OpenCascade does)
+   don't need them; others (many commercial kernels) prefer them.
+5. **Seams** (`src/io/Seams.ts`). A surface closed in one direction (a pipe, a wall of revolution, a disc with a pole
    at its centre) is written with its closed flag set, and each face on it is cut along the surface's seam, where its
    parameter jumps from the end of the domain back to the start. Where a loop crosses the seam a vertex goes on its
    edge; the stretches of the seam inside the face (bounded by those crossings, or by a pole) become seam edges, which
@@ -77,6 +83,5 @@ OpenCascade's `STEPControl_Reader` with `BRepCheck_Analyzer`, and the volume fro
 
 ## Limits
 
-* No p-curves (`SURFACE_CURVE`/`PCURVE`): readers compute them from the 3D edges.
 * One solid per file, no colours, no assembly structure.
 * Faces on surfaces closed in both directions (a torus) are not cut; their loops are all written as `FACE_BOUND`.

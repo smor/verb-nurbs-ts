@@ -5,7 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { Fit } from "../eval/Fit.js";
 import { BooleanResult } from "../solid/BrepBoolean.js";
 import { SurfaceLoops } from "../solid/SurfaceLoops.js";
-import { SeamEdge, SeamFace, SeamLoop, Seams } from "./Seams.js";
+import { SeamCut, SeamEdge, SeamFace, SeamLoop, Seams } from "./Seams.js";
 
 export interface StepOptions {
     // the product's name in the file (default "verb-nurbs-ts solid")
@@ -13,6 +13,8 @@ export interface StepOptions {
     // the model's length uncertainty, which tells a reader how closely edges lie on their faces (default 0.01, in the
     // model's units, taken as millimetres). Edge curves are fitted to half of it.
     tolerance? : number;
+    // write each edge's curves on its faces' surfaces (p-curves) as well (default true): some readers need them
+    pcurves? : boolean;
 }
 
 // The topology of a B-rep result, recovered from its welded mesh: the edges between faces, as chains of mesh vertices,
@@ -30,7 +32,9 @@ export interface StepTopology {
 // The B-rep written to a STEP file (see `Step.model`).
 export interface StepModel {
     vertices : Array<Point>;
-    edges : Array<{ curve : NurbsCurveData, start : number, end : number, left : number, right : number }>;
+    // each edge's curve, and its curves in the parameters of its left and right faces' surfaces (p-curves, 2D, in the
+    // same parameter as the curve); a seam's are on the low and the high side of its face's cut
+    edges : Array<{ curve : NurbsCurveData, start : number, end : number, left : number, right : number, pcurves : [NurbsCurveData, NurbsCurveData] }>;
     faces : Array<{ surface : NurbsSurfaceData, sameSense : boolean, closed : [boolean, boolean], loops : Array<SeamLoop> }>;
 }
 
@@ -46,8 +50,8 @@ export interface StepModel {
 // stray from them by less than a quarter of the tolerance, then a cubic B-spline is fitted to it within another
 // quarter, so the curve lies within half the tolerance of both faces wherever they meet (where they do not quite
 // meet, as a fitted patch beside an exact one, within half the tolerance plus their gap). Edges are shared by
-// construction, so the shell is closed exactly when the mesh is (`report.manifold.closedManifold`). Faces carry no
-// p-curves: readers compute them from the 3D edge curves, as they do for most files.
+// construction, so the shell is closed exactly when the mesh is (`report.manifold.closedManifold`). Each edge also
+// carries its curves in its two faces' parameters (p-curves), which some readers need.
 export class Step {
 
     // The B-rep that `write` puts in the file: its vertices, its edges (each a curve from its start vertex to its end
@@ -84,7 +88,10 @@ export class Step {
                 const at = (p : Point, w : number) => cp[0].length == 4 ? [p[0] * w, p[1] * w, p[2] * w, w] : p.slice();
                 cp[0] = at( a, cp[0].length == 4 ? cp[0][3] : 1 );
                 cp[cp.length - 1] = at( b, cp[0].length == 4 ? cp[cp.length - 1][3] : 1 );
-                return { curve : curve, start : keep( e.start ), end : keep( e.end ), left : e.left, right : e.right };
+                const pcurves = (e.seam != null
+                    ? [Step.seamCurve( faces[e.left], cut.cuts[e.left] as SeamCut, e.seam, e.seam.lowForward ), Step.seamCurve( faces[e.left], cut.cuts[e.left] as SeamCut, e.seam, !e.seam.lowForward )]
+                    : [Step.pcurve( curve, faces[e.left], cut.cuts[e.left], tol ), Step.pcurve( curve, faces[e.right], cut.cuts[e.right], tol )]) as [NurbsCurveData, NurbsCurveData];
+                return { curve : curve, start : keep( e.start ), end : keep( e.end ), left : e.left, right : e.right, pcurves : pcurves };
             } ),
             faces : faces.map( (F, fi) => ({
                 surface : F.surface, sameSense : F.sameSense,
@@ -101,13 +108,25 @@ export class Step {
         const M = Step.model( r, o );
         const w = new StepWriter();
 
-        // geometry: surfaces, edge curves, vertex points
+        // geometry: surfaces, edge curves (with their p-curves), vertex points
+        const surfaces = M.faces.map( F => Step.surface( w, F.surface, F.closed ) );
         const vertices = M.vertices.map( p => w.add( `VERTEX_POINT('',${w.add( Step.point( p ) )})` ) );
-        const edges = M.edges.map( e => w.add( `EDGE_CURVE('',${vertices[e.start]},${vertices[e.end]},${Step.curve( w, e.curve )},.T.)` ) );
+        const uvContext = o.pcurves === false ? "" : w.add( "( GEOMETRIC_REPRESENTATION_CONTEXT(2) PARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('2D SPACE','') )" );
+        const edges = M.edges.map( e => {
+            let geometry = Step.curve( w, e.curve );
+            if (o.pcurves !== false) {
+                const pc = [e.left, e.right].map( (f, k) => {
+                    const c2 = Step.curve( w, e.pcurves[k], 2 );
+                    return w.add( `PCURVE('',${surfaces[f]},${w.add( `DEFINITIONAL_REPRESENTATION('',(${c2}),${uvContext})` )})` );
+                } );
+                geometry = w.add( `${e.left == e.right ? "SEAM_CURVE" : "SURFACE_CURVE"}('',${geometry},(${pc.join( "," )}),.CURVE_3D.)` );
+            }
+            return w.add( `EDGE_CURVE('',${vertices[e.start]},${vertices[e.end]},${geometry},.T.)` );
+        } );
 
         // topology: faces, shell, solid
-        const faces = M.faces.map( F => {
-            const surface = Step.surface( w, F.surface, F.closed );
+        const faces = M.faces.map( (F, fi) => {
+            const surface = surfaces[fi];
             const bounds = F.loops.map( loop => {
                 const oriented = loop.edges.map( ([e, fwd]) => w.add( `ORIENTED_EDGE('',*,*,${edges[e]},${fwd ? ".T." : ".F."})` ) );
                 return w.add( `${loop.outer ? "FACE_OUTER_BOUND" : "FACE_BOUND"}('',${w.add( `EDGE_LOOP('',(${oriented.join( "," )}))` )},.T.)` );
@@ -311,6 +330,89 @@ export class Step {
         return Fit.approximateCurve( at, 3, knots, tol, 8 ).curve;
     }
 
+    // A seam edge's p-curve on one side of its face's cut: the line along the seam, at the domain's start (low) or
+    // end, from w0 to w1 as the edge's curve runs from 0 to 1.
+    private static seamCurve( F : SeamFace, cut : SeamCut, seam : { w0 : number, w1 : number }, low : boolean ) : NurbsCurveData {
+        const c = low ? cut.c0 : cut.c0 + cut.per;
+        const at = (w : number) => (cut.d == 0 ? [c, w] : [w, c]);
+        return new NurbsCurveData( 1, [0, 0, 1, 1], [at( seam.w0 ), at( seam.w1 )].map( p => [p[0], p[1], 1] ) );
+    }
+
+    // An edge's p-curve on a face: the curve's points projected onto the surface, as a cubic B-spline in the same
+    // parameter, within a small fraction of the tolerance once mapped onto the surface. Along a closed direction the
+    // parameters are unwrapped, and on a face cut at its seam they are kept inside its domain.
+    private static pcurve( c : NurbsCurveData, F : SeamFace, cut : SeamCut | null, tol : number ) : NurbsCurveData {
+        const s = F.surface;
+        const dom = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+        const per = [dom[1] - dom[0], dom[3] - dom[2]];
+        const closed = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
+        const k0 = c.knots[0], k1 = c.knots[c.knots.length - 1], N = 64;
+        // where the surface collapses (a pole), one parameter says nothing: the neighbours' is used
+        const scale = Math.max( per[0], per[1], 1e-300 );
+        const degenerate = (uv : UV) => {
+            const d = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+            return [Vec.norm( d[1][0] ) < 1e-9 * scale * 1e3, Vec.norm( d[0][1] ) < 1e-9 * scale * 1e3];
+        };
+        const near = (q : UV, ref : UV) : UV => {
+            const out : UV = [q[0], q[1]];
+            for (let k = 0; k < 2; k++) if (closed[k]) out[k] += per[k] * Math.round( (ref[k] - out[k]) / per[k] );
+            return out;
+        };
+        const ts : Array<number> = [], table : Array<UV> = [];
+        for (let i = 0; i <= N; i++) {
+            const t = k0 + (k1 - k0) * i / N;
+            let q = F.project( Eval.rationalCurvePoint( c, t ) ).uv;
+            if (i > 0) q = near( q, table[i - 1] );
+            ts.push( t ); table.push( q );
+        }
+        // fill in the parameters a pole leaves open, from the nearest sample that has them
+        const deg = table.map( degenerate );
+        for (let k = 0; k < 2; k++) {
+            const good = table.map( (_, i) => i ).filter( i => !deg[i][k] );
+            if (good.length == 0 || good.length == table.length) continue;
+            table.forEach( (q, i) => {
+                if (!deg[i][k]) return;
+                let best = good[0];
+                for (const g of good) if (Math.abs( g - i ) < Math.abs( best - i )) best = g;
+                q[k] = table[best][k];
+            } );
+        }
+        // the whole curve inside the domain: on a cut face, inside its rectangle; otherwise its middle in the domain
+        for (let k = 0; k < 2; k++) {
+            if (!closed[k]) continue;
+            const x = cut != null && cut.d == k ? table.slice( 1, N ).reduce( (a, q) => a + q[k], 0 ) / (N - 1) : table[N >> 1][k];
+            const shift = per[k] * Math.floor( (x - dom[2 * k]) / per[k] );
+            for (const q of table) q[k] -= shift;
+        }
+        let speed = 0;
+        for (const q of table) {
+            const d = Eval.rationalSurfaceDerivatives( s, q[0], q[1], 1 );
+            speed = Math.max( speed, Vec.norm( d[1][0] ), Vec.norm( d[0][1] ) );
+        }
+        const at = (t : number) : Point => {
+            const i = Math.max( 0, Math.min( N, Math.round( (t - k0) / (k1 - k0) * N ) ) );
+            if (deg[i][0] || deg[i][1]) {
+                // near a pole: between the table's samples
+                const f = (t - k0) / (k1 - k0) * N, j = Math.min( N - 1, Math.floor( f ) ), g = f - j;
+                return [table[j][0] * (1 - g) + table[j + 1][0] * g, table[j][1] * (1 - g) + table[j + 1][1] * g];
+            }
+            const q = near( F.project( Eval.rationalCurvePoint( c, t ) ).uv, table[i] );
+            return [q[0], q[1]];
+        };
+        const interior = Array.from( new Set( c.knots.slice( c.degree + 1, c.knots.length - c.degree - 1 ) ) );
+        const knots = [k0, k0, k0, k0, ...interior, k1, k1, k1, k1];
+        const fit = Fit.approximateCurve( at, 3, knots, 0.05 * tol / Math.max( speed, 1e-300 ), 8 ).curve;
+        // the ends exactly where the vertices project, and the curve inside the domain (by its control points: a fit
+        // to points on a boundary strays past it by round-off)
+        const cp = fit.controlPoints;
+        for (let k = 0; k < 2; k++) if (!closed[k] || (cut != null && cut.d == k)) {
+            for (const p of cp) p[k] = Math.max( dom[2 * k], Math.min( dom[2 * k + 1], p[k] ) );
+        }
+        cp[0] = [table[0][0], table[0][1], 1];
+        cp[cp.length - 1] = [table[N][0], table[N][1], 1];
+        return fit;
+    }
+
     // Whether the surface's own normal (dS/du x dS/dv) points out of the solid: a vote of the face's triangles.
     private static sameSense( r : BooleanResult, fi : number ) : boolean {
         const m = r.mesh, f = r.faces[fi], s = f.surface;
@@ -360,9 +462,11 @@ export class Step {
             "REPRESENTATION_ITEM('') SURFACE() )" );
     }
 
-    private static curve( w : StepWriter, c : NurbsCurveData ) : string {
+    // A B-spline curve: in space, or (dim 2) in a surface's parameters, its homogeneous points then [u w, v w, w].
+    private static curve( w : StepWriter, c : NurbsCurveData, dim : number = 3 ) : string {
         const [mult, ks] = Step.knots( c.knots );
-        const pts = c.controlPoints.map( p => w.add( Step.point( Step.dehomogenize( p ) ) ) );
+        if (c.controlPoints.some( p => p.length != dim + 1 || Math.abs( p[dim] - 1 ) > 1e-12 )) throw new Error( "Step: rational and mixed-dimension curves are not written" );
+        const pts = c.controlPoints.map( p => w.add( Step.point( p.slice( 0, dim ) as Point ) ) );
         return w.add( `B_SPLINE_CURVE_WITH_KNOTS('',${c.degree},(${pts.join( "," )}),.UNSPECIFIED.,.F.,.F.,(${mult.join( "," )}),(${ks.map( Step.real ).join( "," )}),.UNSPECIFIED.)` );
     }
 

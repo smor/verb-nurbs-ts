@@ -271,6 +271,6 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
-  for export (see [step.md](step.md)); p-curves are left to the reader.
+  and their p-curves for export (see [step.md](step.md)).
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
   hierarchy would make it scale to many tools.
