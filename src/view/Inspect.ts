@@ -2,6 +2,7 @@ import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Analyze } from "../eval/Analyze.js";
 import { Eval } from "../eval/Eval.js";
+import { Ribbon, Transfinite } from "../eval/Transfinite.js";
 import { BrepSolid } from "../solid/Brep.js";
 import { BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { MeshBVH } from "../solid/MeshBVH.js";
@@ -271,19 +272,25 @@ export class Inspect {
             if (uv != null) projected.set( key, uv );
             return uv;
         };
+        // setback corners: the exact transfinite patch, by face
+        const patchOf = new Map<number, Array<Ribbon>>();
+        for (const c of r.corners) if (c.ribbons != null) for (const fi of c.faces) patchOf.set( fi, c.ribbons );
         m.triangles.forEach( (t, k) => {
             const fi = r.faceOf[k], f = r.faces[fi];
             const a = m.vertices[t[0]], b = m.vertices[t[1]], c = m.vertices[t[2]];
             const flat = Vec.normalized( Vec.cross( Vec.sub( b, a ), Vec.sub( c, a ) ) );
             const cuv = r.cornerUV != null ? r.cornerUV[k] : null;
+            const xy = r.patchXY != null ? r.patchXY[k] : null, ribbons = patchOf.get( fi );
             for (let x = 0; x < 3; x++) {
                 const p = m.vertices[t[x]];
                 l.indices.push( l.positions.length / 3 );
                 l.positions.push( p[0], p[1], p[2] );
-                const uv = cuv != null ? cuv[x] : uvOf( fi, t[x] );
                 let n = flat, g = NaN, h = NaN;
-                if (uv != null) {
-                    const d = Eval.rationalSurfaceDerivatives( f.surface, uv[0], uv[1], 2 );
+                // a setback corner's derivatives from its exact patch; any other face's from its surface
+                const uv = xy != null || cuv != null ? (cuv != null ? cuv[x] : null) : uvOf( fi, t[x] );
+                const d = xy != null && ribbons != null ? Inspect.patchDerivatives( ribbons, xy[x] )
+                    : uv != null ? Eval.rationalSurfaceDerivatives( f.surface, uv[0], uv[1], 2 ) : null;
+                if (d != null) {
                     const raw = Vec.cross( d[1][0], d[0][1] ), ln = Vec.norm( raw );
                     if (ln > 1e-12 * (Vec.dot( d[1][0], d[1][0] ) + Vec.dot( d[0][1], d[0][1] ))) {
                         // the face's outward side: its surface normal, or the opposite for a reversed face; checked
@@ -306,6 +313,28 @@ export class Inspect {
             "mean curvature" : { values : mean, unit : "1/mm", symmetric : true },
         };
         return l;
+    }
+
+    // Derivatives of a transfinite patch at a point of its polygon, in the layout of
+    // `Eval.rationalSurfaceDerivatives` (d[i][j]: i times along x, j times along y), by central differences. A point
+    // on the boundary is first moved a step inside, where the patch is defined on both sides; a vertex of the polygon,
+    // where Kato's blends are singular (0/0), a larger step (1% of a side).
+    private static patchDerivatives( ribbons : Array<Ribbon>, at : [number, number] ) : Array<Array<Point>> {
+        const P = Transfinite.polygon( ribbons.length );
+        const h = 1e-4;
+        const near = Transfinite.distances( P, at ).filter( v => v < 1e-9 ).length;
+        const step = near >= 2 ? 1e-2 : 3 * h;
+        const cx = P.reduce( (s, v) => s + v[0], 0 ) / P.length, cy = P.reduce( (s, v) => s + v[1], 0 ) / P.length;
+        const toC = Math.hypot( cx - at[0], cy - at[1] );
+        const x0 = toC > step ? at[0] + step * (cx - at[0]) / toC : at[0], y0 = toC > step ? at[1] + step * (cy - at[1]) / toC : at[1];
+        const E = (dx : number, dy : number) => Transfinite.evaluate( ribbons, [x0 + dx * h, y0 + dy * h], P );
+        const c = E( 0, 0 ), xp = E( 1, 0 ), xm = E( -1, 0 ), yp = E( 0, 1 ), ym = E( 0, -1 );
+        const pp = E( 1, 1 ), pm = E( 1, -1 ), mp = E( -1, 1 ), mm = E( -1, -1 );
+        const Su = Vec.mul( 0.5 / h, Vec.sub( xp, xm ) ), Sv = Vec.mul( 0.5 / h, Vec.sub( yp, ym ) );
+        const Suu = Vec.mul( 1 / (h * h), Vec.add( Vec.sub( xp, Vec.mul( 2, c ) ), xm ) );
+        const Svv = Vec.mul( 1 / (h * h), Vec.add( Vec.sub( yp, Vec.mul( 2, c ) ), ym ) );
+        const Suv = Vec.mul( 0.25 / (h * h), Vec.sub( Vec.add( pp, mm ), Vec.add( pm, mp ) ) );
+        return [[c, Sv, Svv], [Su, Suv], [Suu]];
     }
 
     // ---------- meshes ----------

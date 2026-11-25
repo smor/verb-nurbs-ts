@@ -1,5 +1,5 @@
 // Builds the examples and turns them, or a dropped file, into views, off the main thread.
-import { ApplianceRecipe, BooleanObjectsRecipe, BrepBoolean, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Sweep, TriMesh } from "../src/index.js";
+import { ApplianceRecipe, BooleanObjectsRecipe, BrepBoolean, BrepEdges, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Sweep, TriMesh } from "../src/index.js";
 import type { View } from "../src/index.js";
 
 import { EXAMPLES } from "./examples.js";
@@ -35,6 +35,13 @@ function boss( shape : "circular" | "curvature" ) {
     return BrepBoolean.union( [disc, rod], { fillet : 4, filletShape : shape } );
 }
 
+// A box with its edges rounded at three radii by curvature-continuous fillets: setback corners where they meet.
+function cornerBox() {
+    const b = BrepSolid.box( [0, 0, 0], [40, 28, 20], 12 );
+    const edges = BrepEdges.all( b ).map( (e, k) => ({ solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }) );
+    return BrepBoolean.evaluate( [b], f => f[0], { filletShape : "curvature", edges : edges } );
+}
+
 function build( id : string ) : View {
     switch (id) {
         case "circle": return Inspect.curve( Make.arc( [0, 0, 0], [1, 0, 0], [0, 1, 0], 40, 0, 2 * Math.PI ), "Exact circle" );
@@ -52,6 +59,7 @@ function build( id : string ) : View {
         case "grip": return Inspect.surface( mug().handle.faces[0].surface, "Sculpted grip", { samples : 96 } );
         case "mug": return Inspect.brep( mug().result, "Mug with filleted handle" );
         case "boss1": return Inspect.brep( boss( "circular" ), "Boss with a circular (G1) fillet" );
+        case "corners": return Inspect.brep( cornerBox(), "Box with G2 fillets and G2 setback corners" );
         case "boss2": return Inspect.brep( boss( "curvature" ), "Boss with a curvature-continuous (G2) fillet" );
         case "lid": return Inspect.brep( appliance != null ? appliance.lid : ApplianceRecipe.lid( {}, 170, [58, 76], 2.5, 0.6, false ), "Appliance lid" );
         case "cup": return Inspect.brep( appliance != null ? appliance.cup : ApplianceRecipe.cup( {}, 176, 0.6, false ), "Measuring cup" );

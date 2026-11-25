@@ -14,6 +14,7 @@ export const EXAMPLES : Array<Example> = [
     { id : "grip", group : "Surfaces", name : "Sculpted grip", note : "A variable-section sweep: a superellipse that swells halfway along the rail." },
     { id : "mug", group : "B-reps", name : "Mug with filleted handle", note : "(body + handle) − cavity. Click a face to see its surface's control net. Gold lines are the fillets' contact curves." },
     { id : "boss1", group : "B-reps", name : "Boss, circular fillet (G1)", note : "A rod on a disc, its foot rounded with a circular arc. Choose zebra stripes: they kink where the fillet meets the disc and the rod (tangent continuous, curvature jumps)." },
+    { id : "corners", group : "B-reps", name : "Box, G2 corners", note : "Every edge of a box rounded with curvature-continuous fillets of three radii. Where three meet, a six-sided setback patch joins them, curvature-continuous too: in zebra stripes the reflections run through the corners without a kink." },
     { id : "boss2", group : "B-reps", name : "Boss, G2 fillet", note : "The same rod and disc, rounded with a curvature-continuous section. In zebra stripes they flow through both contact curves without a kink." },
     { id : "lid", group : "B-reps", name : "Appliance lid", note : "(plate + plug) − hollow − hole, the hole's edges rounded." },
     { id : "cup", group : "B-reps", name : "Measuring cup", note : "(teardrop flange + cone) − cavity." },
