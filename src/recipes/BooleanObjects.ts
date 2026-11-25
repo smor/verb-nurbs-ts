@@ -4,7 +4,8 @@ import { Divide } from "../eval/Divide.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
 import { Offset } from "../eval/Offset.js";
-import { Sweep } from "../eval/Sweep.js";
+import { Fit } from "../eval/Fit.js";
+import { RotationMinimizingFrames, Sweep } from "../eval/Sweep.js";
 import { BrepSolid } from "../solid/Brep.js";
 import { BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { FreeformVesselParams, FreeformVesselRecipe } from "./FreeformVessel.js";
@@ -12,6 +13,11 @@ import { FreeformVesselParams, FreeformVesselRecipe } from "./FreeformVessel.js"
 export interface MugParams extends FreeformVesselParams {
     // radius of the handle's round section (default 5.5)
     handleRadius? : number;
+    // a sculpted grip instead of a round section: the section's width (across the handle's plane) and thickness (in
+    // it), as a soft superellipse. Overrides handleRadius
+    handleSection? : [number, number];
+    // how much the section swells (or, below 1, narrows) halfway along the handle: the scale there (default 1)
+    handleSwell? : number;
     // how far the handle reaches out from the wall (default 32)
     handleReach? : number;
     // heights where the handle meets the wall, as fractions of the height (default [0.25, 0.75])
@@ -20,6 +26,10 @@ export interface MugParams extends FreeformVesselParams {
     handleAngle? : number;
     // radius of the rolling-ball fillet where the handle meets the body (default 0: a sharp joint)
     fillet? : number;
+    // more solids joined to the body, such as a foot (they must stay clear of the cavity), and the fillet radius where
+    // they meet the body (default 0)
+    addons? : Array<BrepSolid>;
+    addonFillet? : number;
 }
 
 export interface Mug {
@@ -56,6 +66,18 @@ export interface PiercedVessel {
 // the seams computed exactly on the surfaces rather than on meshes.
 
 export class BooleanObjectsRecipe {
+
+    // A closed superellipse |x/a|^n + |y/b|^n = 1 in the XY plane around the origin, as a periodic cubic B-spline
+    // through `samples` points (n = 2 is an ellipse; larger n is squarer)
+    public static superellipse( a : number, b : number, n : number, samples : number ) : NurbsCurveData {
+        let pts : Array<Point> = [];
+        for (let i = 0; i < samples; i++) {
+            let t = 2 * Math.PI * i / samples;
+            let c = Math.cos( t ), s = Math.sin( t );
+            pts.push( [a * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / n ), b * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / n ), 0] );
+        }
+        return Fit.periodicCurve( pts, 3 );
+    }
 
     // A free-form mug: (body + handle) - cavity.
     //
@@ -101,12 +123,34 @@ export class BooleanObjectsRecipe {
             Vec.sub( b.w, Vec.mul( depth, b.n ) ),
         ];
         let rail = Make.rationalInterpCurve( pts, 3 );
-        let pipe = Sweep.pipe( rail, r, { tolerance : 2e-3 } ).surface;
+        let pipe : NurbsSurfaceData;
+        if (p.handleSection == null && p.handleSwell == null) pipe = Sweep.pipe( rail, r, { tolerance : 2e-3 } ).surface;
+        else {
+            // a variable-section sweep: the section's width lies across the handle's plane, whatever the start frame
+            let sec = p.handleSection != null ? p.handleSection : [2 * r, 2 * r];
+            let swell = p.handleSwell != null ? p.handleSwell : 1;
+            let across = Vec.normalized( Vec.cross( a.n, up ) );
+            let u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
+            let fr = new RotationMinimizingFrames( rail ).frameAt( u0 );
+            let twist = Math.atan2( Vec.dot( across, fr.binormal ), Vec.dot( across, fr.normal ) );
+            let profile = BooleanObjectsRecipe.superellipse( sec[0] / 2, sec[1] / 2, 2.6, 32 );
+            pipe = Sweep.surface( rail, profile, { tolerance : 2e-3, twist : twist, scale : (u : number) => {
+                let t = Math.sin( Math.PI * (u - u0) / (u1 - u0) );
+                return 1 + (swell - 1) * t * t;
+            } } ).surface;
+        }
         let handle = BrepSolid.cappedTube( pipe, [96, 40] );
 
         let fr = p.fillet != null ? p.fillet : 0;
-        let result = BrepBoolean.evaluate( [solids.body, handle, solids.cavity], f => (f[0] || f[1]) && !f[2],
-            { fillet : (c : { solids : [number, number] }) => c.solids[0] == 0 && c.solids[1] == 1 ? fr : 0 } );
+        let addons = p.addons != null ? p.addons : [];
+        let fa = p.addonFillet != null ? p.addonFillet : 0;
+        let n = 2 + addons.length; // the cavity's index
+        let result = BrepBoolean.evaluate( [solids.body, handle].concat( addons, [solids.cavity] ), f => {
+            let joined = false;
+            for (let i = 0; i < n; i++) joined = joined || f[i];
+            return joined && !f[n];
+        }, { fillet : (c : { solids : [number, number] }) =>
+            c.solids[0] != 0 || c.solids[1] == n ? 0 : c.solids[1] == 1 ? fr : fa } );
         return { body : solids.body, cavity : solids.cavity, handle : handle, handleRail : rail, result : result };
     }
 
