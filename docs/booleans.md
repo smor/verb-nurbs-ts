@@ -118,7 +118,8 @@ point, at 0.35 and 0.7 of the way, the second ones lifted off the tangent line b
 end curvature k. Against a plane the section starts with zero curvature, so reflections run on into the blend with no
 jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Where three such
 blends meet, the corner is a G2 setback vertex blend (below), even for equal radii: a sphere cannot be G2 with sections
-that are not circular arcs. (Should the setback construction fail, the fallback is a ball corner bent so its sides
+that are not circular arcs. (`filletCorner : "ball"` asks for ball corners instead, and they are the fallback should the
+setback construction fail: a ball corner bent so its sides
 meet the three end sections, each side's departure from the ball's arc carried inside with Nielsen's side-vertex
 weights (w_j w_k)^2: G1 only.)
 
