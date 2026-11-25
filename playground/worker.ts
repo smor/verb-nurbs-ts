@@ -75,20 +75,22 @@ function appliance( p : Record<string, number>, fine : boolean ) {
     let o = ApplianceRecipe.build( {
         width : p.width, depth : p.depth, frontHeight : p.front, backHeight : p.back, squareness : p.square,
         bowlHeight : p.bowlH, bowlRadius : [p.foot, p.rim], seatDepth : p.seat, clearance : p.gap, archHeight : p.arch,
-        topFillet : p.topF, seatFillet : p.seatF, archFillet : p.archF, handleFillet : p.handleF, fine : fine
+        topFillet : p.topF, seatFillet : p.seatF, archFillet : p.archF, handleFillet : p.handleF,
+        couplingRadius : p.key, gripSwell : p.swell, lidTab : p.tab, lidHole : p.hole, fine : fine
     } );
-    let b = o.base.report, w = o.bowl.result.report;
-    let bowlMesh = o.bowl.result.mesh;
+    let parts = [{ name : "Base", r : o.base }, { name : "Bowl", r : o.bowl.result }, { name : "Lid", r : o.lid }];
+    let reps = parts.map( q => q.r.report );
+    let sum = (f : (r : any) => number) => reps.reduce( (a, r) => a + f( r ), 0 );
+    let closed = reps.every( r => r.manifold.closedManifold );
     return {
         mesh : o.assembly,
-        report : { manifold : { ...b.manifold, closedManifold : b.manifold.closedManifold && w.manifold.closedManifold,
-                                boundaryEdges : b.manifold.boundaryEdges + w.manifold.boundaryEdges,
-                                genus : b.manifold.genus != null && w.manifold.genus != null ? b.manifold.genus + w.manifold.genus : null },
-                   volume : b.volume + w.volume, fillets : b.fillets + w.fillets, filletsFailed : b.filletsFailed + w.filletsFailed,
-                   filletsSkipped : b.filletsSkipped + w.filletsSkipped },
-        error : Math.max( b.maxCurveError, w.maxCurveError ),
-        ok : b.manifold.closedManifold && w.manifold.closedManifold,
-        parts : [{ name : "Base", mesh : o.base.mesh }, { name : "Bowl", mesh : bowlMesh }]
+        report : { manifold : { ...reps[0].manifold, closedManifold : closed, boundaryEdges : sum( r => r.manifold.boundaryEdges ),
+                                genus : reps.every( r => r.manifold.genus != null ) ? sum( r => r.manifold.genus ) : null },
+                   volume : sum( r => r.volume ), fillets : sum( r => r.fillets ), filletsFailed : sum( r => r.filletsFailed ),
+                   filletsSkipped : sum( r => r.filletsSkipped ) },
+        error : Math.max( ...reps.map( r => r.maxCurveError ) ),
+        ok : closed,
+        parts : parts.map( q => ({ name : q.name, mesh : q.r.mesh }) )
     };
 }
 
