@@ -88,6 +88,21 @@ area (1 - pi/4) r^2 swept around the hole). The volume removed or added agrees t
 1.5% at 128, converging as the tessellation refines. The ball is at distance r from both contact points, along both
 normals, to 1e-8. The mug and the pierced vessel stay watertight with the same genus, and manifold-3d accepts them.
 
+### Variable radius and curvature-continuous sections
+
+The `fillet` callback may return a function of the position along the edge (0 at its start, 1 at its end, by
+length) instead of a number: the ball's radius then changes along the edge (Newton's method takes the radius at each
+section). On a disc and a rod with r = 2 + sin(2 pi t), the added volume matches the integral of Pappus' formula to 3%.
+
+`filletShape : "curvature"` keeps the ball's contact curves but replaces each circular section by a quintic that is
+tangent to both faces and has each face's normal curvature where it meets it (G2), computed from the second
+fundamental form along the section's direction. Its control points lie on the two tangent lines towards their meeting
+point, at 0.35 and 0.7 of the way, the second ones lifted off the tangent line by 5/4 k l^2, which is what gives the
+end curvature k. Against a plane the section starts with zero curvature, so reflections run on into the blend with no
+jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Ball corners
+follow: the sphere patch is bent so its sides meet the three G2 end sections, each side's departure from the ball's arc
+carried inside with Nielsen's side-vertex weights (w_j w_k)^2.
+
 ### Corners
 
 Branches that meet at triple points are split there into runs, the edges of the result; a run is an edge only where
