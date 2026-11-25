@@ -41,6 +41,8 @@ export interface FilletResult {
     triangles : Array<[number, number, number]>;
     // true when the blend's outward normal is -(dS/du x dS/dv)
     reversed : boolean;
+    // false for a blend along an open edge, ended at corners
+    closed : boolean;
 }
 
 // Rolling-ball fillets (constant-radius blends) along an intersection edge.
@@ -62,12 +64,76 @@ export class Fillet {
     // be placed (radius too large for the faces, or a contact running off a face).
     public static rollingBall( A : FilletSide, B : FilletSide, edge : IntersectionCurve, radius : number, tol : number = 1e-10 ) : FilletResult | null {
         if (!edge.closed) return null;
+        let found = Fillet.sections( A, B, edge, radius, tol );
+        if (found == null) return null;
+        let sections = found.sections, s = found.side;
+
+        // the contact curves as face cuts
+        let pa = sections.map( x => x.pa ), pb = sections.map( x => x.pb );
+        let cutA = Fillet.pieces( A.face, sections.map( x => x.a ), sections.map( x => x.seamA ), pa );
+        let cutB = Fillet.pieces( B.face, sections.map( x => x.b ), sections.map( x => x.seamB ), pb );
+
+        // arcs, and the blend's triangles: contact points are shared with the cuts so the meshes weld
+        let arcs = sections.map( x => Fillet.arc( x.pa, x.centre, x.pb ) );
+        let m = Fillet.arcDivisions( sections, radius, true );
+        let points : Array<Point> = [];
+        for (let k = 0; k < sections.length; k++) {
+            points.push( sections[k].pa );
+            for (let i = 1; i < m; i++) points.push( Eval.rationalCurvePoint( arcs[k], i / m ) );
+            points.push( sections[k].pb );
+        }
+        let N = sections.length, W = m + 1;
+        let triangles : Array<[number, number, number]> = [];
+        for (let k = 0; k < N; k++) {
+            let k1 = (k + 1) % N;
+            for (let i = 0; i < m; i++) {
+                let a = k * W + i, b = k * W + i + 1, c = k1 * W + i + 1, e = k1 * W + i;
+                triangles.push( [a, b, c] ); triangles.push( [a, c, e] );
+            }
+        }
+        let reversed = Fillet.orientTriangles( points, triangles, sections[0].centre, s );
+        let surface = Make.loftedSurface( arcs.concat( [arcs[0]] ), 3 );
+        return { sections : sections, side : s, cutA : cutA, cutB : cutB, surface : surface, points : points, triangles : triangles,
+                 reversed : reversed, closed : true };
+    }
+
+    // Arc divisions for a blend: about as fine across as the sections are spaced along it.
+    public static arcDivisions( sections : Array<FilletSection>, radius : number, closed : boolean ) : number {
+        let maxAngle = Math.max( ...sections.map( x => Vec.angleBetween( Vec.sub( x.pa, x.centre ), Vec.sub( x.pb, x.centre ) ) ) );
+        let step = closed ? Fillet.meanSpacing( sections.map( x => x.pa ) ) : 0.0;
+        if (!closed) {
+            for (let k = 1; k < sections.length; k++) step += Vec.dist( sections[k].pa, sections[k - 1].pa );
+            step /= Math.max( 1, sections.length - 1 );
+        }
+        return Math.max( 4, Math.min( 32, Math.ceil( maxAngle * radius / Math.max( step, 1e-12 ) ) ) );
+    }
+
+    // Make the blend's triangles face out of the result: towards the ball's centre on a concave edge (the ball is in the
+    // air), away from it on a convex one. Returns whether that is -(dS/du x dS/dv) for the triangles as given.
+    public static orientTriangles( points : Array<Point>, triangles : Array<[number, number, number]>, centre : Point, side : number ) : boolean {
+        let t0 = triangles[0];
+        let nrm = Vec.cross( Vec.sub( points[t0[1]], points[t0[0]] ), Vec.sub( points[t0[2]], points[t0[0]] ) );
+        let reversed = Vec.dot( nrm, Vec.sub( centre, points[t0[0]] ) ) * side < 0;
+        if (reversed) for (let t of triangles) { let x = t[1]; t[1] = t[2]; t[2] = x; }
+        return reversed;
+    }
+
+    // The sections of a blend along an edge, closed or open (an open edge keeps a section at each end). Returns null where
+    // the ball cannot be placed, or where a contact curve folds.
+    public static sections( A : FilletSide, B : FilletSide, edge : IntersectionCurve, radius : number, tol : number = 1e-10 )
+        : { sections : Array<FilletSection>, ts : Array<number>, side : number, before : Array<FilletSection>, after : Array<FilletSection> } | null {
+        let closed = edge.closed;
+        // an open edge ends on an edge of a face, where the ball's contact with the other face may lie a little past
+        // that face's end: let it, on the surface carried on
+        let slack = closed ? 0 : 0.15;
         let DA = BrepSolid.domainOf( A.face ), DB = BrepSolid.domainOf( B.face );
         let n = edge.points.length;
-        let tangentAt = (k : number) : Point => Vec.normalized( Vec.sub( edge.points[(k + 1) % n], edge.points[(k - 1 + n) % n] ) );
-        // the edge at parameter t in [0, n): point, tangent and parameters on both faces
+        let tangentAt = (k : number) : Point => closed ? Vec.normalized( Vec.sub( edge.points[(k + 1) % n], edge.points[(k - 1 + n) % n] ) )
+            : Vec.normalized( Vec.sub( edge.points[Math.min( n - 1, k + 1 )], edge.points[Math.max( 0, k - 1 )] ) );
+        // the edge at parameter t in [0, n) ([0, n - 1] when open): point, tangent and parameters on both faces
         let at = (t : number) => {
             let k = Math.floor( t ) % n, f = t - Math.floor( t ), k1 = (k + 1) % n;
+            if (!closed && k >= n - 1) { k = n - 2; f = 1; k1 = n - 1; }
             let p = Vec.lerp( f, edge.points[k1], edge.points[k] );
             let tg = Vec.normalized( Vec.lerp( f, tangentAt( k1 ), tangentAt( k ) ) );
             return { p : p, t : tg,
@@ -82,10 +148,10 @@ export class Fillet {
         let solve = (t : number, guess : { a : UV, b : UV } | null) : FilletSection | null => {
             let e = at( t );
             let starts : Array<{ a : UV, b : UV }> = [];
-            starts.push( Fillet.initial( A, B, DA, DB, e.a, e.b, e.p, e.t, s * radius ) );
+            starts.push( Fillet.initial( A, B, DA, DB, e.a, e.b, e.p, e.t, s * radius, slack ) );
             if (guess != null) starts.push( guess );
             for (let st of starts) {
-                let r = Fillet.newton( A, B, DA, DB, st.a, st.b, e.p, e.t, s * radius, tol * Math.max( 1, radius ) );
+                let r = Fillet.newton( A, B, DA, DB, st.a, st.b, e.p, e.t, s * radius, tol * Math.max( 1, radius ), slack );
                 if (r != null) return r;
             }
             return null;
@@ -97,18 +163,25 @@ export class Fillet {
         // one section per edge vertex, skipping vertices very close to the last one used (where the edge has a
         // near-duplicate vertex, the two sections' contacts could come out in the wrong order and fold the
         // contact curve back on itself)
-        let spacing = 0.0;
-        for (let k = 0; k < n; k++) spacing += Vec.dist( edge.points[k], edge.points[(k + 1) % n] );
-        spacing /= n;
+        let spacing = 0.0, segs = closed ? n : n - 1;
+        for (let k = 0; k < segs; k++) spacing += Vec.dist( edge.points[k], edge.points[(k + 1) % n] );
+        spacing /= segs;
         for (let k = 0; k < n; k++) {
-            if (sections.length > 0 && Vec.dist( edge.points[k], edge.points[ts[ts.length - 1]] ) < 0.3 * spacing) continue;
-            if (k == n - 1 && Vec.dist( edge.points[k], edge.points[ts[0]] ) < 0.3 * spacing) continue;
+            let last = !closed && k == n - 1;
+            if (!last && sections.length > 0 && Vec.dist( edge.points[k], edge.points[ts[ts.length - 1]] ) < 0.3 * spacing) continue;
+            if (closed && k == n - 1 && Vec.dist( edge.points[k], edge.points[ts[0]] ) < 0.3 * spacing) continue;
+            // an open edge keeps its last vertex, in place of a section just before it
+            if (last && sections.length > 1 && Vec.dist( edge.points[k], edge.points[ts[ts.length - 1]] ) < 0.3 * spacing) { ts.pop(); sections.pop(); }
             let sec = solve( k, prev );
+            // at the ends of an open edge the ball can run off a face that ends there: stop just short of it
+            if (sec == null && !closed && (k < 3 || k > n - 4)) continue;
             if (sec == null) return null;
             ts.push( k ); sections.push( sec ); prev = sec;
         }
+        if (sections.length < 2) return null;
         // drop any section whose contacts step backwards along the edge
         for (let k = 1; k < sections.length; k++) {
+            if (!closed && k == sections.length - 1 && sections.length <= 2) break;
             let tg = tangentAt( ts[k] );
             if (Vec.dot( Vec.sub( sections[k].pa, sections[k - 1].pa ), tg ) <= 0 || Vec.dot( Vec.sub( sections[k].pb, sections[k - 1].pb ), tg ) <= 0) {
                 sections.splice( k, 1 ); ts.splice( k, 1 ); k--;
@@ -131,7 +204,7 @@ export class Fillet {
             return null;
         };
         let inserted = 0;
-        for (let k = 0; k < sections.length; k++) {
+        for (let k = 0; k < (closed ? sections.length : sections.length - 1); k++) {
             let k1 = (k + 1) % sections.length;
             let j = jump( sections[k], sections[k1] );
             if (j == null) continue;
@@ -177,42 +250,26 @@ export class Fillet {
         for (let side = 0; side < 2; side++) {
             let F = side == 0 ? A.face : B.face, d = side == 0 ? dA : dB;
             let c = sections.map( x => side == 0 ? x.a : x.b ), e = side == 0 ? edge.uvA : edge.uvB;
-            if (Fillet.crossing( c, c, F, d ) || Fillet.crossing( c, e, F, d )) return null;
+            if (Fillet.crossing( c, c, F, d, closed ) || Fillet.crossing( c, e, F, d, closed )) return null;
         }
-
-        // the contact curves as face cuts
-        let pa = sections.map( x => x.pa ), pb = sections.map( x => x.pb );
-        let cutA = Fillet.pieces( A.face, sections.map( x => x.a ), sections.map( x => x.seamA ), pa );
-        let cutB = Fillet.pieces( B.face, sections.map( x => x.b ), sections.map( x => x.seamB ), pb );
-
-        // arcs, and the blend's triangles: contact points are shared with the cuts so the meshes weld
-        let arcs = sections.map( x => Fillet.arc( x.pa, x.centre, x.pb ) );
-        let maxAngle = Math.max( ...sections.map( x => Vec.angleBetween( Vec.sub( x.pa, x.centre ), Vec.sub( x.pb, x.centre ) ) ) );
-        let step = Fillet.meanSpacing( pa );
-        let m = Math.max( 4, Math.min( 32, Math.ceil( maxAngle * radius / Math.max( step, 1e-12 ) ) ) );
-        let points : Array<Point> = [];
-        for (let k = 0; k < sections.length; k++) {
-            points.push( sections[k].pa );
-            for (let i = 1; i < m; i++) points.push( Eval.rationalCurvePoint( arcs[k], i / m ) );
-            points.push( sections[k].pb );
-        }
-        let N = sections.length, W = m + 1;
-        let triangles : Array<[number, number, number]> = [];
-        for (let k = 0; k < N; k++) {
-            let k1 = (k + 1) % N;
-            for (let i = 0; i < m; i++) {
-                let a = k * W + i, b = k * W + i + 1, c = k1 * W + i + 1, e = k1 * W + i;
-                triangles.push( [a, b, c] ); triangles.push( [a, c, e] );
+        // past the ends of an open edge, two more sections each, along the edge's end tangent: corners trim the blend a
+        // little beyond its edge
+        let extra = (end : number) : Array<FilletSection> => {
+            let out : Array<FilletSection> = [];
+            if (closed) return out;
+            let k0 = end == 0 ? 0 : n - 1, k1 = end == 0 ? 1 : n - 2;
+            let dir = Vec.normalized( Vec.sub( edge.points[k0], edge.points[k1] ) );
+            let prev = sections[end == 0 ? 0 : sections.length - 1];
+            for (let j = 1; j <= 2; j++) {
+                let p = Vec.add( edge.points[k0], Vec.mul( j * spacing, dir ) );
+                let r = Fillet.newton( A, B, DA, DB, prev.a, prev.b, p, dir, s * radius, tol * Math.max( 1, radius ), 0.3 );
+                if (r == null) break;
+                out.push( r ); prev = r;
             }
-        }
-        // outward: towards the centre on a concave edge (the ball is in the air), away from it on a convex one
-        let t0 = triangles[0];
-        let nrm = Vec.cross( Vec.sub( points[t0[1]], points[t0[0]] ), Vec.sub( points[t0[2]], points[t0[0]] ) );
-        let reversed = Vec.dot( nrm, Vec.sub( sections[0].centre, points[t0[0]] ) ) * s < 0;
-        if (reversed) for (let t of triangles) { let x = t[1]; t[1] = t[2]; t[2] = x; }
-
-        let surface = Make.loftedSurface( arcs.concat( [arcs[0]] ), 3 );
-        return { sections : sections, side : s, cutA : cutA, cutB : cutB, surface : surface, points : points, triangles : triangles, reversed : reversed };
+            return out;
+        };
+        let bf = extra( 0 ).reverse(), af = extra( 1 );
+        return { sections : sections, ts : ts, side : s, before : bf, after : af };
     }
 
     // +1 for a concave edge, -1 for a convex one, 0 if the faces are tangent there. a, b: parameters of an edge point
@@ -236,7 +293,7 @@ export class Fillet {
     }
 
     // Starting contact parameters: the centre that two tangent planes at p would give, and its feet on the planes.
-    private static initial( A : FilletSide, B : FilletSide, DA : SurfaceDomain, DB : SurfaceDomain, a : UV, b : UV, p : Point, t : Point, sr : number ) : { a : UV, b : UV } {
+    private static initial( A : FilletSide, B : FilletSide, DA : SurfaceDomain, DB : SurfaceDomain, a : UV, b : UV, p : Point, t : Point, sr : number, slack : number = 0 ) : { a : UV, b : UV } {
         let da = Eval.rationalSurfaceDerivatives( A.face.surface, a[0], a[1], 1 );
         let db = Eval.rationalSurfaceDerivatives( B.face.surface, b[0], b[1], 1 );
         let nA = Vec.mul( A.sign, Vec.normalized( Vec.cross( da[1][0], da[0][1] ) ) );
@@ -247,10 +304,10 @@ export class Fillet {
         let qa = Vec.sub( c, Vec.mul( sr, nA ) ), qb = Vec.sub( c, Vec.mul( sr, nB ) );
         let sa = Fillet.tangentStep( da[1][0], da[0][1], Vec.sub( qa, da[0][0] ) );
         let sb = Fillet.tangentStep( db[1][0], db[0][1], Vec.sub( qb, db[0][0] ) );
-        return { a : SurfaceIntersect.toDomain( DA, [a[0] + sa[0], a[1] + sa[1]] ), b : SurfaceIntersect.toDomain( DB, [b[0] + sb[0], b[1] + sb[1]] ) };
+        return { a : Fillet.clampTo( DA, [a[0] + sa[0], a[1] + sa[1]], slack ), b : Fillet.clampTo( DB, [b[0] + sb[0], b[1] + sb[1]], slack ) };
     }
 
-    private static newton( A : FilletSide, B : FilletSide, DA : SurfaceDomain, DB : SurfaceDomain, a : UV, b : UV, p : Point, t : Point, sr : number, tol : number ) : FilletSection | null {
+    private static newton( A : FilletSide, B : FilletSide, DA : SurfaceDomain, DB : SurfaceDomain, a : UV, b : UV, p : Point, t : Point, sr : number, tol : number, slack : number = 0 ) : FilletSection | null {
         let dA = SurfaceIntersect.domain( A.face.surface ), dB = SurfaceIntersect.domain( B.face.surface );
         let ha = [(dA[1] - dA[0]) * 1e-7, (dA[3] - dA[2]) * 1e-7], hb = [(dB[1] - dB[0]) * 1e-7, (dB[3] - dB[2]) * 1e-7];
         let off = (F : FilletSide, uv : UV) => {
@@ -290,11 +347,25 @@ export class Fillet {
             // damp steps that would jump far across a face
             let big = Math.max( Math.abs( step[0] ) / (dA[1] - dA[0]), Math.abs( step[1] ) / (dA[3] - dA[2]), Math.abs( step[2] ) / (dB[1] - dB[0]), Math.abs( step[3] ) / (dB[3] - dB[2]) );
             let f = big > 0.1 ? 0.1 / big : 1;
-            let na = SurfaceIntersect.toDomain( DA, [a[0] + f * step[0], a[1] + f * step[1]] );
-            let nb = SurfaceIntersect.toDomain( DB, [b[0] + f * step[2], b[1] + f * step[3]] );
+            let na = Fillet.clampTo( DA, [a[0] + f * step[0], a[1] + f * step[1]], slack );
+            let nb = Fillet.clampTo( DB, [b[0] + f * step[2], b[1] + f * step[3]], slack );
             a = na; b = nb;
         }
         return null;
+    }
+
+    // Parameters brought into a face's domain: wrapped in periodic directions, and clamped in the others to the domain
+    // widened by `slack` (a fraction of its span) on each side, where the surface's end spans carry on.
+    public static clampTo( D : SurfaceDomain, uv : UV, slack : number ) : UV {
+        if (slack <= 0) return SurfaceIntersect.toDomain( D, uv );
+        let d = SurfaceIntersect.domain( D.surface ), p : [boolean, boolean] = D.periodic != null ? D.periodic : [false, false];
+        let out = SurfaceIntersect.toDomain( { surface : D.surface, periodic : p }, uv );
+        for (let k = 0; k < 2; k++) {
+            if (p[k]) continue;
+            let span = d[2 * k + 1] - d[2 * k];
+            out[k] = Math.min( Math.max( uv[k], d[2 * k] - slack * span ), d[2 * k + 1] + slack * span );
+        }
+        return out;
     }
 
     // A circular arc from p to q around c (the short way), as a rational quadratic.
@@ -310,7 +381,7 @@ export class Fillet {
 
     // Whether two closed polylines in a face's (u, v) cross (or one crosses itself, when both are the same), leaving out
     // segments that jump across a seam and segments that share a vertex
-    private static crossing( p : Array<UV>, q : Array<UV>, F : BrepFace, d : Array<number> ) : boolean {
+    private static crossing( p : Array<UV>, q : Array<UV>, F : BrepFace, d : Array<number>, closed : boolean = true ) : boolean {
         let span = [d[1] - d[0], d[3] - d[2]];
         let jump = (a : UV, b : UV) => (F.periodic[0] && Math.abs( a[0] - b[0] ) > span[0] / 2) || (F.periodic[1] && Math.abs( a[1] - b[1] ) > span[1] / 2);
         let same = p === q;
@@ -320,10 +391,10 @@ export class Fillet {
             let d1 = o( a, b, c ), d2 = o( a, b, e ), d3 = o( c, e, a ), d4 = o( c, e, b );
             return d1 * d2 < 0 && d3 * d4 < 0;
         };
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < (closed ? n : n - 1); i++) {
             let a = p[i], b = p[(i + 1) % n];
             if (jump( a, b )) continue;
-            for (let j = same ? i + 2 : 0; j < m; j++) {
+            for (let j = same ? i + 2 : 0; j < (closed ? m : m - 1); j++) {
                 if (same && (j + 1) % m == i) continue;
                 let c = q[j], e = q[(j + 1) % m];
                 if (jump( c, e )) continue;

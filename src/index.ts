@@ -63,6 +63,8 @@ import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult } from "./solid/Fillet.js";
+import { FilletCorner } from "./solid/FilletCorner.js";
+export type { OpenBlend, TrimPoint, ThirdEdge } from "./solid/FilletCorner.js";
 import { Makeable } from "./solid/Makeable.js";
 export type { Machine, MakeableReport } from "./solid/Makeable.js";
 import { MeshBVH } from "./solid/MeshBVH.js";
@@ -163,6 +165,7 @@ export {
     FaceMesher,
     BrepBoolean,
     Fillet,
+    FilletCorner,
     Makeable,
     MeshBVH,
     Shell,
@@ -263,6 +266,7 @@ export const solid = {
     FaceMesher,
     BrepBoolean,
     Fillet,
+    FilletCorner,
     Makeable,
     MeshBVH,
     Shell,
