@@ -160,7 +160,12 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 		['a boss and a coaxial bore through both (three solids)', function(){ return BrepBoolean.evaluate([B([0,0,0],[10,10,10]), C([5,5,10],[5,5,15],3), C([5,5,-1],[5,5,16],1.4)], function(f){ return (f[0] || f[1]) && !f[2]; }); }, 1000 + P * 9 * 5 - P * 1.96 * 15],
 		['stacked cylinders', function(){ return BrepBoolean.union([C([0,0,0],[0,0,10],3), C([0,0,10],[0,0,20],3)]); }, P * 9 * 20],
 		['stacked cylinders of two radii', function(){ return BrepBoolean.union([C([0,0,0],[0,0,10],3), C([0,0,10],[0,0,20],2)]); }, P * 9 * 10 + P * 4 * 10],
-		['a counterbore flush with a cylinder\'s end', function(){ return BrepBoolean.difference(C([0,0,0],[0,0,10],5), [C([0,0,5],[0,0,10],2)]); }, P * 25 * 10 - P * 4 * 5]
+		['a counterbore flush with a cylinder\'s end', function(){ return BrepBoolean.difference(C([0,0,0],[0,0,10],5), [C([0,0,5],[0,0,10],2)]); }, P * 25 * 10 - P * 4 * 5],
+		// the meshes' intersection breaks up where both put vertices on the branch: traced again from the pieces
+		['a bore at half a coaxial cap\'s radius', function(){ return BrepBoolean.difference(C([5,5,10],[5,5,15],3), [C([5,5,-1],[5,5,16],1.5)]); }, P * (9 - 2.25) * 5],
+		['a boss and a coaxial bore at half its radius (three solids)', function(){ return BrepBoolean.evaluate([B([0,0,0],[10,10,10]), C([5,5,10],[5,5,15],3), C([5,5,-1],[5,5,16],1.5)], function(f){ return (f[0] || f[1]) && !f[2]; }); }, 1000 + P * 9 * 5 - P * 2.25 * 15],
+		// a box's edges lying on a cylinder's caps over a stretch only, where the cylinder pokes out of the box
+		['a cylinder flush with a box\'s top and bottom, wider than it', function(){ return BrepBoolean.union([B([0,0,0],[10,10,10]), C([5,5,0],[5,5,10],6)]); }, 1000 + 10 * (P * 36 - (P * 36 - 4 * 18 * (2 * Math.acos(5 / 6) - Math.sin(2 * Math.acos(5 / 6)))))]
 	];
 	cases.forEach(function(c){
 		it(c[0], function(){
@@ -168,6 +173,13 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 			r.report.manifold.closedManifold.should.be.true();
 			r.report.volume.should.be.approximately(c[2], 2e-3 * c[2]);
 		});
+	});
+	it('a cylinder lying on a box\'s face touches it along a line: no branch, the volume of both, not a manifold', function(){
+		var r = BrepBoolean.union([B([0,0,0],[10,10,10]), C([5,13,-5],[5,13,15],3)]);
+		r.report.tangentContacts.should.be.above(0);
+		r.report.intersectionCurves.should.be.equal(0);
+		r.report.volume.should.be.approximately(1000 + P * 9 * 20, 2e-3 * (1000 + P * 9 * 20));
+		r.report.manifold.closedManifold.should.be.false();
 	});
 	it('equal boxes (difference) leave nothing', function(){
 		var r = BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([0,0,0],[10,10,10])]);

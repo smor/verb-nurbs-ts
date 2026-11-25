@@ -263,12 +263,20 @@ parts sharing a face. Three things make them work.
   pieces found along it are dropped. A cut that lies along a face's side gives that side its points (the grid nodes
   inside it are left out), and the face across that edge of the same solid gets the same cut, so the three faces
   that meet there share their vertices.
+* **Stretches of sides on faces.** `sidesOn` finds runs, not only whole sides: a box's edge lies on a wider
+  cylinder's cap only between the points where the cap's rim crosses it. The run's ends are found by bisection. Where
+  a side of B lies along the same run too (two tubes end to end), the faces meet edge to edge and no branch is made.
+* **Broken branches are traced again.** Where both grid meshes put vertices on the branch (a bore at exactly half a
+  coaxial cap's radius), their intersection breaks into pieces that end inside both domains or overlap. A branch ends
+  only where it leaves a domain or closes, so such pieces are only seeds: the branches are traced again from their
+  points by marching (Barnhill and Kersey), each once.
 * **One cut per curve.** Two coincident faces crossing a third face (a boss's cap on a box's top, both crossed by a
   bore) give two branches along the same curve. The third face is cut by the first of them only.
 
-The test "BrepBoolean degenerate configurations" runs 21 such cases (flush slots, notches, pockets, equal solids,
+The test "BrepBoolean degenerate configurations" runs 25 such cases (flush slots, notches, pockets, equal solids,
 boxes touching at a vertex, bores through a corner or along an edge, bosses, stacked cylinders, counterbores): each
-is closed, with the exact volume. On the code before this, 17 of them failed.
+is closed, with the exact volume, and a tangent cylinder keeps its volume and is reported. Before this work, 21 of the
+25 failed.
 
 ## How it is checked
 
@@ -288,13 +296,14 @@ is closed, with the exact volume. On the code before this, 17 of them failed.
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
 * **More than two branches crossing at one point** (four or more faces meeting) is not handled.
-* **Tangent faces.** Isolated points of tangency are detected and reported. Faces tangent along a curve (a
-  cylinder lying on a plane) and near-tangent pairs are not handled; the result can be open. Coincident faces and
-  sides lying on faces are handled (see "Coincident faces" above).
-* **Symmetric seeds.** Branches are seeded from the intersection of the two faces' grid meshes. Where both meshes put
-  vertices on the branch (a bore at exactly half a coaxial cap's radius), the seeds break up and the bore can be lost
-  with the result still closed. Topology-guaranteeing subdivision tests (Barton, Elber and Hanniel's no-loop and
-  single-component tests) are the planned fix.
+* **Tangent faces.** A branch along which the two faces' normals stay parallel (a cylinder lying on a plane) is a
+  line of contact, not of crossing. It is left out of the branches and counted in `report.tangentContacts`. The two
+  solids then touch along that line: the volume is right, but the result is not a manifold there (it is not, in
+  exact arithmetic either), and the Model verdict calls it visual. Near-tangent pairs that do cross are traced as
+  usual.
+* **Topology is checked, not proven.** Broken-up branches are detected (an end inside both domains, or a piece lying on
+  another, after Barton, Elber and Hanniel's single-component count) and traced again. The no-loop test that would
+  prove no loop is missed inside a subdomain is not implemented; small loops come from collinear-normal seeds.
 * **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).

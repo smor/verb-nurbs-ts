@@ -46,6 +46,9 @@ export interface SurfaceIntersectOptions {
 export interface SurfaceIntersection {
     curves : Array<IntersectionCurve>;
     touching : Array<CriticalPoint>;
+    // branches along which the surfaces are tangent (a cylinder lying on a plane): they touch there without
+    // crossing, so the branch separates nothing; left out of `curves`
+    tangent : Array<IntersectionCurve>;
 }
 
 // Surface-surface intersection with parameters on both surfaces.
@@ -103,6 +106,25 @@ export class SurfaceIntersect {
             c = SurfaceIntersect.insertSeams( A, B, c, tol );
             out.push( c );
         }
+        // A branch ends only where it leaves a domain, or closes (the single-component count of Barton, Elber and
+        // Hanniel: a branch crosses the boundary of the domain box at its ends). An open piece ending inside both
+        // domains, or a piece lying on another, means the meshes' intersection broke up (their vertices on the branch:
+        // a circle at a round fraction of a disc's radius, coaxial with a tube). Then the branches are traced again
+        // from the pieces' points, each traced once (Barnhill and Kersey's marching, `trace`).
+        if (SurfaceIntersect.broken( A, B, out )) {
+            const seeds = ([] as Array<{ uvA : UV, uvB : UV }>).concat( ...out.map( c => c.points.map( (_, k) => ({ uvA : c.uvA[k], uvB : c.uvB[k] }) ) ) );
+            const traced : Array<IntersectionCurve> = [];
+            for (const sd of seeds) {
+                const r = SurfaceIntersect.refine( A, B, sd.uvA, sd.uvB, tol );
+                if (r == null || traced.some( c => SurfaceIntersect.onCurve( c, r.point ) )) continue;
+                let c = SurfaceIntersect.trace( A, B, r, step, tol );
+                if (c == null) continue;
+                if (!c.closed) c = SurfaceIntersect.extendToEdges( A, B, c, 4 * step, tol );
+                traced.push( SurfaceIntersect.insertSeams( A, B, c, tol ) );
+            }
+            out.length = 0;
+            out.push( ...traced );
+        }
         // a side of one domain lying on the other surface (a boss standing on a face, a tube ending on a plane): the
         // meshes touch there along a whole edge, which their intersection resolves poorly; the branch is that side,
         // exactly, and the branches found along it are dropped
@@ -138,7 +160,25 @@ export class SurfaceIntersect {
                 out.push( c );
             }
         }
-        return { curves : out, touching : touching };
+        // a branch that does not get anywhere (where the surfaces touch, tracing stops at once) is no branch; one
+        // along which the normals are parallel throughout is a line of contact, not of crossing
+        const tangent : Array<IntersectionCurve> = [];
+        for (let k = out.length - 1; k >= 0; k--) {
+            const c = out[k];
+            let reach = 0.0;
+            for (const p of c.points) reach = Math.max( reach, Vec.dist( p, c.points[0] ) );
+            if (!c.closed && reach < 0.5 * step) { out.splice( k, 1 ); continue; }
+            let worst = 0.0;
+            c.points.forEach( (_, i) => {
+                const na = SurfaceIntersect.unitNormal( a, c.uvA[i] ), nb = SurfaceIntersect.unitNormal( b, c.uvB[i] );
+                worst = Math.max( worst, Vec.norm( Vec.cross( na, nb ) ) );
+            } );
+            // (a tangent branch's points, refined to tol, have normals off by about sqrt(tol / radius): 2e-5 for a
+            // cylinder of radius 3 on a plane; a small loop where two bumps barely cross, 1.4e-3)
+            const parallel = worst < 1e-4;
+            if (parallel) { tangent.push( c ); out.splice( k, 1 ); }
+        }
+        return { curves : out, touching : touching, tangent : tangent };
     }
 
     // A marching method (Barnhill and Kersey 1990): from a point on both surfaces, step along the intersection's
@@ -211,6 +251,24 @@ export class SurfaceIntersect {
     }
 
     // Whether a parameter pair is inside the domain (periodic directions always are).
+    // Whether branches found from the meshes' intersection are broken up: an open one with an end inside both
+    // domains (not on a side that is not a seam), or one whose points all lie on another.
+    private static broken( A : SurfaceDomain, B : SurfaceDomain, curves : Array<IntersectionCurve> ) : boolean {
+        const onSide = (S : SurfaceDomain, uv : UV) => {
+            const d = SurfaceIntersect.domain( S.surface ), p = S.periodic != null ? S.periodic : [false, false];
+            for (let k = 0; k < 2; k++) {
+                const w = d[2 * k + 1] - d[2 * k];
+                if (!p[k] && (Math.abs( uv[k] - d[2 * k] ) < 1e-6 * w || Math.abs( uv[k] - d[2 * k + 1] ) < 1e-6 * w)) return true;
+            }
+            return false;
+        };
+        for (const c of curves) {
+            if (c.closed) continue;
+            for (const k of [0, c.points.length - 1]) if (!onSide( A, c.uvA[k] ) && !onSide( B, c.uvB[k] )) return true;
+        }
+        return curves.some( (c, i) => curves.some( (e, j) => j != i && c.points.length <= e.points.length && c.points.every( p => SurfaceIntersect.onCurve( e, p ) ) ) );
+    }
+
     private static within( S : SurfaceDomain, uv : UV ) : boolean {
         const d = SurfaceIntersect.domain( S.surface );
         const p = S.periodic != null ? S.periodic : [false, false];
@@ -218,13 +276,20 @@ export class SurfaceIntersect {
         return true;
     }
 
-    // The sides of A's domain that lie on B along their whole length (not where the surfaces coincide), each as a
-    // branch with A's parameters exactly on the side.
+    // The runs of the sides of A's domain that lie on B (not where the surfaces coincide), each as a branch with A's
+    // parameters exactly on the side: a whole side (a tube ending on a plane) or a stretch of one (a plate's edge on
+    // a disc it overlaps, ending where the disc does). Sampled at the step; a run's ends are found by bisection.
     public static sidesOn( A : SurfaceDomain, B : SurfaceDomain, step : number, eps : number ) : Array<{ c : IntersectionCurve, side : { axis : number, value : number } }> {
         const a = A.surface, b = B.surface, d = SurfaceIntersect.domain( a );
+        const box = SurfaceIntersect.box( b, eps );
+        let seed : UV | undefined = undefined;
         const onB = (p : Point) : UV | null => {
-            const uv = SurfaceIntersect.project( b, p );
-            return Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), p ) < eps ? uv : null;
+            if (p.some( (c, k) => c < box.min[k] || c > box.max[k] )) return null;
+            let uv = SurfaceIntersect.project( b, p, 12, seed );
+            if (seed != null && Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), p ) >= eps) uv = SurfaceIntersect.project( b, p );
+            const ok = Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), p ) < eps;
+            seed = ok ? uv : undefined;
+            return ok ? uv : null;
         };
         const normal = (s : NurbsSurfaceData, uv : UV) => {
             const x = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
@@ -232,53 +297,96 @@ export class SurfaceIntersect {
         };
         const out : Array<{ c : IntersectionCurve, side : { axis : number, value : number } }> = [];
         for (let axis = 0; axis < 2; axis++) {
-            const periodic = A.periodic != null && A.periodic[axis];
-            if (periodic) continue; // a seam is inside the face
+            if (A.periodic != null && A.periodic[axis]) continue; // a seam is inside the face
             const other = 1 - axis, closed = A.periodic != null && A.periodic[other];
             const lo = d[2 * other], hi = d[2 * other + 1];
             for (const value of [d[2 * axis], d[2 * axis + 1]]) {
                 const at = (t : number) : UV => axis == 0 ? [value, t] : [t, value];
-                // a quick test at a few points, then the whole side
-                const probe = [0.13, 0.37, 0.61, 0.89].map( f => lo + (hi - lo) * f );
-                const probeUV = probe.map( t => onB( Eval.rationalSurfacePoint( a, at( t )[0], at( t )[1] ) ) );
-                if (probeUV.some( x => x == null )) continue;
-                // where the surfaces coincide next to the side, it is not an edge of their intersection
-                const inner = at( probe[1] );
-                inner[axis] = value + (axis == 0 ? (d[1] - d[0]) : (d[3] - d[2])) * (value == d[2 * axis] ? 0.01 : -0.01);
-                const qi = onB( Eval.rationalSurfacePoint( a, inner[0], inner[1] ) );
-                if (qi != null && Math.abs( Vec.dot( normal( a, inner ), normal( b, qi ) ) ) > 1 - 1e-6) continue;
-                let len = 0, prev : Point | null = null;
+                const P = (t : number) => { const uv = at( t ); return Eval.rationalSurfacePoint( a, uv[0], uv[1] ); };
+                // quick rejection: the side's samples all outside B's box
+                let len = 0, prev : Point | null = null, inBox = false;
                 for (let k = 0; k <= 64; k++) {
-                    const uv = at( lo + (hi - lo) * k / 64 );
-                    const p = Eval.rationalSurfacePoint( a, uv[0], uv[1] );
+                    const p = P( lo + (hi - lo) * k / 64 );
                     if (prev != null) len += Vec.dist( p, prev );
+                    if (p.every( (c, x) => c >= box.min[x] && c <= box.max[x] )) inBox = true;
                     prev = p;
                 }
-                const n = Math.max( 8, Math.ceil( len / step ) );
-                const pts : Array<Point> = [], ua : Array<UV> = [], ub : Array<UV> = [];
-                let ok = true;
-                for (let k = 0; k < (closed ? n : n + 1); k++) {
-                    const uv = at( lo + (hi - lo) * k / n );
-                    const p = Eval.rationalSurfacePoint( a, uv[0], uv[1] );
-                    const q = onB( p );
-                    if (q == null) { ok = false; break; }
-                    pts.push( p ); ua.push( uv ); ub.push( q );
+                if (!inBox) continue;
+                const n = Math.max( 16, Math.ceil( len / step ) );
+                seed = undefined;
+                const ts = Array.from( { length : n + 1 }, (_, k) => lo + (hi - lo) * k / n );
+                const on = ts.map( t => onB( P( t ) ) );
+                // the runs of consecutive samples on B (on a closed side, a run may wrap round)
+                const runs : Array<[number, number]> = [];
+                for (let k = 0; k <= n; k++) {
+                    if (on[k] == null) continue;
+                    if (runs.length > 0 && runs[runs.length - 1][1] == k - 1) runs[runs.length - 1][1] = k; else runs.push( [k, k] );
                 }
-                if (!ok) continue;
-                out.push( { c : { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed },
-                            side : { axis : axis, value : value } } );
+                if (runs.length == 0) continue;
+                const whole = runs.length == 1 && runs[0][0] == 0 && runs[0][1] == n;
+                if (closed && !whole && runs.length > 1 && runs[0][0] == 0 && runs[runs.length - 1][1] == n) {
+                    const last = runs.pop() as [number, number];
+                    runs[0] = [last[0] - n, runs[0][1]]; // indices below 0 wrap
+                }
+                for (const run of runs) {
+                    if (run[1] - run[0] < 1) continue; // a single point: a crossing, which the meshes find
+                    const tOf = (k : number) => k < 0 ? ts[k + n] - (hi - lo) : ts[k];
+                    // where the surfaces coincide next to the run, it is not an edge of their intersection
+                    const tm = tOf( Math.round( 0.5 * (run[0] + run[1]) ) ), inner = at( tm );
+                    inner[axis] = value + (axis == 0 ? (d[1] - d[0]) : (d[3] - d[2])) * (value == d[2 * axis] ? 0.01 : -0.01);
+                    seed = undefined;
+                    const qi = onB( Eval.rationalSurfacePoint( a, inner[0], inner[1] ) );
+                    if (qi != null && Math.abs( Vec.dot( normal( a, inner ), normal( b, qi ) ) ) > 1 - 1e-6) continue;
+                    // the run's ends, between the last sample on B and the first off it
+                    const edge = (inT : number, outT : number) => {
+                        for (let it = 0; it < 40; it++) { const m = 0.5 * (inT + outT); seed = undefined; if (onB( P( m ) ) != null) inT = m; else outT = m; }
+                        return inT;
+                    };
+                    const isWhole = whole && !closed;
+                    const t0 = closed && whole ? lo : isWhole ? lo : (run[0] == 0 && !closed ? lo : edge( tOf( run[0] ), tOf( run[0] - 1 ) ));
+                    const t1 = closed && whole ? hi : isWhole ? hi : (run[1] == n && !closed ? hi : edge( tOf( run[1] ), tOf( run[1] + 1 ) ));
+                    const m = Math.max( 2, Math.ceil( Math.abs( t1 - t0 ) / (hi - lo) * n ) );
+                    const loop = closed && whole;
+                    const pts : Array<Point> = [], ua : Array<UV> = [], ub : Array<UV> = [];
+                    let ok = true;
+                    seed = undefined;
+                    for (let k = 0; k < (loop ? m : m + 1); k++) {
+                        let t = t0 + (t1 - t0) * k / m;
+                        if (t < lo) t += hi - lo;
+                        const uv = at( t ), p = Eval.rationalSurfacePoint( a, uv[0], uv[1] ), q = onB( p );
+                        if (q == null) { ok = false; break; }
+                        pts.push( p ); ua.push( uv ); ub.push( q );
+                    }
+                    if (!ok || pts.length < 2) continue;
+                    // along a side of B too, the faces meet edge to edge (two tubes end to end): not a crossing
+                    const db = SurfaceIntersect.domain( b ), pb = B.periodic != null ? B.periodic : [false, false];
+                    const edgeOfB = [0, 1].some( x => !pb[x] && [db[2 * x], db[2 * x + 1]].some( v => ub.every( q => Math.abs( q[x] - v ) < 1e-6 * (db[2 * x + 1] - db[2 * x]) ) ) );
+                    if (edgeOfB) continue;
+                    out.push( { c : { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : loop },
+                                side : { axis : axis, value : value } } );
+                }
             }
         }
         return out;
     }
 
+    // a surface's bounding box (of its control points, which hold it), grown by eps
+    private static box( s : NurbsSurfaceData, eps : number ) : { min : Point, max : Point } {
+        const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+        for (const row of s.controlPoints) for (const h of row) {
+            const w = h[3];
+            for (let k = 0; k < 3; k++) { const c = h[k] / w; min[k] = Math.min( min[k], c - eps ); max[k] = Math.max( max[k], c + eps ); }
+        }
+        return { min : min, max : max };
+    }
+
     // The parameters of the point of a surface nearest to p: the nearest of a grid of samples, then Newton steps on
     // the distance, clamped to the domain (a point beyond the surface's side ends on that side). Cheap enough to call
     // per point, unlike a closest point that tessellates.
-    public static project( s : NurbsSurfaceData, p : Point, grid : number = 12 ) : UV {
+    public static project( s : NurbsSurfaceData, p : Point, grid : number = 12, seed? : UV ) : UV {
         const d = SurfaceIntersect.domain( s );
-        let best : UV = [d[0], d[2]], bd = Infinity;
-        for (let i = 0; i <= grid; i++) for (let j = 0; j <= grid; j++) {
+        let best : UV = seed != null ? [seed[0], seed[1]] : [d[0], d[2]], bd = seed != null ? -1 : Infinity;
+        if (seed == null) for (let i = 0; i <= grid; i++) for (let j = 0; j <= grid; j++) {
             const uv : UV = [d[0] + (d[1] - d[0]) * i / grid, d[2] + (d[3] - d[2]) * j / grid];
             const x = Vec.distSquared( Eval.rationalSurfacePoint( s, uv[0], uv[1] ), p );
             if (x < bd) { bd = x; best = uv; }
@@ -298,6 +406,11 @@ export class SurfaceIntersect {
             if (moved < 1e-15 * (d[1] - d[0] + d[3] - d[2])) break;
         }
         return uv;
+    }
+
+    private static unitNormal( s : NurbsSurfaceData, uv : UV ) : Point {
+        const x = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+        return Vec.normalized( Vec.cross( x[1][0], x[0][1] ) );
     }
 
     // a branch with its surfaces swapped

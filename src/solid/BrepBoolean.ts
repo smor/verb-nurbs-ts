@@ -73,6 +73,8 @@ export interface BooleanResult {
         manifold : ManifoldReport;
         volume : number;
         intersectionCurves : number;
+        // branches along which two faces touch without crossing (tangent): the result is not a manifold there
+        tangentContacts : number;
         // the largest distance between the two surfaces at the vertices of the intersection curves
         maxCurveError : number;
         // edges rounded; edges that asked for a fillet the ball could not roll along (too large a radius); and edges
@@ -129,12 +131,15 @@ export class BrepBoolean {
         const cuts : Array<Array<Array<FaceCut>>> = solids.map( s => s.faces.map( _ => [] as Array<FaceCut> ) );
         const curves : BooleanResult["curves"] = [];
         let maxErr = 0.0;
+        let tangentContacts = 0;
         for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
             solids[i].faces.forEach( (fa, ia) => solids[j].faces.forEach( (fb, ib) => {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
                 const step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
-                const found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
+                const res = SurfaceIntersect.analyze( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
+                tangentContacts += res.tangent.length;
+                const found = res.curves;
                 for (const c of BrepBoolean.dropRetraces( found, 0.02 * step ))
                     curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
@@ -465,7 +470,7 @@ export class BrepBoolean {
         patchXY = patchXY.filter( (_, k) => kept( k ) );
         out.compact(); // drops the same degenerate triangles
         return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, patchXY : patchXY, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
-            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
+            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, tangentContacts : tangentContacts, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
     }
 
