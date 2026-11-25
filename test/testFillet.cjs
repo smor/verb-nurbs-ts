@@ -1,6 +1,7 @@
 var should = require('should');
 
 var lib = require('../dist/index.js');
+var budget = require('./support/budget.cjs');
 var verb = lib.default;
 var Sweep = lib.Sweep, Make = verb.eval.Make, Eval = verb.eval.Eval, Vec = verb.core.Vec;
 var BrepSolid = lib.BrepSolid, BrepBoolean = lib.BrepBoolean, Fillet = lib.Fillet;
@@ -27,7 +28,7 @@ function discAndRod(around) {
 function pappus(R, r) { return 2 * Math.PI * (R + 0.22337 * r) * (1 - Math.PI / 4) * r * r; }
 
 describe("verb.solid.Fillet", function(){
-	this.timeout(60000);
+	this.timeout(budget(60000));
 
 	it('arc is an exact circular arc from one point to the other', function(){
 		var c = [1, 2, 3], p = [4, 2, 3], q = [1, 2, 6];
