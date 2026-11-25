@@ -43,8 +43,10 @@ export interface CornerPatch {
     radius : number;
     // a patch carried by several surfaces (a setback corner's six four-sided pieces): each with its triangles
     parts? : Array<{ surface : NurbsSurfaceData, triangles : Array<[number, number, number]> }>;
-    // a setback corner's sides, as the transfinite patch's ribbons (`Transfinite.evaluate` gives the exact patch)
+    // a setback corner's sides, as the transfinite patch's ribbons (`Transfinite.evaluate` gives the exact patch), and
+    // each point's position in the patch's polygon
     ribbons? : Array<Ribbon>;
+    domain? : Array<[number, number]>;
 }
 
 export interface OpenBlend {
@@ -712,7 +714,7 @@ export class FilletCorner {
         } );
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
                  parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
-                 ribbons : ribbons };
+                 ribbons : ribbons, domain : m.domain };
     }
 
     // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points

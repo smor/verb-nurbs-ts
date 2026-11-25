@@ -1,6 +1,7 @@
 var should = require('should');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
+var Vec = lib.Vec;
 
 function layer(v, name) { return v.layers.find(function(l){ return l.name == name; }); }
 function fact(facts, name) { return facts.find(function(f){ return f[0] == name; })[1]; }
@@ -114,5 +115,31 @@ describe("verb.view.Inspect", function(){
 			}
 		}
 		tube.should.be.above(100);
+	});
+
+	it('shades a setback corner from its exact patch: unit normals that agree with the mesh, and a convex corner bulging out on average, its curvature bounded by its blends', function(){
+		var b = lib.BrepSolid.box([0, 0, 0], [40, 28, 20], 12);
+		var E = lib.BrepEdges.all(b).map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; });
+		var r = lib.BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', edges : E });
+		var corner = {};
+		r.corners.forEach(function(c){ c.faces.forEach(function(fi){ corner[fi] = true; }); });
+		var f = lib.Inspect.exactFaces(r), mean = f.fields['mean curvature'].values, n = 0, sum = 0, count = 0;
+		for (var k = 0; k < f.indices.length; k += 3) {
+			if (!corner[r.faceOf[k / 3]] || r.patchXY[k / 3] == null) continue;
+			var P = [0, 1, 2].map(function(x){ var i = f.indices[k + x]; return f.positions.slice(3 * i, 3 * i + 3); });
+			var flat = Vec.normalized(Vec.cross(Vec.sub(P[1], P[0]), Vec.sub(P[2], P[0])));
+			for (var x = 0; x < 3; x++) {
+				var i = f.indices[k + x], nn = f.normals.slice(3 * i, 3 * i + 3);
+				Vec.norm(nn).should.be.approximately(1, 1e-9);
+				Vec.dot(nn, flat).should.be.above(0.9);
+				// (at the polygon's vertices Kato's blends are singular and the curvature only approximate)
+				var d = lib.Transfinite.distances(lib.Transfinite.polygon(6), r.patchXY[k / 3][x]).filter(function(v){ return v < 1e-9; }).length;
+				if (d < 2) Math.abs(mean[i]).should.be.below(0.5);
+				sum += mean[i]; count++;
+			}
+			n++;
+		}
+		n.should.be.above(500);
+		(sum / count).should.be.above(0.02);
 	});
 });
