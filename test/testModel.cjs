@@ -192,3 +192,82 @@ describe("verb.model.Model", function(){
 		Model.edgeName('b', 'a').should.be.equal('a|b');
 	});
 });
+
+describe("verb.model.Model shells", function(){
+	this.timeout(budget(120000));
+
+	var box = function(){ return { type : 'box', min : [0, 0, 0], max : [40, 30, 20] }; };
+	var wall = function(r){ return r.walls[0].thinnest; };
+
+	it('hollows a box open at the top into a tray whose walls are the thickness asked, the inside named after the shell', function(){
+		var r = new Model().evaluate({ version : 1, features : { box : box(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] } }, output : 'tray' });
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.volume.should.be.approximately(40 * 30 * 20 - 36 * 26 * 18, 1e-6);
+		wall(r).should.be.approximately(2, 1e-9);
+		r.faceNames.should.containEql('tray~box.-z');
+		r.faceNames.should.not.containEql('tray~box.+z');
+		// closed: the inside is sealed in
+		var c = new Model().evaluate({ version : 1, features : { box : box(), tray : { type : 'shell', of : 'box', thickness : 2 } }, output : 'tray' });
+		c.result.report.volume.should.be.approximately(40 * 30 * 20 - 36 * 26 * 16, 1e-6);
+		c.result.report.manifold.closedManifold.should.be.true();
+	});
+
+	it('offsets a Boolean: a bore through the tray keeps a wall around it', function(){
+		var r = new Model().evaluate({ version : 1, features : {
+			box : box(), bore : { type : 'cylinder', from : [10, 15, -5], to : [10, 15, 25], radius : 3 },
+			holed : { type : 'difference', from : 'box', minus : ['bore'] },
+			tray : { type : 'shell', of : 'holed', thickness : 2, open : ['box.+z'] } }, output : 'tray' });
+		r.verdict.kind.should.be.equal('buildable');
+		// (box - bore) - (inner box - bore grown by 2), within the box
+		var expected = 24000 - Math.PI * 9 * 20 - (36 * 26 * 18 - Math.PI * 25 * 18);
+		r.result.report.volume.should.be.approximately(expected, 2e-3 * expected);
+		wall(r).should.be.approximately(2, 1e-3);
+	});
+
+	it('rounds a shell: outside radius = inside radius + thickness keeps the wall; a sharp inside under a round outside does not', function(){
+		var doc = function(rules){ return { version : 1, features : { box : box(), hollow : { type : 'shell', of : 'box', thickness : 2 }, r : { type : 'round', of : 'hollow', rules : rules } }, output : 'r' }; };
+		var both = new Model().evaluate(doc([{ edges : 'box.*', radius : 4 }, { edges : 'hollow~*', radius : 2 }]));
+		both.verdict.kind.should.be.equal('buildable');
+		both.result.report.fillets.should.be.equal(24);
+		wall(both).should.be.above(2 * (1 - Model.WALL_TOLERANCE));
+		// the inside of a rounded box, 36 x 26 x 16 rounded by 2, is taken from the outside, 40 x 30 x 20 rounded by 4
+		var rounded = function(a, b, c, r){ a -= 2 * r; b -= 2 * r; c -= 2 * r; return a * b * c + 2 * r * (a * b + b * c + a * c) + Math.PI * r * r * (a + b + c) + 4 / 3 * Math.PI * r * r * r; };
+		var expected = rounded(40, 30, 20, 4) - rounded(36, 26, 16, 2);
+		both.result.report.volume.should.be.approximately(expected, 2e-2 * expected);
+		var outside = new Model().evaluate(doc([{ edges : 'box.*', radius : 4 }]));
+		outside.verdict.kind.should.be.equal('visual');
+		// at a corner the wall is 4 - 2 sqrt 2 thick
+		wall(outside).should.be.approximately(4 - 2 * Math.SQRT2, 0.05);
+		outside.verdict.reasons.join(' ').should.match(/the shell "hollow" is .* thick at its thinnest \(2 asked\)/);
+	});
+
+	it('shells a mug with a curved handle, open at the rim, rounded inside and out', function(){
+		var r = new Model().evaluate({ version : 1, features : {
+			cup : { type : 'cylinder', from : [0, 0, 0], to : [0, 0, 40], radius : 15 },
+			handle : { type : 'pipe', through : [[8, 0, 30], [24, 0, 29], [27, 0, 19], [8, 0, 12]], radius : 3 },
+			body : { type : 'union', of : ['cup', 'handle'] },
+			mug : { type : 'shell', of : 'body', thickness : 2, open : ['cup.end cap'] },
+			rounded : { type : 'round', of : 'mug', rules : [
+				{ edges : 'cup.end cap|*', radius : 0.8 }, { edges : 'cup.start cap|cup.tube', radius : 4 },
+				{ edges : 'mug~cup.start cap|mug~cup.tube', radius : 2 }, { edges : 'cup.tube|handle.tube', radius : 2 }] } }, output : 'rounded' });
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.fillets.should.be.equal(6);
+		wall(r).should.be.above(2 * (1 - Model.WALL_TOLERANCE));
+		// the handle is hollow and open to the cup: two handles' worth of genus
+		r.result.report.manifold.genus.should.be.equal(2);
+	});
+
+	it('goes through rigid and uniformly scaled transforms, and says what it cannot shell', function(){
+		var r = new Model().evaluate({ version : 1, features : { box : box(),
+			t : { type : 'transform', of : 'box', scale : 0.5, rotate : { axis : [0, 0, 1], degrees : 30 } },
+			tray : { type : 'shell', of : 't', thickness : 1, open : ['t/box.+z'] } }, output : 'tray' });
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.volume.should.be.approximately(20 * 15 * 10 - 18 * 13 * 9, 1e-6);
+		var bad = function(features, output){ return function(){ new Model().evaluate({ version : 1, features : features, output : output }); }; };
+		bad({ box : box(), s : { type : 'shell', of : 'box', thickness : 1, open : ['box.top'] } }, 's').should.throw(/opens "box.top", which names no face/);
+		bad({ box : box(), s : { type : 'shell', of : 'box', thickness : 0 } }, 's').should.throw(/positive thickness/);
+		bad({ box : box(), t : { type : 'transform', of : 'box', scale : [1, 2, 1] }, s : { type : 'shell', of : 't', thickness : 1 } }, 's').should.throw(/rigid or uniformly scaled/);
+		bad({ v : { type : 'revolve', profile : [[5, 0], [5, 10]] }, s : { type : 'shell', of : 'v', thickness : 1 } }, 's').should.throw(/cannot yet offset the revolve/);
+		bad({ box : box(), s : { type : 'shell', of : 'box', thickness : 1 }, s2 : { type : 'shell', of : 's', thickness : 1 } }, 's2').should.throw(/cannot be shelled again/);
+	});
+});

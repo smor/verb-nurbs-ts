@@ -92,7 +92,7 @@ import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model } from "./model/Model.js";
-export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict } from "./model/Model.js";
+export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";

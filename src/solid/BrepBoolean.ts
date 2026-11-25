@@ -220,7 +220,11 @@ export class BrepBoolean {
                 if (fin == fout) continue;
                 const pe : SolidEdge = { faces : e.faces, sides : e.sides, curve : piece };
                 curves.push( { solids : [x.solid, x.solid], faces : x.faces, curve : piece, own : e.sides } );
-                runs.push( { ci : curves.length - 1, curve : piece, sides : BrepEdges.filletSides( solid, pe, piece.points.length >> 1 ), radius : x.radius, own : true } );
+                // a solid the result keeps the outside of (taken away): its faces face the other way, and the edge
+                // is concave, so each face's kept part lies outside the other's solid where it was inside
+                let sides = BrepEdges.filletSides( solid, pe, piece.points.length >> 1 );
+                if (!fin) sides = sides.map( sd => ({ face : sd.face, sign : -sd.sign, keptInsideOther : sd.keptInsideOther }) ) as [FilletSide, FilletSide];
+                runs.push( { ci : curves.length - 1, curve : piece, sides : sides, radius : x.radius, own : true } );
             }
         }
 

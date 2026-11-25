@@ -1,5 +1,7 @@
-import { NurbsSurfaceData, Point } from "../core/Data.js";
+import { NurbsCurveData, NurbsSurfaceData, Point } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
+import { Analyze } from "../eval/Analyze.js";
+import { Divide } from "../eval/Divide.js";
 import { Make } from "../eval/Make.js";
 import { Sweep } from "../eval/Sweep.js";
 import { BrepFace, BrepSolid } from "../solid/Brep.js";
@@ -8,6 +10,7 @@ import { BrepEdges } from "../solid/BrepEdges.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Machine, Makeable } from "../solid/Makeable.js";
 import { Expr } from "./Expr.js";
+import { Wall } from "./Wall.js";
 
 // A number in a model document: a literal, or an expression over the document's parameters (see `Expr`).
 export type ModelValue = number | string;
@@ -30,7 +33,10 @@ export type ModelFeature =
     | { type : "difference", from : string, minus : Array<string> }
     // rounding, on a solid or a Boolean: rules in order, the first whose pattern matches an edge's name gives its
     // radius (0: leave it sharp); see `ModelEdgeRule`
-    | { type : "round", of : string, rules : Array<ModelEdgeRule>, shape? : FilletShape, corner? : "auto" | "ball" };
+    | { type : "round", of : string, rules : Array<ModelEdgeRule>, shape? : FilletShape, corner? : "auto" | "ball" }
+    // hollowing: the solid less its inside, `thickness` in from every face but the `open` ones (patterns over the face
+    // names of `of`, as for edges), which the inside goes through; see `Model` on how the inside is built
+    | { type : "shell", of : string, thickness : ModelValue, open? : Array<string> };
 
 // Edges are named by the two faces they join (`Model` explains face names): "a.+z|b.tube", the two names in sorted
 // order. A pattern matches a name when it does with `*` standing for any run of characters; "a.*|b.*" matches
@@ -61,7 +67,16 @@ export interface ModelResult {
     // each feature's content hash, and whether this evaluation built it (false: it came from the cache)
     features : { [id : string] : { hash : string, built : boolean } };
     parameters : { [name : string] : number };
+    // for each shell in the output, its wall as asked and as measured (`Model.wall`)
+    walls : Array<ModelWall>;
 }
+
+// A shell's wall: the thickness asked, and the thinnest found on the result, between the inside faces and the
+// outside faces (open ones left out), fillets counted with the faces they join.
+export interface ModelWall { shell : string, thickness : number, thinnest : number }
+
+// A shell within a tree: the leaves of its solid and of its inside, and its open faces' names.
+interface Shelled { id : string, thickness : number, outside : [number, number], inside : [number, number], open : Array<string> }
 
 // Whether a model is a buildable solid or a visual model, decided the same way every time from checks on the
 // result, each with a plain reason. A buildable solid is a closed, outward-facing 2-manifold with positive volume,
@@ -92,6 +107,11 @@ export interface ModelVerdict {
 //   in order of decreasing area. Rules select edges by these names, so they keep selecting the same edges when
 //   the parameters change.
 // * The verdict says whether the result is buildable or only visual, and why (`ModelVerdict`).
+//
+// * A shell is the solid less its inside, in the same N-ary Boolean: X && !inside(X). The inside is the CSG tree
+//   offset inward (J. R. Rossignac, A. A. G. Requicha, "Offsetting operations in solid modelling", CAGD 3(2), 1986):
+//   primitives offset (mitred when grown), Booleans of the offsets, each no larger than the exact erosion, so walls
+//   are never thinner than asked. The result's walls are then measured for the verdict (docs/model.md, "Shells").
 //
 // Limits: rounding applies to the output's Boolean as a whole (a round is the last feature on its branch), and a
 // rounded solid cannot yet be an operand of a further Boolean.
@@ -145,35 +165,103 @@ export class Model {
         };
 
         // a feature's solids: its primitives (each with its path of transforms) and the Boolean expression over them
-        type Tree = { leaves : Array<{ name : string, solid : BrepSolid }>, expr : (inside : Array<boolean>) => boolean };
+        // (`shells`: each shell in it, by the leaves of its outside and of its inside, for the wall check)
+        type Tree = { leaves : Array<{ name : string, solid : BrepSolid }>, expr : (inside : Array<boolean>) => boolean, shells : Array<Shelled> };
+        const combine = (id : string, type : "union" | "intersection" | "difference", parts : Array<Tree>) : Tree => {
+            const leaves = ([] as Tree["leaves"]).concat( ...parts.map( p => p.leaves ) );
+            const offsets : Array<number> = [];
+            let n = 0;
+            for (const p of parts) { offsets.push( n ); n += p.leaves.length; }
+            const sub = (k : number, x : Array<boolean>) => parts[k].expr( x.slice( offsets[k], offsets[k] + parts[k].leaves.length ) );
+            const expr = type == "union" ? (x : Array<boolean>) => parts.some( (_, k) => sub( k, x ) )
+                : type == "intersection" ? (x : Array<boolean>) => parts.every( (_, k) => sub( k, x ) )
+                : (x : Array<boolean>) => sub( 0, x ) && !parts.slice( 1 ).some( (_, k) => sub( k + 1, x ) );
+            const names = new Set<string>();
+            for (const l of leaves) {
+                if (names.has( l.name )) throw new Error( `Model: "${l.name}" is used twice in "${id}"; place a copy with a transform` );
+                names.add( l.name );
+            }
+            const shells = ([] as Array<Shelled>).concat( ...parts.map( (p, k) => p.shells.map( s => Model.shift( s, offsets[k] ) ) ) );
+            return { leaves : leaves, expr : expr, shells : shells };
+        };
+        const EMPTY : Tree = { leaves : [], expr : () => false, shells : [] };
+
+        // A feature's solids offset by d (d > 0: in, an erosion; d < 0: out, a dilation), the faces whose names
+        // (`path` + leaf + face) match `open` the other way. Erosions come out no larger than the exact ones, and
+        // dilations no smaller, so an inside built from them leaves walls at least d thick (see `Model`).
+        const offset = (id : string, d : number, path : string, open : Array<RegExp>) : Tree => {
+            const f = features[id];
+            switch (f.type) {
+                case "box": case "cylinder": case "pipe": case "revolve": {
+                    const leaf = path + id;
+                    const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
+                    const s = Model.offsetPrimitive( f, by, num, point, id );
+                    return s == null ? EMPTY : { leaves : [{ name : id, solid : s }], expr : (x : Array<boolean>) => x[0], shells : [] };
+                }
+                case "transform": {
+                    const M = Model.matrix( f, num, point );
+                    const s = Model.similarity( M );
+                    if (s == null) throw new Error( `Model: a shell can only go through a rigid or uniformly scaled transform, not "${id}"` );
+                    const t = offset( f.of, d / s, path + id + "/", open );
+                    return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ) }) ), expr : t.expr, shells : [] };
+                }
+                case "union": {
+                    // a dilation of a union is the union of the dilations; an erosion contains the union of the
+                    // erosions (equal away from the seams, larger at concave seams), which is taken
+                    const parts = f.of.map( k => offset( k, d, path, open ) ).filter( p => p.leaves.length > 0 );
+                    return parts.length == 0 ? EMPTY : combine( id, "union", parts );
+                }
+                case "intersection": {
+                    // the other way about: erosions exact, the dilation within the intersection of the dilations
+                    const parts = f.of.map( k => offset( k, d, path, open ) );
+                    return parts.some( p => p.leaves.length == 0 ) ? EMPTY : combine( id, "intersection", parts );
+                }
+                case "difference": {
+                    // A - B offset in is (A in) - (B out); offset out, it lies within (A out) - (B in)
+                    const from = offset( f.from, d, path, open );
+                    if (from.leaves.length == 0) return EMPTY;
+                    const minus = f.minus.map( k => offset( k, -d, path, open ) ).filter( p => p.leaves.length > 0 );
+                    return combine( id, "difference", [from].concat( minus ) );
+                }
+                case "shell": throw new Error( `Model: a shell cannot be shelled again ("${id}")` );
+                case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
+            }
+            throw new Error( `Model: unknown feature type "${(f as { type : string }).type}" in "${id}"` );
+        };
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
                 case "box": case "cylinder": case "pipe": case "revolve":
-                    return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0] };
+                    return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
                     const M = Model.matrix( f, num, point );
-                    return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ) }) ), expr : t.expr };
+                    return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ) }) ), expr : t.expr,
+                             shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ) };
                 }
                 case "union": case "intersection": case "difference": {
                     const ids = f.type == "difference" ? [f.from].concat( f.minus ) : f.of;
                     if (ids.length == 0) throw new Error( `Model: "${id}" has no operands` );
-                    const parts = ids.map( tree );
-                    const leaves = ([] as Tree["leaves"]).concat( ...parts.map( p => p.leaves ) );
-                    const offsets : Array<number> = [];
-                    let n = 0;
-                    for (const p of parts) { offsets.push( n ); n += p.leaves.length; }
-                    const sub = (k : number, x : Array<boolean>) => parts[k].expr( x.slice( offsets[k], offsets[k] + parts[k].leaves.length ) );
-                    const expr = f.type == "union" ? (x : Array<boolean>) => parts.some( (_, k) => sub( k, x ) )
-                        : f.type == "intersection" ? (x : Array<boolean>) => parts.every( (_, k) => sub( k, x ) )
-                        : (x : Array<boolean>) => sub( 0, x ) && !parts.slice( 1 ).some( (_, k) => sub( k + 1, x ) );
-                    const names = new Set<string>();
-                    for (const l of leaves) {
-                        if (names.has( l.name )) throw new Error( `Model: "${l.name}" is used twice in "${id}"; place a copy with a transform` );
-                        names.add( l.name );
-                    }
-                    return { leaves : leaves, expr : expr };
+                    return combine( id, f.type, ids.map( tree ) );
+                }
+                case "shell": {
+                    // the solid less its inside, in the one Boolean: X && !inside(X)
+                    const t = tree( f.of );
+                    const th = num( f.thickness, `"${id}" thickness` );
+                    if (!(th > 0)) throw new Error( `Model: the shell "${id}" needs a positive thickness` );
+                    const open = (f.open ?? []).map( Model.pattern );
+                    const faces = t.leaves.flatMap( l => l.solid.faces.map( (fc, k) => l.name + "." + Model.faceName( fc, k ) ) );
+                    (f.open ?? []).forEach( (g, k) => {
+                        if (!faces.some( n => open[k].test( n ) )) throw new Error( `Model: the shell "${id}" opens "${g}", which names no face of "${f.of}"` );
+                    } );
+                    const inside = offset( f.of, th, "", open );
+                    const n = t.leaves.length;
+                    const leaves = t.leaves.concat( inside.leaves.map( l => ({ name : id + "~" + l.name, solid : l.solid }) ) );
+                    return {
+                        leaves : leaves,
+                        expr : (x : Array<boolean>) => t.expr( x.slice( 0, n ) ) && !inside.expr( x.slice( n ) ),
+                        shells : t.shells.concat( [{ id : id, thickness : th, outside : [0, n], inside : [n, leaves.length], open : faces.filter( nm => open.some( re => re.test( nm ) ) ) }] ),
+                    };
                 }
                 case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
             }
@@ -201,15 +289,15 @@ export class Model {
                 };
             }
             const r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
-            return { result : r, names : Model.names( r, leafName ) };
+            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ) };
         } );
 
-        const verdict = Model.verdict( solid.result, doc.machine );
+        const verdict = Model.verdict( solid.result, doc.machine, solid.walls );
         const faceIndex : { [name : string] : number } = {};
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
         for (const [id, h] of hashes) report[id] = { hash : h, built : built.has( id ) };
-        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params };
+        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls };
     }
 
     // ---------- parameters and values ----------
@@ -253,13 +341,14 @@ export class Model {
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
             case "round": return { rules : f.rules.map( r => [r.edges, num( r.radius, "radius" )] ), shape : f.shape ?? "circular", corner : f.corner ?? "auto" };
+            case "shell": return { thickness : num( f.thickness, "thickness" ), open : f.open ?? [] };
         }
         throw new Error( `Model: unknown feature type "${(f as { type : string }).type}"` );
     }
 
     private static inputs( f : ModelFeature ) : Array<string> {
         switch (f.type) {
-            case "transform": case "round": return [f.of];
+            case "transform": case "round": case "shell": return [f.of];
             case "union": case "intersection": return f.of;
             case "difference": return [f.from].concat( f.minus );
             default: return [];
@@ -286,8 +375,7 @@ export class Model {
             case "pipe": {
                 if (f.through.length < 2) throw new Error( "Model: a pipe runs through two points or more" );
                 const pts = f.through.map( (p, k) => point( p, "through[" + k + "]" ) );
-                const rail = pts.length == 2 ? Make.rationalBezierCurve( pts ) : Make.rationalInterpCurve( pts, Math.min( 3, pts.length - 1 ) );
-                return BrepSolid.cappedTube( Sweep.pipe( rail, positive( num( f.radius, "radius" ), "a pipe's radius" ) ).surface, divs( f.divs, [48, 64] ) );
+                return BrepSolid.cappedTube( Sweep.pipe( Model.rail( pts ), positive( num( f.radius, "radius" ), "a pipe's radius" ) ).surface, divs( f.divs, [48, 64] ) );
             }
             case "revolve": {
                 // circles of the profile's radii at its heights, lofted (u around), turned so that u runs up the
@@ -304,6 +392,69 @@ export class Model {
             }
         }
         throw new Error( "Model: not a primitive: " + f.type );
+    }
+
+    private static rail( pts : Array<Point> ) : NurbsCurveData {
+        return pts.length == 2 ? Make.rationalBezierCurve( pts ) : Make.rationalInterpCurve( pts, Math.min( 3, pts.length - 1 ) );
+    }
+
+    // A primitive offset face by face: `by(face)` is how far its face moves in (out when negative). Boxes and
+    // cylinders stay boxes and cylinders, mitred at their edges: in, that is the exact offset; out, it contains it.
+    // A pipe's tube is offset exactly (radius less d, while d is under the rail's radius of curvature), and its ends
+    // move along the rail. Returns null when nothing is left.
+    private static offsetPrimitive( f : ModelFeature, by : (face : string) => number, num : (v : ModelValue, what : string) => number, point : (p : ModelPoint, what : string) => Point, id : string ) : BrepSolid | null {
+        switch (f.type) {
+            case "box": {
+                const a = point( f.min, "min" ), b = point( f.max, "max" );
+                const lo = [0, 1, 2].map( k => a[k] + by( "-" + "xyz"[k] ) ), hi = [0, 1, 2].map( k => b[k] - by( "+" + "xyz"[k] ) );
+                if ([0, 1, 2].some( k => !(hi[k] > lo[k]) )) return null;
+                return Model.primitive( { type : "box", min : lo as ModelPoint, max : hi as ModelPoint, divs : f.divs }, num, point );
+            }
+            case "cylinder": case "pipe": {
+                const pts = f.type == "cylinder" ? [point( f.from, "from" ), point( f.to, "to" )] : f.through.map( (p, k) => point( p, "through[" + k + "]" ) );
+                const r = num( f.radius, "radius" ) - by( "tube" ), s0 = by( "start cap" ), s1 = by( "end cap" );
+                if (!(r > 0)) return null;
+                const divs = f.divs;
+                if (pts.length == 2) {
+                    const u = Vec.normalized( Vec.sub( pts[1], pts[0] ) );
+                    const a = Vec.add( pts[0], Vec.mul( s0, u ) ), b = Vec.sub( pts[1], Vec.mul( s1, u ) );
+                    if (!(Vec.dot( Vec.sub( b, a ), u ) > 0)) return null;
+                    return f.type == "cylinder" ? Model.primitive( { type : "cylinder", from : a as ModelPoint, to : b as ModelPoint, radius : r, divs : divs }, num, point )
+                        : Model.primitive( { type : "pipe", through : [a as ModelPoint, b as ModelPoint], radius : r, divs : divs }, num, point );
+                }
+                // a curved rail: cut back by arc length (moving a curved pipe's end out is not done yet)
+                if (s0 < 0 || s1 < 0) throw new Error( `Model: a shell cannot yet move the end of the curved pipe "${id}" out (an open end, or a pipe taken away)` );
+                let rail = Model.rail( pts );
+                const len = Analyze.rationalCurveArcLength( rail );
+                if (!(s0 + s1 < len)) return null;
+                const at = (l : number) => {
+                    let lo = rail.knots[0], hi = rail.knots[rail.knots.length - 1];
+                    for (let k = 0; k < 60; k++) { const m = 0.5 * (lo + hi); if (Analyze.rationalCurveArcLength( rail, m ) < l) lo = m; else hi = m; }
+                    return 0.5 * (lo + hi);
+                };
+                const u1 = at( len - s1 ), u0 = at( s0 );
+                if (s1 > 0) rail = Divide.curveSplit( rail, u1 )[0];
+                if (s0 > 0) rail = Divide.curveSplit( rail, u0 )[1];
+                const dv = divs == null ? [48, 64] : [Math.max( 2, Math.round( num( divs[0], "divs" ) ) ), Math.max( 3, Math.round( num( divs[1], "divs" ) ) )];
+                return BrepSolid.cappedTube( Sweep.pipe( rail, r ).surface, dv as [number, number] );
+            }
+            case "revolve": throw new Error( `Model: a shell cannot yet offset the revolve "${id}"` );
+        }
+        throw new Error( "Model: not a primitive: " + f.type );
+    }
+
+    // The scale of an affine map that is a similarity (a rotation, mirror and uniform scale, then a translation), or
+    // null when it is not one.
+    private static similarity( M : Array<Array<number>> ) : number | null {
+        const col = (j : number) => [M[0][j], M[1][j], M[2][j]];
+        const s2 = Vec.dot( col( 0 ), col( 0 ) );
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+            if (Math.abs( Vec.dot( col( i ), col( j ) ) - (i == j ? s2 : 0) ) > 1e-9 * s2) return null;
+        return Math.sqrt( s2 );
+    }
+
+    private static shift( s : Shelled, by : number ) : Shelled {
+        return { ...s, outside : [s.outside[0] + by, s.outside[1] + by], inside : [s.inside[0] + by, s.inside[1] + by] };
     }
 
     // The affine map of a transform, as rows [a b c t] of a 3x4 matrix.
@@ -435,7 +586,34 @@ export class Model {
 
     // ---------- verdict ----------
 
-    public static verdict( r : BooleanResult, machine? : string | Machine ) : ModelVerdict {
+    // A shell's thinnest wall on the result: the smallest distance from a vertex of the inside faces to the outside
+    // faces, measured on the mesh up to twice the thickness.
+    private static wall( r : BooleanResult, s : Shelled, leafName : (solid : number, face : number) => string ) : ModelWall {
+        const within = (k : number, range : [number, number]) => k >= range[0] && k < range[1];
+        const open = new Set( s.open );
+        const side = r.faces.map( () => 0 );    // 1 outside, -1 inside, 0 neither
+        r.faces.forEach( (f, k) => {
+            if (f.solid < 0) return;
+            if (within( f.solid, s.inside )) side[k] = -1;
+            else if (within( f.solid, s.outside ) && !open.has( leafName( f.solid, f.face ) )) side[k] = 1;
+        } );
+        const firstBlend = r.faces.findIndex( f => f.solid < 0 );
+        r.fillets.forEach( (fl, k) => {
+            const c = r.curves[fl.curve];
+            // a fillet along an open face's edge rounds the rim: it is neither side
+            if ([0, 1].some( j => open.has( leafName( c.solids[j], c.faces[j] ) ) )) return;
+            if (c.solids.some( x => within( x, s.inside ) )) side[firstBlend + k] = -1;
+            else if (c.solids.every( x => within( x, s.outside ) )) side[firstBlend + k] = 1;
+        } );
+        const from : Array<number> = [], to : Array<number> = [];
+        r.faceOf.forEach( (f, t) => { if (side[f] < 0) from.push( t ); else if (side[f] > 0) to.push( t ); } );
+        return { shell : s.id, thickness : s.thickness, thinnest : Wall.thinnest( r.mesh, from, to, 2 * s.thickness ).distance };
+    }
+
+    // How thin a shell's measured wall may be against the thickness asked: the mesh's chords cut inside curved faces.
+    public static WALL_TOLERANCE = 0.03;
+
+    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [] ) : ModelVerdict {
         const m = r.report.manifold;
         const checks : ModelVerdict["checks"] = [
             { name : "closed", passed : m.closedManifold, detail : m.closedManifold ? "every edge joins exactly two faces" : "the surface has open or non-manifold edges" },
@@ -443,6 +621,10 @@ export class Model {
             { name : "fillets", passed : r.report.filletsFailed == 0 && r.report.filletsSkipped == 0,
               detail : r.report.filletsFailed + r.report.filletsSkipped == 0 ? "every requested fillet is in place" : `${r.report.filletsFailed} fillet(s) too large and ${r.report.filletsSkipped} left sharp at corners` },
         ];
+        for (const w of walls) {
+            const ok = w.thinnest >= w.thickness * (1 - Model.WALL_TOLERANCE);
+            checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
+        }
         if (machine != null && checks[0].passed) {
             const mk = Makeable.check( r.mesh, machine );
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
