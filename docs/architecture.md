@@ -10,7 +10,8 @@ through it, which invariants hold everywhere, and where to start reading for eac
    apps          │ viewer/ playground/   (three.js, web workers) │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
-   view          │ Inspect: objects → plain display layers       │
+   view, io      │ Inspect: objects → plain display layers       │
+                 │ Step: B-rep results → STEP files              │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
    recipes       │ parametric objects (vessels, mug, appliance)  │
@@ -91,6 +92,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Vertex blends | `src/solid/FilletCorner.ts` |
 | Meshes, fabrication checks | `src/solid/TriMesh.ts`, `src/solid/Makeable.ts` |
 | Display data | `src/view/Inspect.ts` |
+| STEP export | `src/io/Step.ts`, [step.md](step.md) |
 
 ## Tests
 

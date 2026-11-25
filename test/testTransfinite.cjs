@@ -116,7 +116,7 @@ describe("Transfinite n-sided patches", function(){
 			var next = srf[(i + 1) % 6];
 			for (var k = 0; k <= 8; k++) {
 				var t = k / 8;
-				// u = 1 (side i's midpoint to the centre) is the next surface's v = 1, from its side's midpoint
+				// u = 1 (side i's split point to the centre) is the next surface's v = 1, from its side's split point
 				Vec.dist(Eval.rationalSurfacePoint(s, 1, t), Eval.rationalSurfacePoint(next, t, 1)).should.be.below(1e-4);
 				// and each one's patch matches the evaluated patch along v = 0 (the boundary)
 				var p = Eval.rationalSurfacePoint(s, t, 0);

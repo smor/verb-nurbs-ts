@@ -56,7 +56,9 @@ export interface OpenBlend {
     side : number;
     sections : Array<FilletSection>;
     shape : FilletShape;
-    rows : Array<{ s : number, points : Array<Point>, uvA : UV, uvB : UV, seamA : number, seamB : number, centre : Point }>;
+    // rows: sections across the blend at s along it, their points at even parameters of the section curve, with the
+    // section's derivatives there (`tangents`, along the section, from A to B)
+    rows : Array<{ s : number, points : Array<Point>, tangents : Array<Point>, uvA : UV, uvB : UV, seamA : number, seamB : number, centre : Point }>;
     m : number;
     // the trims at the start and at the end, ordered by t from 0 to 1
     trims : [Array<TrimPoint> | null, Array<TrimPoint> | null];
@@ -97,8 +99,9 @@ export class FilletCorner {
             const pts : Array<Point> = [x.pa];
             for (let i = 1; i < m; i++) pts.push( Eval.rationalCurvePoint( arc, i / m ) );
             pts.push( x.pb );
+            const tangents = pts.map( (_, i) => Eval.rationalCurveDerivatives( arc, i / m, 1 )[1] );
             if (k > 0) s += Vec.dist( pts[m >> 1], rows[k - 1].points[m >> 1] );
-            rows.push( { s : s, points : pts, uvA : x.a, uvB : x.b, seamA : x.seamA, seamB : x.seamB, centre : x.centre } );
+            rows.push( { s : s, points : pts, tangents : tangents, uvA : x.a, uvB : x.b, seamA : x.seamA, seamB : x.seamB, centre : x.centre } );
         } );
         // two rows past each end, along the end rows' direction (the edge's ends are no further than a few steps out)
         const extend = (r0 : OpenBlend["rows"][0], r1 : OpenBlend["rows"][0], j : number) : OpenBlend["rows"][0] => {
@@ -120,7 +123,8 @@ export class FilletCorner {
             // the contact points stay on their faces where the faces go on
             if (FilletCorner.inside( A.face, uvA )) pts[0] = Eval.rationalSurfacePoint( A.face.surface, uvA[0], uvA[1] );
             if (FilletCorner.inside( B.face, uvB )) pts[m] = Eval.rationalSurfacePoint( B.face.surface, uvB[0], uvB[1] );
-            return { s : r0.s + j * (r0.s - r1.s) / d * d, points : pts, uvA : uvA, uvB : uvB, seamA : 0, seamB : 0, centre : move( r0.centre, r1.centre ) };
+            const tangents = r0.tangents.map( (t, i) => move( t, r1.tangents[i] ) );
+            return { s : r0.s + j * (r0.s - r1.s) / d * d, points : pts, tangents : tangents, uvA : uvA, uvB : uvB, seamA : 0, seamB : 0, centre : move( r0.centre, r1.centre ) };
         };
         if (all !== sections) return { A : A, B : B, radius : radius, side : side, sections : sections, shape : shape, rows : rows, m : m, trims : [null, null], extra : [] };
         const n = rows.length;
@@ -596,18 +600,21 @@ export class FilletCorner {
                 while (a[k] - b2[k] > per / 2) b2[k] += per;
             }
             const N = Math.max( 4, ends[p.i].F.m );
-            const uv : Array<UV> = [], points : Array<Point> = [];
+            const uv : Array<UV> = [], points : Array<Point> = [], tangents : Array<Point> = [];
             for (let k = 0; k <= N; k++) {
                 const t = k / N, t2 = t * t, t3 = t2 * t;
                 const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+                const g00 = 6 * t2 - 6 * t, g10 = 3 * t2 - 4 * t + 1, g01 = -6 * t2 + 6 * t, g11 = 3 * t2 - 2 * t;
                 // a chamfer's corner is cut straight across each face
                 const w : UV = [0, 1].map( c => chamfer ? a[c] + t * (b2[c] - a[c]) : h00 * a[c] + h10 * m0[c] + h01 * b2[c] + h11 * m1[c] ) as UV;
-                if (k == 0) { uv.push( fp.uv ); points.push( fp.point ); continue; }
-                if (k == N) { uv.push( fq.uv ); points.push( fq.point ); continue; }
-                const wd = SurfaceIntersect.toDomain( D, w );
-                uv.push( wd ); points.push( Eval.rationalSurfacePoint( S.face.surface, wd[0], wd[1] ) );
+                const dw : UV = [0, 1].map( c => chamfer ? b2[c] - a[c] : g00 * a[c] + g10 * m0[c] + g01 * b2[c] + g11 * m1[c] ) as UV;
+                const wd = k == 0 ? fp.uv : k == N ? fq.uv : SurfaceIntersect.toDomain( D, w );
+                const ds = Eval.rationalSurfaceDerivatives( S.face.surface, wd[0], wd[1], 1 );
+                uv.push( wd );
+                points.push( k == 0 ? fp.point : k == N ? fq.point : ds[0][0] );
+                tangents.push( Vec.add( Vec.mul( dw[0], ds[1][0] ), Vec.mul( dw[1], ds[0][1] ) ) );
             }
-            return { uv : uv, points : points, side : S };
+            return { uv : uv, points : points, tangents : tangents, side : S };
         } );
         // the six sides in order round the corner: face curve, end section, face curve, ...
         const order : Array<{ kind : "face", f : number, reverse : boolean } | { kind : "end", i : number, fromB : boolean }> = [];
@@ -627,6 +634,12 @@ export class FilletCorner {
             const r = rows[o.i];
             return o.fromB ? r.points.slice().reverse() : r.points;
         } );
+        // the sides' derivatives along them, in their order round the corner
+        const along = order.map( o => {
+            if (o.kind == "face") { const c = curves[o.f]; return o.reverse ? c.tangents.map( v => Vec.mul( -1, v ) ).reverse() : c.tangents; }
+            const r = rows[o.i];
+            return o.fromB ? r.tangents.map( v => Vec.mul( -1, v ) ).reverse() : r.tangents;
+        } );
         const lambda = sides.reduce( (a, p) => a + arcLen( p ), 0 ) / sides.length;
         // the cross derivatives: along each blend, onwards into the corner; on each face, across its curve in the face's
         // tangent plane, the way the blends' sections leave the face
@@ -635,7 +648,7 @@ export class FilletCorner {
             if (o.kind == "end") {
                 const r = rows[o.i];
                 const d = r.dP.map( v => Vec.mul( lambda, v ) );
-                return { points : pts, cross : o.fromB ? d.reverse() : d };
+                return { points : pts, tangents : along[j], cross : o.fromB ? d.reverse() : d };
             }
             const c = curves[o.f];
             const uvs = o.reverse ? c.uv.slice().reverse() : c.uv;
@@ -648,11 +661,11 @@ export class FilletCorner {
                 const uv = uvs[k];
                 const d = Eval.rationalSurfaceDerivatives( fs.face.surface, uv[0], uv[1], 1 );
                 const nrm = Vec.normalized( Vec.cross( d[1][0], d[0][1] ) );
-                const tan = Vec.normalized( Vec.sub( pts[Math.min( k + 1, pts.length - 1 )], pts[Math.max( k - 1, 0 )] ) );
+                const tan = Vec.normalized( along[j][k] );
                 return Vec.normalized( Vec.cross( nrm, tan ) );
             } );
             const sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
-            return { points : pts, cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
+            return { points : pts, tangents : along[j], cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
         } );
         if (ends.every( x => x.F.shape == "curvature" )) {
             // curvature-continuous blends get a curvature-continuous corner (G2): each ribbon also carries the second
@@ -710,7 +723,7 @@ export class FilletCorner {
         const surfaces = Transfinite.surfaces( ribbons, 1e-3 * rMax );
         const part = m.triangles.map( t => {
             const x = m.domain[t[0]], y = m.domain[t[1]], z = m.domain[t[2]];
-            return Transfinite.quadOf( ribbons.length, [(x[0] + y[0] + z[0]) / 3, (x[1] + y[1] + z[1]) / 3] );
+            return Transfinite.quadOf( ribbons, [(x[0] + y[0] + z[0]) / 3, (x[1] + y[1] + z[1]) / 3] );
         } );
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
                  parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
@@ -727,6 +740,7 @@ export class FilletCorner {
         const DA = BrepSolid.domainOf( F.A.face ), DB = BrepSolid.domainOf( F.B.face );
         const uvA = SurfaceIntersect.lerpUV( DA, f, r0.uvA, r1.uvA ), uvB = SurfaceIntersect.lerpUV( DB, f, r0.uvB, r1.uvB );
         const points = r0.points.map( (p, i) => Vec.add( Vec.mul( 1 - f, p ), Vec.mul( f, r1.points[i] ) ) );
+        const tangents = r0.tangents.map( (t, i) => Vec.add( Vec.mul( 1 - f, t ), Vec.mul( f, r1.tangents[i] ) ) );
         const m = points.length - 1;
         points[0] = Eval.rationalSurfacePoint( F.A.face.surface, uvA[0], uvA[1] );
         points[m] = Eval.rationalSurfacePoint( F.B.face.surface, uvB[0], uvB[1] );
@@ -742,7 +756,7 @@ export class FilletCorner {
             }
             return [out[0] * dir / ds, out[1] * dir / ds];
         };
-        return { s : s, points : points, uvA : uvA, uvB : uvB, dP : dP, duvA : duv( DA, r0.uvA, r1.uvA ), duvB : duv( DB, r0.uvB, r1.uvB ),
+        return { s : s, points : points, tangents : tangents, uvA : uvA, uvB : uvB, dP : dP, duvA : duv( DA, r0.uvA, r1.uvA ), duvB : duv( DB, r0.uvB, r1.uvB ),
                  centre : Vec.add( Vec.mul( 1 - f, r0.centre ), Vec.mul( f, r1.centre ) ) };
     }
 
