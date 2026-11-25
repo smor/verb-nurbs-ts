@@ -4,7 +4,7 @@ import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
-import { Transfinite } from "../eval/Transfinite.js";
+import { Ribbon, Transfinite } from "../eval/Transfinite.js";
 import { BrepBoolean } from "./BrepBoolean.js";
 import { BrepFace, BrepSolid, FaceCut } from "./Brep.js";
 import { Fillet, FilletResult, FilletSection, FilletShape, FilletSide } from "./Fillet.js";
@@ -43,6 +43,8 @@ export interface CornerPatch {
     radius : number;
     // a patch carried by several surfaces (a setback corner's six four-sided pieces): each with its triangles
     parts? : Array<{ surface : NurbsSurfaceData, triangles : Array<[number, number, number]> }>;
+    // a setback corner's sides, as the transfinite patch's ribbons (`Transfinite.evaluate` gives the exact patch)
+    ribbons? : Array<Ribbon>;
 }
 
 export interface OpenBlend {
@@ -650,6 +652,21 @@ export class FilletCorner {
             const sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
             return { points : pts, cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
         } );
+        if (ends.every( x => x.F.shape == "curvature" )) {
+            // curvature-continuous blends get a curvature-continuous corner (G2): each ribbon also carries the second
+            // derivative across its side, along the blend (from its rows) or of the face along the cross direction
+            ribbons.forEach( (rb, j) => {
+                const o = order[j];
+                if (o.kind == "end") {
+                    const k2 = FilletCorner.rowSecond( ends[o.i].F, rows[o.i].s ).map( v => Vec.mul( lambda * lambda, v ) );
+                    (rb as Ribbon).second = o.fromB ? k2.reverse() : k2;
+                    return;
+                }
+                const c = curves[o.f];
+                const uvs = o.reverse ? c.uv.slice().reverse() : c.uv;
+                (rb as Ribbon).second = rb.cross.map( (w, k) => FilletCorner.faceSecond( c.side.face.surface, uvs[k], w ) );
+            } );
+        }
         if (ends[0].F.shape == "chamfer") {
             // a chamfer's corner is a facet: each side's cross derivative lies in the plane that best fits the six
             // sides (Newell's normal, oriented by the loop), square to the side, inwards
@@ -694,7 +711,8 @@ export class FilletCorner {
             return Transfinite.quadOf( ribbons.length, [(x[0] + y[0] + z[0]) / 3, (x[1] + y[1] + z[1]) / 3] );
         } );
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
-                 parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ) };
+                 parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
+                 ribbons : ribbons };
     }
 
     // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points
@@ -724,6 +742,31 @@ export class FilletCorner {
         };
         return { s : s, points : points, uvA : uvA, uvB : uvB, dP : dP, duvA : duv( DA, r0.uvA, r1.uvA ), duvB : duv( DB, r0.uvB, r1.uvB ),
                  centre : Vec.add( Vec.mul( 1 - f, r0.centre ), Vec.mul( f, r1.centre ) ) };
+    }
+
+    // The second derivative of a blend's sections along it at s (per unit of s squared), point by point across: a
+    // second difference of the three rows around s.
+    private static rowSecond( F : OpenBlend, s : number ) : Array<Point> {
+        const n = F.rows.length;
+        let j = 1;
+        for (let k = 1; k < n - 1; k++) if (Math.abs( F.rows[k].s - s ) < Math.abs( F.rows[j].s - s )) j = k;
+        const a = F.rows[j - 1], b = F.rows[j], c = F.rows[j + 1];
+        const h0 = Math.max( b.s - a.s, 1e-300 ), h1 = Math.max( c.s - b.s, 1e-300 );
+        return b.points.map( (p, i) => Vec.mul( 2 / (h0 + h1),
+            Vec.sub( Vec.mul( 1 / h1, Vec.sub( c.points[i], p ) ), Vec.mul( 1 / h0, Vec.sub( p, a.points[i] ) ) ) ) );
+    }
+
+    // The second derivative of a surface along a curve on it through uv with velocity w (w in its tangent plane):
+    // S_uu du^2 + 2 S_uv du dv + S_vv dv^2, where w = S_u du + S_v dv. Its normal part is |w|^2 times the normal
+    // curvature in w's direction, which is what a G2 ribbon must match.
+    private static faceSecond( surface : NurbsSurfaceData, uv : UV, w : Point ) : Point {
+        const d = Eval.rationalSurfaceDerivatives( surface, uv[0], uv[1], 2 );
+        const Su = d[1][0], Sv = d[0][1];
+        const E = Vec.dot( Su, Su ), Fm = Vec.dot( Su, Sv ), G = Vec.dot( Sv, Sv ), det = E * G - Fm * Fm;
+        if (!(Math.abs( det ) > 1e-300)) return [0, 0, 0];
+        const a = Vec.dot( w, Su ), b = Vec.dot( w, Sv );
+        const du = (G * a - Fm * b) / det, dv = (E * b - Fm * a) / det;
+        return Vec.add( Vec.add( Vec.mul( du * du, d[2][0] ), Vec.mul( 2 * du * dv, d[1][1] ) ), Vec.mul( dv * dv, d[0][2] ) );
     }
 
     // The triangle on a sphere bounded by three arcs between three feet (each arc's points given from one foot to

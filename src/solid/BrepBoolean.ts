@@ -1,3 +1,4 @@
+import { Ribbon } from "../eval/Transfinite.js";
 import { Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
@@ -33,6 +34,10 @@ export interface BooleanOptions {
     // fillet.
     // the shape of the fillets' cross-sections (default "circular"; see `FilletShape`)
     filletShape? : FilletShape;
+    // corners where three rounded edges of one radius and kind meet: "auto" (default) gives a ball, unless the blends
+    // are curvature-continuous, which get a G2 setback vertex blend; "ball" always gives a ball (a bent one for
+    // curvature-continuous blends: G1 with them, and spherical in look)
+    filletCorner? : "auto" | "ball";
     fillet? : number | ((curve : { solids : [number, number], faces : [number, number] }, index : number) => FilletRadius);
     // edges of the solids' own faces to round too (see `BrepEdges`): the solid, its two faces, and the radius. They take
     // the same fillet shape. Closed edges only for now (a cap's rim, a wall's top).
@@ -56,7 +61,8 @@ export interface BooleanResult {
     // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
     // centre and radius), a setback vertex blend otherwise (the mean of the end sections' centres, the largest radius)
     // (`faces`: all the corner's faces, one for a ball, six four-sided ones for a setback; `face`: the first)
-    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number, faces : Array<number> }>;
+    // (`ribbons`: a setback corner's exact patch, for `Transfinite.evaluate`)
+    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number, faces : Array<number>, ribbons? : Array<Ribbon> }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
@@ -300,9 +306,12 @@ export class BrepBoolean {
             }
             if (filleted.length == 3 && others.length == 0 && new Set( filleted.map( x => x.g ) ).size == 3) {
                 const three = filleted.map( x => ({ F : openBlends.get( x.g ) as OpenBlend, e : x.end, keys : faceKeys( x.g ) as [string, string] }) );
-                // a ball where the three radii are equal there, a setback vertex blend otherwise
-                let patch = FilletCorner.ball( three, tol );
-                if (patch == null) patch = FilletCorner.setback( three, tol );
+                // a ball where the three radii are equal there, a setback vertex blend otherwise. Curvature-continuous
+                // blends always get a setback blend, which is G2 with them; a sphere cannot be (their sections are
+                // not circular arcs)
+                const g2 = o.filletCorner != "ball" && three.every( x => x.F.shape == "curvature" );
+                let patch = g2 ? FilletCorner.setback( three, tol ) : FilletCorner.ball( three, tol );
+                if (patch == null) patch = g2 ? FilletCorner.ball( three, tol ) : FilletCorner.setback( three, tol );
                 if (patch != null) {
                     ok = true;
                     balls.push( { g : filleted.map( x => x.g ), patch : patch } );
@@ -416,7 +425,7 @@ export class BrepBoolean {
                 for (const tri of part.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null ); }
                 faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed, loops : [] } );
             }
-            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ) } );
+            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ), ribbons : b.ribbons } );
         }
         out.vertices = welder.mesh.vertices;
         const kept = (k : number) => { const t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; };

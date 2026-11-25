@@ -260,6 +260,51 @@ describe("verb.solid.Fillet", function(){
 		});
 	});
 
+	it("gives curvature-continuous fillets curvature-continuous corners (G2): no jump in curvature across any side", function(){
+		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
+		var E = lib.BrepEdges.all(b);
+		var Transfinite = lib.Transfinite;
+		// the normal curvature of a corner patch across its sides, times the corner's radius, at the worst of three
+		// points per side. Every face and every blend of a box meets the corner with zero curvature across the joint
+		// (planes, and blends along straight edges), so G2 means zero here.
+		function worstAcross(c) {
+			var R = c.ribbons, n = R.length, P = Transfinite.polygon(n), h = 1e-3, worst = 0;
+			P.forEach(function(a, i){
+				var q = P[(i + 1) % n];
+				var nx = a[1] - q[1], ny = q[0] - a[0], l = Math.sqrt(nx * nx + ny * ny); nx /= l; ny /= l;
+				[0.3, 0.5, 0.7].forEach(function(t){
+					var x = a[0] + t * (q[0] - a[0]), y = a[1] + t * (q[1] - a[1]);
+					var p = [0, 1, 2].map(function(k){ return Transfinite.evaluate(R, [x + k * h * nx, y + k * h * ny]); });
+					var d1 = Vec.mul(1 / h, Vec.sub(p[1], p[0]));
+					var d2 = Vec.mul(1 / (h * h), Vec.add(Vec.sub(p[0], Vec.mul(2, p[1])), p[2]));
+					var along = Vec.sub(Transfinite.evaluate(R, [x + 1e-3 * (q[0] - a[0]), y + 1e-3 * (q[1] - a[1])]), p[0]);
+					var nrm = Vec.normalized(Vec.cross(along, d1));
+					worst = Math.max(worst, Math.abs(Vec.dot(nrm, d2)) / Vec.dot(d1, d1) * c.radius);
+				});
+			});
+			return worst;
+		}
+		// three radii, and one radius: equal radii too get a setback corner, since a sphere cannot be G2 with
+		// curvature-continuous sections
+		[[1, 2, 3], [2, 2, 2]].forEach(function(radii){
+			var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : radii[k % 3] }; }) });
+			res.report.fillets.should.be.equal(12);
+			res.report.filletsSkipped.should.be.equal(0);
+			res.report.manifold.closedManifold.should.be.true();
+			manifold(res.mesh).status().should.be.equal('NoError');
+			res.corners.length.should.be.equal(8);
+			// the same corner built G1 (without second derivatives) jumps by 2.3 to 4 / r; this one by under 0.1 / r
+			res.corners.forEach(function(c){ c.kind.should.be.equal('setback'); worstAcross(c).should.be.below(0.1); });
+		});
+		// ball corners on request: the sphere, bent to meet the three curvature-continuous end sections (G1)
+		var balls = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'curvature', filletCorner : 'ball', edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : 2 }; }) });
+		balls.report.fillets.should.be.equal(12);
+		balls.report.manifold.closedManifold.should.be.true();
+		manifold(balls.mesh).status().should.be.equal('NoError');
+		balls.corners.length.should.be.equal(8);
+		balls.corners.forEach(function(c){ c.kind.should.be.equal('ball'); c.radius.should.be.approximately(2, 1e-9); });
+	});
+
 	it("rounds the edges around a boss on a box: concave mitres at a sharp boss, and mixed corners when the boss is rounded too", function(){
 		var A = BrepSolid.box([0, 0, 0], [30, 20, 8], 12), B = BrepSolid.box([8, 5, 4], [20, 15, 16], 12);
 		// only the new (concave) edges: they meet in pairs at the boss's sharp vertical edges, along mitres

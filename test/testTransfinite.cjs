@@ -69,6 +69,43 @@ describe("Transfinite n-sided patches", function(){
 		});
 	});
 
+	it('with second cross derivatives, matches the normal curvature across every side as well (G2)', function(){
+		var f = function(x, y){ return 0.3 * (x * x - y * y) + 0.2 * x * y + 0.1 * x * x * x; };
+		var S = function(x, y){ return [x, y, f(x, y)]; };
+		var dS = function(x, y){ return [[1, 0, 0.6 * x + 0.2 * y + 0.3 * x * x], [0, 1, -0.6 * y + 0.2 * x]]; };
+		var hess = function(x){ return [[0.6 + 0.6 * x, 0.2], [0.2, -0.6]]; };
+		// the second derivative of the patch along a side's inward normal, against the source's normal curvature there
+		function worstCurvatureGap(n, g2) {
+			var R = ribbonsOf(S, dS, n, 256), P = Transfinite.polygon(n), worst = 0, h = 1e-3;
+			P.forEach(function(a, i){
+				var b = P[(i + 1) % n];
+				var nx = a[1] - b[1], ny = b[0] - a[0], l = Math.sqrt(nx * nx + ny * ny); nx /= l; ny /= l;
+				if (g2) R[i].second = R[i].points.map(function(_, k){
+					var t = k / (R[i].points.length - 1), H = hess(a[0] + t * (b[0] - a[0]));
+					return [0, 0, nx * nx * H[0][0] + 2 * nx * ny * H[0][1] + ny * ny * H[1][1]];
+				});
+			});
+			P.forEach(function(a, i){
+				var b = P[(i + 1) % n];
+				var nx = a[1] - b[1], ny = b[0] - a[0], l = Math.sqrt(nx * nx + ny * ny); nx /= l; ny /= l;
+				[0.25, 0.5, 0.75].forEach(function(t){
+					var x = a[0] + t * (b[0] - a[0]), y = a[1] + t * (b[1] - a[1]);
+					var p = [0, 1, 2].map(function(k){ return Transfinite.evaluate(R, [x + k * h * nx, y + k * h * ny]); });
+					var dd = Vec.mul(1 / (h * h), Vec.add(Vec.sub(p[0], Vec.mul(2, p[1])), p[2]));
+					var d = dS(x, y), nrm = Vec.normalized(Vec.cross(d[0], d[1])), H = hess(x);
+					var want = nrm[2] * (nx * nx * H[0][0] + 2 * nx * ny * H[0][1] + ny * ny * H[1][1]);
+					worst = Math.max(worst, Math.abs(Vec.dot(nrm, dd) - want));
+				});
+			});
+			return worst;
+		}
+		[5, 6].forEach(function(n){
+			// normal curvatures here are about 0.6: G1 ribbons miss them by as much, G2 ribbons to about 1%
+			worstCurvatureGap(n, false).should.be.above(0.3);
+			worstCurvatureGap(n, true).should.be.below(0.02);
+		});
+	});
+
 	it('fits n four-sided B-spline surfaces that meet along their shared sides and trace the patch', function(){
 		var S = function(x, y){ return [x, y, 0.3 * (x * x - y * y) + 0.1 * x * x * x]; };
 		var dS = function(x, y){ return [[1, 0, 0.6 * x + 0.3 * x * x], [0, 1, -0.6 * y]]; };

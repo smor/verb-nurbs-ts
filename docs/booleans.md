@@ -116,9 +116,12 @@ tangent to both faces and has each face's normal curvature where it meets it (G2
 fundamental form along the section's direction. Its control points lie on the two tangent lines towards their meeting
 point, at 0.35 and 0.7 of the way, the second ones lifted off the tangent line by 5/4 k l^2, which is what gives the
 end curvature k. Against a plane the section starts with zero curvature, so reflections run on into the blend with no
-jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Ball corners
-follow: the sphere patch is bent so its sides meet the three G2 end sections, each side's departure from the ball's arc
-carried inside with Nielsen's side-vertex weights (w_j w_k)^2.
+jump, the look of class-A surfaces; a circular fillet's curvature jumps from 0 to 1/r at its edges. Where three such
+blends meet, the corner is a G2 setback vertex blend (below), even for equal radii: a sphere cannot be G2 with sections
+that are not circular arcs. (`filletCorner : "ball"` asks for ball corners instead, and they are the fallback should the
+setback construction fail: a ball corner bent so its sides
+meet the three end sections, each side's departure from the ball's arc carried inside with Nielsen's side-vertex
+weights (w_j w_k)^2: G1 only.)
 
 ### Chamfers
 
@@ -171,7 +174,14 @@ setback vertex blending", Computer-Aided Design 29(6):413–425, 1997):
   side carries a ribbon, its boundary and the derivative across it: along a blend's end section, the blend's own
   derivative along the edge; along a face curve, the direction in the face's tangent plane square to the curve, the
   way the blends' sections leave the face. The patch interpolates every boundary and matches every ribbon's tangent
-  plane, so it is G1 with the blends and the faces all round. The corner is carried by six four-sided bicubic B-spline
+  plane, so it is G1 with the blends and the faces all round.
+* with curvature-continuous blends (`filletShape : "curvature"`) the corner is G2 as well. Each ribbon also carries
+  the second derivative across its side: along a blend, the second difference of its sections; on a face, the face's
+  second derivative along the cross direction (its normal part is the face's normal curvature that way). The
+  transfinite blends become cubes, whose first and second derivatives vanish across each side, and each ribbon gets a
+  second-order term corrected for the side parameter's drift across the side (see `Transfinite`). On a box with
+  radii 1, 2 and 3, the corner's normal curvature across its sides stays under 0.1 / r where the neighbours have
+  none, against 2.3 to 4 / r for the same corner built G1. The corner is carried by six four-sided bicubic B-spline
   surfaces, the usual CAD form of an n-sided patch: the hexagon is split into six quadrilaterals (a vertex, the
   midpoints of its two sides, the centre), each mapped bilinearly from the unit square and fitted to the patch, so
   neighbours meet along their shared sides to within the fit's tolerance. (A single square mapped radially onto the
