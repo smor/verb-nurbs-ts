@@ -1,3 +1,4 @@
+import { Ribbon } from "../eval/Transfinite.js";
 import { Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
@@ -56,7 +57,8 @@ export interface BooleanResult {
     // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
     // centre and radius), a setback vertex blend otherwise (the mean of the end sections' centres, the largest radius)
     // (`faces`: all the corner's faces, one for a ball, six four-sided ones for a setback; `face`: the first)
-    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number, faces : Array<number> }>;
+    // (`ribbons`: a setback corner's exact patch, for `Transfinite.evaluate`)
+    corners : Array<{ kind : "ball" | "setback", centre : Point, radius : number, face : number, faces : Array<number>, ribbons? : Array<Ribbon> }>;
     report : {
         manifold : ManifoldReport;
         volume : number;
@@ -416,7 +418,7 @@ export class BrepBoolean {
                 for (const tri of part.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null ); }
                 faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed, loops : [] } );
             }
-            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ) } );
+            cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ), ribbons : b.ribbons } );
         }
         out.vertices = welder.mesh.vertices;
         const kept = (k : number) => { const t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; };

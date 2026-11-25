@@ -6,10 +6,13 @@ import { Fit } from "./Fit.js";
 // One side of an n-sided patch: its boundary curve as samples in order around the patch, and at each sample the
 // derivative across the boundary into the patch, per unit of distance in the patch's domain (a regular polygon of
 // side 1). Together they are the side's ribbon: R(s, d) = C(s) + d T(s), the surface the patch must touch along the
-// side (G1 continuity with whatever lies on the other side of the boundary).
+// side (G1 continuity with whatever lies on the other side of the boundary). With `second`, the second derivative
+// across the boundary (per unit of distance squared) as well, the ribbon is R(s, d) = C(s) + d T(s) + d^2/2 K(s), and
+// the patch matches the normal curvature across the side too (G2).
 export interface Ribbon {
     points : Array<Point>;
     cross : Array<Point>;
+    second? : Array<Point>;
 }
 
 // Transfinite n-sided patches: Kato's side-based interpolant over a regular polygon (S. Kato, "Generation of n-sided
@@ -22,6 +25,18 @@ export interface Ribbon {
 // which takes each side's boundary and its cross derivative exactly: B_i is 1 on side i, and all blends' first
 // derivatives across a side vanish there. Corners need compatible ribbons (each side's end tangent the next side's
 // cross derivative there) for the patch to be G1 at them as well.
+//
+// G2. When every ribbon has a second cross derivative K, the blends use cubes (prod_{j != i} d_j^3 ...), whose first
+// and second derivatives across a side vanish there, and each ribbon carries a second-order term. That term is not
+// simply K: s_i is not constant across side i (ds_i/dn = a(s) = (1 - 2s) cot(2 pi / n) on a regular n-gon), so
+// following the patch straight across the side also moves along the ribbon, and the second derivative picks up
+// a^2 C'' + 2 a T' + (ds_i/dn)' C'. The last is tangent to the boundary and leaves the curvature alone; the first two
+// are subtracted, so that the second derivative across the side is K up to a tangential term:
+//
+//     R_i(s, d) = C(s) + d T(s) + d^2/2 (K(s) - a(s)^2 C''(s) - 2 a(s) T'(s)).
+//
+// (Salvi, Várady and Rockwood, above, discuss this parametrisation term for G^k ribbons.) For n = 4, a = 0 and the
+// correction vanishes.
 export class Transfinite {
 
     // The domain: a regular n-gon of side 1, its vertex i at the start of side i, counter-clockwise.
@@ -45,14 +60,24 @@ export class Transfinite {
             const a = d[(nearest + n - 1) % n], b = d[(nearest + 1) % n];
             return Transfinite.at( ribbons[nearest].points, a + b > 0 ? a / (a + b) : 0 );
         }
+        const g2 = ribbons.every( r => r.second != null );
+        const cot = 1 / Math.tan( 2 * Math.PI / n );
         let out : Point = [0, 0, 0], total = 0.0;
         for (let i = 0; i < n; i++) {
             let w = 1.0;
-            for (let j = 0; j < n; j++) if (j != i) w *= d[j] * d[j];
+            for (let j = 0; j < n; j++) if (j != i) w *= g2 ? d[j] * d[j] * d[j] : d[j] * d[j];
             if (w == 0) continue;
             const a = d[(i + n - 1) % n], b = d[(i + 1) % n];
             const s = a + b > 0 ? a / (a + b) : 0;
-            const r = Vec.add( Transfinite.at( ribbons[i].points, s ), Vec.mul( d[i], Transfinite.at( ribbons[i].cross, s, ribbons[i].points ) ) );
+            const rb = ribbons[i];
+            let r = Vec.add( Transfinite.at( rb.points, s ), Vec.mul( d[i], Transfinite.at( rb.cross, s, rb.points ) ) );
+            if (g2) {
+                const dr = Transfinite.derivatives( rb );
+                const as = (1 - 2 * s) * cot;
+                const K = Vec.sub( Transfinite.at( rb.second as Array<Point>, s, rb.points ),
+                    Vec.add( Vec.mul( as * as, Transfinite.at( dr.C2, s, rb.points ) ), Vec.mul( 2 * as, Transfinite.at( dr.T1, s, rb.points ) ) ) );
+                r = Vec.add( r, Vec.mul( 0.5 * d[i] * d[i], K ) );
+            }
             out = Vec.add( out, Vec.mul( w, r ) );
             total += w;
         }
@@ -129,6 +154,17 @@ export class Transfinite {
         } );
     }
 
+    // A ribbon's C'' and T' with respect to s, by central differences over its samples (one-sided at the ends).
+    private static derived = new WeakMap<Ribbon, { C2 : Array<Point>, T1 : Array<Point> }>();
+    private static derivatives( rb : Ribbon ) : { C2 : Array<Point>, T1 : Array<Point> } {
+        const known = Transfinite.derived.get( rb );
+        if (known != null) return known;
+        const u = Transfinite.chord( rb.points );
+        const out = { C2 : Transfinite.diff( Transfinite.diff( rb.points, u ), u ), T1 : Transfinite.diff( rb.cross, u ) };
+        Transfinite.derived.set( rb, out );
+        return out;
+    }
+
     // Normalised chord-length parameters of a polyline.
     private static cache = new WeakMap<Array<Point>, Array<number>>();
     private static chord( p : Array<Point> ) : Array<number> {
@@ -143,13 +179,35 @@ export class Transfinite {
     }
 
     // Samples at a fraction of their polyline's length (of `by`'s length, when given: cross derivatives are
-    // parametrised by their boundary).
+    // parametrised by their boundary), by cubic Hermite interpolation with central-difference tangents, so that the
+    // ribbons are smooth (C1) in s: the G2 terms above differentiate them.
     private static at( p : Array<Point>, s : number, by? : Array<Point> ) : Point {
         const u = Transfinite.chord( by != null ? by : p );
         let k = 0;
         while (k + 2 < u.length && u[k + 1] < s) k++;
         const du = u[k + 1] - u[k];
-        const f = du > 1e-15 ? Math.max( 0, Math.min( 1, (s - u[k]) / du ) ) : 0;
-        return Vec.add( Vec.mul( 1 - f, p[k] ), Vec.mul( f, p[k + 1] ) );
+        if (!(du > 1e-15)) return p[k];
+        const t = Math.max( 0, Math.min( 1, (s - u[k]) / du ) ), t2 = t * t, t3 = t2 * t;
+        const m = Transfinite.slopes( p, u );
+        const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+        return Vec.add( Vec.add( Vec.mul( h00, p[k] ), Vec.mul( h10 * du, m[k] ) ), Vec.add( Vec.mul( h01, p[k + 1] ), Vec.mul( h11 * du, m[k + 1] ) ) );
+    }
+
+    // Derivatives of samples with respect to their parameters u: central differences, one-sided at the ends.
+    private static slopeCache = new WeakMap<Array<Point>, Array<Point>>();
+    private static slopes( v : Array<Point>, u : Array<number> ) : Array<Point> {
+        const known = Transfinite.slopeCache.get( v );
+        if (known != null && known.length == v.length) return known;
+        const out = Transfinite.diff( v, u );
+        Transfinite.slopeCache.set( v, out );
+        return out;
+    }
+
+    private static diff( v : Array<Point>, u : Array<number> ) : Array<Point> {
+        return v.map( (_, k) => {
+            const lo = Math.max( 0, k - 1 ), hi = Math.min( v.length - 1, k + 1 );
+            const du = u[hi] - u[lo];
+            return du > 1e-15 ? Vec.mul( 1 / du, Vec.sub( v[hi], v[lo] ) ) : [0, 0, 0] as Point;
+        } );
     }
 }

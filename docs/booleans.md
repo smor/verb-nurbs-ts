@@ -171,7 +171,14 @@ setback vertex blending", Computer-Aided Design 29(6):413–425, 1997):
   side carries a ribbon, its boundary and the derivative across it: along a blend's end section, the blend's own
   derivative along the edge; along a face curve, the direction in the face's tangent plane square to the curve, the
   way the blends' sections leave the face. The patch interpolates every boundary and matches every ribbon's tangent
-  plane, so it is G1 with the blends and the faces all round. The corner is carried by six four-sided bicubic B-spline
+  plane, so it is G1 with the blends and the faces all round.
+* with curvature-continuous blends (`filletShape : "curvature"`) the corner is G2 as well. Each ribbon also carries
+  the second derivative across its side: along a blend, the second difference of its sections; on a face, the face's
+  second derivative along the cross direction (its normal part is the face's normal curvature that way). The
+  transfinite blends become cubes, whose first and second derivatives vanish across each side, and each ribbon gets a
+  second-order term corrected for the side parameter's drift across the side (see `Transfinite`). On a box with
+  radii 1, 2 and 3, the corner's normal curvature across its sides stays under 0.1 / r where the neighbours have
+  none, against 2.3 to 4 / r for the same corner built G1. The corner is carried by six four-sided bicubic B-spline
   surfaces, the usual CAD form of an n-sided patch: the hexagon is split into six quadrilaterals (a vertex, the
   midpoints of its two sides, the centre), each mapped bilinearly from the unit square and fitted to the patch, so
   neighbours meet along their shared sides to within the fit's tolerance. (A single square mapped radially onto the
@@ -260,6 +267,9 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
   sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
   of the derivative surfaces).
+* **G2 ball corners.** With curvature-continuous blends, setback corners are G2 (above), but a ball corner (three
+  equal radii, one kind) is still the bent sphere patch, G1 with its blends. Building it as a three-sided G2
+  transfinite patch from the same ribbons would close the gap.
 * **Trim curves are polylines.** `TrimmedFace.loops` are dense polylines in `(u, v)`. Fitting them with B-splines
   (`Fit.curve`) would give IGES 142/144 or STEP style trimmed surfaces for export.
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
