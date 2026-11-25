@@ -200,8 +200,11 @@ side, and is dropped. Every section shape works (circular, curvature-continuous,
 
 `BrepBoolean.evaluate([solid], f => f[0], { edges : [...] })` rounds one solid with no Boolean at all. On a disc of
 radius 30, both rims rounded with r = 2 give exact tori (every blend vertex r from its centre circle, to the fit of
-the pipe's surface), and remove Pappus's volume to within the chords' sag. Closed edges only for now; open ones (a
-box's) need the corners above, between own edges.
+the pipe's surface), and remove Pappus's volume to within the chords' sag. Open edges end at the solid's vertices: their end
+points are shared (snapped) with the other edges there, so they meet at corners like a Boolean's runs, and the corners
+above apply. `BrepSolid.box` with all twelve edges rounded at one radius gets eight ball corners and the volume of the
+Minkowski sum of the inner box and the ball (to within the chords, 0.3% low at r = 2); with three radii, setback
+corners where they differ; chamfered, flat and faceted corners.
 
 ## Seams of surfaces of revolution
 

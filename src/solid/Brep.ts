@@ -103,6 +103,18 @@ export class BrepSolid {
         return Vec.mul( 1 / samples, s );
     }
 
+    // An axis-aligned box: six bilinear faces, named by the side they face ("-x", "+x", ...), each sharing its four
+    // sides with its neighbours.
+    public static box( min : Point, max : Point, divs : number = 8 ) : BrepSolid {
+        let c = (i : number, j : number, k : number) : Point => [i ? max[0] : min[0], j ? max[1] : min[1], k ? max[2] : min[2]];
+        let quad = (a : Point, b : Point, cc : Point, d : Point, name : string) => BrepSolid.face( Make.fourPointSurface( a, b, cc, d, 1 ), [false, false], [divs, divs], name );
+        return new BrepSolid( [
+            quad( c(0,0,0), c(0,1,0), c(0,1,1), c(0,0,1), "-x" ), quad( c(1,0,0), c(1,0,1), c(1,1,1), c(1,1,0), "+x" ),
+            quad( c(0,0,0), c(0,0,1), c(1,0,1), c(1,0,0), "-y" ), quad( c(0,1,0), c(1,1,0), c(1,1,1), c(0,1,1), "+y" ),
+            quad( c(0,0,0), c(1,0,0), c(1,1,0), c(0,1,0), "-z" ), quad( c(0,0,1), c(0,1,1), c(1,1,1), c(1,0,1), "+z" ),
+        ] ).orient();
+    }
+
     // A tube closed in v, with a flat cap at each end: the solid of a pipe or of any surface swept along an open rail.
     public static cappedTube( tube : NurbsSurfaceData, divs : [number, number] ) : BrepSolid {
         let c0 = BrepSolid.edge( tube, true, false ), c1 = BrepSolid.edge( tube, true, true );

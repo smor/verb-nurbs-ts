@@ -172,10 +172,19 @@ export class BrepBoolean {
 
         // the solids' own edges to round: runs that are not cut into their faces (they lie on the faces' sides)
         let ownFailed = 0;
+        let vertices : Array<Point> = [];
         for (let x of o.edges || []) {
             let solid = solids[x.solid];
             let e = BrepEdges.between( solid, x.faces[0], x.faces[1] );
-            if (e == null || !e.curve.closed) { ownFailed++; continue; }
+            if (e == null) { ownFailed++; continue; }
+            // an open edge ends at vertices of the solid, shared with the other edges there
+            if (!e.curve.closed) {
+                let pts = e.curve.points;
+                for (let k of [0, pts.length - 1]) {
+                    let same = vertices.find( v => Vec.dist( v, pts[k] ) < snap );
+                    if (same != null) pts[k] = same; else vertices.push( pts[k] );
+                }
+            }
             // an edge of the result where the other solids leave its solid's boundary there
             let mid = e.curve.points[e.curve.points.length >> 1];
             let flags = solids.map( (_, k) => k == x.solid ? false : meshes[k].contains( mid ) );
