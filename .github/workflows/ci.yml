@@ -69,6 +69,7 @@ jobs:
       - run: node examples/aalto-vessel.mjs out
       - run: node examples/swept-objects.mjs out
       - run: node examples/boolean-objects.mjs out
+      - run: node examples/step-export.mjs out/step
       - run: npm run playground
       - run: npm run viewer
       - run: npm run docs
