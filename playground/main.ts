@@ -67,16 +67,18 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
     },
     pierced : {
         name : "Pierced vessel",
-        note : "NURBS Boolean: body − cavity − round tools, one exact trimmed hole through the wall per tool.",
+        note : "NURBS Boolean: body − cavity − round tools. Holes go through the wall; notches cut the rim, where three faces meet at exact triple points.",
         sliders : [
             { key : "height", label : "Height", min : 80, max : 220, step : 1, value : 140, unit : "mm" },
             { key : "baseRadius", label : "Base radius", min : 40, max : 90, step : 1, value : 55, unit : "mm" },
             { key : "rimRadius", label : "Rim radius", min : 40, max : 95, step : 1, value : 62, unit : "mm" },
             { key : "folds", label : "Fold depth", min : 0, max : 1.4, step : 0.05, value : 1, unit : "×" },
             { key : "wall", label : "Wall", min : 2, max : 6, step : 0.1, value : 3, unit : "mm" },
-            { key : "holes", label : "Holes per row", min : 3, max : 14, step : 1, value : 9 },
+            { key : "holes", label : "Holes per row", min : 0, max : 14, step : 1, value : 9 },
             { key : "rows", label : "Rows", min : 1, max : 3, step : 1, value : 2 },
             { key : "hole", label : "Hole radius", min : 3, max : 12, step : 0.5, value : 7, unit : "mm" },
+            { key : "notches", label : "Rim notches", min : 0, max : 14, step : 1, value : 9 },
+            { key : "notch", label : "Notch radius", min : 3, max : 9, step : 0.5, value : 7, unit : "mm" },
         ]
     },
     ribbon : {

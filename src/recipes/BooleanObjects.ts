@@ -35,6 +35,9 @@ export interface PierceParams extends FreeformVesselParams {
     rows? : number;
     // hole radius (default 7)
     holeRadius? : number;
+    // round notches cut into the rim, and their radius (default 0 and 8)
+    notches? : number;
+    notchRadius? : number;
 }
 
 export interface PiercedVessel {
@@ -122,6 +125,14 @@ export class BooleanObjectsRecipe {
                 let tube = Sweep.pipe( Make.rationalBezierCurve( [a, b] ), hr ).surface;
                 tools.push( BrepSolid.cappedTube( tube, [12, 32] ) );
             }
+        }
+        // notches: tools centred on the rim, so their seams run across the edge between the outer wall and the rim
+        let notches = p.notches != null ? p.notches : 0, nr = p.notchRadius != null ? p.notchRadius : 8;
+        for (let k = 0; k < notches; k++) {
+            let th = 2 * Math.PI * (k + 0.5) / notches;
+            let dir : Point = [Math.cos( th ), Math.sin( th ), 0];
+            let a = Vec.add( [0, 0, H], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
+            tools.push( BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), nr ).surface, [12, 32] ) );
         }
         let result = BrepBoolean.evaluate( [solids.body, solids.cavity].concat( tools ),
             f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ) );

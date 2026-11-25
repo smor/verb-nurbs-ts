@@ -40,7 +40,7 @@ function mug( p : Record<string, number>, fine : boolean ) {
 function pierced( p : Record<string, number>, fine : boolean ) {
     let o = BooleanObjectsRecipe.pierced( {
         height : p.height, radius : [p.baseRadius, p.rimRadius], harmonics : folds( p.folds ), wallThickness : p.wall,
-        holes : p.holes, rows : p.rows, holeRadius : p.hole,
+        holes : p.holes, rows : p.rows, holeRadius : p.hole, notches : p.notches, notchRadius : p.notch,
         offsetTolerance : fine ? 0.02 : 0.08, divsU : fine ? 48 : 24, divsV : fine ? 192 : 96
     } );
     let r = o.result.report;

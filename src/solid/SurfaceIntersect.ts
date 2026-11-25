@@ -75,6 +75,7 @@ export class SurfaceIntersect {
             let closed = gap < step * 2 || gap < SurfaceIntersect.meshEdge( ma, mb ) * 1.5;
             if (closed && gap < step * 0.2) { pts.pop(); ua.pop(); ub.pop(); }
             let c : IntersectionCurve = { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed };
+            if (!closed) c = SurfaceIntersect.extendToEdges( A, B, c, Math.max( step, SurfaceIntersect.meshEdge( ma, mb ) ) * 4, tol );
             c = SurfaceIntersect.densify( A, B, c, step, tol );
             c = SurfaceIntersect.insertSeams( A, B, c, tol );
             out.push( c );
@@ -143,6 +144,52 @@ export class SurfaceIntersect {
             else if (a[k] - bb[k] > per / 2) bb[k] += per;
         }
         return SurfaceIntersect.toDomain( S, [a[0] + (bb[0] - a[0]) * t, a[1] + (bb[1] - a[1]) * t] );
+    }
+
+    // An open branch leaves through an edge of one of the two faces. Put an exact vertex where it crosses that edge
+    // (isocurve/surface Newton from the branch's last vertex), so the faces on both sides of the edge share it.
+    // `reach` bounds how far the edge may be from the last vertex.
+    public static extendToEdges( A : SurfaceDomain, B : SurfaceDomain, c : IntersectionCurve, reach : number, tol : number ) : IntersectionCurve {
+        let end = (k : number) => {
+            let p = c.points[k];
+            let best : { point : Point, uvA : UV, uvB : UV, d : number } | null = null;
+            for (let side = 0; side < 2; side++) {
+                let S = side == 0 ? A : B, O = side == 0 ? B : A;
+                let uvS = side == 0 ? c.uvA[k] : c.uvB[k], uvO = side == 0 ? c.uvB[k] : c.uvA[k];
+                let per = S.periodic != null ? S.periodic : [false, false];
+                let d = SurfaceIntersect.domain( S.surface );
+                for (let a = 0; a < 2; a++) {
+                    if (per[a]) continue;
+                    for (let e = 0; e < 2; e++) {
+                        let value = d[2 * a + e];
+                        let r = SurfaceIntersect.isocurveSurface( S.surface, a == 0, value, uvS[1 - a], O.surface, uvO, tol );
+                        if (r == null) continue;
+                        let dist = Vec.dist( r.point, p );
+                        if (dist > reach || (best != null && dist >= best.d)) continue;
+                        let onS : UV = a == 0 ? [value, r.t] : [r.t, value];
+                        let onO = SurfaceIntersect.toDomain( O, r.uvB );
+                        let od = SurfaceIntersect.domain( O.surface );
+                        let op = O.periodic != null ? O.periodic : [false, false];
+                        let off = [0, 1].some( q => !op[q] && (r.uvB[q] < od[2 * q] - 1e-9 || r.uvB[q] > od[2 * q + 1] + 1e-9) );
+                        if (off) continue; // the crossing is off the other face
+                        best = { point : r.point, uvA : side == 0 ? onS : onO, uvB : side == 0 ? onO : onS, d : dist };
+                    }
+                }
+            }
+            return best;
+        };
+        let pts = c.points.slice(), ua = c.uvA.slice(), ub = c.uvB.slice();
+        let first = end( 0 ), last = end( c.points.length - 1 );
+        if (first != null) {
+            if (first.d < reach * 0.02) { pts[0] = first.point; ua[0] = first.uvA; ub[0] = first.uvB; }
+            else { pts.unshift( first.point ); ua.unshift( first.uvA ); ub.unshift( first.uvB ); }
+        }
+        if (last != null) {
+            let n = pts.length - 1;
+            if (last.d < reach * 0.02) { pts[n] = last.point; ua[n] = last.uvA; ub[n] = last.uvB; }
+            else { pts.push( last.point ); ua.push( last.uvA ); ub.push( last.uvB ); }
+        }
+        return { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : false };
     }
 
     // Insert refined midpoints wherever two consecutive vertices are more than `step` apart.

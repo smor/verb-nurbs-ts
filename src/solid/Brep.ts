@@ -210,11 +210,14 @@ export class FaceMesher {
             return uv.length - 1;
         };
 
-        // where cuts meet the domain edges (cuts meet only seams, so a cut point on one side of a seam is added to the
-        // other side as well): extra u values on the v edges, extra v values on the u edges
+        // where cuts meet the domain edges: extra u values on the edges v = start (0) and v = end (1), extra v values
+        // on the edges u = start and u = end. A cut end on a seam is added to both sides of the seam; on an ordinary
+        // edge only to that edge, where the neighbouring face adds the same point from its own side of the cut.
+        // A cut end inside the face must meet the end of another cut (a branch that continues on another face).
         let us = Array.from( { length : nu + 1 }, (_, i) => d[0] + (d[1] - d[0]) * i / nu );
         let vs = Array.from( { length : nv + 1 }, (_, j) => d[2] + (d[3] - d[2]) * j / nv );
-        let atU : Array<number> = [], atV : Array<number> = [];
+        us[nu] = d[1]; vs[nv] = d[3]; // exactly on the edge, so points on it stay collinear
+        let atU : [Array<number>, Array<number>] = [[], []], atV : [Array<number>, Array<number>] = [[], []];
         let endpoints : Map<string, Point> = new Map();
         for (let c of cuts) {
             if (c.closed) continue;
@@ -222,22 +225,26 @@ export class FaceMesher {
                 let p = c.uv[e];
                 let onU = Math.abs( p[0] - d[0] ) < 1e-12 || Math.abs( p[0] - d[1] ) < 1e-12;
                 let onV = Math.abs( p[1] - d[2] ) < 1e-12 || Math.abs( p[1] - d[3] ) < 1e-12;
-                if (onV) { atU.push( p[0] ); endpoints.set( keyOf( [p[0], d[2]] ), c.points[e] ); endpoints.set( keyOf( [p[0], d[3]] ), c.points[e] ); }
-                else if (onU) { atV.push( p[1] ); endpoints.set( keyOf( [d[0], p[1]] ), c.points[e] ); endpoints.set( keyOf( [d[1], p[1]] ), c.points[e] ); }
-                else throw "FaceMesher: a cut curve ends inside the face '" + (f.name != null ? f.name : "") + "'";
+                if (onV) {
+                    let sides = f.periodic[1] ? [0, 1] : [Math.abs( p[1] - d[3] ) < 1e-12 ? 1 : 0];
+                    for (let sd of sides) { atU[sd].push( p[0] ); endpoints.set( keyOf( [p[0], d[2 + sd]] ), c.points[e] ); }
+                } else if (onU) {
+                    let sides = f.periodic[0] ? [0, 1] : [Math.abs( p[0] - d[1] ) < 1e-12 ? 1 : 0];
+                    for (let sd of sides) { atV[sd].push( p[1] ); endpoints.set( keyOf( [d[sd], p[1]] ), c.points[e] ); }
+                }
             }
         }
         let addB = (p : UV) => { let e = endpoints.get( keyOf( p ) ); return add( p, e != null ? e : null ); };
 
         // a boundary grid node that (almost) coincides with a cut end becomes that cut end
-        let snapU = us.map( u => { let e = atU.find( x => Math.abs( x - u ) < (d[1] - d[0]) * 1e-7 ); return e != null ? e : u; } );
-        let snapV = vs.map( v => { let e = atV.find( x => Math.abs( x - v ) < (d[3] - d[2]) * 1e-7 ); return e != null ? e : v; } );
+        let snapU = [0, 1].map( sd => us.map( u => { let e = atU[sd].find( x => Math.abs( x - u ) < (d[1] - d[0]) * 1e-7 ); return e != null ? e : u; } ) );
+        let snapV = [0, 1].map( sd => vs.map( v => { let e = atV[sd].find( x => Math.abs( x - v ) < (d[3] - d[2]) * 1e-7 ); return e != null ? e : v; } ) );
         let nodes = new Int32Array( (nu + 1) * (nv + 1) ).fill( -1 );
         let node = (i : number, j : number) : number => {
             let k = i * (nv + 1) + j;
             if (nodes[k] < 0) {
                 let onI = i == 0 || i == nu, onJ = j == 0 || j == nv;
-                nodes[k] = addB( [onJ ? snapU[i] : us[i], onI ? snapV[j] : vs[j]] );
+                nodes[k] = addB( [onJ ? snapU[j == 0 ? 0 : 1][i] : us[i], onI ? snapV[i == 0 ? 0 : 1][j] : vs[j]] );
             }
             return nodes[k];
         };
@@ -273,13 +280,13 @@ export class FaceMesher {
                     if (FaceMesher.segDist( [i * hx, j * hy], sg[0], sg[1] ) < r) near[i * (nv + 1) + j] = 1;
         }
         let cellOf = (x : number, n : number) => [Math.floor( x * n - 1e-6 ), Math.floor( x * n + 1e-6 )];
-        for (let u of atU) for (let i of cellOf( (u - d[0]) / (d[1] - d[0]), nu )) {
-            if (i < 0 || i >= nu) continue;
-            blocked[i * nv] = 1; blocked[i * nv + nv - 1] = 1;
-        }
-        for (let v of atV) for (let j of cellOf( (v - d[2]) / (d[3] - d[2]), nv )) {
-            if (j < 0 || j >= nv) continue;
-            blocked[j] = 1; blocked[(nu - 1) * nv + j] = 1;
+        for (let sd = 0; sd < 2; sd++) {
+            for (let u of atU[sd]) for (let i of cellOf( (u - d[0]) / (d[1] - d[0]), nu )) {
+                if (i >= 0 && i < nu) blocked[i * nv + (sd == 0 ? 0 : nv - 1)] = 1;
+            }
+            for (let v of atV[sd]) for (let j of cellOf( (v - d[2]) / (d[3] - d[2]), nv )) {
+                if (j >= 0 && j < nv) blocked[(sd == 0 ? 0 : nu - 1) * nv + j] = 1;
+            }
         }
 
         let triangles : Array<Array<number>> = [];
@@ -290,7 +297,7 @@ export class FaceMesher {
             else { triangles.push( [a, b, e] ); triangles.push( [b, c, e] ); }
         }
 
-        if (segs.length > 0 || atU.length > 0 || atV.length > 0) {
+        if (segs.length > 0 || atU[0].length + atU[1].length + atV[0].length + atV[1].length > 0) {
             let isBlocked = (i : number, j : number) => i >= 0 && i < nu && j >= 0 && j < nv && blocked[i * nv + j] == 1;
             let inside = (i : number, j : number) => i >= 0 && i < nu && j >= 0 && j < nv;
             let used = new Set<number>();
@@ -326,7 +333,7 @@ export class FaceMesher {
                     if (inside( ni, nj )) constrain( a, b );
                     else {
                         let alongU = sd[1] == sd[3];
-                        chain( uv[a], uv[b], alongU ? 0 : 1, alongU ? atU : atV, a, b );
+                        chain( uv[a], uv[b], alongU ? 0 : 1, alongU ? atU[sd[1] == 0 ? 0 : 1] : atV[sd[0] == 0 ? 0 : 1], a, b );
                     }
                 }
             }

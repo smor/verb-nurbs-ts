@@ -133,6 +133,34 @@ describe("verb.solid.BrepBoolean", function(){
 	});
 });
 
+describe("verb.solid.BrepBoolean across face edges", function(){
+	// the thin rod crosses the end of the thick one, so every intersection branch runs from the thick rod's wall
+	// onto its end cap
+	var a = BrepSolid.cappedTube(Sweep.pipe(line([-30,0,0],[30,0,0]), 10).surface, [24, 64]);
+	var b = BrepSolid.cappedTube(Sweep.pipe(line([28,-30,1],[28,30,1]), 6).surface, [24, 64]);
+	var ma = a.tessellate(), mb = b.tessellate();
+	var cases = {
+		union : [function(){ return BrepBoolean.union([a, b]); }, function(x, y){ return x.add(y); }],
+		intersection : [function(){ return BrepBoolean.intersection([a, b]); }, function(x, y){ return x.intersect(y); }],
+		difference : [function(){ return BrepBoolean.difference(a, [b]); }, function(x, y){ return x.subtract(y); }],
+	};
+	Object.keys(cases).forEach(function(name){
+		it(name + ' is watertight when branches cross the edge between wall and cap', function(){
+			var r = cases[name][0]();
+			r.report.manifold.closedManifold.should.be.true();
+			r.curves.filter(function(e){ return !e.curve.closed; }).length.should.be.equal(4);
+			// branches that meet at the edge share their end point exactly
+			var ends = [];
+			r.curves.forEach(function(e){ ends.push(e.curve.points[0], e.curve.points[e.curve.points.length - 1]); });
+			ends.forEach(function(p){ ends.filter(function(q){ return q === p; }).length.should.be.equal(2); });
+			var m = manifold(r.mesh);
+			m.status().should.be.equal('NoError');
+			var ref = cases[name][1](manifold(ma), manifold(mb));
+			m.volume().should.be.approximately(ref.volume(), ref.volume() * 2e-3);
+		});
+	});
+});
+
 describe("verb.recipes.BooleanObjectsRecipe", function(){
 	this.timeout(60000);
 
@@ -145,6 +173,17 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		m.status().should.be.equal('NoError');
 		m.genus().should.be.equal(1);
 		var ref = manifold(o.body.tessellate()).add(manifold(o.handle.tessellate())).subtract(manifold(o.cavity.tessellate()));
+		m.volume().should.be.approximately(ref.volume(), ref.volume() * 1e-3);
+	});
+
+	it('rim notches: three faces meet at triple points, and the result is still watertight', function(){
+		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, notches : 3, divsU : 48, divsV : 192 });
+		o.result.report.manifold.closedManifold.should.be.true();
+		o.result.report.manifold.genus.should.be.equal(0);
+		var m = manifold(o.result.mesh);
+		m.status().should.be.equal('NoError');
+		var tess = [o.body, o.cavity].concat(o.tools).map(function(s){ return manifold(s.tessellate()); });
+		var ref = tess.slice(1).reduce(function(x, y){ return x.subtract(y); }, tess[0]);
 		m.volume().should.be.approximately(ref.volume(), ref.volume() * 1e-3);
 	});
 
