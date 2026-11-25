@@ -211,6 +211,10 @@ export class FaceMesher {
         const d = SurfaceIntersect.domain( s );
         const nu = f.divs[0], nv = f.divs[1];
         const L = FaceMesher.lengths( s, d );
+        // cut points within rounding of a domain edge lie on it: a point a hair inside would leave a sliver triangle
+        // between it and the edge, bridging the cut (across a seam, the regions on both sides would merge)
+        const onEdge = (x : number, lo : number, hi : number) => Math.abs( x - lo ) < 1e-12 ? lo : Math.abs( x - hi ) < 1e-12 ? hi : x;
+        cuts = cuts.map( c => ({ ...c, uv : c.uv.map( p => [onEdge( p[0], d[0], d[1] ), onEdge( p[1], d[2], d[3] )] as UV ) }) );
         const X = (uv : UV) : Array<number> => [(uv[0] - d[0]) / (d[1] - d[0]) * L[0], (uv[1] - d[2]) / (d[3] - d[2]) * L[1]];
         const hx = L[0] / nu, hy = L[1] / nv;
 

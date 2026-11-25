@@ -134,6 +134,20 @@ describe("verb.solid.BrepBoolean", function(){
 	});
 });
 
+describe("verb.solid.BrepBoolean fillets across a seam", function(){
+	// a contact curve on the bore's tube ends a rounding error off its seam (v = 1e-15 instead of 0): that end must
+	// still close the cut, or a sliver triangle bridges it and the tube merges with the fillet's strip and is dropped
+	[2.5, 3, 4, 4.5].forEach(function(radius){
+		it('keeps the bore of radius ' + radius + ' when its rims are rounded', function(){
+			var box = BrepSolid.box([0,0,0],[40,28,20], 12);
+			var bore = BrepSolid.cappedTube(Sweep.pipe(line([8,14,-5],[8,14,25]), radius).surface, [24, 96]);
+			var r = BrepBoolean.difference(box, [bore], {fillet: 1});
+			r.report.manifold.closedManifold.should.be.true();
+			r.faces.map(function(f){ return f.name; }).filter(function(n){ return n == 'tube'; }).length.should.be.equal(1);
+		});
+	});
+});
+
 describe("verb.solid.BrepBoolean across face edges", function(){
 	// the thin rod crosses the end of the thick one, so every intersection branch runs from the thick rod's wall
 	// onto its end cap
