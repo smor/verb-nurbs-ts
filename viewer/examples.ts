@@ -13,6 +13,8 @@ export const EXAMPLES : Array<Example> = [
     { id : "wall", group : "Surfaces", name : "Vessel wall", note : "A loft of fitted sections, periodic around: knot lines show its patches, the colour its waves." },
     { id : "grip", group : "Surfaces", name : "Sculpted grip", note : "A variable-section sweep: a superellipse that swells halfway along the rail." },
     { id : "mug", group : "B-reps", name : "Mug with filleted handle", note : "(body + handle) − cavity. Click a face to see its surface's control net. Gold lines are the fillets' contact curves." },
+    { id : "boss1", group : "B-reps", name : "Boss, circular fillet (G1)", note : "A rod on a disc, its foot rounded with a circular arc. Choose zebra stripes: they kink where the fillet meets the disc and the rod (tangent continuous, curvature jumps)." },
+    { id : "boss2", group : "B-reps", name : "Boss, G2 fillet", note : "The same rod and disc, rounded with a curvature-continuous section. In zebra stripes they flow through both contact curves without a kink." },
     { id : "lid", group : "B-reps", name : "Appliance lid", note : "(plate + plug) − hollow − hole, the hole's edges rounded." },
     { id : "cup", group : "B-reps", name : "Measuring cup", note : "(teardrop flange + cone) − cavity." },
     { id : "base", group : "B-reps", name : "Appliance base", note : "(block − slab − seat − key pocket) + arch: five fillets, convex and concave." },

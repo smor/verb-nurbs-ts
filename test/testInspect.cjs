@@ -92,4 +92,26 @@ describe("verb.view.Inspect", function(){
 		v = lib.Inspect.mesh(two, 'two', { thickness : false });
 		fact(v.facts, 'Non-manifold edges').should.be.equal('1');
 	});
+	it('a B-rep carries exact surface normals at every triangle corner, and its curvature: a capped pipe', function(){
+		// a capped pipe of radius 8 along a straight rail: on the tube, normals point away from the axis and the
+		// mean curvature is 1/(2 r) (outward-bulging positive); on the flat caps it is 0
+		var rail = lib.Make.rationalBezierCurve([[0,0,0],[0,0,60]]);
+		var v = lib.Inspect.brep(lib.BrepSolid.cappedTube(lib.Sweep.pipe(rail, 8).surface, [24, 32]));
+		var f = layer(v, 'Faces');
+		f.normals.length.should.be.equal(f.positions.length);
+		var mean = f.fields['mean curvature'].values, tube = 0;
+		for (var k = 0; k < f.indices.length; k++) {
+			var i = f.indices[k], p = f.positions.slice(3 * i, 3 * i + 3), n = f.normals.slice(3 * i, 3 * i + 3);
+			Math.hypot(n[0], n[1], n[2]).should.be.approximately(1, 1e-9);
+			var item = v.items[f.pick[Math.floor(k / 3)]];
+			if (item.label == 'tube' && p[2] > 1 && p[2] < 59) {
+				var r = Math.hypot(p[0], p[1]);
+				(n[0] * p[0] / r + n[1] * p[1] / r).should.be.approximately(1, 1e-6);
+				// the pipe is a B-spline within 1e-3 of the exact one, so its curvature is close, not exact
+				mean[i].should.be.approximately(1 / 16, 1e-3);
+				tube++;
+			}
+		}
+		tube.should.be.above(100);
+	});
 });

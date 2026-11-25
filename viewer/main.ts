@@ -9,7 +9,7 @@ declare const WORKER_SOURCE : string;
 interface Field { values : Float32Array; unit : string; symmetric : boolean }
 interface Layer {
     name : string; kind : "points" | "lines" | "mesh"; color : string; visible : boolean; dashed : boolean; itemColors : boolean;
-    pos : Float32Array; idx : Uint32Array | null; pick : Int32Array | null; fields : Record<string, Field>;
+    pos : Float32Array; idx : Uint32Array | null; pick : Int32Array | null; nrm : Float32Array | null; fields : Record<string, Field>;
 }
 interface Item { label : string; type : string; facts : Array<[string, string]>; overlay : Array<Layer> }
 interface ViewMsg { id : number; ok : boolean; message? : string; title : string; kind : string; facts : Array<[string, string]>; layers : Array<Layer>; items : Array<Item>; ms : number }
@@ -95,19 +95,83 @@ function lineObject( l : Layer, opacity = 1 ) : THREE.Object3D {
     return seg;
 }
 
-// a mesh layer, unwelded so each triangle can take its item's colour; creased normals keep sharp edges sharp
+// a mesh layer, unwelded so each triangle can take its item's colour. With the surface's exact normals (NURBS and
+// B-reps) the shading shows the surface itself; without them (plain meshes), creased normals keep sharp edges sharp.
 function meshObject( l : Layer ) : THREE.Mesh {
     const idx = l.idx!;
     const n = idx.length;
     const pos = new Float32Array( n * 3 );
     for (let k = 0; k < n; k++) { const i = idx[k]; pos[3 * k] = l.pos[3 * i]; pos[3 * k + 1] = l.pos[3 * i + 1]; pos[3 * k + 2] = l.pos[3 * i + 2]; }
-    const g = new THREE.BufferGeometry();
+    let g = new THREE.BufferGeometry();
     g.setAttribute( "position", new THREE.BufferAttribute( pos, 3 ) );
     g.setAttribute( "color", new THREE.BufferAttribute( new Float32Array( n * 3 ), 3 ) );
-    const geo = toCreasedNormals( g, Math.PI / 6 );
-    const mat = new THREE.MeshStandardMaterial( { vertexColors : true, roughness : 0.45, metalness : 0.0, side : THREE.DoubleSide,
+    if (l.nrm) {
+        const nrm = new Float32Array( n * 3 );
+        for (let k = 0; k < n; k++) { const i = idx[k]; nrm[3 * k] = l.nrm[3 * i]; nrm[3 * k + 1] = l.nrm[3 * i + 1]; nrm[3 * k + 2] = l.nrm[3 * i + 2]; }
+        g.setAttribute( "normal", new THREE.BufferAttribute( nrm, 3 ) );
+    } else g = toCreasedNormals( g, Math.PI / 6 );
+    return new THREE.Mesh( g, surfaceMaterial() );
+}
+
+// ---------- surface analysis shading ----------
+// "studio": physically based shading in a soft room. "zebra": reflection lines, the reflection of an environment
+// of parallel stripes; they move with the view, and their continuity across a seam reads off the seam's continuity
+// (stripes break: G0, position only; kink: G1, tangent; flow smoothly: G2, curvature). "isophotes": lines of equal
+// angle between the normal and a fixed light, fixed to the object, the same test without the view dependence.
+let shading : "studio" | "zebra" | "isophotes" = "studio";
+let stripes = 12;
+const analysisUniforms = { mode : { value : 0 }, stripes : { value : stripes }, across : { value : 0 }, light : { value : new THREE.Vector3( 0.3, -0.5, 0.81 ).normalize() } };
+function surfaceMaterial() : THREE.Material {
+    if (shading == "studio") return new THREE.MeshStandardMaterial( { vertexColors : true, roughness : 0.45, metalness : 0.0, side : THREE.DoubleSide,
         polygonOffset : true, polygonOffsetFactor : 1, polygonOffsetUnits : 1 } );
-    return new THREE.Mesh( geo, mat );
+    analysisUniforms.mode.value = shading == "zebra" ? 0 : 1;
+    return new THREE.ShaderMaterial( {
+        uniforms : analysisUniforms, side : THREE.DoubleSide, polygonOffset : true, polygonOffsetFactor : 1, polygonOffsetUnits : 1,
+        vertexShader : `
+            varying vec3 vViewNormal; varying vec3 vViewPos; varying vec3 vWorldNormal;
+            void main() {
+                vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+                vViewPos = mv.xyz;
+                vViewNormal = normalize( normalMatrix * normal );
+                vWorldNormal = normalize( mat3( modelMatrix ) * normal );
+                gl_Position = projectionMatrix * mv;
+            }`,
+        fragmentShader : `
+            uniform int mode; uniform float stripes; uniform vec3 light; uniform int across;
+            varying vec3 vViewNormal; varying vec3 vViewPos; varying vec3 vWorldNormal;
+            const float PI = 3.141592653589793;
+            void main() {
+                vec3 n = normalize( vViewNormal );
+                if (!gl_FrontFacing) n = -n;
+                float x;
+                if (mode == 0) {
+                    // reflect the view ray and take its angle around the view's vertical axis (vertical stripes) or
+                    // its elevation (horizontal stripes)
+                    vec3 r = reflect( normalize( vViewPos ), n );
+                    x = across == 1 ? asin( clamp( r.y, -1.0, 1.0 ) ) / PI : atan( r.x, -r.z ) / PI;
+                } else {
+                    vec3 w = normalize( vWorldNormal ) * (gl_FrontFacing ? 1.0 : -1.0);
+                    x = acos( clamp( dot( w, light ), -1.0, 1.0 ) ) / PI;
+                }
+                float f = x * stripes;
+                // anti-aliased square wave: the edge is as wide as a pixel
+                float w = fwidth( f );
+                float s = smoothstep( 0.5 - w, 0.5 + w, abs( fract( f ) - 0.5 ) * 2.0 );
+                float shade = 0.35 + 0.65 * abs( n.z );
+                vec3 dark = vec3( 0.08, 0.09, 0.1 ), lit = vec3( 0.97 ) * shade + 0.03;
+                gl_FragColor = vec4( mix( dark, lit, s ), 1.0 );
+            }`,
+    } );
+}
+function applyShading() {
+    for (const o of root.children) if ((o as THREE.Mesh).isMesh) {
+        const mesh = o as THREE.Mesh;
+        (mesh.material as THREE.Material).dispose();
+        mesh.material = surfaceMaterial();
+    }
+    ($( "colourRow" ) as HTMLElement).style.display = shading == "studio" ? "" : "none";
+    ($( "stripesRow" ) as HTMLElement).style.display = shading == "studio" ? "none" : "";
+    if (shading == "studio") paint(); else $( "legend" ).style.display = "none";
 }
 
 function paint() {
@@ -309,6 +373,9 @@ function renderExamples() {
     sel.value = example;
 }
 ($( "example" ) as HTMLSelectElement).onchange = e => load( (e.target as HTMLSelectElement).value );
+($( "shading" ) as HTMLSelectElement).onchange = e => { shading = (e.target as HTMLSelectElement).value as typeof shading; applyShading(); };
+($( "across" ) as HTMLSelectElement).onchange = e => { analysisUniforms.across.value = (e.target as HTMLSelectElement).value == "horizontal" ? 1 : 0; };
+($( "stripes" ) as HTMLInputElement).oninput = e => { stripes = +(e.target as HTMLInputElement).value; analysisUniforms.stripes.value = stripes; };
 ($( "colour" ) as HTMLSelectElement).onchange = e => { colourMode = (e.target as HTMLSelectElement).value; paint(); };
 $( "recenter" ).onclick = () => frame();
 $( "open" ).onclick = () => ($( "file" ) as HTMLInputElement).click();

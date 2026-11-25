@@ -46,6 +46,9 @@ export interface BooleanResult {
     faces : Array<TrimmedFace>;
     // for each triangle of the mesh, the index of its face in `faces`
     faceOf : Array<number>;
+    // for each triangle of a trimmed face, the parameters of its three corners on the face's surface (null for the
+    // triangles of fillets and corners, whose meshes are built in space): what exact normals and curvature need
+    cornerUV : Array<[UV, UV, UV] | null>;
     // the intersection branches, then any own edges rounded (`own` set: the domain sides they run along)
     curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve, own? : [DomainSide, DomainSide] }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
@@ -369,6 +372,7 @@ export class BrepBoolean {
         const out = new TriMesh();
         const faces : Array<TrimmedFace> = [];
         let faceOf : Array<number> = [];
+        let cornerUV : Array<[UV, UV, UV] | null> = [];
         solids.forEach( (solid, si) => solid.faces.forEach( (face, fi) => {
             const t = FaceMesher.mesh( face, cuts[si][fi], welder );
             const regions = BrepBoolean.regions( t );
@@ -392,6 +396,7 @@ export class BrepBoolean {
                     const a = t.ids[tri[0]], b = t.ids[tri[1]], c = t.ids[tri[2]];
                     if (flip) out.addTriangle( a, c, b ); else out.addTriangle( a, b, c );
                     faceOf.push( faces.length );
+                    cornerUV.push( flip ? [t.uv[tri[0]], t.uv[tri[2]], t.uv[tri[1]]] : [t.uv[tri[0]], t.uv[tri[1]], t.uv[tri[2]]] );
                 }
                 faces.push( { solid : si, face : fi, name : face.name != null ? face.name : "", surface : face.surface,
                               reversed : flip, loops : BrepBoolean.loops( t, reg ) } );
@@ -399,7 +404,7 @@ export class BrepBoolean {
         } ) );
         for (const b of blends) {
             const ids = b.points.map( p => welder.id( p ) );
-            for (const tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
+            for (const tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null ); }
             faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed, loops : [] } );
         }
         const cornerInfo : BooleanResult["corners"] = [];
@@ -408,15 +413,17 @@ export class BrepBoolean {
             const ids = b.points.map( p => welder.id( p ) );
             const parts = b.parts != null ? b.parts : [{ surface : b.surface, triangles : b.triangles }];
             for (const part of parts) {
-                for (const tri of part.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); }
+                for (const tri of part.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null ); }
                 faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed, loops : [] } );
             }
             cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ) } );
         }
         out.vertices = welder.mesh.vertices;
-        faceOf = faceOf.filter( (_, k) => { const t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; } );
+        const kept = (k : number) => { const t = out.triangles[k]; return t[0] != t[1] && t[1] != t[2] && t[2] != t[0]; };
+        faceOf = faceOf.filter( (_, k) => kept( k ) );
+        cornerUV = cornerUV.filter( (_, k) => kept( k ) );
         out.compact(); // drops the same degenerate triangles
-        return { mesh : out, faces : faces, faceOf : faceOf, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
+        return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
             fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
     }

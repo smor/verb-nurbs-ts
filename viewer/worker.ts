@@ -1,5 +1,5 @@
 // Builds the examples and turns them, or a dropped file, into views, off the main thread.
-import { ApplianceRecipe, BooleanObjectsRecipe, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Sweep, TriMesh } from "../src/index.js";
+import { ApplianceRecipe, BooleanObjectsRecipe, BrepBoolean, BrepSolid, FreeformVesselRecipe, Inspect, Make, NurbsCurveData, NurbsSurfaceData, Sweep, TriMesh } from "../src/index.js";
 import type { View } from "../src/index.js";
 
 import { EXAMPLES } from "./examples.js";
@@ -27,6 +27,14 @@ function cube( o : Array<number>, s : number, m : TriMesh ) {
     for (const f of q) m.addQuad( v[f[0]], v[f[1]], v[f[2]], v[f[3]] );
 }
 
+// a rod standing on a disc, the concave edge between them rounded with one fillet shape or the other
+function boss( shape : "circular" | "curvature" ) {
+    const line = (a : Array<number>, b : Array<number>) => Make.rationalBezierCurve( [a, b] );
+    const disc = BrepSolid.cappedTube( Sweep.pipe( line( [0, 0, -5], [0, 0, 5] ), 30 ).surface, [8, 96] );
+    const rod = BrepSolid.cappedTube( Sweep.pipe( line( [0, 0, 0], [0, 0, 30] ), 8 ).surface, [24, 96] );
+    return BrepBoolean.union( [disc, rod], { fillet : 4, filletShape : shape } );
+}
+
 function build( id : string ) : View {
     switch (id) {
         case "circle": return Inspect.curve( Make.arc( [0, 0, 0], [1, 0, 0], [0, 1, 0], 40, 0, 2 * Math.PI ), "Exact circle" );
@@ -43,6 +51,8 @@ function build( id : string ) : View {
         case "wall": return Inspect.surface( FreeformVesselRecipe.outerWall( {} ).outerWall, "Vessel wall", { samples : 96 } );
         case "grip": return Inspect.surface( mug().handle.faces[0].surface, "Sculpted grip", { samples : 96 } );
         case "mug": return Inspect.brep( mug().result, "Mug with filleted handle" );
+        case "boss1": return Inspect.brep( boss( "circular" ), "Boss with a circular (G1) fillet" );
+        case "boss2": return Inspect.brep( boss( "curvature" ), "Boss with a curvature-continuous (G2) fillet" );
         case "lid": return Inspect.brep( appliance != null ? appliance.lid : ApplianceRecipe.lid( {}, 170, [58, 76], 2.5, 0.6, false ), "Appliance lid" );
         case "cup": return Inspect.brep( appliance != null ? appliance.cup : ApplianceRecipe.cup( {}, 176, 0.6, false ), "Measuring cup" );
         case "base": return Inspect.brep( app().base, "Appliance base" );
@@ -131,10 +141,12 @@ function pack( v : View ) {
     const layer = (l : View["layers"][0]) => {
         const pos = new Float32Array( l.positions ), idx = l.indices != null ? new Uint32Array( l.indices ) : null;
         const pick = l.pick != null ? new Int32Array( l.pick ) : null;
+        const nrm = l.normals != null ? new Float32Array( l.normals ) : null;
+        if (nrm) transfer.push( nrm.buffer );
         const fields : Record<string, any> = {};
         for (const k in l.fields ?? {}) { const f = l.fields![k]; fields[k] = { values : new Float32Array( f.values.map( x => isFinite( x ) ? x : NaN ) ), unit : f.unit, symmetric : f.symmetric }; transfer.push( fields[k].values.buffer ); }
         transfer.push( pos.buffer ); if (idx) transfer.push( idx.buffer ); if (pick) transfer.push( pick.buffer );
-        return { name : l.name, kind : l.kind, color : l.color, visible : l.visible, dashed : !!l.dashed, itemColors : !!l.itemColors, pos, idx, pick, fields };
+        return { name : l.name, kind : l.kind, color : l.color, visible : l.visible, dashed : !!l.dashed, itemColors : !!l.itemColors, pos, idx, pick, nrm, fields };
     };
     return { msg : { ok : true, title : v.title, kind : v.kind, facts : v.facts, layers : v.layers.map( layer ),
                      items : v.items.map( it => ({ label : it.label, type : it.type, facts : it.facts, overlay : it.overlay.map( layer ) }) ) }, transfer };

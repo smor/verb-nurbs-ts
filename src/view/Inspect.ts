@@ -1,10 +1,11 @@
-import { NurbsCurveData, NurbsSurfaceData, Point } from "../core/Data.js";
+import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Analyze } from "../eval/Analyze.js";
 import { Eval } from "../eval/Eval.js";
 import { BrepSolid } from "../solid/Brep.js";
 import { BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { MeshBVH } from "../solid/MeshBVH.js";
+import { SurfaceLoops } from "../solid/SurfaceLoops.js";
 import { TriMesh } from "../solid/TriMesh.js";
 
 // What a viewer draws, as plain arrays: no rendering library, so it can be built in a worker or in Node and checked.
@@ -25,6 +26,9 @@ export interface ViewLayer {
     positions : Array<number>;
     // for "lines": pairs of vertex indices; for "mesh": triples. Points use every vertex
     indices? : Array<number>;
+    // for meshes: the exact unit normal of the surface at each vertex, flattened, so shading, zebra stripes and
+    // isophotes show the surface and not its tessellation
+    normals? : Array<number>;
     // for each segment (lines) or triangle (mesh), the index of its item in `View.items`
     pick? : Array<number>;
     // scalar fields per vertex, by name, shown with a colour map (meshes) or as point sizes (points)
@@ -149,9 +153,7 @@ export class Inspect {
     public static brep( b : BooleanResult | BrepSolid, title? : string ) : View {
         const r : BooleanResult = b instanceof BrepSolid ? BrepBoolean.evaluate( [b], f => f[0] ) : b;
         const m = r.mesh;
-        const faces = Inspect.meshLayer( "Faces", COLORS.surface, m );
-        faces.pick = r.faceOf.slice();
-        faces.itemColors = true;
+        const faces = Inspect.exactFaces( r );
 
         // area per face
         const area = r.faces.map( () => 0 );
@@ -232,6 +234,78 @@ export class Inspect {
             ["Volume", Inspect.num( rep.volume )],
         ];
         return { title : title != null ? title : "B-rep", kind : "brep", layers : [faces, trim, natural, seam, filletEdges], items : items, facts : facts };
+    }
+
+    // The faces of a B-rep as one mesh layer with a vertex per triangle corner (a vertex on an edge belongs to two
+    // faces, with two normals), carrying each corner's exact normal and its Gaussian and mean curvature. Trimmed faces
+    // know their corners' parameters; the meshes of fillets and corners are built in space, so their vertices are
+    // projected onto their surfaces.
+    public static exactFaces( r : BooleanResult ) : IndexedLayer {
+        const m = r.mesh;
+        const l : IndexedLayer = { name : "Faces", kind : "mesh", color : COLORS.surface, visible : true, positions : [], indices : [] };
+        l.pick = r.faceOf.slice();
+        l.itemColors = true;
+        const normals : Array<number> = [], gauss : Array<number> = [], mean : Array<number> = [];
+        const projected = new Map<string, UV>();
+        const seeds = new Map<number, Array<{ uv : UV, p : Point }>>();
+        const uvOf = (fi : number, vi : number) : UV | null => {
+            const key = fi + ":" + vi;
+            const known = projected.get( key );
+            if (known != null) return known;
+            const s = r.faces[fi].surface, p = m.vertices[vi];
+            let sd = seeds.get( fi );
+            if (sd == null) {
+                sd = [];
+                const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+                for (let i = 0; i <= 16; i++) for (let j = 0; j <= 16; j++) {
+                    const uv : UV = [d[0] + (d[1] - d[0]) * i / 16, d[2] + (d[3] - d[2]) * j / 16];
+                    sd.push( { uv : uv, p : Eval.rationalSurfacePoint( s, uv[0], uv[1] ) } );
+                }
+                seeds.set( fi, sd );
+            }
+            let best = sd[0];
+            for (const x of sd) if (Vec.distSquared( x.p, p ) < Vec.distSquared( best.p, p )) best = x;
+            // a closed blend (a fillet all the way round) wraps across its seam instead of stopping at it
+            const periodic : [boolean, boolean] = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
+            const uv = SurfaceLoops.project( { surface : s, periodic : periodic }, p, best.uv );
+            if (uv != null) projected.set( key, uv );
+            return uv;
+        };
+        m.triangles.forEach( (t, k) => {
+            const fi = r.faceOf[k], f = r.faces[fi];
+            const a = m.vertices[t[0]], b = m.vertices[t[1]], c = m.vertices[t[2]];
+            const flat = Vec.normalized( Vec.cross( Vec.sub( b, a ), Vec.sub( c, a ) ) );
+            const cuv = r.cornerUV != null ? r.cornerUV[k] : null;
+            for (let x = 0; x < 3; x++) {
+                const p = m.vertices[t[x]];
+                l.indices.push( l.positions.length / 3 );
+                l.positions.push( p[0], p[1], p[2] );
+                const uv = cuv != null ? cuv[x] : uvOf( fi, t[x] );
+                let n = flat, g = NaN, h = NaN;
+                if (uv != null) {
+                    const d = Eval.rationalSurfaceDerivatives( f.surface, uv[0], uv[1], 2 );
+                    const raw = Vec.cross( d[1][0], d[0][1] ), ln = Vec.norm( raw );
+                    if (ln > 1e-12 * (Vec.dot( d[1][0], d[1][0] ) + Vec.dot( d[0][1], d[0][1] ))) {
+                        // the face's outward side: its surface normal, or the opposite for a reversed face; checked
+                        // against the triangle so a face whose orientation flag disagrees still shades right
+                        n = Vec.mul( 1 / ln, raw );
+                        if (Vec.dot( n, flat ) < 0) n = Vec.mul( -1, n );
+                        const cv = Inspect.surfaceCurvature( d );
+                        g = cv.gauss;
+                        // mean curvature, signed for the outward normal (positive where the surface bulges out)
+                        h = Vec.dot( Vec.normalized( raw ), n ) > 0 ? -cv.mean : cv.mean;
+                    }
+                }
+                normals.push( n[0], n[1], n[2] );
+                gauss.push( g ); mean.push( h );
+            }
+        } );
+        l.normals = normals;
+        l.fields = {
+            "Gaussian curvature" : { values : gauss, unit : "1/mm²", symmetric : true },
+            "mean curvature" : { values : mean, unit : "1/mm", symmetric : true },
+        };
+        return l;
     }
 
     // ---------- meshes ----------
@@ -334,11 +408,13 @@ export class Inspect {
     // The shaded surface on a regular grid, with Gaussian and mean curvature per vertex
     public static surfaceMesh( s : NurbsSurfaceData, nu : number, nv : number ) : { layer : IndexedLayer } {
         const layer : IndexedLayer = { name : "Surface", kind : "mesh", color : COLORS.surface, visible : true, positions : [], indices : [] };
-        const gauss : Array<number> = [], mean : Array<number> = [];
+        const gauss : Array<number> = [], mean : Array<number> = [], normals : Array<number> = [];
         const u0 = s.knotsU[0], u1 = s.knotsU[s.knotsU.length - 1], v0 = s.knotsV[0], v1 = s.knotsV[s.knotsV.length - 1];
         for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) {
             const d = Eval.rationalSurfaceDerivatives( s, u0 + (u1 - u0) * i / nu, v0 + (v1 - v0) * j / nv, 2 );
             layer.positions.push( d[0][0][0], d[0][0][1], d[0][0][2] );
+            const nrm = Vec.cross( d[1][0], d[0][1] ), ln = Vec.norm( nrm );
+            normals.push( ...(ln > 1e-300 ? Vec.mul( 1 / ln, nrm ) : [NaN, NaN, NaN]) );
             const c = Inspect.surfaceCurvature( d );
             gauss.push( c.gauss ); mean.push( c.mean );
         }
@@ -349,6 +425,8 @@ export class Inspect {
             f[k] = nb.length > 0 ? f[nb[0]] : 0;
         } };
         fill( gauss ); fill( mean );
+        // at a pole the normal is undefined too: the viewer falls back to the mesh's own normals there
+        if (normals.every( x => isFinite( x ) )) layer.normals = normals;
         for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
             const a = i * (nv + 1) + j, b = a + nv + 1;
             layer.indices.push( a, b, b + 1, a, b + 1, a + 1 );

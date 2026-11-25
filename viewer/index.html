@@ -85,6 +85,16 @@ input[type=file]{display:none}
       <div id="layers"></div>
     </div>
     <div>
+      <label for="shading"><h2>Shading</h2></label>
+      <select id="shading">
+        <option value="studio">Studio</option>
+        <option value="zebra">Zebra stripes (reflection lines)</option>
+        <option value="isophotes">Isophotes</option>
+      </select>
+      <div id="stripesRow" style="display:none;margin-top:8px"><label for="stripes" class="foot">Stripes</label> <input type="range" id="stripes" min="4" max="40" step="1" value="12" aria-label="Number of stripes">
+        <select id="across" aria-label="Stripe direction" style="margin-top:6px"><option value="vertical">Vertical stripes</option><option value="horizontal">Horizontal stripes</option></select></div>
+    </div>
+    <div id="colourRow">
       <label for="colour"><h2>Colour</h2></label>
       <select id="colour"></select>
     </div>
