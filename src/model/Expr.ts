@@ -29,6 +29,11 @@ const CONSTANTS : { [name : string] : number } = { pi : Math.PI, e : Math.E };
 
 export class Expr {
 
+    /** Whether a name is one of the functions or constants of expressions, so it cannot name a parameter. */
+    public static reserved( name : string ) : boolean {
+        return Object.prototype.hasOwnProperty.call( FUNCTIONS, name ) || Object.prototype.hasOwnProperty.call( CONSTANTS, name );
+    }
+
     // The value of an expression, with the parameters' values.
     public static evaluate( text : string, scope : { [name : string] : number } ) : number {
         const tokens = Expr.tokens( text );

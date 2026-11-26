@@ -7,11 +7,11 @@ through it, which invariants hold everywhere, and where to start reading for eac
 
 ```
                  ┌───────────────────────────────────────────────┐
-   apps          │ viewer/ playground/   (three.js, web workers) │
+   apps          │ viewer/ playground/ editor/ (three.js, workers)│
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
    view, io,     │ Inspect: objects → plain display layers       │
-   model         │ Model: JSON documents → named solids, verdict │
+   model         │ Model, Graph: JSON documents → named solids   │
                  │ Step: B-rep results → STEP files              │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
@@ -100,6 +100,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Display data | `src/view/Inspect.ts` |
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
 | Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |
+| Node graphs and the node editor | `src/model/Graph.ts`, `editor/`, [visual-programming.md](visual-programming.md) |
 | Primitive solids (prisms, cones, spheres, tori, polyhedra, ...) | `src/solid/primitives/`, [primitives.md](primitives.md) |
 | Grasshopper-style builders (loft, sweep1/2, pipe, boundary, plane, 4-point) | `src/solid/primitives/Nodes.ts`, [primitives.md](primitives.md#grasshopper-style-builders) |
 

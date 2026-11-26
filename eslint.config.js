@@ -3,11 +3,11 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-    { ignores: [ "dist/", "node_modules/", "site/", "docs/", "out/", "scratch/", "benchmark/", "examples/", "playground/dist/", "viewer/dist/", "**/*.cjs", "**/*.mjs" ] },
+    { ignores: [ "dist/", "node_modules/", "site/", "docs/", "out/", "scratch/", "benchmark/", "examples/", "playground/dist/", "viewer/dist/", "editor/dist/", "**/*.cjs", "**/*.mjs" ] },
     js.configs.recommended,
     ...tseslint.configs.recommended,
     {
-        files: [ "src/**/*.ts", "viewer/**/*.ts", "playground/**/*.ts" ],
+        files: [ "src/**/*.ts", "viewer/**/*.ts", "playground/**/*.ts", "editor/**/*.ts", "editor/**/*.tsx" ],
         rules: {
             // `_`-prefixed names mark parameters and bindings that are deliberately unused (callbacks, destructuring)
             "@typescript-eslint/no-unused-vars": [ "error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" } ],

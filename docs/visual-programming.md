@@ -12,9 +12,10 @@ ours. It is a decision record: nothing here is built yet.
    outputs. A version 1 model document is still read, rewritten into version 2 on load. Evaluation extends `Model`'s content-hash cache, so an edit rebuilds only what
    is downstream of it, the same document always gives the same result bit for bit, and persistent face names
    survive. No library offers this, and every library's engine would have to be bypassed to get it.
-2. **The editor canvas comes from a library: React Flow (`@xyflow/react`, MIT), or Rete.js v2.** The same small
-   editor was built with both (see "Hands-on comparison"): both need React, and React Flow did the same job in less
-   code with fewer pieces to wire, so it is recommended; Rete gives the smaller bundle and a finished default look.
+2. **The editor canvas comes from a library: React Flow (`@xyflow/react`, MIT). Chosen.** The same small editor was
+   built with React Flow, Rete.js v2 and LiteGraph (see "Hands-on comparison"): React Flow and Rete both need React,
+   and React Flow did the same job in less code with fewer pieces to wire; Rete gives the smaller bundle and a
+   finished default look.
    Either is only a view: the document is the truth, and two functions (`toEditor`, `fromEditor`) map it onto the
    editor and back. LiteGraph is the one option without a framework.
 3. **Hierarchy is the document calling itself.** A graph document with an interface (inputs, outputs) is a node: a
@@ -319,6 +320,51 @@ numbers and on 3-vectors:
 
 Each is a line or two over `Expr` and `Vec`, so owning them costs less than adapting a foreign runtime would.
 
+## What is built
+
+`Graph` (`src/model/Graph.ts`) and the editor (`editor/`, `npm run editor`) implement the first and fourth steps of
+the plan below, without groups or lists yet.
+
+```js
+import { Graph } from "verb-nurbs-ts";
+
+const doc = { version : 2, nodes : {
+    h : { type : "number", in : { value : 24 } },
+    box : { type : "primitive/box", in : { width : 60, depth : 40, height : "@h" } },
+    coneShape : { type : "primitive/cone", in : { radius : 13, height : "h + 10", top_radius : 6 } },
+    cone : { type : "transform/move", in : { of : "@coneShape", z : -5 } },
+    cut : { type : "boolean/difference", in : { from : "@box", minus : "@cone" } },
+    round : { type : "finish/round", in : { of : "@cut", radius : 3, edges : "box.*|box.*" } },
+}, outputs : { solid : "@round" } };
+
+const g = new Graph();
+g.evaluate( doc ).nodes;      // { h: "parameter", box: "built", coneShape: "built", ... }
+doc.nodes.box.in.width = 80;
+g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone "cached"
+Graph.compile( doc );         // the version 1 model document it runs
+```
+
+* **Node types** (`Graph.REGISTRY`, 97 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+  `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
+  entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
+  `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
+  comma separated; circular, curvature or chamfer) and `finish/shell`.
+* **How it compiles.** Number and math nodes become model parameters named by their ids, so an expression may name
+  them (`"h + 10"`) and a wire to one (`"@h"`) is just its name. Solid nodes become features with the same ids, so
+  persistent face names are the node ids (`box.+z`, `round(box.-x|box.-y)`, `cone/coneShape.side`).
+  `primitive/box` and `primitive/cylinder` compile into the model's own `box` and `cylinder` features, which `shell`
+  can offset; the other primitives into `primitive` features.
+* **What it refuses**, naming the node and port: an unknown type or port, a reference to a missing node or output,
+  a number wired into a solid input or the reverse, an unconnected solid input, an expression naming something that
+  is not a number node, a number node whose id is a function or constant of `Expr` (`pi`, `round`), and cycles.
+* **The editor** opens with this graph. A palette adds any node type; wires are typed (orange for numbers, grey for
+  solids) and a wrong one cannot be drawn; number inputs take a slider, a value or an expression; **Show** picks the
+  solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
+  from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
+  Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
+* **Not yet:** groups, several outputs, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
+  renaming a node on the canvas (edit `label` in the file).
+
 ## Where it lives
 
 * The registry, the version 2 document and the evaluator: `src/model/` (the `model` layer, beside `Model`), with no
@@ -329,24 +375,22 @@ Each is a line or two over `Expr` and `Vec`, so owning them costs less than adap
 
 ## Plan
 
-1. Node registry and version 2 document in `src/model/`, with the version 1 documents of `docs/model.md` passing
+1. (Built, without curves and lattices.) Node registry and version 2 document in `src/model/`, with the version 1 documents of `docs/model.md` passing
    unchanged; nodes for the catalogue, `Nodes`, curves (`Make`), transforms, Booleans, round, shell, lattice, math.
    Tests: the same document gives the same hashes and the same solid; an edit rebuilds only downstream nodes; a group's
    faces keep their names.
 2. Groups, with recursion refused and names nested.
 3. Lists and lacing.
-4. The editor: the chosen canvas (React Flow, or Rete with its React renderer), the registry as the palette, the viewport and verdict from the worker, the document
-   as the file (open, save, undo by document snapshots).
+4. (Built, without undo.) The editor: React Flow, the registry as the palette, the viewport and verdict from the
+   worker, the document as the file (open, save, undo by document snapshots).
 5. Data trees, fields (per-vertex functions in Blender's sense, for growth and lattices), and loops (zones), as the
    models ask for them.
 
 ## Known limits of this choice
 
-* React Flow and Rete draw nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas scales
+* React Flow draws nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas scales
   further. Groups keep each canvas small, which is the answer here.
-* If Rete is chosen: its core was last released in June 2025 (its renderers and area plugin in July 2026); several plugins (scopes,
-  auto-arrange, connection) date from 2024. It is stable rather than fast-moving. Since the document is ours and Rete
-  is only the view, moving to React Flow later would mean rewriting `toEditor`, `fromEditor` and the node bodies,
-  not the format or the evaluator.
-* Choosing React for the editor's renderer is a choice of framework for every editor panel; Svelte is the
-  alternative.
+* React Flow moves fast: version 13 (November 2026) removed helpers its own docs still use. The editor pins 13.0.3.
+  Since the document is ours and React Flow only the view, a change of canvas would rewrite `editor/main.tsx`, not
+  the format or the evaluator.
+* React is the editor's framework; it is a dev dependency of the editor only, never of the library.
