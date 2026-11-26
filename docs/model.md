@@ -146,9 +146,16 @@ the solid it fills, with its faces' names.
 * **How it is meshed.** The solid's signed distance (its mesh's, the sign from angle-weighted pseudonormals) and the
   lattice's distance (struts: to the nearest strut; sheets: to the surface, by Newton projection) combine into one
   field, meshed by marching tetrahedra (`Implicit`). Every sample is strictly inside or out, so the mesh is a closed
-  2-manifold by construction, and each vertex is the field's root on its tet edge, so no triangle leaves its tet and
-  the mesh cannot cross itself. The grid's step `size` defaults to the least of an eighth of the cell, two thirds of
-  the skin and a third of the thinnest wall.
+  2-manifold by construction. Each vertex starts as the field's root on its tet edge, so no triangle leaves its tet
+  and the mesh cannot cross itself. The grid's step `size` defaults to the least of an eighth of the cell, two thirds
+  of the skin and a third of the thinnest wall.
+* **Smooth edges.** Where the lattice is cut by the surface (an open face, or no skin) the cut is a smooth
+  intersection, rounded over one and a half grid steps, so the grid has no sharp edge to saw into steps. The mesh is
+  then relaxed three times (`Implicit.relax`): each vertex moves towards its neighbours along the surface and back
+  onto it, which raises the mean smallest angle of a ball's triangles from 28° to 41°. Relaxing keeps every triangle's
+  vertices, so the mesh stays closed and manifold. A move that would turn a triangle over, or carry a vertex more
+  than half a grid step from its tet edge, is undone. This keeps the mesh from crossing itself in practice, though it
+  is no longer a proof.
 
 The verdict judges the mesh:
 

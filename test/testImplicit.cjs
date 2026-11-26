@@ -38,6 +38,33 @@ describe("verb.solid.Implicit", function(){
 		m.signedVolume().should.be.within(0.99 * V, V);
 	});
 
+	it("relaxes a mesh on its surface: better triangles, still closed, still on the surface", function(){
+		var ball = Implicit.ball([0, 0, 0], 5);
+		function quality(m) {
+			// the mean of each triangle's smallest angle, in degrees (60 for equilateral ones)
+			var sum = 0;
+			m.triangles.forEach(function(t){
+				var P = t.map(function(i){ return m.vertices[i]; }), least = Math.PI;
+				for (var k = 0; k < 3; k++) {
+					var a = P[k], b = P[(k + 1) % 3], c = P[(k + 2) % 3];
+					var u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+					var cos = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / Math.hypot(u[0], u[1], u[2]) / Math.hypot(v[0], v[1], v[2]);
+					least = Math.min(least, Math.acos(Math.max(-1, Math.min(1, cos))));
+				}
+				sum += least;
+			});
+			return sum / m.triangles.length * 180 / Math.PI;
+		}
+		var m = Implicit.mesh(ball, [-6, -6, -6], [6, 6, 6], 0.5), q0 = quality(m);
+		Implicit.relax(m, ball, 3, 0.5);
+		quality(m).should.be.above(q0 + 5);
+		m.checkClosedManifold().closedManifold.should.be.true();
+		var off = 0;
+		m.vertices.forEach(function(p){ off = Math.max(off, Math.abs(Math.hypot(p[0], p[1], p[2]) - 5)); });
+		off.should.be.below(1e-3);
+		manifold(m).status().should.be.equal('NoError');
+	});
+
 	it("smooth and sharp CSG of fields: a smooth union fills the joint, a difference removes the volume", function(){
 		var a = Implicit.box([0, 0, 0], [10, 10, 10]), b = Implicit.ball([10, 5, 5], 4);
 		var sharp = Implicit.mesh(Implicit.union([a, b]), [-1, -1, -1], [15, 11, 11], 0.25);
@@ -139,14 +166,10 @@ describe("verb.solid.Implicit", function(){
 		var pieces = m.pieces();
 		pieces.length.should.be.equal(1);
 		pieces[0].volume.should.be.above(0);
-		// on the open face the gyroid shows: the top is part solid, part hole
-		var top = 0, area = 0;
-		m.triangles.forEach(function(t){
-			var a = m.vertices[t[0]], b = m.vertices[t[1]], c = m.vertices[t[2]];
-			if (a[2] < 19.99 || b[2] < 19.99 || c[2] < 19.99 || a[0] < 6 || a[0] > 34 || a[1] < 6 || a[1] > 22) return;
-			area += 0.5 * Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
-		});
-		area.should.be.within(0.1 * 28 * 16, 0.6 * 28 * 16);
+		// on the open face the gyroid shows: just under the top, part solid, part hole
+		var bvh = new MeshBVH(m), inside = 0, all = 0;
+		for (var x = 6; x <= 34; x += 0.5) for (var y = 6; y <= 22; y += 0.5) { all++; if (bvh.contains([x, y, 19.7])) inside++; }
+		(inside / all).should.be.within(0.1, 0.7);
 		// a resin printer would trap resin in the sealed version, not in this one
 		lib.Makeable.check(m, 'sla', 500).voids.should.be.equal(0);
 	});

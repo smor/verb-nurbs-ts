@@ -85,6 +85,10 @@ export class Implicit {
         return Math.min( a, b ) - h * h * k * 0.25;
     }
 
+    /** The smooth maximum of two values: max(a, b), rounded over a band of width k (an intersection whose edge is
+     * rounded inward, so it never adds material). */
+    public static smax( a : number, b : number, k : number ) : number { return -Implicit.smin( -a, -b, k ); }
+
     /** A box. */
     public static box( min : Point, max : Point ) : Field {
         return { value : p => {
@@ -369,14 +373,20 @@ export class Implicit {
      * a lattice core that fuses with it. The core is the lattice within the solid, reaching half the skin's thickness
      * into it, joined with a smooth union of radius `blend` (0: a sharp joint). Meshed on a grid of side `size`
      * (default: an eighth of the cell, two thirds of the skin or a third of the wall, whichever is least; a grid
-     * coarser than half the wall can break the walls through). Where the nearest triangle of the solid is `open` (one flag per triangle), there is no skin and the lattice runs
-     * out to the surface: a TPMS sheet parts space into two labyrinths, and a closed skin seals both in, so the
-     * resin or powder of a printer could not drain; opening a face lets it.
+     * coarser than half the wall can break the walls through). Where the solid is `open` (one flag per triangle), there
+     * is no skin and the lattice runs out to the surface: a TPMS sheet parts space into two labyrinths, and a closed
+     * skin seals both in, so the resin or powder of a printer could not drain; opening a face lets it.
+     *
+     * Where the lattice is cut by the surface (no skin, or an open face) its edges are rounded by `round` (default
+     * one and a half grid steps): a sharp edge there would be sawn into steps by the grid. The mesh is then relaxed
+     * (`relax` rounds of `Implicit.relax`, default 3), which evens its triangles out on the same surface.
      */
-    public static infill( solid : TriMesh, options : { pattern : LatticePattern, cell : number, wall : Grade, skin? : number, blend? : number, size? : number, open? : ArrayLike<boolean> } ) : TriMesh {
+    public static infill( solid : TriMesh, options : { pattern : LatticePattern, cell : number, wall : Grade, skin? : number, blend? : number, size? : number,
+                                                       open? : ArrayLike<boolean>, round? : number, relax? : number } ) : TriMesh {
         const skin = options.skin ?? 0, blend = options.blend ?? 0;
         const size = options.size ?? Math.min( options.cell / 8, skin > 0 ? skin / 1.5 : Infinity, typeof options.wall == "number" ? options.wall / 3 : Infinity );
-        const band = Math.max( skin, 0 ) + 3 * size + blend;
+        const round = options.round ?? 1.5 * size;
+        const band = Math.max( skin, 0 ) + 3 * size + blend + round;
         const s = Implicit.meshDistance( solid, band );
         const lattice = Implicit.lattice( options.pattern, options.cell, options.wall );
         // the opening: the points within the skin's thickness (and a step) of the open faces, by the distance to
@@ -395,14 +405,15 @@ export class Implicit {
             const v = s.value( p );
             const op = opening == null ? band : opening( p );
             // the skin, less the opening; the lattice deeper than half the skin, or within the opening
-            const sk = Math.max( v, -v - skin, -op );
+            const sk = Implicit.smax( Math.max( v, -v - skin ), -op, round );
             const L = lattice.value( p );
-            const core = Math.min( Math.max( v + 0.5 * skin, L ), Math.max( v, L, op ) );
+            const core = Math.min( Math.max( v + 0.5 * skin, L ), Implicit.smax( Implicit.smax( v, L, round ), op, round ) );
             // the blend rounds the joints inside; nothing comes out past the solid's surface
             return Math.max( Implicit.smin( sk, core, blend ), v );
-        } } : Implicit.intersection( [s, lattice] );
+        } } : { value : p => Implicit.smax( s.value( p ), lattice.value( p ), round ) };
         const bb = solid.boundingBox(), m = 2 * size;
-        return Implicit.mesh( field, Vec.sub( bb.min, [m, m, m] ), Vec.add( bb.max, [m, m, m] ), size );
+        const mesh = Implicit.mesh( field, Vec.sub( bb.min, [m, m, m] ), Vec.add( bb.max, [m, m, m] ), size );
+        return Implicit.relax( mesh, field, options.relax ?? 3, size );
     }
 
     // ---------- meshing ----------
@@ -479,6 +490,52 @@ export class Implicit {
                     tri( p, q, r, ci, co );
                     tri( p, r, s, ci, co );
                 }
+            }
+        }
+        return mesh;
+    }
+
+    /**
+     * Even a mesh of a field's zero set out, on the same surface: each round moves every vertex half way to the
+     * centroid of its neighbours, along the surface only (the move's component along the vertex normal is dropped),
+     * then back onto the surface by a Newton step along the normal on the field. A move is undone if it would turn
+     * any triangle round it over, or carry the vertex more than half a grid step from where it was meshed. The
+     * triangles keep their vertices, so the mesh stays closed and manifold. (Tangential relaxation, as in the
+     * isotropic remeshing of Botsch and Kobbelt, "A remeshing approach to multiresolution modeling", SGP 2004.)
+     */
+    public static relax( mesh : TriMesh, field : Field, rounds : number, size : number ) : TriMesh {
+        if (rounds <= 0) return mesh;
+        const V = mesh.vertices, T = mesh.triangles, n = V.length;
+        const origin = V.map( p => p.slice() as Point );
+        const ring : Array<Array<number>> = V.map( () => [] );
+        const faces : Array<Array<number>> = V.map( () => [] );
+        T.forEach( (t, k) => { for (let i = 0; i < 3; i++) { faces[t[i]].push( k ); ring[t[i]].push( t[(i + 1) % 3], t[(i + 2) % 3] ); } } );
+        const normal = (k : number) => { const t = T[k]; return Vec.cross( Vec.sub( V[t[1]], V[t[0]] ), Vec.sub( V[t[2]], V[t[0]] ) ); };
+        const h = 1e-3 * size, limit = 0.5 * size;
+        for (let r = 0; r < rounds; r++) {
+            for (let i = 0; i < n; i++) {
+                const nb = ring[i];
+                if (nb.length == 0) continue;
+                const before = faces[i].map( normal );
+                let N : Point = [0, 0, 0];
+                for (const v of before) N = Vec.add( N, v );
+                const ln = Vec.norm( N );
+                if (ln == 0) continue;
+                N = Vec.mul( 1 / ln, N );
+                let c : Point = [0, 0, 0];
+                for (const j of nb) c = Vec.add( c, V[j] );
+                c = Vec.mul( 1 / nb.length, c );
+                let d = Vec.mul( 0.5, Vec.sub( c, V[i] ) );
+                d = Vec.sub( d, Vec.mul( Vec.dot( d, N ), N ) );
+                let q = Vec.add( V[i], d );
+                // back onto the surface along the normal
+                const f0 = field.value( q ), f1 = field.value( Vec.add( q, Vec.mul( h, N ) ) );
+                const slope = (f1 - f0) / h;
+                if (Math.abs( slope ) > 1e-6) q = Vec.sub( q, Vec.mul( f0 / slope, N ) );
+                if (Vec.dist( q, origin[i] ) > limit) continue;
+                const old = V[i];
+                V[i] = q;
+                if (faces[i].some( (k, m) => Vec.dot( normal( k ), before[m] ) <= 0 )) V[i] = old;
             }
         }
         return mesh;
