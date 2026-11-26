@@ -27,6 +27,9 @@ export interface KnotPipeParams {
     // pipe radius, and how much it swells and thins along the knot (default 5 and 0.35)
     pipeRadius? : number;
     pipeSwell? : number;
+    // narrow the section smoothly where it would reach past the centre of a tight bend and fold the surface
+    // (default true; see `SweepOptions.noFold`)
+    noFold? : boolean;
     tolerance? : number;
     divsU? : number;
     divsV? : number;
@@ -43,6 +46,9 @@ export interface TwistedRingParams {
     exponent? : number;
     // full turns of the profile around the ring (default 1)
     turns? : number;
+    // narrow the section smoothly where it would reach past the centre of a tight bend and fold the surface
+    // (default true; see `SweepOptions.noFold`)
+    noFold? : boolean;
     tolerance? : number;
     divsU? : number;
     divsV? : number;
@@ -59,6 +65,9 @@ export interface RibbonKnotParams {
     thickness? : number;
     // full turns of the ribbon about the knot (default 2)
     turns? : number;
+    // narrow the section smoothly where it would reach past the centre of a tight bend and fold the surface
+    // (default true; see `SweepOptions.noFold`)
+    noFold? : boolean;
     tolerance? : number;
     divsU? : number;
     divsV? : number;
@@ -83,7 +92,7 @@ export class SweptObjectsRecipe {
         }
         const rail = Fit.periodicCurve( cps, 3 );
         const sweep = Sweep.pipe( rail, (u : number) => pr * (1 + swell * Math.sin( 2 * Math.PI * q * u )),
-            { tolerance : o.tolerance != null ? o.tolerance : 0.02 } );
+            { tolerance : o.tolerance != null ? o.tolerance : 0.02, noFold : o.noFold !== false } );
         const mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 400, divsV : o.divsV != null ? o.divsV : 40 } );
         return SweptObjectsRecipe.finish( rail, null, sweep, mesh );
     }
@@ -107,7 +116,7 @@ export class SweptObjectsRecipe {
             profCps.push( [w * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / e ), h * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / e ), 0.0] );
         }
         const profile = Fit.periodicCurve( profCps, 3 );
-        const sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : o.tolerance != null ? o.tolerance : 0.01 } );
+        const sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : o.tolerance != null ? o.tolerance : 0.01, noFold : o.noFold !== false } );
         const mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : o.divsU != null ? o.divsU : 360, divsV : o.divsV != null ? o.divsV : 64 } );
         return SweptObjectsRecipe.finish( rail, profile, sweep, mesh );
     }
@@ -144,7 +153,7 @@ export class SweptObjectsRecipe {
                 profCps.push( [w * Math.sign( c ) * Math.pow( Math.abs( c ), 2 / e ), h * Math.sign( s ) * Math.pow( Math.abs( s ), 2 / e ), 0.0] );
             }
             profile = Fit.periodicCurve( profCps, 3 );
-            sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : tol } );
+            sweep = Sweep.surface( rail, profile, { twist : [0, 2 * Math.PI * turns], tolerance : tol, noFold : o.noFold !== false } );
             mesh = Shell.tube( sweep.surface, sweep.closedU, { divsU : divsU, divsV : o.divsV != null ? o.divsV : 48 } );
         }
         return SweptObjectsRecipe.finish( rail, profile, sweep, mesh );

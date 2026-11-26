@@ -44,6 +44,20 @@ describe("verb.solid.Makeable", function(){
 		big.makeable.should.be.false();
 	});
 
+	it('rejects a closed surface that passes through itself, and says where', function(){
+		this.timeout(60000);
+		var folded = lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, noFold : false, divsU : 200, divsV : 32 });
+		var c = lib.Makeable.check(folded.mesh, 'fdm', 500);
+		folded.report.manifold.closedManifold.should.be.true();
+		c.makeable.should.be.false();
+		c.selfIntersections.should.be.above(0);
+		c.crossings.length.should.be.above(0);
+		c.issues.some(function(x){ return /passes through itself/.test(x); }).should.be.true();
+		var ok = lib.Makeable.check(lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, divsU : 200, divsV : 32 }).mesh, 'fdm', 500);
+		ok.selfIntersections.should.be.equal(0);
+		ok.makeable.should.be.true();
+	});
+
 	it('rejects open sheets and inside-out meshes', function(){
 		var sheet = SweptObjectsRecipe.ribbonKnot({ thickness : 0, divsU : 200 });
 		sheet.report.manifold.closedManifold.should.be.false();

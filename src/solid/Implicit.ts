@@ -538,6 +538,14 @@ export class Implicit {
                 if (faces[i].some( (k, m) => Vec.dot( normal( k ), before[m] ) <= 0 )) V[i] = old;
             }
         }
+        // The mesh as meshed cannot cross itself (each triangle lies in its tet); a move can make two nearby
+        // triangles cross even when neither turns over. Put the corners of every crossing pair back where they were
+        // meshed until none is left: at worst that is the mesh as meshed.
+        for (let pass = 0; pass < 8; pass++) {
+            const x = mesh.selfIntersectingTriangles();
+            if (x.length == 0) break;
+            for (const k of x) for (const i of T[k]) V[i] = origin[i];
+        }
         return mesh;
     }
 

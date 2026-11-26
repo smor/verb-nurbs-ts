@@ -125,6 +125,35 @@ describe("verb.recipes.SweptObjectsRecipe", function(){
 		wasm.setup();
 	});
 
+	it('measures how far a section reaches into the bends: past 1 the surface crosses itself, and the measure says so before meshing', function(){
+		this.timeout(60000);
+		var plain = lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, noFold : false, divsU : 200, divsV : 32 });
+		plain.sweep.fold.ratio.should.be.above(1);
+		plain.mesh.selfIntersections().pairs.should.be.above(0);
+		// the default ring stays well inside its bends, and is crossing-free
+		var calm = lib.SweptObjectsRecipe.twistedRing({ divsU : 200, divsV : 32 });
+		calm.sweep.fold.ratio.should.be.below(0.5);
+		calm.mesh.selfIntersections().pairs.should.be.equal(0);
+	});
+
+	it('keeps a sweep from folding by narrowing the section only where a bend is too tight for it', function(){
+		this.timeout(60000);
+		[{ wave : 12, waves : 4 }, { wave : 12, waves : 8 }, { width : 14, radius : 15 }, { radius : 15, wave : 6, waves : 5, width : 8, height : 5 }].forEach(function(p){
+			var o = lib.SweptObjectsRecipe.twistedRing(Object.assign({ divsU : 200, divsV : 32 }, p));
+			o.sweep.fold.ratio.should.be.belowOrEqual(0.9 + 1e-6);
+			o.sweep.narrowed.scale.should.be.below(1);
+			o.report.manifold.closedManifold.should.be.true();
+			o.mesh.selfIntersections().pairs.should.be.equal(0);
+		});
+		// a sweep that does not need it is left exactly as it was
+		var a = lib.SweptObjectsRecipe.twistedRing({ divsU : 120, divsV : 24 }), b = lib.SweptObjectsRecipe.twistedRing({ divsU : 120, divsV : 24, noFold : false });
+		a.sweep.narrowed.scale.should.be.equal(1);
+		a.sweep.surface.controlPoints.should.eql(b.sweep.surface.controlPoints);
+		// a ring that folds only a little in its wave troughs is narrowed only a little there
+		var s = lib.SweptObjectsRecipe.twistedRing({ wave : 8, waves : 5, divsU : 120, divsV : 24 });
+		s.sweep.narrowed.scale.should.be.within(0.5, 0.99);
+	});
+
 	['knotPipe', 'twistedRing'].forEach(function(name){
 		it(name + ' is a genus 1 solid accepted by manifold-3d', function(){
 			var o = lib.SweptObjectsRecipe[name]({ divsU : 160, divsV : 24 });

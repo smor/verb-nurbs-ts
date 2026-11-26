@@ -47,12 +47,19 @@ function pierced( p : Record<string, number>, fine : boolean ) {
     return { mesh : o.result.mesh, report : r, error : r.maxCurveError, ok : r.manifold.closedManifold };
 }
 
+// what the sweep did to stay foldless, said plainly: the section is narrowed only where a bend is too tight for it
+function narrowedNote( n? : { scale : number } ) : Array<string> {
+    return n != null && n.scale < 0.995
+        ? ["The section is narrowed to " + Math.round( 100 * n.scale ) + "% where the rail bends tightest, so the surface does not fold over itself there."]
+        : [];
+}
+
 function ribbon( p : Record<string, number>, fine : boolean ) {
     const o = SweptObjectsRecipe.ribbonKnot( {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, width : p.width, thickness : p.thickness, turns : p.turns,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 720 : 300, divsV : fine ? 40 : 20
     } );
-    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true };
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : narrowedNote( o.sweep.narrowed ) };
 }
 
 function knot( p : Record<string, number>, fine : boolean ) {
@@ -60,7 +67,7 @@ function knot( p : Record<string, number>, fine : boolean ) {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, pipeRadius : p.pipe, pipeSwell : p.swell,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 480 : 200, divsV : fine ? 40 : 20
     } );
-    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true };
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : narrowedNote( o.sweep.narrowed ) };
 }
 
 function ring( p : Record<string, number>, fine : boolean ) {
@@ -68,7 +75,7 @@ function ring( p : Record<string, number>, fine : boolean ) {
         radius : p.radius, wave : p.wave, waves : p.waves, width : p.width, height : p.height, exponent : p.exponent, turns : p.turns,
         tolerance : fine ? 0.01 : 0.05, divsU : fine ? 360 : 160, divsV : fine ? 64 : 32
     } );
-    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true };
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : narrowedNote( o.sweep.narrowed ) };
 }
 
 function appliance( p : Record<string, number>, fine : boolean ) {
@@ -119,7 +126,8 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
             } else {
                 const c = Makeable.check( r.mesh, machine );
                 if (!r.ok) c.issues.unshift( "The wall folds over itself: it is thicker than the tightest fold." );
-                check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits };
+                check = { makeable : c.makeable && r.ok, issues : c.issues, machine : c.machine.name, wall : c.wall.p01, fits : c.fits,
+                          notes : (r.notes ?? []).concat( c.notes ) };
             }
         }
         const ms = performance.now() - t0;
@@ -135,6 +143,7 @@ self.onmessage = (e : MessageEvent<BuildRequest>) => {
                 selfCheck : r.ok,
                 fillets : r.report.fillets, filletsFailed : r.report.filletsFailed, filletsSkipped : r.report.filletsSkipped,
                 check,
+                notes : r.notes ?? [],
                 size : bb ? [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]] : null
             }
         }, [pos.buffer, idx.buffer] );

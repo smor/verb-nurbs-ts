@@ -268,6 +268,8 @@ function showStats( s : any, ms : number, fine : boolean ) {
         issues.innerHTML = c.issues.map( (x : string) => `<li>${x.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</li>` ).join( "" );
         canSave = c.makeable;
     }
+    const notes : Array<string> = mode == "make" && s.check ? (s.check.notes ?? []) : (s.notes ?? []);
+    issues.innerHTML += notes.map( (x : string) => `<li class="note">${x.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</li>` ).join( "" );
     const rows : [string, string][] = [
         ["Triangles", s.triangles.toLocaleString( "en" )],
         ["Watertight", m.closedManifold ? "yes" : "no, " + m.boundaryEdges + " open edges"],

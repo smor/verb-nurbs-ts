@@ -42,6 +42,10 @@ export interface MakeableReport {
     thinSpots : Array<Point>;
     // sealed voids: cavities with no way out (an issue where the machine `drains`)
     voids : number;
+    // pairs of triangles where the surface passes through itself, and up to 32 points on those crossings. A surface
+    // that crosses itself encloses no well-defined solid: slicers and Booleans each guess differently
+    selfIntersections : number;
+    crossings : Array<Point>;
     // for a machine with an `overhang`: the build direction (of the six axes) that leaves the least area overhanging,
     // and that area, as a share of the surface
     orientation? : { up : Point, overhang : number };
@@ -85,6 +89,8 @@ export class Makeable {
             if (rep.degenerateTriangles > 0) parts.push( rep.degenerateTriangles + " degenerate triangles" );
             issues.push( "Not a closed solid: " + parts.join( ", " ) + "." );
         }
+        const crossing = mesh.selfIntersections();
+        if (crossing.pairs > 0) issues.push( "The surface passes through itself (" + crossing.pairs + " crossing triangle pairs, first near " + crossing.points[0].map( x => x.toFixed( 1 ) ).join( ", " ) + "): it encloses no well-defined solid." );
         if (rep.closedManifold && volume <= 0) issues.push( "The surface faces inward (negative volume)." );
         // sealed voids: pieces of a closed, outward surface that face in
         const voids = rep.closedManifold && volume > 0 ? mesh.pieces().filter( p => p.volume < 0 ).length : 0;
@@ -118,6 +124,7 @@ export class Makeable {
         }
         return { makeable : issues.length == 0, issues : issues, machine : m, watertight : rep.closedManifold, genus : rep.genus,
                  volume : volume, size : size, fits : fits, wall : wall, thinSpots : thinSpots, voids : voids,
+                 selfIntersections : crossing.pairs, crossings : crossing.points,
                  orientation : orientation, release : release, notes : notes };
     }
 

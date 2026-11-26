@@ -200,6 +200,86 @@ export class TriMesh {
         };
     }
 
+    // Where the surface passes through itself: pairs of triangles that share no vertex and cross. A closed, oriented
+    // mesh can still cross itself (a sweep whose section is wider than the rail bends, a fold), and such a mesh
+    // encloses no well-defined solid. Triangles are binned in a uniform grid of cells about twice the mean edge
+    // length, then each pair in a cell is tested edge against triangle. Returns the number of crossing pairs and up
+    // to `maxPoints` points on the crossings, for display.
+    public selfIntersections( maxPoints : number = 32 ) : { pairs : number, points : Array<Point> } {
+        const r = this.crossings( maxPoints );
+        return { pairs : r.pairs, points : r.points };
+    }
+
+    // The indices of the triangles in `selfIntersections`' crossing pairs.
+    public selfIntersectingTriangles() : Array<number> {
+        return this.crossings( 0 ).triangles;
+    }
+
+    private crossings( maxPoints : number ) : { pairs : number, points : Array<Point>, triangles : Array<number> } {
+        const V = this.vertices, T = this.triangles;
+        if (T.length < 2) return { pairs : 0, points : [], triangles : [] };
+        let edge = 0;
+        for (const t of T) edge += Vec.dist( V[t[0]], V[t[1]] );
+        const hit = new Set<number>();
+        const h = Math.max( 2 * edge / T.length, 1e-12 );
+        const bb = this.boundingBox();
+        const cells = new Map<string, Array<number>>();
+        const lo : Array<Array<number>> = [], hi : Array<Array<number>> = [];
+        T.forEach( (t, i) => {
+            if (t[0] == t[1] || t[1] == t[2] || t[2] == t[0]) { lo.push( [Infinity, Infinity, Infinity] ); hi.push( [-Infinity, -Infinity, -Infinity] ); return; }
+            const a = V[t[0]], b = V[t[1]], c = V[t[2]];
+            const mn = [0, 1, 2].map( k => Math.min( a[k], b[k], c[k] ) ), mx = [0, 1, 2].map( k => Math.max( a[k], b[k], c[k] ) );
+            lo.push( mn ); hi.push( mx );
+            const i0 = mn.map( (x, k) => Math.floor( (x - bb.min[k]) / h ) ), i1 = mx.map( (x, k) => Math.floor( (x - bb.min[k]) / h ) );
+            for (let x = i0[0]; x <= i1[0]; x++) for (let y = i0[1]; y <= i1[1]; y++) for (let z = i0[2]; z <= i1[2]; z++) {
+                const key = x + "," + y + "," + z;
+                let l = cells.get( key );
+                if (l == null) cells.set( key, l = [] );
+                l.push( i );
+            }
+        } );
+        const seen = new Set<number>();
+        const points : Array<Point> = [];
+        let pairs = 0;
+        const n = T.length;
+        for (const l of cells.values()) for (let p = 0; p < l.length; p++) for (let q = p + 1; q < l.length; q++) {
+            const i = Math.min( l[p], l[q] ), j = Math.max( l[p], l[q] );
+            const ti = T[i], tj = T[j];
+            if (ti.some( x => tj.includes( x ) )) continue;
+            if (lo[i][0] > hi[j][0] || lo[j][0] > hi[i][0] || lo[i][1] > hi[j][1] || lo[j][1] > hi[i][1] || lo[i][2] > hi[j][2] || lo[j][2] > hi[i][2]) continue;
+            const key = i * n + j;
+            if (seen.has( key )) continue;
+            seen.add( key );
+            const x = TriMesh.trianglesCross( V[ti[0]], V[ti[1]], V[ti[2]], V[tj[0]], V[tj[1]], V[tj[2]] );
+            if (x != null) { pairs++; hit.add( i ); hit.add( j ); if (points.length < maxPoints) points.push( x ); }
+        }
+        return { pairs : pairs, points : points, triangles : [...hit] };
+    }
+
+    // A point where triangle abc and triangle def cross (an edge of one through the other), or null.
+    private static trianglesCross( a : Point, b : Point, c : Point, d : Point, e : Point, f : Point ) : Point | null {
+        return TriMesh.segmentTriangle( d, e, a, b, c ) ?? TriMesh.segmentTriangle( e, f, a, b, c ) ?? TriMesh.segmentTriangle( f, d, a, b, c )
+            ?? TriMesh.segmentTriangle( a, b, d, e, f ) ?? TriMesh.segmentTriangle( b, c, d, e, f ) ?? TriMesh.segmentTriangle( c, a, d, e, f );
+    }
+
+    // Where segment pq passes through the inside of triangle abc (Möller–Trumbore), or null. Touching at an edge or a
+    // vertex does not count, so neighbours that only meet along the surface are not reported.
+    private static segmentTriangle( p : Point, q : Point, a : Point, b : Point, c : Point ) : Point | null {
+        const d = Vec.sub( q, p ), e1 = Vec.sub( b, a ), e2 = Vec.sub( c, a );
+        const s = Vec.cross( d, e2 ), det = Vec.dot( e1, s );
+        const scale = Vec.norm( d ) * Vec.norm( e1 ) * Vec.norm( e2 );
+        if (Math.abs( det ) <= 1e-12 * scale) return null;
+        const r = Vec.sub( p, a ), inv = 1 / det;
+        const u = Vec.dot( r, s ) * inv;
+        const eps = 1e-9;
+        if (u <= eps || u >= 1 - eps) return null;
+        const w = Vec.cross( r, e1 ), v = Vec.dot( d, w ) * inv;
+        if (v <= eps || u + v >= 1 - eps) return null;
+        const t = Vec.dot( e2, w ) * inv;
+        if (t <= eps || t >= 1 - eps) return null;
+        return Vec.add( p, Vec.mul( t, d ) );
+    }
+
     // Arrays for manifold-3d's `Mesh`.
     public toManifoldMesh() : ManifoldMeshArrays {
         const vp = new Float32Array( this.vertices.length * 3 );
