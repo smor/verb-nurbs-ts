@@ -204,7 +204,7 @@ would stick or could not leave a two-part mould.
   comes from how the kernel works, not from a rule of modelling: the whole tree is one Boolean over primitives whose
   faces are whole NURBS surfaces, the fillets are made inside it, and a rounded solid (trimmed faces, blends) cannot
   be such a primitive. Lifting it means Booleans on trimmed B-reps. Meanwhile, do the Booleans first and round last,
-  selecting edges by name. A rounded solid can be moved, rotated and uniformly scaled: transforms over a round are
+  selecting edges by name ([exact-booleans.md](exact-booleans.md) is the plan to lift it). A rounded solid can be moved, rotated and uniformly scaled: transforms over a round are
   rewritten as the round of the transformed solid (`Model.liftRound`), its patterns and fillet names prefixed with
   the transforms' path (`round(placed/block.+z|placed/peg.tube)`), its radii scaled with it.
 * Shells offset boxes, cylinders, pipes (a curved pipe's ends can only move in, so not an open end or a pipe taken
