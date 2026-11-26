@@ -386,6 +386,12 @@ Graph.compile( doc );         // the version 1 model document it runs
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
   Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
+* **The 3D view draws the exact faces** (`editor/meshes.ts`). Each solid comes twice: the Booleans' analysis mesh at
+  once, then the "view" export mesh (within 0.1 mm of the exact shell, about a tenth of the triangles), unless an edit
+  came in between. Every triangle carries its face's persistent name, and every corner the exact normal of its face's
+  surface: from the parameters the Booleans keep for the analysis mesh, by projecting the vertex for the view mesh,
+  at the triangle's middle where a surface collapses to a point. Vertices are split between faces, so shading is
+  smooth within a face and sharp where faces meet. The face under the pointer lights up, with its name.
 * **Several outputs**, by name, each a part (`{ "flywheel": "@flywheel", "connecting-rod": "@rod" }`); `evaluate`
   and `compile` take `{ output, set }` to pick one and to set number nodes from outside. The editor's **Make output**
   adds or removes a solid node from them, and **Show** displays any solid node without changing the outputs.
