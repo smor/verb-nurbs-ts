@@ -12,11 +12,11 @@ ours. It is a decision record: nothing here is built yet.
    outputs. A version 1 model document is still read, rewritten into version 2 on load. Evaluation extends `Model`'s content-hash cache, so an edit rebuilds only what
    is downstream of it, the same document always gives the same result bit for bit, and persistent face names
    survive. No library offers this, and every library's engine would have to be bypassed to get it.
-2. **The editor canvas comes from a library: Rete.js v2 (`rete`, MIT), drawn by its React renderer.** Its core is
-   small and typed (a `NodeEditor` of nodes, sockets and connections), and everything else is a plugin we pick:
-   area, connections, history, context menu, minimap, auto-arrange. We use its editor and none of its engine. It is
-   a view: the document is the truth, and two functions (`toEditor`, `fromEditor`) map it onto the editor and back.
-   React Flow (`@xyflow/react`) was the other strong candidate (see the comparison and "Choosing Rete").
+2. **The editor canvas comes from a library: React Flow (`@xyflow/react`, MIT), or Rete.js v2.** The same small
+   editor was built with both (see "Hands-on comparison"): both need React, and React Flow did the same job in less
+   code with fewer pieces to wire, so it is recommended; Rete gives the smaller bundle and a finished default look.
+   Either is only a view: the document is the truth, and two functions (`toEditor`, `fromEditor`) map it onto the
+   editor and back. LiteGraph is the one option without a framework.
 3. **Hierarchy is the document calling itself.** A graph document with an interface (inputs, outputs) is a node: a
    `group` node that runs another document, with its inputs as the node's ports. This is Houdini's digital
    asset, Blender's node group, Dynamo's custom node and Grasshopper's cluster, and it is what the design tree of
@@ -132,16 +132,50 @@ How they fall out:
 * **Rete.js v2** is clean, typed, modular and framework-agnostic in its core, with a dataflow engine that caches per
   node. It has no saved format (by design), its engine's cache is keyed by node id and cleared by hand (not by
   content), and its renderer plugins still need React, Vue, Angular or Svelte. We take the editor and leave the
-  engine: then it has nothing to bypass either. Chosen; see "Choosing Rete".
+  engine: then it has nothing to bypass either. See "Hands-on comparison".
 * **React Flow** does one thing, the canvas, and does it best: it is the most used node canvas in JavaScript, released
   three days before this was written, MIT, TypeScript, with DOM nodes that can hold anything. It has no engine and no
   format, and here that is an advantage: ours are better suited to geometry, and nothing has to be bypassed. The
   close second.
 
-## Choosing Rete
+## Hands-on comparison
 
-React Flow and Rete score almost the same here (table below); Rete was chosen for its simpler model. How to use it
-well:
+The same editor was built three times on the same document and registry (a `math/add`, two cylinders and a union,
+with positions from `view`): React Flow 13.0.3 with React 18, Rete 2.0.6 with its React renderer, and the LiteGraph
+fork 0.17.2 with no framework. Each one draws the document, refuses a wire from a solid to a number input, writes a
+new wire back as `"@size.value"`, writes a moved node's position into `view`, and edits literal inputs in place. All
+three passed the same scripted test in Chromium (Playwright: drag a wrong wire, drag a right one, move a node, read the
+JSON back). Bundles are esbuild, minified, React included.
+
+| | React Flow | Rete v2 | LiteGraph (no framework) |
+|---|---|---|---|
+| Lines for the same editor | 45 | 70 | 51 |
+| Objects to wire up | one `<ReactFlow>` component with props | editor, area, connection and render plugins, two presets, two event pipes | graph, canvas, one class per node type |
+| Needs React | yes | yes (or Vue, Angular, Svelte); also `styled-components` | no |
+| Packages installed | 25 (9 MB) | 24 (14 MB) | 1 (4 MB) |
+| Bundle, gzipped | 136 KB | 81 KB | 88 KB |
+| Default look | bare: handles over labels until styled | finished (the classic preset) | finished, dark, canvas |
+| Node body | any React component (sliders, previews) | controls from the preset, or React components | widgets drawn on canvas |
+| Wire type check | one `isValidConnection` function | a `connectioncreate` pipe | built in, by port type name |
+| Snags met | version 13 (released 2026-11-23) removed `applyNodeChanges`, which its own docs still use | inputs with a control hide their label until wired | an input keeps its widget when wired, unless removed by hand |
+| Releases | 2026-11 (fast-moving) | core 2025-06, renderers 2026-07 | fork frozen 2025-08; the live copy is in a GPL project |
+
+What this says:
+
+* **Rete is not the simpler one in practice.** Its model reads simply (nodes, sockets, connections), but using it
+  means assembling plugins and presets and writing event pipes, and it needs React (or another framework) all the
+  same, plus `styled-components`. React Flow is one component: the document goes in as nodes and edges, events come
+  out as callbacks.
+* **React Flow's cost is styling.** Its nodes are bare until we style them, which we would do anyway for sliders,
+  previews and verdict badges. It is also the larger bundle, and it moves fast: version 13 broke an example in its
+  own docs.
+* **LiteGraph is the only way to have no framework**, and was as short to write. Against it: the canvas makes rich
+  node bodies harder, its format and the maintained code sit in a GPL project, and the MIT fork is frozen, so we would
+  own it.
+
+## If Rete is chosen
+
+How to use it well:
 
 * **Editor only.** Install `rete`, `rete-area-plugin`, `rete-connection-plugin`, `rete-react-plugin` (React 18 or
   later), `rete-history-plugin`, `rete-context-menu-plugin`, `rete-minimap-plugin`, `rete-auto-arrange-plugin`
@@ -166,12 +200,12 @@ well:
 
 Scored 0 (none) to 3 (good) against what this project needs.
 
-| Need | React Flow | Rete v2 (chosen) | Baklava | LiteGraph | behave-graph |
+| Need | React Flow | Rete v2 | Baklava | LiteGraph | behave-graph |
 |---|---|---|---|---|---|
 | Our JSON stays the source of truth | 3 (pure view) | 3 (no format) | 1 (its own state) | 1 (its own, positional) | 2 (similar, but its own) |
 | Content-hash caching, determinism, worker | 3 (ours, nothing to bypass) | 3 (its engine left out) | 1 (replace its engine) | 1 (replace its loop) | 1 (replace its engine) |
 | Rich node bodies: sliders, previews, verdicts | 3 (DOM components) | 3 (DOM components) | 2 (Vue components) | 2 (drawn on canvas) | 0 (no editor) |
-| Simplicity of the model | 2 (nodes, edges, hooks) | 3 (nodes, sockets, connections, plugins) |
+| Simplicity in use (measured, see above) | 3 (one component, 45 lines) | 2 (plugins, presets, pipes; 70 lines) |
 | Hierarchy (groups) | 2 (visual; semantics ours) | 2 (scopes plugin; drill-down ours) | 3 (graph templates) | 2 (subgraphs) | 0 |
 | Ready-made math nodes usable as is | 0 | 0 | 0 | 1 (only in its loop) | 1 (only in its engine) |
 | Maintenance, 2026 | 3 | 2 | 2 | 1 | 0 |
@@ -290,7 +324,7 @@ Each is a line or two over `Expr` and `Vec`, so owning them costs less than adap
 * The registry, the version 2 document and the evaluator: `src/model/` (the `model` layer, beside `Model`), with no
   new runtime dependency.
 * The editor: a new app beside `playground/` and `viewer/` (`editor/`), built with esbuild into one HTML file like
-  them. React, `rete` and its plugins are its dev dependencies only; the published library still depends on `cdt2d`
+  them. React and the canvas library are its dev dependencies only; the published library still depends on `cdt2d`
   alone.
 
 ## Plan
@@ -301,16 +335,16 @@ Each is a line or two over `Expr` and `Vec`, so owning them costs less than adap
    faces keep their names.
 2. Groups, with recursion refused and names nested.
 3. Lists and lacing.
-4. The editor: Rete canvas with the React renderer, the registry as the palette, the viewport and verdict from the worker, the document
+4. The editor: the chosen canvas (React Flow, or Rete with its React renderer), the registry as the palette, the viewport and verdict from the worker, the document
    as the file (open, save, undo by document snapshots).
 5. Data trees, fields (per-vertex functions in Blender's sense, for growth and lattices), and loops (zones), as the
    models ask for them.
 
 ## Known limits of this choice
 
-* Rete draws nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas scales
+* React Flow and Rete draw nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas scales
   further. Groups keep each canvas small, which is the answer here.
-* Rete's core was last released in June 2025 (its renderers and area plugin in July 2026); several plugins (scopes,
+* If Rete is chosen: its core was last released in June 2025 (its renderers and area plugin in July 2026); several plugins (scopes,
   auto-arrange, connection) date from 2024. It is stable rather than fast-moving. Since the document is ours and Rete
   is only the view, moving to React Flow later would mean rewriting `toEditor`, `fromEditor` and the node bodies,
   not the format or the evaluator.
