@@ -15,7 +15,7 @@ import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
 import { SAMPLES } from "./samples.js";
 import { History } from "./history.js";
 import { layout } from "./shelf.js";
-import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY } from "./storage.js";
+import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY, inViewer, zip } from "./storage.js";
 import type { ShelfSpec, Box } from "./shelf.js";
 
 declare const WORKER_SOURCE : string;
@@ -547,6 +547,23 @@ function App() {
     // STL: the shown part, or on the shelf every output, each its own file
     const downloadStl = async () => {
         const outs = shelfMode ? Object.keys( DOC.outputs ) : [shownNode() == "" ? Object.keys( DOC.outputs )[0] : "@" + shownNode()];
+        if (inViewer()) {
+            // the viewer saves no .stl: every part's STL in one zip
+            const files : Array<{ name : string, data : Uint8Array }> = [];
+            for (const o of outs) {
+                const label = o.startsWith( "@" ) ? o.slice( 1 ) : o;
+                tell( `Meshing ${label} for printing…` );
+                const r = await requestStl( o, label );
+                if (r.ok && r.data != null) files.push( { name : `${docName()}-${fileName( label )}.stl`, data : new Uint8Array( r.data ) } );
+                else tell( `Could not mesh ${label}: ${r.error}` );
+            }
+            if (files.length == 0) return;
+            try {
+                const name = await saveBinary( zip( files ), `${docName()}-stl.zip`, "application/zip" );
+                if (name) tell( `${name}: ${files.length} STL file${files.length > 1 ? "s" : ""}, within 0.02 mm` );
+            } catch (e) { tell( `Could not save: ${(e as Error).message}` ); }
+            return;
+        }
         for (const o of outs) {
             const label = o.startsWith( "@" ) ? o.slice( 1 ) : o;
             tell( `Meshing ${label} for printing…` );
@@ -580,7 +597,7 @@ function App() {
                     </select>
                     <button onClick={() => void openDialog()}>Open…</button>
                     <button onClick={() => void save()} title="Save the graph file (it is also kept in this browser as you work)">Save</button>
-                    <button onClick={() => void share()} title="Copy a link that holds the whole graph: whoever opens it gets this graph and its parameters">Share link</button>
+                    {!inViewer() && <button onClick={() => void share()} title="Copy a link that holds the whole graph: whoever opens it gets this graph and its parameters">Share link</button>}
                     <button onClick={() => void downloadStl()} title="Download the shown part as STL for printing (on the shelf: every part), meshed within 0.02 mm of its exact faces">STL</button>
                     <button aria-pressed={shelfMode} onClick={() => { setShelf( !shelfMode ); fitWanted = true; evaluate(); }}
                         title="Show every output of the graph at once, side by side">Shelf</button>

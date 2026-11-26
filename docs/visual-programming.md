@@ -400,7 +400,9 @@ Graph.compile( doc );         // the version 1 model document it runs
   **Open** use the File System Access API where the browser has it (Save writes back to the file opened), downloads
   otherwise. **STL** saves the shown part (on the shelf, every output) meshed from the exact faces within 0.02 mm, for
   printing. A build can open on a document of its own: `EDITOR_START=part.graph.json npm run editor`, for a page made
-  for one project's team; a link or an autosave still comes first.
+  for one project's team; a link or an autosave still comes first. In the claude.ai artifact viewer, where a page
+  cannot download files itself and links keep no fragment, saves go through the viewer's downloads capability (the
+  viewer confirms), STL comes as one zip of every part's STL (the viewer saves no .stl), and Share link is hidden.
 * **The 3D view draws the exact faces** (`editor/meshes.ts`). Each solid comes twice: the Booleans' analysis mesh at
   once, then the "view" export mesh (within 0.1 mm of the exact shell, about a tenth of the triangles), unless an edit
   came in between. Every triangle carries its face's persistent name, and every corner the exact normal of its face's
