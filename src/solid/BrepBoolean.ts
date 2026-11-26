@@ -243,9 +243,29 @@ export class BrepBoolean {
         const ends : Array<{ c : IntersectionCurve, k : number }> = [];
         for (const e of curves) if (!e.curve.closed) { ends.push( { c : e.curve, k : 0 } ); ends.push( { c : e.curve, k : e.curve.points.length - 1 } ); }
         const snap = weldTol * 50;
-        for (let x = 0; x < ends.length; x++) for (let y = x + 1; y < ends.length; y++) {
-            const p = ends[x].c.points[ends[x].k], q = ends[y].c.points[ends[y].k];
-            if (p !== q && Vec.dist( p, q ) < snap) ends[y].c.points[ends[y].k] = p;
+        // (each end in turn takes the later ends within snap of it; a grid of cells snap wide, kept up to date as ends
+        // move, finds them, in the same order as comparing every pair)
+        const cell = (p : Point) => Math.floor( p[0] / snap ) + "," + Math.floor( p[1] / snap ) + "," + Math.floor( p[2] / snap );
+        const grid = new Map<string, Set<number>>();
+        const put = (y : number) => { const key = cell( ends[y].c.points[ends[y].k] ); let set = grid.get( key ); if (set == null) grid.set( key, set = new Set() ); set.add( y ); };
+        ends.forEach( (_, y) => put( y ) );
+        for (let x = 0; x < ends.length; x++) {
+            const p = ends[x].c.points[ends[x].k];
+            const i = Math.floor( p[0] / snap ), j = Math.floor( p[1] / snap ), l = Math.floor( p[2] / snap );
+            const near : Array<number> = [];
+            for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+                const set = grid.get( (i + a) + "," + (j + b) + "," + (l + c) );
+                if (set != null) for (const y of set) if (y > x) near.push( y );
+            }
+            near.sort( (u, v) => u - v );
+            for (const y of near) {
+                const q = ends[y].c.points[ends[y].k];
+                if (p !== q && Vec.dist( p, q ) < snap) {
+                    grid.get( cell( q ) )!.delete( y );
+                    ends[y].c.points[ends[y].k] = p;
+                    put( y );
+                }
+            }
         }
 
         // the edges of the result: runs of each branch between corners, the points where it meets another branch
@@ -899,12 +919,37 @@ export class BrepBoolean {
             }
             return false;
         };
+        // each branch's box, and how far from its polyline a point still counts as on it: a branch can trace another
+        // only if its box lies within the other's grown by that much
+        const boxes = curves.map( e => {
+            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            let seg = 0;
+            const q = e.curve.points;
+            q.forEach( (p, k) => {
+                for (let c = 0; c < 3; c++) { lo[c] = Math.min( lo[c], p[c] ); hi[c] = Math.max( hi[c], p[c] ); }
+                if (k > 0) seg = Math.max( seg, Vec.dist( p, q[k - 1] ) );
+            } );
+            if (e.curve.closed && q.length > 1) seg = Math.max( seg, Vec.dist( q[0], q[q.length - 1] ) );
+            return { lo : lo, hi : hi, grow : eps + 0.05 * seg };
+        } );
+        const within = (a : number, b : number) => {
+            const A = boxes[a], B = boxes[b];
+            for (let c = 0; c < 3; c++) if (A.lo[c] < B.lo[c] - B.grow || A.hi[c] > B.hi[c] + B.grow) return false;
+            return true;
+        };
+        // the branches on each face of each solid, in order
+        const onFace = new Map<string, Array<number>>();
+        curves.forEach( (f, cj) => { for (const m of [0, 1]) {
+            const key = f.solids[m] + ":" + f.faces[m];
+            let list = onFace.get( key );
+            if (list == null) onFace.set( key, list = [] );
+            if (list[list.length - 1] != cj) list.push( cj );
+        } } );
         curves.forEach( (e, ci) => { for (let k = 0; k < 2; k++) {
-            for (let cj = 0; cj < curves.length; cj++) {
+            for (const cj of onFace.get( e.solids[k] + ":" + e.faces[k] ) as Array<number>) {
                 const f = curves[cj];
                 if (cj == ci) continue;
-                const shared = [0, 1].some( m => f.solids[m] == e.solids[k] && f.faces[m] == e.faces[k] );
-                if (!shared || (e.curve.closed && !f.curve.closed)) continue;
+                if ((e.curve.closed && !f.curve.closed) || !within( ci, cj )) continue;
                 // all of it along the other (a stretch of it: a face covering only part of a third face's edge)
                 if (!e.curve.points.every( p => near( p, f.curve ) )) continue;
                 if (cj > ci && f.curve.closed == e.curve.closed && f.curve.points.every( p => near( p, e.curve ) )) continue;
