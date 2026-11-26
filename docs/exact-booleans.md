@@ -1,6 +1,6 @@
 # Plan: Booleans on any solid, rounded ones included
 
-Status: A1, A2 and A3 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
+Status: A1 to A4 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
 tests.
 
 ## The goal
@@ -162,6 +162,23 @@ their history: a face of the rounded operand keeps its name (`round(box.+x|box.+
 
 Tests: a model rounded then drilled rebuilds only the drill when the hole moves; the round's fillet faces keep their
 names through the cut.
+
+Built: in `Model.evaluate` (`src/model/Model.ts`) a `round` that is an operand is a leaf whose solid is its result's
+shell (`ShellBuilder.solid`), its faces named as the round named them; the round's own Boolean is the cached stage
+`solid:<id>`, as the output's is. Transforms move such a leaf exactly: its surfaces and edge points by the map, its
+trims and edge parameters unchanged, faces and boundary turned over by a mirror. The verdict's fillet check counts
+the rounds' fillets with the output's. Tests in `test/testModel.cjs`:
+* a box rounded (radius 4), then drilled: buildable, genus 1, its volume on the exact faces within 2e-5 of Steiner's
+  formula less the cylinder, the same volume and the same face names as the cut rounded on the box's own edges in one
+  pass; moving the hole rebuilds the hole and the cut, not the box or the round;
+* a boss on the rounded box (a union): buildable, genus 0, its volume within 2e-5;
+* the bracket rounded, then stretched by a scale that differs along the axes: twice the volume, its faces named
+  `placed/big/round(block.+z|peg.tube)`;
+* a round over a rounded operand refused with the reason.
+
+Building it found a ripple in closed fillets where their edge crosses a face's seam (the rolling ball's sections
+repeat there, and both were lofted): 0.015 mm on the bracket's rim fillet, which left its shell open as an operand.
+The repeated section is lofted once (`Fillet.rollingBall`).
 
 ### A5. Rounding any edge
 

@@ -199,7 +199,7 @@ describe("verb.model.Model", function(){
 		bad(function(d){ d.features.block.max = [0, 1, 1]; }).should.throw(/max must exceed its min/);
 		bad(function(d){ d.features.peg.radius = '-r'; }).should.throw(/radius must be positive/);
 		bad(function(d){ d.features.solid.of = []; }).should.throw(/no operands/);
-		bad(function(d){ d.features.other = { type : 'union', of : ['rounded', 'block'] }; d.output = 'other'; }).should.throw(/can only be the last feature/);
+		bad(function(d){ d.features.other = { type : 'round', of : 'solid2', rules : [] }; d.features.solid2 = { type : 'union', of : ['rounded', 'block'] }; d.output = 'other'; }).should.throw(/rounded operand/);
 		bad(function(d){ d.features.block = { type : 'sphere' }; }).should.throw(/unknown feature type/);
 		bad(function(d){ d.features.block.min = [0, 0, {}]; }).should.throw(/must be a number or an expression/);
 	});
@@ -232,9 +232,67 @@ describe("verb.model.Model", function(){
 		var big = new Model().evaluate(doc);
 		big.result.report.volume.should.be.approximately(8 * v0, 2e-3 * 8 * v0);
 		big.verdict.kind.should.be.equal('buildable');
-		// a scale that differs along the axes does not commute with rounding: still refused
+		// a scale that differs along the axes does not commute with rounding: the rounded solid is built first, and its
+		// shell scaled (affine maps keep its trims and edges exact): twice the volume, on the exact faces
 		doc.features.big.scale = [1, 2, 1];
-		(function(){ new Model().evaluate(doc); }).should.throw(/can only be the last feature/);
+		Model.liftRound(doc).output.should.be.equal('placed');
+		var stretched = new Model().evaluate(doc);
+		stretched.verdict.kind.should.be.equal('buildable');
+		var exact = function(m){ return lib.ShellBuilder.volume(lib.ShellBuilder.fromResult(m.result)); };
+		exact(stretched).should.be.approximately(2 * exact(r0), 2e-5 * 2 * exact(r0));
+		stretched.faceNames.should.containEql('placed/big/round(block.+z|peg.tube)');
+	});
+
+	it('rounds first, then drills: the rounded solid is a stage of its own, the same solid as rounding after the cut', function(){
+		var exact = function(m){ return lib.ShellBuilder.volume(lib.ShellBuilder.fromResult(m.result)); };
+		var parts = function(x){ return {
+			body : { type : 'box', min : [0, 0, 0], max : [40, 28, 20] },
+			hole : { type : 'cylinder', from : [x, 14, -5], to : [x, 14, 25], radius : 5 } }; };
+		var staged = function(x){ var f = parts(x);
+			f.rounded = { type : 'round', of : 'body', rules : [{ edges : '*', radius : 4 }] };
+			f.part = { type : 'difference', from : 'rounded', minus : ['hole'] };
+			return { version : 1, parameters : {}, features : f, output : 'part' }; };
+		// the box rounded (radius 4: Steiner's formula), less the cylinder through its flat top and bottom
+		var BOX = 32 * 20 * 12 + 8 * (32 * 20 + 20 * 12 + 12 * 32) + 16 * Math.PI * 64 + 4 / 3 * Math.PI * 64;
+		var V = BOX - 25 * Math.PI * 20;
+		var model = new Model();
+		var r = model.evaluate(staged(20));
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.manifold.genus.should.equal(1);
+		exact(r).should.be.approximately(V, 2e-5 * V);
+		// the round's faces keep the names it gave them, the hole's are its own
+		r.faceNames.should.containEql('round(body.+x|body.+y)');
+		r.faceNames.should.containEql('corner(body.+x|body.+y|body.+z)');
+		r.faceNames.should.containEql('hole.tube');
+		// the same solid as the cut rounded on the box's own edges in one pass: volume and names
+		var f = parts(20);
+		f.cut = { type : 'difference', from : 'body', minus : ['hole'] };
+		f.part = { type : 'round', of : 'cut', rules : [{ edges : 'body.*|body.*', radius : 4 }] };
+		var once = new Model().evaluate({ version : 1, features : f, output : 'part' });
+		exact(once).should.be.approximately(exact(r), 2e-5 * V);
+		r.faceNames.slice().sort().should.be.eql(once.faceNames.slice().sort());
+		// moving the hole rebuilds the hole and the cut, not the round
+		var moved = model.evaluate(staged(22));
+		moved.features.rounded.built.should.be.false();
+		moved.features.body.built.should.be.false();
+		moved.features.hole.built.should.be.true();
+		moved.features.part.built.should.be.true();
+		exact(moved).should.be.approximately(V, 2e-5 * V);
+		// a rounded solid in a union: a boss on top (radius 5, 10 above the top face)
+		var u = parts(20);
+		u.rounded = { type : 'round', of : 'body', rules : [{ edges : '*', radius : 4 }] };
+		u.boss = { type : 'cylinder', from : [20, 14, 10], to : [20, 14, 30], radius : 5 };
+		u.part = { type : 'union', of : ['rounded', 'boss'] };
+		delete u.hole;
+		var bossed = new Model().evaluate({ version : 1, features : u, output : 'part' });
+		bossed.verdict.kind.should.be.equal('buildable');
+		bossed.result.report.manifold.genus.should.equal(0);
+		exact(bossed).should.be.approximately(BOX + 25 * Math.PI * 10, 2e-5 * BOX);
+		// rounding over a rounded operand is step A5: refused, with the reason
+		var again = staged(20);
+		again.features.final = { type : 'round', of : 'part', rules : [{ edges : '*', radius : 1 }] };
+		again.output = 'final';
+		(function(){ new Model().evaluate(again); }).should.throw(/over a rounded operand/);
 	});
 
 	it('hashes canonical JSON: key order and -0 do not matter, values do', function(){
