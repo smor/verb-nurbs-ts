@@ -4,6 +4,12 @@
 surface. The solution lives in a spline space of that same parameter rectangle (Hughes, Cottrell and Bazilevs,
 CMAME 194, 2005). The domain is exact at every refinement, and there is no mesh to generate.
 
+**Status: parked.** It lives in `src/experimental/` and is not in the entry point: import it by path
+(`verb-nurbs-ts/dist/experimental/IGA.js`). Poisson on one planar patch does not yet help a model hold up, so no
+model, recipe or app uses it. The step that would make it useful is linear elasticity on a shelled solid (a "will it
+hold" note in the model's verdict); until then it stays here, out of the packages in `docs/packages.md`. `THB` and
+`Fair`, which it builds on, stay in `eval`.
+
 ```js
 const geometry = Make.loftedSurface([Make.arc(O, X, Y, 1, 0, Math.PI / 2), Make.arc(O, X, Y, 2, 0, Math.PI / 2)], 1);
 const s = IGA.poisson({ geometry, space: THB.space([2, 2], breaks, breaks), source: (x, y) => f, boundary: (x, y) => g });

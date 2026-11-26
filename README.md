@@ -142,7 +142,17 @@ a.assembly;                                                 // all four, for dis
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the four-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot, the four-part appliance, a block and a grown sheet with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the files can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+
+* **B-rep models** (the mug, the pierced vessel, the appliance's four parts, the block) are judged in Makeable mode by
+  the model verdict (`Model.verdict`, [docs/model.md](docs/model.md)): closed, outward, every fillet in place, and the
+  machine's check. They also download as **STEP**. **Prove seams** runs the intersection certificate on them, which
+  proves no seam between two faces was missed; it takes from half a minute to a few minutes, so it runs only when asked.
+* The **block** is a model document (`Model`), not a recipe: a box with a bore, rounded by rules over its faces'
+  persistent names, hollowed into an open tray or filled with a lattice inside a skin. Only the features a slider
+  touches are rebuilt.
+* The **grown sheet** is differential growth (`Growth`, [docs/growth.md](docs/growth.md)): a disc that grows at its
+  rim, round its centre or everywhere, buckles into ruffles, and is thickened into a closed solid for the final model.
 
 ## Inspector
 
@@ -157,6 +167,7 @@ A viewer that shows each kind of object as what it is:
   (sides of the domain that collapse to a point), and Gaussian or mean curvature as colour.
 * **B-reps**: each trimmed face in its own colour and fillets in gold. Edges are told apart as trims, natural edges and
   seams, and fillets' contact curves are drawn. Click a face to list its surface's facts and see its control net.
+  **Download STEP** saves the solid on show as a STEP file for any CAD system (see [docs/step.md](docs/step.md)).
 * **Meshes**: the wireframe, open edges, non-manifold edges, and wall thickness as colour.
 
 It comes with examples of each kind, and you can drop your own STL or OBJ mesh, or a NURBS curve or surface as

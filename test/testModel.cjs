@@ -214,6 +214,17 @@ describe("verb.model.Model shells", function(){
 		c.result.report.manifold.closedManifold.should.be.true();
 	});
 
+	it('carries the machine check behind its verdict: the tray\'s wall measured as the thickness asked', function(){
+		var r = new Model().evaluate({ version : 1, features : { box : box(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] } }, output : 'tray', machine : 'sla' });
+		r.verdict.kind.should.be.equal('buildable');
+		r.verdict.makeable.makeable.should.be.true();
+		r.verdict.makeable.machine.name.should.be.equal(lib.Makeable.MACHINES.sla.name);
+		r.verdict.makeable.wall.p01.should.be.approximately(2, 0.1);
+		// no machine named, no machine check
+		var n = new Model().evaluate({ version : 1, features : { box : box() }, output : 'box' });
+		should(n.verdict.makeable).be.undefined();
+	});
+
 	it('offsets a Boolean: a bore through the tray keeps a wall around it', function(){
 		var r = new Model().evaluate({ version : 1, features : {
 			box : box(), bore : { type : 'cylinder', from : [10, 15, -5], to : [10, 15, 25], radius : 3 },

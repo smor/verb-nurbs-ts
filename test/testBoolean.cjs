@@ -444,4 +444,27 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		m.status().should.be.equal('NoError');
 		m.genus().should.be.equal(5);
 	});
+
+	it('proves the pierced vessel\'s seams only when asked, without changing the solid, and the verdict reports it', function(){
+		this.timeout(budget(120000));
+		var o = { holes : 3, rows : 1, notches : 0, harmonics : [], divsU : 16, divsV : 64, offsetTolerance : 0.1 };
+		var plain = lib.BooleanObjectsRecipe.pierced(o);
+		var proven = lib.BooleanObjectsRecipe.pierced(Object.assign({ certify : true }, o));
+		should(plain.result.report.certificate).be.undefined();
+		var c = proven.result.report.certificate;
+		// every pair of faces whose boxes meet is either proven or named
+		c.pairs.should.be.above(0);
+		(c.proven + c.unproven.length).should.be.equal(c.pairs);
+		c.proven.should.be.above(c.pairs / 2);
+		// the same solid, to the last bit
+		proven.result.report.volume.should.be.equal(plain.result.report.volume);
+		proven.result.mesh.triangles.length.should.be.equal(plain.result.mesh.triangles.length);
+		// the Model verdict on a recipe's result: buildable, with the certificate in its notes and the machine's report
+		var v = lib.Model.verdict(proven.result, 'fdm');
+		v.kind.should.be.equal('buildable');
+		v.notes.some(function(n){ return /pairs of faces/.test(n); }).should.be.true();
+		v.makeable.machine.name.should.be.equal(lib.Makeable.MACHINES.fdm.name);
+		// the wall is the vessel's 3 mm, measured on the mesh
+		v.makeable.wall.p01.should.be.within(2.5, 3.2);
+	});
 });

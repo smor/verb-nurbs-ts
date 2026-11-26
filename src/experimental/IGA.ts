@@ -1,7 +1,7 @@
 import { NurbsSurfaceData, UV } from "../core/Data.js";
-import { Eval } from "./Eval.js";
-import { Fair } from "./Fair.js";
-import { THB, THBBasis, THBSpace } from "./THB.js";
+import { Eval } from "../eval/Eval.js";
+import { Fair } from "../eval/Fair.js";
+import { THB, THBBasis, THBSpace } from "../eval/THB.js";
 
 /**
  * A Poisson problem, -Δu = f on a planar domain with u = g on its boundary. The domain is the image of a NURBS surface

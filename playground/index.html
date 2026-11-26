@@ -87,6 +87,8 @@ select{font:14px Inter,sans-serif;min-height:38px;padding:0 8px;border-radius:8p
       <button type="button" data-m="pierced" aria-pressed="false">Pierced</button>
       <button type="button" data-m="ribbon" aria-pressed="false">Ribbon</button>
       <button type="button" data-m="appliance" aria-pressed="false">Appliance</button>
+      <button type="button" data-m="block" aria-pressed="false">Block</button>
+      <button type="button" data-m="grown" aria-pressed="false">Grown</button>
     </div>
   </header>
   <main class="stage">
@@ -110,9 +112,11 @@ select{font:14px Inter,sans-serif;min-height:38px;padding:0 8px;border-radius:8p
       <button type="button" class="btn" id="shuffle">Vary</button>
       <button type="button" class="btn" id="reset">Reset</button>
       <button type="button" class="btn primary" id="save">Download STL</button>
+      <button type="button" class="btn" id="saveStep" hidden>Download STEP</button>
+      <button type="button" class="btn" id="prove" hidden>Prove seams</button>
     </div>
     <dl id="stats"></dl>
-    <p class="foot">Sliders rebuild a quick preview, then a full-resolution model a moment later. In Makeable mode each final model is checked for a closed solid, wall thickness and fit before it can be downloaded. Drag to orbit, scroll or pinch to zoom.</p>
+    <p class="foot">Sliders rebuild a quick preview, then a full-resolution model a moment later. In Makeable mode each final model is checked for a closed solid, its fillets, wall thickness and fit before it can be downloaded; B-rep models also download as STEP for CAD and CNC. Drag to orbit, scroll or pinch to zoom.</p>
   </aside>
 </div>
 <!--BUNDLE-->

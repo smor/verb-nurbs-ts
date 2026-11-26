@@ -1,7 +1,7 @@
 var should = require('should');
 
 var lib = require('../dist/index.js');
-var Make = lib.default.eval.Make, THB = lib.THB, IGA = lib.IGA;
+var Make = lib.default.eval.Make, THB = lib.THB, IGA = require('../dist/experimental/IGA.js').IGA;
 
 // the quarter annulus 1 < r < 2, x, y > 0: exact, rational quadratic round, linear across
 function annulus() {
