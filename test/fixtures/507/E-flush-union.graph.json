@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "E: union of solids sharing their top and bottom planes",
+    "expect": {
+      "rim-spoke": {
+        "volume": "π(35²−29²)·6 + (14/360)·π·29²·6 = 7238.2 + 616.6 = 7854.8, buildable"
+      }
+    }
+  },
+  "nodes": {
+    "rim": {
+      "type": "primitive/tube",
+      "in": {
+        "outer": 35,
+        "inner": 29,
+        "height": 6
+      }
+    },
+    "spokeS": {
+      "type": "primitive/cylinder-sector",
+      "in": {
+        "radius": 32,
+        "angle": 14,
+        "height": 6
+      }
+    },
+    "rs": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@rim",
+        "b": "@spokeS"
+      }
+    }
+  },
+  "outputs": {
+    "rim-spoke": "@rs"
+  }
+}

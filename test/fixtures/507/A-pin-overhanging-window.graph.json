@@ -1,0 +1,210 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "A: pin on a face it partly covers",
+    "expect": {
+      "wheel": {
+        "volume": "π(35²·6) − 6 windows of (46/360)·π(29²−9²)·6 = 23091 − 10985 ≈ 12106 (no bore here)",
+        "builds": true
+      },
+      "flywheel": {
+        "volume": "wheel + the pin (π·3²·4.5 = 127.2), less nothing: the pin bridges the window edge",
+        "builds": true
+      },
+      "flywheel-overlap": {
+        "note": "pin from z=5: same crash. Ø6 pin at r=20 is wider than the 14° spoke (4.9 mm) under it"
+      }
+    }
+  },
+  "nodes": {
+    "disc": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 35,
+        "height": 6
+      }
+    },
+    "ringS": {
+      "type": "primitive/tube",
+      "in": {
+        "outer": 29,
+        "inner": 9,
+        "height": 8
+      }
+    },
+    "ring": {
+      "type": "transform/move",
+      "in": {
+        "of": "@ringS",
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    "spokeS": {
+      "type": "primitive/cylinder-sector",
+      "in": {
+        "radius": 32,
+        "angle": 14,
+        "height": 10
+      }
+    },
+    "spoke": {
+      "type": "transform/move",
+      "in": {
+        "of": "@spokeS",
+        "x": 0,
+        "y": 0,
+        "z": -2
+      }
+    },
+    "sp0": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 0
+      }
+    },
+    "r0": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@ring",
+        "minus": "@sp0"
+      }
+    },
+    "sp1": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 60
+      }
+    },
+    "r1": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@r0",
+        "minus": "@sp1"
+      }
+    },
+    "sp2": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 120
+      }
+    },
+    "r2": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@r1",
+        "minus": "@sp2"
+      }
+    },
+    "sp3": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 180
+      }
+    },
+    "r3": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@r2",
+        "minus": "@sp3"
+      }
+    },
+    "sp4": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 240
+      }
+    },
+    "r4": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@r3",
+        "minus": "@sp4"
+      }
+    },
+    "sp5": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@spoke",
+        "axis": "z",
+        "degrees": 300
+      }
+    },
+    "r5": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@r4",
+        "minus": "@sp5"
+      }
+    },
+    "wheel": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@disc",
+        "minus": "@r5"
+      }
+    },
+    "pinS": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 3,
+        "height": 4.5
+      }
+    },
+    "pin": {
+      "type": "transform/move",
+      "in": {
+        "of": "@pinS",
+        "x": 20,
+        "y": 0,
+        "z": 6
+      }
+    },
+    "flywheel": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@wheel",
+        "b": "@pin"
+      }
+    },
+    "pinO": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 3,
+        "height": 5.5
+      }
+    },
+    "pinO2": {
+      "type": "transform/move",
+      "in": {
+        "of": "@pinO",
+        "x": 20,
+        "y": 0,
+        "z": 5
+      }
+    },
+    "flywheelOverlap": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@pinO2",
+        "b": "@wheel"
+      }
+    }
+  },
+  "outputs": {
+    "flywheel": "@flywheel",
+    "flywheel-overlap": "@flywheelOverlap",
+    "wheel": "@wheel"
+  }
+}

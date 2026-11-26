@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "C: union result depends on operand order",
+    "expect": {
+      "both": {
+        "volume": "π·7²·6 + π·16²·4 = 923.6 + 3217.0 = 4140.7, buildable"
+      },
+      "tube-flange": {},
+      "flange-tube": {}
+    }
+  },
+  "nodes": {
+    "tube": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 7,
+        "height": 10
+      }
+    },
+    "flangeS": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 16,
+        "height": 4
+      }
+    },
+    "flange": {
+      "type": "transform/move",
+      "in": {
+        "of": "@flangeS",
+        "x": 0,
+        "y": 0,
+        "z": 6
+      }
+    },
+    "tf": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@tube",
+        "b": "@flange"
+      }
+    },
+    "ft": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@flange",
+        "b": "@tube"
+      }
+    }
+  },
+  "outputs": {
+    "tube-flange": "@tf",
+    "flange-tube": "@ft"
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "D: cutting six windows from a disc",
+    "expect": {
+      "window": "one window = (46/360)·π(29²−9²)·8 = 2441.2 (z −1..7)",
+      "one-by-one-N": "23091 − N·1830.9 (the part inside the disc)",
+      "workaround": "annulus (r 9..29, taller than the disc) less six 14° spoke sectors, then disc less that: 2 s, exact"
+    }
+  },
+  "nodes": {
+    "disc": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 35,
+        "height": 6
+      }
+    },
+    "sector": {
+      "type": "primitive/cylinder-sector",
+      "in": {
+        "radius": 29,
+        "angle": 46,
+        "height": 8
+      }
+    },
+    "hubS": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 9,
+        "height": 10
+      }
+    },
+    "hub": {
+      "type": "transform/move",
+      "in": {
+        "of": "@hubS",
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    "winS": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@sector",
+        "minus": "@hub"
+      }
+    },
+    "win": {
+      "type": "transform/move",
+      "in": {
+        "of": "@winS",
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    "w0": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 30
+      }
+    },
+    "c0": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@disc",
+        "minus": "@w0"
+      }
+    },
+    "w1": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 90
+      }
+    },
+    "c1": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@c0",
+        "minus": "@w1"
+      }
+    },
+    "w2": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 150
+      }
+    },
+    "c2": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@c1",
+        "minus": "@w2"
+      }
+    },
+    "w3": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 210
+      }
+    },
+    "c3": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@c2",
+        "minus": "@w3"
+      }
+    },
+    "w4": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 270
+      }
+    },
+    "c4": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@c3",
+        "minus": "@w4"
+      }
+    },
+    "w5": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@win",
+        "axis": "z",
+        "degrees": 330
+      }
+    },
+    "c5": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@c4",
+        "minus": "@w5"
+      }
+    },
+    "u01": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@w0",
+        "b": "@w1"
+      }
+    },
+    "u23": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@w2",
+        "b": "@w3"
+      }
+    },
+    "u45": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@w4",
+        "b": "@w5"
+      }
+    },
+    "u03": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@u01",
+        "b": "@u23"
+      }
+    },
+    "windows": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@u03",
+        "b": "@u45"
+      }
+    }
+  },
+  "outputs": {
+    "one-by-one-2": "@c1",
+    "one-by-one-4": "@c3",
+    "one-by-one-6": "@c5",
+    "union-of-2": "@u01",
+    "union-of-6": "@windows"
+  }
+}

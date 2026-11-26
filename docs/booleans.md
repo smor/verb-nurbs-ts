@@ -299,12 +299,26 @@ parts sharing a face. Three things make them work.
 * **Stretches of sides on faces.** `sidesOn` finds runs, not only whole sides: a box's edge lies on a wider
   cylinder's cap only between the points where the cap's rim crosses it. The run's ends are found by bisection. Where
   a side of B lies along the same run too (two tubes end to end), the faces meet edge to edge and no branch is made.
+  When the two sides match end to end, the pieces the meshes found along them are dropped too; when one covers only a
+  stretch of the other (a box flush with a wider box's edge), they stay, and cut the longer side where the shorter
+  one ends.
+* **Surfaces that coincide over an area are not intersected.** Two copies of one cylinder (each window of a wheel
+  bringing its own hub) would have meshes crossing everywhere, at great cost and with nothing to find.
+  `SurfaceIntersect.coincide` looks for a 2 by 2 block of samples of one surface lying on the other with parallel
+  normals (a line of contact holds none); such a pair only has its sides on each other (`sidesOn`). For this to hold,
+  copies must be the same surface: a cylinder is an exact rational one, not a swept approximation.
 * **Broken branches are traced again.** Where both grid meshes put vertices on the branch (a bore at exactly half a
   coaxial cap's radius), their intersection breaks into pieces that end inside both domains or overlap. A branch ends
   only where it leaves a domain or closes, so such pieces are only seeds: the branches are traced again from their
   points by marching (Barnhill and Kersey), each once.
 * **One cut per curve.** Two coincident faces crossing a third face (a boss's cap on a box's top, both crossed by a
-  bore) give two branches along the same curve. The third face is cut by the first of them only.
+  bore) give two branches along the same curve. The third face is cut by the first of them only. A branch lying
+  along a stretch of another (a pin's cap crossing a window's wall only where it overhangs) does not cut that face
+  either.
+* **Cuts reach the face's edge.** An open cut ends on the edge of its domain or on another cut. An end refined to a
+  hair inside the edge is put on it, and an end at a pole (the centre of a cap) takes its neighbour's parameter there,
+  so that no sliver triangle bridges the cut. Regions are joined across the tessellation's own edges, not by welded
+  points, so two cut points close enough to weld do not join the regions on either side.
 
 The test "BrepBoolean degenerate configurations" runs 25 such cases (flush slots, notches, pockets, equal solids,
 boxes touching at a vertex, bores through a corner or along an edge, bosses, stacked cylinders, counterbores): each
