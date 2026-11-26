@@ -131,29 +131,58 @@ export class TriMesh {
         this.vertices = verts;
     }
 
+    // The connected pieces of the surface (triangles joined through shared vertices), each with its number of
+    // triangles and its signed volume: in a closed, outward mesh a positive piece is a body, a negative one a sealed
+    // void inside a body.
+    public pieces() : Array<{ triangles : number, volume : number }> {
+        const parent = new Int32Array( this.vertices.length );
+        for (let i = 0; i < parent.length; i++) parent[i] = i;
+        const find = (x : number) : number => { while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+        for (const t of this.triangles) {
+            const a = find( t[0] );
+            for (let k = 1; k < 3; k++) { const b = find( t[k] ); if (b != a) parent[b] = a; }
+        }
+        const index = new Map<number, number>();
+        const out : Array<{ triangles : number, volume : number }> = [];
+        for (const t of this.triangles) {
+            const r = find( t[0] );
+            let k = index.get( r );
+            if (k == null) { index.set( r, k = out.length ); out.push( { triangles : 0, volume : 0 } ); }
+            const a = this.vertices[t[0]], b = this.vertices[t[1]], c = this.vertices[t[2]];
+            out[k].triangles++;
+            out[k].volume += Vec.dot( a, Vec.cross( b, c ) ) / 6;
+        }
+        return out;
+    }
+
+    // The number of connected pieces of the surface (bodies and sealed voids).
+    public components() : number { return this.pieces().length; }
+
     public checkClosedManifold() : ManifoldReport {
-        const directed = new Map<string, number>();
-        const undirected = new Map<string, number>();
+        // edges keyed by number (a * n + b), exact below 2^53: meshes of up to 94 million vertices
+        const n = this.vertices.length;
+        const directed = new Map<number, number>();
+        const undirected = new Map<number, number>();
         let degenerate = 0;
-        const used = new Uint8Array( this.vertices.length );
+        const used = new Uint8Array( n );
         for (const t of this.triangles) {
             if (t[0] == t[1] || t[1] == t[2] || t[0] == t[2]) { degenerate++; continue; }
             for (let k = 0; k < 3; k++) {
                 const a = t[k], b = t[(k + 1) % 3];
                 used[a] = 1;
-                const dk = a + "," + b;
+                const dk = a * n + b;
                 directed.set( dk, (directed.get( dk ) || 0) + 1 );
-                const uk = Math.min( a, b ) + "," + Math.max( a, b );
+                const uk = Math.min( a, b ) * n + Math.max( a, b );
                 undirected.set( uk, (undirected.get( uk ) || 0) + 1 );
             }
         }
         let boundary = 0, bad = 0;
-        for (const [k, n] of undirected) {
-            if (n == 1) boundary++;
-            else if (n > 2) bad++;
+        for (const [k, c] of undirected) {
+            if (c == 1) boundary++;
+            else if (c > 2) bad++;
             else {
-                const [a, b] = k.split( "," );
-                if (directed.get( a + "," + b ) != 1 || directed.get( b + "," + a ) != 1) bad++;
+                const a = Math.floor( k / n ), b = k - a * n;
+                if (directed.get( a * n + b ) != 1 || directed.get( b * n + a ) != 1) bad++;
             }
         }
         let unused = 0;

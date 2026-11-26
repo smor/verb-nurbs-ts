@@ -10,7 +10,7 @@ boundaries and how they would map to packages, so new code respects them now.
 | `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
-| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks | core, eval |
+| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`) | core, eval |
 | `recipes` | parametric objects (vessels, mug, appliance, …) | core, eval, solid |
 | `model` | the feature tree: documents of parameters and features regenerated into named solids (`Model`, `Expr`) | core, eval, solid |
 | `io` | file formats: STEP export of B-rep results (`Step`) | core, eval, solid |
@@ -23,8 +23,8 @@ Dependencies only point down this table: no folder imports from one below it.
 
 1. **nurbs**: `core`, `eval`, `geom`, `exe`. `core` and `eval` import each other (the bounding box trees in `core` use
    `eval`), as they did upstream, so they belong in one package.
-2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`. These three depend only on `core/Data`, `core/Vec` and each other, so they can
-   serve any mesh, not just ours.
+2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`, `Implicit`. These depend only on `core/Data`, `core/Vec` and each other, so they
+   can serve any mesh, not just ours.
 3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `Fillet`, `Shell`. Depends on nurbs and mesh.
 4. **recipes**: depends on nurbs and brep.
 5. **model**: `model/`. Depends on nurbs and brep. The modelling front end that recipes and apps build on.
@@ -36,7 +36,7 @@ Dependencies only point down this table: no folder imports from one below it.
 ## Rules to keep the split easy
 
 * Don't import from a layer above (for example `solid` must not import from `recipes` or `view`).
-* `TriMesh`, `MeshBVH` and `Makeable` import nothing from the B-rep code.
+* `TriMesh`, `MeshBVH`, `Makeable` and `Implicit` import nothing from the B-rep code.
 * Rendering code (three.js) stays in the apps; `Inspect` returns plain arrays.
 * `src/index.ts` is generated; each package would get its own index the same way.
 

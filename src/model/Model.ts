@@ -8,7 +8,9 @@ import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { FilletShape } from "../solid/Fillet.js";
+import { Implicit, LatticePattern } from "../solid/Implicit.js";
 import { Machine, Makeable } from "../solid/Makeable.js";
+import { TriMesh } from "../solid/TriMesh.js";
 import { Expr } from "./Expr.js";
 import { Wall } from "./Wall.js";
 
@@ -36,7 +38,15 @@ export type ModelFeature =
     | { type : "round", of : string, rules : Array<ModelEdgeRule>, shape? : FilletShape, corner? : "auto" | "ball" }
     // hollowing: the solid less its inside, `thickness` in from every face but the `open` ones (patterns over the face
     // names of `of`, as for edges), which the inside goes through; see `Model` on how the inside is built
-    | { type : "shell", of : string, thickness : ModelValue, open? : Array<string> };
+    | { type : "shell", of : string, thickness : ModelValue, open? : Array<string> }
+    // lightweighting: the solid's inside as a lattice (a TPMS sheet or struts, `wall` thick, in cubic cells of side
+    // `cell`) within a skin `skin` thick (0: none), fused to it with a smooth joint of radius `blend`; the wall may be
+    // graded, linearly along an axis of the solid's bounding box to `grade.to`. Meshed on a grid of side `size`
+    // (default: an eighth of the cell, two thirds of the skin or a third of the thinnest wall). The skin leaves out the `open` faces
+    // (patterns over the solid's face names), where the lattice runs out to the surface: a printer's resin or powder
+    // drains from the voids there. The last feature, like a round
+    | { type : "lattice", of : string, pattern : LatticePattern, cell : ModelValue, wall : ModelValue, skin? : ModelValue,
+        blend? : ModelValue, size? : ModelValue, grade? : { axis : "x" | "y" | "z", to : ModelValue }, open? : Array<string> };
 
 // Edges are named by the two faces they join (`Model` explains face names): "a.+z|b.tube", the two names in sorted
 // order. A pattern matches a name when it does with `*` standing for any run of characters; "a.*|b.*" matches
@@ -69,7 +79,15 @@ export interface ModelResult {
     parameters : { [name : string] : number };
     // for each shell in the output, its wall as asked and as measured (`Model.wall`)
     walls : Array<ModelWall>;
+    // for a lattice output: its mesh (the solid it fills is `result`), and its volume against the solid's
+    lattice? : ModelLattice;
 }
+
+// A lattice output: the mesh, the pattern, and how much of the solid it keeps.
+// (`bodies`: the separate pieces; `voids`: the sealed cavities inside them, where resin or powder would be trapped;
+// `size`: the meshing grid's step)
+export interface ModelLattice { mesh : TriMesh, pattern : LatticePattern, cell : number, wall : [number, number], skin : number, volume : number, fraction : number,
+                                bodies : number, voids : number, size : number }
 
 // A shell's wall: the thickness asked, and the thinnest found on the result, between the inside faces and the
 // outside faces (open ones left out), fillets counted with the faces they join.
@@ -225,6 +243,7 @@ export class Model {
                 }
                 case "shell": throw new Error( `Model: a shell cannot be shelled again ("${id}")` );
                 case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
+                case "lattice": throw new Error( `Model: the lattice "${id}" can only be the last feature (an operand of nothing)` );
             }
             throw new Error( `Model: unknown feature type "${(f as { type : string }).type}" in "${id}"` );
         };
@@ -264,19 +283,23 @@ export class Model {
                     };
                 }
                 case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
+                case "lattice": throw new Error( `Model: the lattice "${id}" can only be the last feature (an operand of nothing)` );
             }
             throw new Error( `Model: unknown feature type "${(f as { type : string }).type}" in "${id}"` );
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
-        const out = features[doc.output];
-        const solid = cached( "solid", doc.output, () => {
+        const lat = features[doc.output].type == "lattice" ? features[doc.output] as Extract<ModelFeature, { type : "lattice" }> : null;
+        const solidId = lat != null ? lat.of : doc.output;
+        const out = features[solidId];
+        if (out.type == "lattice") throw new Error( `Model: the lattice "${doc.output}" fills "${solidId}", another lattice` );
+        const solid = cached( "solid", solidId, () => {
             const round = out.type == "round" ? out : null;
-            const t = tree( round != null ? round.of : doc.output );
+            const t = tree( round != null ? round.of : solidId );
             const leafName = (si : number, fi : number) => t.leaves[si].name + "." + Model.faceName( t.leaves[si].solid.faces[fi], fi );
             let options = {};
             if (round != null) {
-                const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${doc.output}" radius` ) }) );
+                const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ) }) );
                 const radius = (name : string) => { const r = rules.find( x => x.re.test( name ) ); return r != null ? r.radius : 0; };
                 const edges : Array<{ solid : number, faces : [number, number], radius : number }> = [];
                 t.leaves.forEach( (l, si) => BrepEdges.all( l.solid ).forEach( e => {
@@ -292,12 +315,13 @@ export class Model {
             return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ) };
         } );
 
-        const verdict = Model.verdict( solid.result, doc.machine, solid.walls );
+        const lattice = lat == null ? undefined : cached( "lattice", doc.output, () => Model.lattice( doc.output, lat, solid.result, solid.names, num ) );
+        const verdict = Model.verdict( solid.result, doc.machine, solid.walls, lattice );
         const faceIndex : { [name : string] : number } = {};
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
         for (const [id, h] of hashes) report[id] = { hash : h, built : built.has( id ) };
-        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls };
+        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice };
     }
 
     // ---------- parameters and values ----------
@@ -342,13 +366,16 @@ export class Model {
             case "difference": return { n : f.minus.length };
             case "round": return { rules : f.rules.map( r => [r.edges, num( r.radius, "radius" )] ), shape : f.shape ?? "circular", corner : f.corner ?? "auto" };
             case "shell": return { thickness : num( f.thickness, "thickness" ), open : f.open ?? [] };
+            case "lattice": return { pattern : f.pattern, cell : num( f.cell, "cell" ), wall : num( f.wall, "wall" ), skin : num( f.skin ?? 0, "skin" ),
+                                     blend : num( f.blend ?? 0, "blend" ), size : f.size == null ? null : num( f.size, "size" ),
+                                     grade : f.grade == null ? null : [f.grade.axis, num( f.grade.to, "grade" )], open : f.open ?? [] };
         }
         throw new Error( `Model: unknown feature type "${(f as { type : string }).type}"` );
     }
 
     private static inputs( f : ModelFeature ) : Array<string> {
         switch (f.type) {
-            case "transform": case "round": case "shell": return [f.of];
+            case "transform": case "round": case "shell": case "lattice": return [f.of];
             case "union": case "intersection": return f.of;
             case "difference": return [f.from].concat( f.minus );
             default: return [];
@@ -584,6 +611,41 @@ export class Model {
         return out;
     }
 
+    // ---------- lattices ----------
+
+    // A solid's lattice infill (`Implicit.infill`), with the wall graded along an axis of the solid's bounding box.
+    private static lattice( id : string, f : Extract<ModelFeature, { type : "lattice" }>, solid : BooleanResult, names : Array<string>, num : (v : ModelValue, what : string) => number ) : ModelLattice {
+        const patterns : Array<LatticePattern> = ["gyroid", "schwarz-p", "diamond", "bcc", "octet", "cubic"];
+        if (!patterns.includes( f.pattern )) throw new Error( `Model: the lattice "${id}" has an unknown pattern "${String( f.pattern )}" (${patterns.join( ", " )})` );
+        const cell = num( f.cell, `"${id}" cell` ), wall = num( f.wall, `"${id}" wall` ), skin = num( f.skin ?? 0, `"${id}" skin` );
+        const blend = num( f.blend ?? 0, `"${id}" blend` );
+        if (!(cell > 0) || !(wall > 0) || !(wall < cell)) throw new Error( `Model: the lattice "${id}" needs 0 < wall < cell` );
+        if (!(skin >= 0) || !(blend >= 0)) throw new Error( `Model: the lattice "${id}" needs a skin and a blend of 0 or more` );
+        if (!solid.report.manifold.closedManifold) throw new Error( `Model: the lattice "${id}" fills "${f.of}", which is not a closed solid` );
+        let to = wall, grade : number | ((p : Point) => number) = wall;
+        if (f.grade != null) {
+            const ax = ["x", "y", "z"].indexOf( f.grade.axis );
+            if (ax < 0) throw new Error( `Model: the lattice "${id}" grades along x, y or z, not "${String( f.grade.axis )}"` );
+            to = num( f.grade.to, `"${id}" grade` );
+            if (!(to > 0) || !(to < cell)) throw new Error( `Model: the lattice "${id}" needs 0 < grade.to < cell` );
+            const bb = solid.mesh.boundingBox(), lo = bb.min[ax], hi = bb.max[ax];
+            grade = (p : Point) => wall + (to - wall) * Math.max( 0, Math.min( 1, (p[ax] - lo) / (hi - lo) ) );
+        }
+        const size = f.size == null ? Math.min( cell / 8, skin > 0 ? skin / 1.5 : Infinity, Math.min( wall, to ) / 3 ) : num( f.size, `"${id}" size` );
+        if (!(size > 0)) throw new Error( `Model: the lattice "${id}" needs a positive size` );
+        const open = (f.open ?? []).map( Model.pattern );
+        (f.open ?? []).forEach( (g, k) => {
+            if (!names.some( n => open[k].test( n ) )) throw new Error( `Model: the lattice "${id}" opens "${g}", which names no face of "${f.of}"` );
+        } );
+        const openFace = names.map( n => open.some( re => re.test( n ) ) );
+        const mesh = Implicit.infill( solid.mesh, { pattern : f.pattern, cell : cell, wall : grade, skin : skin, blend : blend, size : size,
+                                                    open : open.length == 0 ? undefined : solid.faceOf.map( k => openFace[k] ) } );
+        const volume = mesh.signedVolume();
+        const pieces = mesh.pieces();
+        return { mesh : mesh, pattern : f.pattern, cell : cell, wall : [wall, to], skin : skin, volume : volume, fraction : volume / solid.report.volume,
+                 bodies : pieces.filter( p => p.volume > 0 ).length, voids : pieces.filter( p => p.volume < 0 ).length, size : size };
+    }
+
     // ---------- verdict ----------
 
     // A shell's thinnest wall on the result: the smallest distance from a vertex of the inside faces to the outside
@@ -613,7 +675,8 @@ export class Model {
     // How thin a shell's measured wall may be against the thickness asked: the mesh's chords cut inside curved faces.
     public static WALL_TOLERANCE = 0.03;
 
-    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [] ) : ModelVerdict {
+    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice ) : ModelVerdict {
+        if (lattice != null) return Model.latticeVerdict( lattice, machine );
         const m = r.report.manifold;
         const checks : ModelVerdict["checks"] = [
             { name : "closed", passed : m.closedManifold, detail : m.closedManifold ? "every edge joins exactly two faces" : "the surface has open or non-manifold edges" },
@@ -631,6 +694,35 @@ export class Model {
         }
         const failed = checks.filter( c => !c.passed );
         return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks };
+    }
+
+    // A lattice is judged on its mesh: closed, outward, its thinnest wall against the machine's, and makeable. It is a
+    // mesh, not a B-rep: it goes out as STL (or OBJ), not STEP.
+    private static latticeVerdict( l : ModelLattice, machine? : string | Machine ) : ModelVerdict {
+        const m = l.mesh.checkClosedManifold();
+        const checks : ModelVerdict["checks"] = [
+            { name : "closed", passed : m.closedManifold, detail : m.closedManifold ? `the lattice's surface is closed (genus ${m.genus})` : "the lattice's surface has open or non-manifold edges" },
+            { name : "outward", passed : l.volume > 0, detail : l.volume > 0 ? `the faces face out (volume ${l.volume.toFixed( 1 )}, ${(100 * l.fraction).toFixed( 1 )}% of the solid)` : "the lattice has no volume" },
+        ];
+        // a wall thinner than two grid steps can fall between samples and break through
+        const thinnest = Math.min( l.wall[0], l.wall[1] );
+        checks.push( { name : "resolution", passed : l.size <= 0.5 * thinnest,
+                       detail : `meshed on a grid of ${Model.round( l.size )}` + (l.size <= 0.5 * thinnest ? `, fine enough for walls of ${thinnest}` : `, too coarse for walls of ${thinnest}: they may break through (use ${Model.round( thinnest / 3 )} or less)`) } );
+        checks.push( { name : "one piece", passed : l.bodies == 1, detail : l.bodies == 1 ? "the lattice is one piece" : `the lattice falls into ${l.bodies} pieces: the loose ones would fall out` } );
+        // sealed voids trap a resin printer's resin and a powder bed's powder; a filament printer does not mind them
+        const mc = machine == null ? null : typeof machine == "string" ? Makeable.MACHINES[machine] : machine;
+        const drains = mc != null && mc.drains === true;
+        checks.push( { name : "drains", passed : l.voids == 0 || !drains,
+                       detail : l.voids == 0 ? "no sealed voids: every cavity opens to the outside" :
+                                `${l.voids} sealed void(s) inside the skin` + (drains ? `: the ${mc.name}'s material would be trapped; open a face of the skin` : " (no harm on this process)") } );
+        if (machine != null && m.closedManifold) {
+            const mk = Makeable.check( l.mesh, machine );
+            const min = mk.machine.minWall;
+            checks.push( { name : "lattice wall", passed : thinnest >= min, detail : `the lattice's walls are ${thinnest} at their thinnest (${mk.machine.name} needs ${min})` } );
+            checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
+        }
+        const failed = checks.filter( c => !c.passed );
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks };
     }
 
     // ---------- hashing ----------

@@ -47,6 +47,7 @@ model.evaluate(doc).features;  // only "rounded" is rebuilt; the rest comes from
 | `difference` | `from`, `minus` | |
 | `round` | `of`, `rules` (`edges` pattern, `radius`), `shape?` (`circular`, `curvature`, `chamfer`), `corner?` | `round(...)`, `corner(...)` |
 | `shell` | `of`, `thickness`, `open?` (face name patterns) | its input's, and the inside's as `<shell>~<face>` |
+| `lattice` | `of`, `pattern`, `cell`, `wall`, `skin?`, `blend?`, `grade?` (`axis`, `to`), `open?` (face name patterns), `size?` | a mesh: `ModelResult.lattice` |
 
 Every number may be an expression over the parameters (`Expr`: arithmetic, `^`, `min`, `max`, `sqrt`, trigonometry
 in radians, `rad`, `deg`, `clamp`, `lerp`, `pi`). Parameters may use other parameters; cycles are refused.
@@ -121,6 +122,48 @@ How the inside is built, after J. R. Rossignac and A. A. G. Requicha, "Offsettin
   faces' triangles (open faces, and fillets along them, left out). The mesh's chords cut inside curved faces, so it
   reads a little thin there; the check allows `Model.WALL_TOLERANCE`.
 
+## Lattices
+
+A `lattice` makes its input light: the inside becomes a lattice, inside a skin. It is the last feature, like a
+`round`, and its result is a mesh (`ModelResult.lattice.mesh`, for STL), not a B-rep; `ModelResult.result` stays
+the solid it fills, with its faces' names.
+
+```js
+{ type: "lattice", of: "rounded", pattern: "gyroid", cell: 10, wall: 1.5, skin: 1.6, blend: 1,
+  grade: { axis: "z", to: 2.4 }, open: ["body.+z"] }
+```
+
+* **Patterns.** Sheets on triply periodic minimal surfaces: `gyroid` (Schoen), `schwarz-p` and `diamond` (Schwarz),
+  `wall` thick; or struts `wall` across along the edges of a cell's graph: `bcc` (body diagonals), `octet` (face
+  diagonals and edges), `cubic` (edges). `cell` is the side of the cubic cell.
+* **Skin and blend.** The skin is `skin` thick, just inside the solid's surface (0: none; the lattice is cut off at
+  the surface). The lattice reaches half the skin into it, and `blend` rounds the joint (a smooth union).
+* **Grade.** The wall varies linearly along an axis of the solid's bounding box, from `wall` to `grade.to`: denser
+  where the load is.
+* **Open faces.** A sheet lattice parts space into two labyrinths, and a closed skin seals both in. On a resin or
+  powder printer the uncured resin or loose powder would be trapped. The skin leaves out the `open` faces, where the
+  lattice runs out to the surface and the voids drain.
+* **How it is meshed.** The solid's signed distance (its mesh's, the sign from angle-weighted pseudonormals) and the
+  lattice's distance (struts: to the nearest strut; sheets: to the surface, by Newton projection) combine into one
+  field, meshed by marching tetrahedra (`Implicit`). Every sample is strictly inside or out, so the mesh is a closed
+  2-manifold by construction, and each vertex is the field's root on its tet edge, so no triangle leaves its tet and
+  the mesh cannot cross itself. The grid's step `size` defaults to the least of an eighth of the cell, two thirds of
+  the skin and a third of the thinnest wall.
+
+The verdict judges the mesh:
+
+| Check | Passes when |
+|---|---|
+| `closed` | the mesh is a closed 2-manifold (its genus is given) |
+| `outward` | the volume is positive (with the share of the solid kept) |
+| `resolution` | the grid is no coarser than half the thinnest wall, so no wall can fall between samples |
+| `one piece` | one body: no loose parts |
+| `drains` | no sealed void, or a machine that does not mind them (`Machine.drains`: resin, powder, slip) |
+| `lattice wall`, `makeable` | with a `machine`: the walls are at least its minimum, and `Makeable.check` passes |
+
+`Makeable.check` reports sealed voids for any mesh (`voids`), and counts them as an issue on machines that drain,
+so a shell with no open face fails on a resin printer too.
+
 ## Limits
 
 * A `round` is the last feature on its branch: a rounded solid is not yet an operand of a further Boolean.
@@ -130,6 +173,8 @@ How the inside is built, after J. R. Rossignac and A. A. G. Requicha, "Offsettin
   wall check reports it).
 * A fillet that runs out onto a face is cut by it (see `docs/booleans.md`), unless the face would have to be carried on
   past its edge to take it (a fillet at the foot of a narrow step): that edge is left sharp, and the verdict says so.
+* A lattice is a mesh: it exports as STL, not STEP, and cannot be an operand of a Boolean. The skin's outer surface
+  is the solid's mesh met by the grid: sharp edges come out cut by about one grid step (round them first).
 * The same primitive cannot appear twice in one Boolean without a transform (its faces' names would clash).
 * Fillets on a Boolean's new edges can still fail for some placements, such as a bore's rim on some positions and
   radii. The verdict reports these as visual (open edges). Making the Boolean and fillet engine robust there is the

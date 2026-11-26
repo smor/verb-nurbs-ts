@@ -69,6 +69,8 @@ import { FilletCorner } from "./solid/FilletCorner.js";
 import { BrepEdges } from "./solid/BrepEdges.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
+import { Implicit } from "./solid/Implicit.js";
+export type { Field, Grade, LatticePattern } from "./solid/Implicit.js";
 import { Makeable } from "./solid/Makeable.js";
 export type { Machine, MakeableReport } from "./solid/Makeable.js";
 import { MeshBVH } from "./solid/MeshBVH.js";
@@ -92,7 +94,7 @@ import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model } from "./model/Model.js";
-export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall } from "./model/Model.js";
+export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
@@ -179,6 +181,7 @@ export {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Implicit,
     Makeable,
     MeshBVH,
     Shell,
@@ -286,6 +289,7 @@ export const solid = {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Implicit,
     Makeable,
     MeshBVH,
     Shell,

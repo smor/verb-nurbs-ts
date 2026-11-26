@@ -8,10 +8,13 @@ export interface Machine {
     name : string;
     buildVolume : [number, number, number];
     minWall : number;
+    // whether every cavity must open to the outside, for the uncured resin or loose powder to drain
+    drains? : boolean;
 }
 
 // The result of `Makeable.check`. A shape is makeable when it is a closed, consistently oriented solid that fits
-// the machine and has no wall thinner than the machine allows.
+// the machine and has no wall thinner than the machine allows, nor (where the process needs it to drain) any sealed
+// void.
 export interface MakeableReport {
     makeable : boolean;
     // one plain sentence per problem found
@@ -32,6 +35,8 @@ export interface MakeableReport {
     };
     // up to 32 points where the wall is thinner than the machine's minimum, thinnest first
     thinSpots : Array<Point>;
+    // sealed voids: cavities with no way out (an issue where the machine `drains`)
+    voids : number;
 }
 
 // Checks that a mesh can be made: 3D printed, milled or cut. Visual work does not need any of this; run it when
@@ -45,10 +50,10 @@ export class Makeable {
 
     public static MACHINES : { [key : string] : Machine } = {
         fdm : { name : "FDM printer (0.4 mm nozzle)", buildVolume : [220, 220, 250], minWall : 0.8 },
-        sla : { name : "Resin printer", buildVolume : [145, 145, 175], minWall : 0.5 },
-        sls : { name : "SLS nylon service", buildVolume : [300, 300, 300], minWall : 0.7 },
+        sla : { name : "Resin printer", buildVolume : [145, 145, 175], minWall : 0.5, drains : true },
+        sls : { name : "SLS nylon service", buildVolume : [300, 300, 300], minWall : 0.7, drains : true },
         cnc : { name : "3-axis CNC, 3 mm end mill", buildVolume : [600, 400, 120], minWall : 1.5 },
-        ceramic : { name : "Ceramic slip casting", buildVolume : [400, 400, 400], minWall : 2.5 },
+        ceramic : { name : "Ceramic slip casting", buildVolume : [400, 400, 400], minWall : 2.5, drains : true },
     };
 
     public static check( mesh : TriMesh, machine? : Machine | string, samples : number = 4000 ) : MakeableReport {
@@ -68,6 +73,9 @@ export class Makeable {
             issues.push( "Not a closed solid: " + parts.join( ", " ) + "." );
         }
         if (rep.closedManifold && volume <= 0) issues.push( "The surface faces inward (negative volume)." );
+        // sealed voids: pieces of a closed, outward surface that face in
+        const voids = rep.closedManifold && volume > 0 ? mesh.pieces().filter( p => p.volume < 0 ).length : 0;
+        if (voids > 0 && m.drains === true) issues.push( voids + " sealed void(s) inside: the " + m.name + "'s material would be trapped (open them to the outside)." );
 
         // fit, allowing any rotation of the part about z by ordering both sizes
         const a = size.slice( 0, 2 ).sort( (x, y) => x - y ), b = m.buildVolume.slice( 0, 2 ).sort( (x, y) => x - y );
@@ -82,7 +90,7 @@ export class Makeable {
             if (wall.p01 < m.minWall) issues.push( "Walls down to " + wall.p01.toFixed( 2 ) + " mm, thinner than the " + m.minWall + " mm the " + m.name + " holds (" + (100 * wall.thinAreaFraction).toFixed( 1 ) + "% of the surface)." );
         }
         return { makeable : issues.length == 0, issues : issues, machine : m, watertight : rep.closedManifold, genus : rep.genus,
-                 volume : volume, size : size, fits : fits, wall : wall, thinSpots : thinSpots };
+                 volume : volume, size : size, fits : fits, wall : wall, thinSpots : thinSpots, voids : voids };
     }
 
     public static wallThickness( mesh : TriMesh, samples : number, threshold : number ) {
