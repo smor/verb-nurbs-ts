@@ -236,17 +236,25 @@ export class Eval {
         const SKL = Vec.zeros3d( numDerivs+1, numDerivs+1, dim );
         const knotSpan_index_u = Eval.knotSpanGivenN( n, degreeU, u, knotsU );
         const knotSpan_index_v = Eval.knotSpanGivenN( m, degreeV, v, knotsV );
-        const uders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_u, u, degreeU, n, knotsU );
-        const vders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_v, v, degreeV, m, knotsV );
+        // only the derivatives used (at most the degree: higher ones vanish). Asking for n of them, as upstream verb
+        // did, made every evaluation cost in proportion to the number of control points
+        const uders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_u, u, degreeU, du, knotsU );
+        const vders = Eval.derivativeBasisFunctionsGivenNI( knotSpan_index_v, v, degreeV, dv, knotsV );
         const temp = Vec.zeros2d( degreeV+1, dim );
+        const iu = knotSpan_index_u - degreeU, iv = knotSpan_index_v - degreeV;
         let dd = 0;
 
+        // the sums of Vec.addMulMutate, in the same order, without the allocations: this runs for every Newton step
+        // of every projection and intersection
         for (let k = 0; k < du+1; k++) {
+            const uk = uders[k];
             for (let s = 0; s < degreeV+1; s++) {
-                temp[s] = Vec.zeros1d( dim );
+                const ts = temp[s];
+                for (let i = 0; i < dim; i++) ts[i] = 0.0;
 
                 for (let r = 0; r < degreeU+1; r++) {
-                    Vec.addMulMutate( temp[s], uders[k][r], controlPoints[knotSpan_index_u-degreeU+r][knotSpan_index_v-degreeV+s]);
+                    const c = uk[r], P = controlPoints[iu+r][iv+s];
+                    for (let i = 0; i < dim; i++) ts[i] = ts[i] + c * P[i];
                 }
             }
 
@@ -254,10 +262,11 @@ export class Eval {
             dd = nk < dv ? nk : dv;
 
             for (let l = 0; l < dd+1; l++) {
-                SKL[k][l] = Vec.zeros1d( dim );
+                const out = SKL[k][l], vl = vders[l];
 
                 for (let s = 0; s < degreeV+1; s++) {
-                    Vec.addMulMutate( SKL[k][l], vders[l][s], temp[s] );
+                    const c = vl[s], ts = temp[s];
+                    for (let i = 0; i < dim; i++) out[i] = out[i] + c * ts[i];
                 }
             }
         }
@@ -321,22 +330,23 @@ export class Eval {
         const u_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_u, u, degreeU, knotsU );
         const v_basis_vals = Eval.basisFunctionsGivenKnotSpanIndex( knotSpan_index_v, v, degreeV, knotsV );
         const uind = knotSpan_index_u - degreeU;
-        let vind = knotSpan_index_v;
         const position = Vec.zeros1d( dim );
-        let temp = Vec.zeros1d( dim );
+        const temp = Vec.zeros1d( dim );
 
         for (let l = 0; l < degreeV + 1; l++) {
 
-            temp = Vec.zeros1d( dim );
-            vind = knotSpan_index_v - degreeV + l;
+            for (let i = 0; i < dim; i++) temp[i] = 0.0;
+            const vind = knotSpan_index_v - degreeV + l;
 
             //sample u isoline
             for (let k = 0; k < degreeU + 1; k++) {
-                Vec.addMulMutate( temp, u_basis_vals[k], controlPoints[uind+k][vind] );
+                const c = u_basis_vals[k], P = controlPoints[uind+k][vind];
+                for (let i = 0; i < dim; i++) temp[i] = temp[i] + c * P[i];
             }
 
             //add point from u isoline
-            Vec.addMulMutate( position, v_basis_vals[l], temp );
+            const c = v_basis_vals[l];
+            for (let i = 0; i < dim; i++) position[i] = position[i] + c * temp[i];
         }
 
         return position;

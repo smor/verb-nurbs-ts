@@ -1,4 +1,4 @@
-import cdt2d from "cdt2d";
+import { triangulate } from "../eval/Cdt.js";
 import { NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
@@ -1051,7 +1051,7 @@ export class FilletCorner {
             }
             points.push( p ); xy.push( project( p ) );
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         if (tris.length == 0) return null;
         // outward: away from the centre on a convex corner (the ball is in the material), towards it on a concave one
         const triangles = tris.map( t => {
@@ -1125,7 +1125,7 @@ export class FilletCorner {
             const r = F.rows[k];
             if (inRange( r.s, i / m )) add( r.points[i], r.s, i / m );
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         if (tris.length == 0) return null;
         // counter-clockwise in (s, t), with s along the edge and t from A to B, as the closed blends' (k, i) grid
         const triangles : Array<[number, number, number]> = tris.map( tr => {

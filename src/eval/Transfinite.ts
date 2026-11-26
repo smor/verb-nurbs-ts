@@ -1,4 +1,4 @@
-import cdt2d from "cdt2d";
+import { triangulate } from "./Cdt.js";
 import { NurbsSurfaceData, Point } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Fit } from "./Fit.js";
@@ -163,7 +163,7 @@ export class Transfinite {
                 points.push( Transfinite.evaluate( ribbons, x, P ) ); xy.push( x );
             }
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         return { points : points, triangles : tris, boundary : nb, domain : xy };
     }
 

@@ -159,35 +159,51 @@ export class TriMesh {
     public components() : number { return this.pieces().length; }
 
     public checkClosedManifold() : ManifoldReport {
-        // edges keyed by number (a * n + b), exact below 2^53: meshes of up to 94 million vertices
+        // edges keyed by number (a * n + b), exact below 2^53: meshes of up to 94 million vertices. The half-edges
+        // are sorted, directed and undirected, and counted in runs.
         const n = this.vertices.length;
-        const directed = new Map<number, number>();
-        const undirected = new Map<number, number>();
         let degenerate = 0;
         const used = new Uint8Array( n );
+        const directed = new Float64Array( 3 * this.triangles.length ), undirected = new Float64Array( 3 * this.triangles.length );
+        let h = 0;
         for (const t of this.triangles) {
             if (t[0] == t[1] || t[1] == t[2] || t[0] == t[2]) { degenerate++; continue; }
             for (let k = 0; k < 3; k++) {
                 const a = t[k], b = t[(k + 1) % 3];
                 used[a] = 1;
-                const dk = a * n + b;
-                directed.set( dk, (directed.get( dk ) || 0) + 1 );
-                const uk = Math.min( a, b ) * n + Math.max( a, b );
-                undirected.set( uk, (undirected.get( uk ) || 0) + 1 );
+                directed[h] = a * n + b;
+                undirected[h++] = Math.min( a, b ) * n + Math.max( a, b );
             }
         }
-        let boundary = 0, bad = 0;
-        for (const [k, c] of undirected) {
-            if (c == 1) boundary++;
-            else if (c > 2) bad++;
-            else {
-                const a = Math.floor( k / n ), b = k - a * n;
-                if (directed.get( a * n + b ) != 1 || directed.get( b * n + a ) != 1) bad++;
+        const D = directed.subarray( 0, h ).sort(), U = undirected.subarray( 0, h ).sort();
+        let boundary = 0, bad = 0, edges = 0;
+        for (let i = 0; i < h;) {
+            let j = i + 1;
+            while (j < h && U[j] == U[i]) j++;
+            edges++;
+            if (j - i == 1) boundary++;
+            else if (j - i > 2) bad++;
+            i = j;
+        }
+        // an edge shared by exactly two triangles is bad when both run it the same way: that directed key then
+        // occurs twice and its reverse never
+        const has = (key : number) => {
+            let l = 0, r = h;
+            while (l < r) { const m = (l + r) >> 1; if (D[m] < key) l = m + 1; else r = m; }
+            return l < h && D[l] == key;
+        };
+        for (let i = 0; i < h;) {
+            let j = i + 1;
+            while (j < h && D[j] == D[i]) j++;
+            if (j - i == 2) {
+                const a = Math.floor( D[i] / n ), b = D[i] - a * n;
+                if (!has( b * n + a )) bad++;
             }
+            i = j;
         }
         let unused = 0;
         for (let i = 0; i < used.length; i++) if (!used[i]) unused++;
-        const chi = (this.vertices.length - unused) - undirected.size + (this.triangles.length - degenerate);
+        const chi = (this.vertices.length - unused) - edges + (this.triangles.length - degenerate);
         const ok = boundary == 0 && bad == 0 && degenerate == 0;
         return {
             closedManifold : ok,
@@ -223,32 +239,41 @@ export class TriMesh {
         const hit = new Set<number>();
         const h = Math.max( 2 * edge / T.length, 1e-12 );
         const bb = this.boundingBox();
-        const cells = new Map<string, Array<number>>();
-        const lo : Array<Array<number>> = [], hi : Array<Array<number>> = [];
-        T.forEach( (t, i) => {
-            if (t[0] == t[1] || t[1] == t[2] || t[2] == t[0]) { lo.push( [Infinity, Infinity, Infinity] ); hi.push( [-Infinity, -Infinity, -Infinity] ); return; }
+        const m0 = bb.min[0], m1 = bb.min[1], m2 = bb.min[2];
+        const nx = Math.floor( (bb.max[0] - m0) / h ) + 1, ny = Math.floor( (bb.max[1] - m1) / h ) + 1;
+        // cells keyed by integer index; boxes in flat arrays (a degenerate triangle gets an empty box)
+        const cells = new Map<number, Array<number>>();
+        const lo = new Float64Array( 3 * T.length ), hi = new Float64Array( 3 * T.length );
+        for (let i = 0; i < T.length; i++) {
+            const t = T[i];
+            if (t[0] == t[1] || t[1] == t[2] || t[2] == t[0]) {
+                lo.fill( Infinity, 3 * i, 3 * i + 3 ); hi.fill( -Infinity, 3 * i, 3 * i + 3 ); continue;
+            }
             const a = V[t[0]], b = V[t[1]], c = V[t[2]];
-            const mn = [0, 1, 2].map( k => Math.min( a[k], b[k], c[k] ) ), mx = [0, 1, 2].map( k => Math.max( a[k], b[k], c[k] ) );
-            lo.push( mn ); hi.push( mx );
-            const i0 = mn.map( (x, k) => Math.floor( (x - bb.min[k]) / h ) ), i1 = mx.map( (x, k) => Math.floor( (x - bb.min[k]) / h ) );
-            for (let x = i0[0]; x <= i1[0]; x++) for (let y = i0[1]; y <= i1[1]; y++) for (let z = i0[2]; z <= i1[2]; z++) {
-                const key = x + "," + y + "," + z;
+            for (let k = 0; k < 3; k++) { lo[3 * i + k] = Math.min( a[k], b[k], c[k] ); hi[3 * i + k] = Math.max( a[k], b[k], c[k] ); }
+            const x0 = Math.floor( (lo[3 * i] - m0) / h ), x1 = Math.floor( (hi[3 * i] - m0) / h );
+            const y0 = Math.floor( (lo[3 * i + 1] - m1) / h ), y1 = Math.floor( (hi[3 * i + 1] - m1) / h );
+            const z0 = Math.floor( (lo[3 * i + 2] - m2) / h ), z1 = Math.floor( (hi[3 * i + 2] - m2) / h );
+            for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+                const key = x + nx * (y + ny * z);
                 let l = cells.get( key );
                 if (l == null) cells.set( key, l = [] );
                 l.push( i );
             }
-        } );
-        const ownerKey = (x : number, y : number, z : number) =>
-            Math.floor( (x - bb.min[0]) / h ) + "," + Math.floor( (y - bb.min[1]) / h ) + "," + Math.floor( (z - bb.min[2]) / h );
+        }
+        const owner = (x : number, y : number, z : number) =>
+            Math.floor( (x - m0) / h ) + nx * (Math.floor( (y - m1) / h ) + ny * Math.floor( (z - m2) / h ));
         const points : Array<Point> = [];
         let pairs = 0;
         for (const [key, l] of cells) for (let p = 0; p < l.length; p++) for (let q = p + 1; q < l.length; q++) {
             const i = Math.min( l[p], l[q] ), j = Math.max( l[p], l[q] );
+            const I = 3 * i, J = 3 * j;
+            if (lo[I] > hi[J] || lo[J] > hi[I] || lo[I + 1] > hi[J + 1] || lo[J + 1] > hi[I + 1] || lo[I + 2] > hi[J + 2] || lo[J + 2] > hi[I + 2]) continue;
             const ti = T[i], tj = T[j];
-            if (ti.some( x => tj.includes( x ) )) continue;
-            if (lo[i][0] > hi[j][0] || lo[j][0] > hi[i][0] || lo[i][1] > hi[j][1] || lo[j][1] > hi[i][1] || lo[i][2] > hi[j][2] || lo[j][2] > hi[i][2]) continue;
+            if (ti[0] == tj[0] || ti[0] == tj[1] || ti[0] == tj[2] || ti[1] == tj[0] || ti[1] == tj[1] || ti[1] == tj[2]
+                || ti[2] == tj[0] || ti[2] == tj[1] || ti[2] == tj[2]) continue;
             // test each pair once: in the cell holding the low corner of where the two boxes overlap
-            if (ownerKey( Math.max( lo[i][0], lo[j][0] ), Math.max( lo[i][1], lo[j][1] ), Math.max( lo[i][2], lo[j][2] ) ) != key) continue;
+            if (owner( Math.max( lo[I], lo[J] ), Math.max( lo[I + 1], lo[J + 1] ), Math.max( lo[I + 2], lo[J + 2] ) ) != key) continue;
             const x = TriMesh.trianglesCross( V[ti[0]], V[ti[1]], V[ti[2]], V[tj[0]], V[tj[1]], V[tj[2]] );
             if (x != null) { pairs++; hit.add( i ); hit.add( j ); if (points.length < maxPoints) points.push( x ); }
         }
