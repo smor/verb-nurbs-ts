@@ -586,11 +586,12 @@ export class Graph {
         // for "@instance.output" references from `compile`
         for (const [id, sub] of Object.entries( inner ))
             for (const [name, f] of Object.entries( sub.compiled.outputs )) resolved[`${id}.${name}`] = f;
-        // each feature's node type: a node's own, an instance's from inside it
+        // each feature's node type: a node's own, an instance's from inside it. A node that compiles to several
+        // features (`freeform/vessel` gives `v/body`, `v/cavity`, ...) names them under its id, like an instance.
         const typeOf : { [feature : string] : string } = {};
         for (const fid of Object.keys( features )) {
-            const slash = fid.indexOf( "/" );
-            typeOf[fid] = slash < 0 ? nodes[fid].type : inner[fid.slice( 0, slash )].compiled.types[fid.slice( slash + 1 )];
+            const slash = fid.indexOf( "/" ), owner = slash < 0 ? fid : fid.slice( 0, slash );
+            typeOf[fid] = inner[owner] != null ? inner[owner].compiled.types[fid.slice( slash + 1 )] : nodes[owner].type;
         }
         return { parameters : parameters, features : features, outputs : resolved, types : typeOf };
     }
