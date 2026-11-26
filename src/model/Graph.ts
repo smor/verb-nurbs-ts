@@ -29,12 +29,18 @@ export type GraphPort =
     // a word chosen from a list (a fillet's shape, an axis)
     | { kind : "choice", label : string, value : string, options : Array<string> }
     // free text that is not an expression (an edge or face name pattern)
-    | { kind : "text", label : string, value : string };
+    | { kind : "text", label : string, value : string }
+    // an expression over number nodes and one variable (`t`, running from 0 to 1), sampled by the node: a curve's
+    // coordinates, a profile's radius. Within it, the variable hides a number node of the same id
+    | { kind : "function", label : string, value : string, variable : string }
+    // a half-section as drawn, from the base up: points "r z; r z; ..." in millimetres, radius from the axis and
+    // height, the heights increasing; empty for none where the node allows it
+    | { kind : "profile", label : string, value : string, optional : boolean };
 
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
     title : string;
-    category : "parameter" | "math" | "primitive" | "transform" | "boolean" | "finish" | "component";
+    category : "parameter" | "math" | "primitive" | "freeform" | "transform" | "boolean" | "finish" | "component";
     help : string;
     inputs : { [port : string] : GraphPort };
     outputs : { [port : string] : GraphWire };
@@ -332,11 +338,50 @@ export class Graph {
                     if (typeof c != "string" || !p.options.includes( c )) throw new Error( `Graph: "${id}.${k}" must be one of ${p.options.join( ", " )}` );
                     return c;
                 }
-                case "text":
+                case "text": case "function": case "profile":
                     if (v != null && typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be text` );
                     return v ?? p.value;
             }
         };
+        // a function input, as the expression it is at one value of its variable: the variable becomes that number,
+        // in parentheses, and the number nodes it names stay names, so the model keeps the parameters
+        const sampler = ( id : string, k : string ) : ( t : number ) => ModelValue => {
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "function" }>;
+            const v = nodes[id].in?.[k] ?? p.value;
+            if (typeof v == "number") return () => v;
+            if (typeof v != "string" || v.trim() == "") throw new Error( `Graph: "${id}.${k}" must be an expression of ${p.variable}` );
+            const text = v.replace( /@([A-Za-z_][A-Za-z0-9_]*)(\.value)?/g, "$1" );
+            for (const name of Expr.names( text ))
+                if (name != p.variable && !numbers.has( name )) throw new Error( `Graph: "${id}.${k}" uses "${name}", which is neither ${p.variable} nor a number node` );
+            return ( t : number ) => `(${text.replace( WORD, w => w == p.variable ? `(${t})` : w )})`;
+        };
+        // how many samples a freeform node takes: a whole number written in the document, since it shapes the model
+        const count = ( id : string, k : string ) : number => {
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "number" }>;
+            const v = nodes[id].in?.[k] ?? p.value;
+            if (typeof v != "number" || !Number.isInteger( v ) || v < p.min || v > p.max)
+                throw new Error( `Graph: "${id}.${k}" must be a whole number from ${p.min} to ${p.max}, written as a number, not ${JSON.stringify( v )}` );
+            return v;
+        };
+        // a profile input: its points, or null when it is empty and may be
+        const points = ( id : string, k : string ) : Array<[number, number]> | null => {
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "profile" }>;
+            const v = nodes[id].in?.[k] ?? p.value;
+            if (typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be points "r z; r z; ..."` );
+            if (v.trim() == "") {
+                if (p.optional) return null;
+                throw new Error( `Graph: "${id}.${k}" needs points "r z; r z; ..."` );
+            }
+            const pts = v.split( ";" ).map( s => s.trim() ).filter( s => s != "" ).map( ( s, i ) => {
+                const xy = s.split( /[\s,]+/ ).map( Number );
+                if (xy.length != 2 || !xy.every( Number.isFinite )) throw new Error( `Graph: "${id}.${k}" point ${i + 1} is "${s}", not two numbers "r z"` );
+                return xy as [number, number];
+            } );
+            if (pts.length < 2) throw new Error( `Graph: "${id}.${k}" has ${pts.length} point; a profile needs two or more` );
+            return pts;
+        };
+        // the variable's values at n samples, 0 to 1, evenly spaced
+        const samples = ( n : number ) => Array.from( { length : n }, ( _, i ) => i / (n - 1) );
 
         const parameters : { [name : string] : ModelValue } = {};
         const features : { [id : string] : ModelFeature } = {};
@@ -403,6 +448,33 @@ export class Graph {
                     const rules = s( "edges" ).split( "," ).map( e => e.trim() ).filter( e => e != "" ).map( e => ({ edges : e, radius : asNum( "radius" ) }) );
                     if (rules.length == 0) throw new Error( `Graph: "${id}.edges" names no edges` );
                     features[id] = { type : "round", of : s( "of" ), rules : rules, shape : shape };
+                    break;
+                }
+                case "freeform/revolve": {
+                    const r = sampler( id, "radius" ), h = asNum( "height" );
+                    const z = ( t : number ) : ModelValue => typeof h == "number" ? h * t : `(${h}) * ${t}`;
+                    features[id] = { type : "revolve", profile : samples( count( id, "samples" ) ).map( t => [r( t ), z( t )] as [ModelValue, ModelValue] ) };
+                    break;
+                }
+                case "freeform/vessel": {
+                    // the body turned from its outer profile, less the cavity open at the rim and the hollow under a
+                    // foot, each its own revolve under the node's id
+                    const minus : Array<string> = [];
+                    for (const k of ["cavity", "foot"]) {
+                        const pts = points( id, k );
+                        if (pts == null) continue;
+                        features[`${id}/${k}`] = { type : "revolve", profile : pts };
+                        minus.push( `${id}/${k}` );
+                    }
+                    const body = { type : "revolve" as const, profile : points( id, "outer" )! };
+                    if (minus.length == 0) features[id] = body;
+                    else { features[`${id}/body`] = body; features[id] = { type : "difference", from : `${id}/body`, minus : minus }; }
+                    break;
+                }
+                case "freeform/pipe": {
+                    const x = sampler( id, "x" ), y = sampler( id, "y" ), z = sampler( id, "z" );
+                    features[id] = { type : "pipe", through : samples( count( id, "samples" ) ).map( t => [x( t ), y( t ), z( t )] as [ModelValue, ModelValue, ModelValue] ),
+                        radius : asNum( "radius" ) };
                     break;
                 }
                 case "finish/shell": {
@@ -505,6 +577,8 @@ export class Graph {
                 ports[k] = p.kind == "number" ? { ...value, description : p.unit == null ? p.label : `${p.label} (${p.unit})`, default : p.value }
                     : p.kind == "solid" ? { ...wire, description : `${p.label}: a solid, "@node"` }
                     : p.kind == "choice" ? { enum : p.options, description : p.label, default : p.value }
+                    : p.kind == "profile" ? { type : "string", description : `${p.label}: points "r z; r z; ...", millimetres, from the base up${p.optional ? "; empty for none" : ""}`, default : p.value }
+                    : p.kind == "function" ? { type : "string", description : `${p.label}, an expression of ${p.variable} (0 to 1) and number nodes`, default : p.value }
                     : { type : "string", description : p.label, default : p.value };
             defs[type.replace( /\//g, "." )] = { title : t.title, description : t.help, type : "object", required : ["type"], additionalProperties : false,
                 properties : { type : { const : type }, label : { type : "string" }, in : { type : "object", additionalProperties : false, properties : ports } } };
@@ -569,6 +643,25 @@ export class Graph {
                     step : p.integer ? 1 : 0.5, unit : p.degrees ? "°" : p.integer ? undefined : "mm", integer : p.integer };
             r[type] = { title : e.name[0].toUpperCase() + e.name.slice( 1 ), category : "primitive", help : `Catalogue: ${e.family}`, inputs : inputs, outputs : { solid : "solid" } };
         }
+        // freeform solids: exact NURBS through points sampled from functions of t, 0 to 1
+        const fn = ( label : string, v : string ) : GraphPort => ({ kind : "function", label : label, value : v, variable : "t" });
+        const many = ( v : number ) : GraphPort => ({ kind : "number", label : "samples", value : v, min : 2, max : 64, step : 1, integer : true });
+        r["freeform/revolve"] = { title : "Revolve", category : "freeform",
+            help : "A solid of revolution about z, its radius a function of t from 0 at the base to 1 at the top: circles at the samples, lofted. A vase, a column, a bulb",
+            inputs : { radius : fn( "radius", "18 + 7 * sin(pi * (1.4 * t + 0.1)) - 6 * t" ), height : num( "height", 90, 1, 400, 0.5, "mm" ), samples : many( 14 ) },
+            outputs : { solid : "solid" } };
+        r["freeform/pipe"] = { title : "Pipe", category : "freeform",
+            help : "A round tube along the smooth curve through (x, y, z) at the samples of t from 0 to 1, capped at both ends: a tendril, a stem, a whiplash",
+            inputs : { x : fn( "x", "25 * cos(3 * pi * t)" ), y : fn( "y", "25 * sin(3 * pi * t)" ), z : fn( "z", "70 * t" ),
+                radius : num( "radius", 3, 0.2, 50, 0.1, "mm" ), samples : many( 24 ) },
+            outputs : { solid : "solid" } };
+        // a vessel from its drawn section: the archaeologist's half-profile, outside, inside and under the foot
+        const prof = ( label : string, v : string, optional : boolean ) : GraphPort => ({ kind : "profile", label : label, value : v, optional : optional });
+        r["freeform/vessel"] = { title : "Vessel", category : "freeform",
+            help : "A pot from its drawn half-section, in millimetres from the base up: the outer profile turned about z, less the cavity (from its floor to above the rim) and the hollow under a foot",
+            inputs : { outer : prof( "outer", "30 0; 40 12; 46 30; 40 50; 44 60", false ), cavity : prof( "cavity", "26 5; 36 14; 42 30; 36 50; 40 63", true ),
+                foot : prof( "foot", "", true ) },
+            outputs : { solid : "solid" } };
         const of = { of : solid( "solid" ) };
         r["transform/move"] = { title : "Move", category : "transform", help : "Translate by (x, y, z)",
             inputs : { ...of, x : num( "x", 0, -200, 200, 0.5, "mm" ), y : num( "y", 0, -200, 200, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ) }, outputs : { solid : "solid" } };

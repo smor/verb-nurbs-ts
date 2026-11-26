@@ -149,6 +149,9 @@
             "primitive/trapezohedron",
             "primitive/lofted-vase",
             "primitive/bent-pipe",
+            "freeform/revolve",
+            "freeform/pipe",
+            "freeform/vessel",
             "transform/move",
             "transform/rotate",
             "transform/scale",
@@ -1228,6 +1231,42 @@
           },
           "then": {
             "$ref": "#/$defs/primitive.bent-pipe"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "freeform/revolve"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freeform.revolve"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "freeform/pipe"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freeform.pipe"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "freeform/vessel"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freeform.vessel"
           }
         },
         {
@@ -4963,6 +5002,142 @@
               ],
               "description": "round caps",
               "default": 1
+            }
+          }
+        }
+      }
+    },
+    "freeform.revolve": {
+      "title": "Revolve",
+      "description": "A solid of revolution about z, its radius a function of t from 0 at the base to 1 at the top: circles at the samples, lofted. A vase, a column, a bulb",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "freeform/revolve"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": "string",
+              "description": "radius, an expression of t (0 to 1) and number nodes",
+              "default": "18 + 7 * sin(pi * (1.4 * t + 0.1)) - 6 * t"
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 90
+            },
+            "samples": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "samples",
+              "default": 14
+            }
+          }
+        }
+      }
+    },
+    "freeform.pipe": {
+      "title": "Pipe",
+      "description": "A round tube along the smooth curve through (x, y, z) at the samples of t from 0 to 1, capped at both ends: a tendril, a stem, a whiplash",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "freeform/pipe"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "type": "string",
+              "description": "x, an expression of t (0 to 1) and number nodes",
+              "default": "25 * cos(3 * pi * t)"
+            },
+            "y": {
+              "type": "string",
+              "description": "y, an expression of t (0 to 1) and number nodes",
+              "default": "25 * sin(3 * pi * t)"
+            },
+            "z": {
+              "type": "string",
+              "description": "z, an expression of t (0 to 1) and number nodes",
+              "default": "70 * t"
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 3
+            },
+            "samples": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "samples",
+              "default": 24
+            }
+          }
+        }
+      }
+    },
+    "freeform.vessel": {
+      "title": "Vessel",
+      "description": "A pot from its drawn half-section, in millimetres from the base up: the outer profile turned about z, less the cavity (from its floor to above the rim) and the hollow under a foot",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "freeform/vessel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outer": {
+              "type": "string",
+              "description": "outer: points \"r z; r z; ...\", millimetres, from the base up",
+              "default": "30 0; 40 12; 46 30; 40 50; 44 60"
+            },
+            "cavity": {
+              "type": "string",
+              "description": "cavity: points \"r z; r z; ...\", millimetres, from the base up; empty for none",
+              "default": "26 5; 36 14; 42 30; 36 50; 40 63"
+            },
+            "foot": {
+              "type": "string",
+              "description": "foot: points \"r z; r z; ...\", millimetres, from the base up; empty for none",
+              "default": ""
             }
           }
         }

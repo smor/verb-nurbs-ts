@@ -1,0 +1,2958 @@
+{
+ "version": 2,
+ "meta": {
+  "name": "Pottery of ancient Italy, one vessel of each form per period",
+  "description": "Vessels of continental Italy from the Early Bronze Age to the Archaic period (2300–480 BC), each turned from its drawn section at its real size. Handles and decoration are not in the data: the profiles were drawn without them.",
+  "source": "AIPPD, Ancient Italy Pottery Profiles Dataset v0.1 (Cardarelli 2024, Appendix A), doi:10.5281/zenodo.24249544, Apache License 2.0",
+  "book": "Cardarelli, L. 2024. Morphological variability and standardisation of vessel shapes in the 2nd and first half of the 1st millennium BC in continental Italy. Adrias 18. Bari: Edipuglia. doi:10.4475/0840",
+  "items": {
+   "EBA_cup": {
+    "aippd_id": "CATTRGN_0009",
+    "form": "Tazza/Ciotola",
+    "period": "EBA",
+    "subperiod": "EBA1",
+    "site": "Cattaragna",
+    "region": null,
+    "facies": "Polada",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.625,
+    "max_width_cm": 9.75,
+    "rim_diameter_cm": 7.5,
+    "capacity_l": 0.24,
+    "cavity_l": 0.241,
+    "source": "Aspes 1972, fig./pl. I, no. 10",
+    "reference": "Aspes, A., 1972. Materiali inediti dell’Antica Età del Bronzo da Cattaragna (Brescia) conservati al Museo Civico di Storia Naturale di Verona. “NATURA BRESCIANA”, Annali del Museo Civico di Storia Naturale 9, 13–34."
+   },
+   "EBA_bowl": {
+    "aippd_id": "LUCN_POLP_0053",
+    "form": "Scodella",
+    "period": "EBA",
+    "subperiod": null,
+    "site": "Lucone di Polepenazze",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 8.625,
+    "max_width_cm": 17.5,
+    "rim_diameter_cm": 15.25,
+    "capacity_l": 1.166,
+    "cavity_l": 1.245,
+    "source": "Guerreschi 1980-1981, p. 59, fig./pl. X, no. 0322",
+    "reference": "Guerreschi, G., 1980-1981. La stazione preistorica del lago Lucone (Brescia) - Scavi 1965-1971. Annali del Museo di Gavardo 14, 7–78."
+   },
+   "EBA_mug": {
+    "aippd_id": "CSL_SABN_0002",
+    "form": "Boccale",
+    "period": "EBA",
+    "subperiod": null,
+    "site": "Casal Sabini",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "1",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.875,
+    "max_width_cm": 10.75,
+    "rim_diameter_cm": 8,
+    "capacity_l": 0.537,
+    "cavity_l": 0.527,
+    "source": "Cataldo 1996, p. 112, fig./pl. 3, no. 7",
+    "reference": "Cataldo, L., 1996. La Tomba di Casal Sabini e i rinvenimenti funerari tra eneolitico ed età del brozo del territorio di Altamura (Bari). Le facies culturali indigene e i contatti transadriatici e con il Mediterraneo orientale. Origini XX, 109–164."
+   },
+   "EBA_jug": {
+    "aippd_id": "LG_FRSSN_0031",
+    "form": "Brocca/Orciolo",
+    "period": "EBA",
+    "subperiod": "EBA2",
+    "site": "Peschiera - Lago del Frassino",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 17.375,
+    "max_width_cm": 18.5,
+    "rim_diameter_cm": 12.5,
+    "capacity_l": 2.444,
+    "cavity_l": 2.414,
+    "source": "Gonzato et al. 2014, p. 136, fig./pl. 3, no. 18",
+    "reference": "Gonzato, F., Baioni, M., Balista, C., Mangani, C., Martinelli, N., Nicosia, C., Pignatelli, O., Voltolini, D., 2014. Peschiera del Garda, laghetto del Frassino. Indagini 2014. Notizie di Archeologia del Veneto 3, 130–141."
+   },
+   "EBA_jar": {
+    "aippd_id": "FIAV_0099",
+    "form": "Olla",
+    "period": "EBA",
+    "subperiod": "EBA2",
+    "site": "Fiavè",
+    "region": null,
+    "facies": "Polada",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 15,
+    "max_width_cm": 16.5,
+    "rim_diameter_cm": 15.25,
+    "capacity_l": 1.657,
+    "cavity_l": 1.651,
+    "source": "Perini 1994, p. 219, fig./pl. 52, no. c761",
+    "reference": "Perini, R., 1994. Scavi Archeologici Nella Zona Palafitticola Di Fiave’-Carrera. Parte III Campagne 1969-1976. Resti Della Cultura Materiale Ceramica."
+   },
+   "EBA_necked_jar": {
+    "aippd_id": "LVGN_0127",
+    "form": "Vaso a collo/Biconico",
+    "period": "EBA",
+    "subperiod": "EBA1",
+    "site": "Lavagnone",
+    "region": null,
+    "facies": "Polada",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 21.375,
+    "max_width_cm": 23.75,
+    "rim_diameter_cm": 15.5,
+    "capacity_l": 4.896,
+    "cavity_l": 4.874,
+    "source": "Rapi 2007, p. 149, fig./pl. 19, no. 23",
+    "reference": "Rapi, M., 2007. Lavagnone di Desenzano del Garda (BS), settore B: la ceramica del Bronzo Antico I. Notizie Archeologiche Bergomensi 10, 109–185."
+   },
+   "EBA_amphora": {
+    "aippd_id": "BAND_CAVRN_0002",
+    "form": "Anfora",
+    "period": "EBA",
+    "subperiod": null,
+    "site": "Bande di Cavriana",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 20.75,
+    "max_width_cm": 20.75,
+    "rim_diameter_cm": 11,
+    "capacity_l": 3.375,
+    "cavity_l": 3.326,
+    "source": "Piccoli 1982b, p. 59, fig./pl. IV, no. b",
+    "reference": "Piccoli, A., 1982a. Bande di Cavriana (MN) - Indagine d’emergenza. Sibrium XVI, 51–68."
+   },
+   "MBA_cup": {
+    "aippd_id": "BOCCZL_VCCH_0006",
+    "form": "Tazza/Ciotola",
+    "period": "MBA",
+    "subperiod": "MBA1-2",
+    "site": "Boccazzola Vecchia",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.25,
+    "max_width_cm": 13.5,
+    "rim_diameter_cm": 12.25,
+    "capacity_l": 0.472,
+    "cavity_l": 0.507,
+    "source": "Tosatti 1984, p. 176, fig./pl. 3, no. 39",
+    "reference": "Tosatti, A.M., 1984. Insediamento dell’Età del Bronzo a Boccazzola Vecchia di Poggio Rusco (MN). Preistoria Alpina 20, 169–202."
+   },
+   "MBA_bowl": {
+    "aippd_id": "CASTLLR_VHO_0030",
+    "form": "Scodella",
+    "period": "MBA",
+    "subperiod": "MBA1-2",
+    "site": "Castellaro del Vho",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.5,
+    "max_width_cm": 20.25,
+    "rim_diameter_cm": 19,
+    "capacity_l": 1.126,
+    "cavity_l": 1.248,
+    "source": "Bianchi et al. 2001, p. 112, fig./pl. 54, no. 10",
+    "reference": "Bianchi, P., Frontini, P., Gianadda, R., Pessina, M., Santomanco, I., Scotti, G., 2001. La ceramica, in: Frontini, P. (Ed.), Castellaro Del Vhò. Campagne Di Scavo 1996-1999, Scavi a Cura Delle Civiche Raccolte Archeologiche Di Milano. pp. 79–126."
+   },
+   "MBA_mug": {
+    "aippd_id": "FIAV_0165",
+    "form": "Boccale",
+    "period": "MBA",
+    "subperiod": "MBA1-2",
+    "site": "Fiavè",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.375,
+    "max_width_cm": 12.25,
+    "rim_diameter_cm": 11,
+    "capacity_l": 0.492,
+    "cavity_l": 0.505,
+    "source": "Perini 1994, p. 466, fig./pl. 87, no. c1264",
+    "reference": "Perini, R., 1994. Scavi Archeologici Nella Zona Palafitticola Di Fiave’-Carrera. Parte III Campagne 1969-1976. Resti Della Cultura Materiale Ceramica."
+   },
+   "MBA_jug": {
+    "aippd_id": "BVLN_0055",
+    "form": "Brocca/Orciolo",
+    "period": "MBA",
+    "subperiod": "MBA3",
+    "site": "Bovolone",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 15.625,
+    "max_width_cm": 21.25,
+    "rim_diameter_cm": 15.75,
+    "capacity_l": 3.086,
+    "cavity_l": 3.095,
+    "source": "Salzani 2010, p. 154, fig./pl. 14, no. 59",
+    "reference": "Salzani, L., 2010. La necropoli dell’età del bronzo di Bovolone, Memorie del Museo civico di storia naturale di Verona. 2. Serie. Sezione scienze dell’uomo. Museo civico di storia naturale di Verona, Verona."
+   },
+   "MBA_jar": {
+    "aippd_id": "FIAV_0290",
+    "form": "Olla",
+    "period": "MBA",
+    "subperiod": "MBA1-2",
+    "site": "Fiavè",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 15.625,
+    "max_width_cm": 15.75,
+    "rim_diameter_cm": 14.5,
+    "capacity_l": 1.546,
+    "cavity_l": 1.596,
+    "source": "Perini 1994, p. 498, fig./pl. 119, no. c1706",
+    "reference": "Perini, R., 1994. Scavi Archeologici Nella Zona Palafitticola Di Fiave’-Carrera. Parte III Campagne 1969-1976. Resti Della Cultura Materiale Ceramica."
+   },
+   "MBA_necked_jar": {
+    "aippd_id": "GAMBL_0012",
+    "form": "Vaso a collo/Biconico",
+    "period": "MBA",
+    "subperiod": "MBA3",
+    "site": "Gambolò",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "B6",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 23.125,
+    "max_width_cm": 23.25,
+    "rim_diameter_cm": 13,
+    "capacity_l": 4.635,
+    "cavity_l": 4.544,
+    "source": "Simone 1990-1991, p. 137, fig./pl. 7, no. 18",
+    "reference": "Simone, L., 1990-1991. La necropoli della tarda Età del Bronzo di Gombolò (PV). Sibrium XXI, 89–147."
+   },
+   "MBA_amphora": {
+    "aippd_id": "MZZN_0091",
+    "form": "Anfora",
+    "period": "MBA",
+    "subperiod": "MBA3",
+    "site": "Mezzano",
+    "region": null,
+    "facies": "Appenninica",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 19.5,
+    "max_width_cm": 20.25,
+    "rim_diameter_cm": 13.5,
+    "capacity_l": 3.184,
+    "cavity_l": 3.133,
+    "source": "Franco 1982, p. 121, fig./pl. XXXIV, no. M2-34",
+    "reference": "Franco, M.C., 1982. L’insediamento preistorico del Lago di Mezzano: risultati della campagna di ricognizione preliminare settembre 1973."
+   },
+   "MBA_lid": {
+    "aippd_id": "NOCET_0042",
+    "form": "Coperchio/Teglia",
+    "period": "MBA",
+    "subperiod": "MBA3",
+    "site": "Noceto",
+    "region": null,
+    "facies": null,
+    "context_type": "Cultual",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 4.5,
+    "max_width_cm": 18,
+    "rim_diameter_cm": 16.5,
+    "capacity_l": 0.531,
+    "cavity_l": 0.575,
+    "source": "Bernabò Brea et al. 2009, fig./pl. 13.5, no. 6",
+    "reference": "Bernabò Brea, M., Cremaschi, M., Mutti, A., Pizzi, C. (Eds.), 2009. Acqua e civiltà nelle terramare: la vasca votiva di Noceto, Le vetrine del sapere. Università degli studi di Milano: Skira, Milano."
+   },
+   "RBA_cup": {
+    "aippd_id": "BVLN_0085",
+    "form": "Tazza/Ciotola",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Bovolone",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "22",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.875,
+    "max_width_cm": 18.75,
+    "rim_diameter_cm": 17.5,
+    "capacity_l": 1.038,
+    "cavity_l": 1.13,
+    "source": "Salzani 2010, p. 161, fig./pl. 31",
+    "reference": "Salzani, L., 2010. La necropoli dell’età del bronzo di Bovolone, Memorie del Museo civico di storia naturale di Verona. 2. Serie. Sezione scienze dell’uomo. Museo civico di storia naturale di Verona, Verona."
+   },
+   "RBA_bowl": {
+    "aippd_id": "BVLN_0102",
+    "form": "Scodella",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Bovolone",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "66",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.5,
+    "max_width_cm": 20.75,
+    "rim_diameter_cm": 19.75,
+    "capacity_l": 1.21,
+    "cavity_l": 1.341,
+    "source": "Salzani 2010, p. 168, fig./pl. 38",
+    "reference": "Salzani, L., 2010. La necropoli dell’età del bronzo di Bovolone, Memorie del Museo civico di storia naturale di Verona. 2. Serie. Sezione scienze dell’uomo. Museo civico di storia naturale di Verona, Verona."
+   },
+   "RBA_footed_cup": {
+    "aippd_id": "RC_VCCH_0146",
+    "form": "Coppa",
+    "period": "RBA",
+    "subperiod": "RBA1",
+    "site": "Roca",
+    "region": null,
+    "facies": "Subappenninica",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Wheelmade",
+    "ware": "Argilla depurata",
+    "height_cm": 11.625,
+    "max_width_cm": 16.5,
+    "rim_diameter_cm": 16,
+    "capacity_l": 1.508,
+    "cavity_l": 1.561,
+    "source": "Radina, Recchia 2010, p. 355, fig./pl. 9",
+    "reference": "Radina, F., Recchia, G. (Eds.), 2010. Ambra per Agamennone: indigeni e micenei tra Adriatico, Ionio ed Egeo; [Bari, Palazzo Simi e Museo Civico, 28 maggio - 16 ottobre 2010]. Adda, Bari."
+   },
+   "RBA_mug": {
+    "aippd_id": "PZZLL_0057",
+    "form": "Boccale",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Pozzillo",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "56",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.625,
+    "max_width_cm": 9.75,
+    "rim_diameter_cm": 7.5,
+    "capacity_l": 0.38,
+    "cavity_l": 0.372,
+    "source": "Lo Porto 1997, p. 101, fig./pl. 52, no. 2",
+    "reference": "Lo Porto, F.G., 1997. Kanysion 1. La necropoli protostorica a cremazione di contrada Pozzillo. Studi di Antichità 10, 71–118."
+   },
+   "RBA_jug": {
+    "aippd_id": "SPSTT_0020",
+    "form": "Brocca/Orciolo",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Sposetta",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 18.625,
+    "max_width_cm": 14.5,
+    "rim_diameter_cm": 10.5,
+    "capacity_l": 1.593,
+    "cavity_l": 1.517,
+    "source": "Damiani et al. 2010, p. 692, fig./pl. 4, no. 1",
+    "reference": "Damiani, I., Petitti, P., Trucco, F., 2010. Aspetti cronologici e primo inquadramento del villaggio sommerso di Sposetta nel lago di Bracciano. Preistoria e Protostoria in Etruria IX, 685–696."
+   },
+   "RBA_jar": {
+    "aippd_id": "BVLN_0136",
+    "form": "Olla",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Bovolone",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "86",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 20,
+    "max_width_cm": 23.25,
+    "rim_diameter_cm": 14.5,
+    "capacity_l": 4.987,
+    "cavity_l": 4.959,
+    "source": "Salzani 2010, p. 176, fig./pl. 46",
+    "reference": "Salzani, L., 2010. La necropoli dell’età del bronzo di Bovolone, Memorie del Museo civico di storia naturale di Verona. 2. Serie. Sezione scienze dell’uomo. Museo civico di storia naturale di Verona, Verona."
+   },
+   "RBA_necked_jar": {
+    "aippd_id": "BVLN_0015",
+    "form": "Vaso a collo/Biconico",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Bovolone",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 21,
+    "max_width_cm": 23.25,
+    "rim_diameter_cm": 14.25,
+    "capacity_l": 4.864,
+    "cavity_l": 4.792,
+    "source": "Salzani 2010, p. 143, fig./pl. 3, no. 11",
+    "reference": "Salzani, L., 2010. La necropoli dell’età del bronzo di Bovolone, Memorie del Museo civico di storia naturale di Verona. 2. Serie. Sezione scienze dell’uomo. Museo civico di storia naturale di Verona, Verona."
+   },
+   "RBA_amphora": {
+    "aippd_id": "PZZLL_0048",
+    "form": "Anfora",
+    "period": "RBA",
+    "subperiod": null,
+    "site": "Pozzillo",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "43",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 17.5,
+    "max_width_cm": 16.25,
+    "rim_diameter_cm": 11,
+    "capacity_l": 2.077,
+    "cavity_l": 2.021,
+    "source": "Lo Porto 1997, p. 96, fig./pl. 42, no. 1",
+    "reference": "Lo Porto, F.G., 1997. Kanysion 1. La necropoli protostorica a cremazione di contrada Pozzillo. Studi di Antichità 10, 71–118."
+   },
+   "FBA_cup": {
+    "aippd_id": "CSN_BRMS_0001",
+    "form": "Tazza/Ciotola",
+    "period": "FBA",
+    "subperiod": null,
+    "site": "Frascaro - Cascina Brumosa",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.375,
+    "max_width_cm": 19.25,
+    "rim_diameter_cm": 18,
+    "capacity_l": 1.436,
+    "cavity_l": 1.535,
+    "source": "Micheletto et al. 2001, fig./pl. XXVII, no. a1",
+    "reference": "Micheletto, E., Negrino, F., Pirotto, S., Venturino Gambari, M., 2001. Frascaro, loc. Cascina Brumosa. Insediamenti preistorici area sepolcrale e pozzo di età gota. Quaderni della Soprintendenza Archeologica del Piemonte 18, 59–63."
+   },
+   "FBA_bowl": {
+    "aippd_id": "CLLTLGRF_0008",
+    "form": "Scodella",
+    "period": "FBA",
+    "subperiod": null,
+    "site": "Colle del Telegrafo",
+    "region": null,
+    "facies": "Protovillanoviana",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.5,
+    "max_width_cm": 20.75,
+    "rim_diameter_cm": 17.75,
+    "capacity_l": 1.573,
+    "cavity_l": 1.675,
+    "source": "Di Fraia 1998, p. 263, fig./pl. 1, no. A6",
+    "reference": "Di Fraia, T., 1998. Aspetti economici e culturali del Bronzo Finale nell’Abruzzo adriatico. Preistoria e Protostoria in Etruria 3, 229–238."
+   },
+   "FBA_mug": {
+    "aippd_id": "FSS_5_0007",
+    "form": "Boccale",
+    "period": "FBA",
+    "subperiod": "FBA3",
+    "site": "Fossa 5",
+    "region": null,
+    "facies": null,
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.875,
+    "max_width_cm": 13,
+    "rim_diameter_cm": 11.75,
+    "capacity_l": 0.598,
+    "cavity_l": 0.628,
+    "source": "Zanini 1997, p. 147, fig./pl. 86, no. 38",
+    "reference": "Zanini, A., (Eds.), 1997. Dal bronzo al ferro: il II millennio a.C. nella Toscana centro occidentale. Comune di Livorno ; Pacini, [Livorno] : Ospedaletto (Pisa)."
+   },
+   "FBA_jug": {
+    "aippd_id": "PDG_0235",
+    "form": "Brocca/Orciolo",
+    "period": "FBA",
+    "subperiod": null,
+    "site": "Pianello di Genga",
+    "region": null,
+    "facies": "Chiusi-Cetona",
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 18.875,
+    "max_width_cm": 19.25,
+    "rim_diameter_cm": 12,
+    "capacity_l": 2.772,
+    "cavity_l": 2.722,
+    "source": "Muller-Karpe 1958, fig./pl. 54, no. 14",
+    "reference": "Muller-Karpe, H., 1958. Beiträge zur Chronologie der Urnenfelderzeit nördlich und südlich der Alpen."
+   },
+   "FBA_jar": {
+    "aippd_id": "PDG_0200",
+    "form": "Olla",
+    "period": "FBA",
+    "subperiod": "FBA3",
+    "site": "Pianello di Genga",
+    "region": null,
+    "facies": "Chiusi-Cetona",
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "97_1965",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 19.375,
+    "max_width_cm": 21.5,
+    "rim_diameter_cm": 15.5,
+    "capacity_l": 4.237,
+    "cavity_l": 4.175,
+    "source": "Bianco Peroni et. Al 2010, p. 120, fig./pl. 74, no. A, 1",
+    "reference": "Bianco Peroni, V., Peroni, R., Vanzetti, A., 2010. La necropoli del Bronzo finale di Pianello di Genga, Grandi contesti e problemi della protostoria italiana. All’insegna del giglio, Borgo San Lorenzo (FI) [i.e. Florence, Italy]."
+   },
+   "FBA_necked_jar": {
+    "aippd_id": "DESM_VERNLL_0030",
+    "form": "Vaso a collo/Biconico",
+    "period": "FBA",
+    "subperiod": "FBA3",
+    "site": "Desmontà di Veronella",
+    "region": null,
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "268",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 24.125,
+    "max_width_cm": 31,
+    "rim_diameter_cm": 19.25,
+    "capacity_l": 6.725,
+    "cavity_l": 6.721,
+    "source": "Salzani 2013, p. 160, fig./pl. 20, no. 7",
+    "reference": "Salzani, L. (Ed.), 2013. La necropoli di Desmontà: Veronella-Albaredo d’Adige-Verona: scavi 1982-2011, Documenti di archeologia. SAP, Mantova."
+   },
+   "FBA_amphora": {
+    "aippd_id": "PDG_0037",
+    "form": "Anfora",
+    "period": "FBA",
+    "subperiod": "FBA3",
+    "site": "Pianello di Genga",
+    "region": null,
+    "facies": "Chiusi-Cetona",
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "31_1962",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 21.375,
+    "max_width_cm": 24.75,
+    "rim_diameter_cm": 18.75,
+    "capacity_l": 5.812,
+    "cavity_l": 5.824,
+    "source": "Bianco Peroni et. Al 2010, p. 29, fig./pl. 10, no. A, 1",
+    "reference": "Bianco Peroni, V., Peroni, R., Vanzetti, A., 2010. La necropoli del Bronzo finale di Pianello di Genga, Grandi contesti e problemi della protostoria italiana. All’insegna del giglio, Borgo San Lorenzo (FI) [i.e. Florence, Italy]."
+   },
+   "FBA_lid": {
+    "aippd_id": "GRTT_BARCH_0008",
+    "form": "Coperchio/Teglia",
+    "period": "FBA",
+    "subperiod": "FBA3",
+    "site": "Grotta Barche",
+    "region": null,
+    "facies": "Protovillanoviana",
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "2",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.375,
+    "max_width_cm": 17,
+    "rim_diameter_cm": 16.25,
+    "capacity_l": 0.479,
+    "cavity_l": 0.534,
+    "source": "Domanico 1998, p. 77, fig./pl. 7, no. 3",
+    "reference": "Domanico, L., 1998. Analisi degli indicatori cronologici dalle necropoli del Bronzo Finale in Etruria. Preistoria e Protostoria in Etruria 3, 53–78."
+   },
+   "EIA1_cup": {
+    "aippd_id": "CUMA_0104",
+    "form": "Tazza/Ciotola",
+    "period": "EIA1",
+    "subperiod": null,
+    "site": "Cuma",
+    "region": "Campania",
+    "facies": "Cuma-Torregalli",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "11",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 5.875,
+    "max_width_cm": 9.75,
+    "rim_diameter_cm": 7.75,
+    "capacity_l": 0.207,
+    "cavity_l": 0.218,
+    "source": "Agresti et al. 2012, fig./pl. 19B, no. 2",
+    "reference": "Agresti, A., Poesini, S., Sarti, L., Zannoni, M., 2012. Nuovi dati dagli scavi di emergenza nella piana di Sesto Fiorentino (FI): le produzioni artigianali tra Bronzo Recente/Finale e prima età del ferro. Preistoria e Protostoria in Etruria X, 493–509."
+   },
+   "EIA1_bowl": {
+    "aippd_id": "CMP_REAT_0004",
+    "form": "Scodella",
+    "period": "EIA1",
+    "subperiod": "EIA1A",
+    "site": "Campo Reatino",
+    "region": "Sabina e Umbria",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "6",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.25,
+    "max_width_cm": 20.5,
+    "rim_diameter_cm": 18,
+    "capacity_l": 1.383,
+    "cavity_l": 1.528,
+    "source": "Filippi et al. 1983, p. 165, fig./pl. 12, no. 1",
+    "reference": "Filippi, G., Caprioli, G., Palmegiani, F., Cultrera, G., Angelini, P.G., 1983. La necropoli di Campo Reatino: I. I materiali. Archeologia Classica 35, 138–185."
+   },
+   "EIA1_footed_cup": {
+    "aippd_id": "TRRGLL_0356",
+    "form": "Coppa",
+    "period": "EIA1",
+    "subperiod": "EIA1B",
+    "site": "Torre Galli",
+    "region": "Calabria",
+    "facies": "Cuma-Torregalli",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "206",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 6.875,
+    "max_width_cm": 13.75,
+    "rim_diameter_cm": 9.75,
+    "capacity_l": 0.589,
+    "cavity_l": 0.627,
+    "source": "Pacciarelli 1999, p. 365, fig./pl. 139, no. 2",
+    "reference": "Pacciarelli, M., 1999. Torre Galli: la necropoli della prima età del ferro: scavi Paolo Orsi, 1922-23, Studi e testi. Rubbettino, Soveria Mannelli (Catanzaro)."
+   },
+   "EIA1_mug": {
+    "aippd_id": "GRTCLL_CALNN_0011",
+    "form": "Boccale",
+    "period": "EIA1",
+    "subperiod": null,
+    "site": "Grotticelle di Calanna",
+    "region": "Calabria",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "1",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 9.625,
+    "max_width_cm": 8.5,
+    "rim_diameter_cm": 6.25,
+    "capacity_l": 0.298,
+    "cavity_l": 0.286,
+    "source": "Agostino 2013, p. 25, no. 11",
+    "reference": "Agostino, R., 2013. Le grotticelle di Calanna: una necropoli dell’età del ferro nell’area dello stretto, Antiqua et nova. Rubbettino, Soveria Mannelli (Catanzaro)."
+   },
+   "EIA1_jug": {
+    "aippd_id": "INCRNT_0100",
+    "form": "Brocca/Orciolo",
+    "period": "EIA1",
+    "subperiod": "EIA1B",
+    "site": "Incoronata",
+    "region": "Enotria",
+    "facies": "Enotria",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "294",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 14.375,
+    "max_width_cm": 14.75,
+    "rim_diameter_cm": 6.25,
+    "capacity_l": 0.856,
+    "cavity_l": 0.818,
+    "source": "Chiartano 1994, p. 105, fig./pl. 61, no. C",
+    "reference": "Chiartano, B., 1994. La necropoli dell’età del ferro dell’Incoronata e di S. Teodoro (scavi 1978-1985). Vol. I-II."
+   },
+   "EIA1_jar": {
+    "aippd_id": "PN_QNTN_0015",
+    "form": "Olla",
+    "period": "EIA1",
+    "subperiod": "EIA1A",
+    "site": "Pian Quintino",
+    "region": "Latium",
+    "facies": "Laziale",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "XLII",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 13.625,
+    "max_width_cm": 12.5,
+    "rim_diameter_cm": 7.75,
+    "capacity_l": 0.867,
+    "cavity_l": 0.836,
+    "source": "Alessandri 2013, p. 244, fig./pl. 56.10, no. 3",
+    "reference": "Alessandri, L., 2013. Latium Vetus in the Bronze Age and Early Iron Age, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA1_necked_jar": {
+    "aippd_id": "COLFIRT_0088",
+    "form": "Vaso a collo/Biconico",
+    "period": "EIA1",
+    "subperiod": "EIA1A",
+    "site": "Colfiorito",
+    "region": "Sabina e Umbria",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "201",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 31.75,
+    "max_width_cm": 25.5,
+    "rim_diameter_cm": 14,
+    "capacity_l": 7.881,
+    "cavity_l": 7.766,
+    "source": "Muller-Karpe 1958, p. 378, fig./pl. 127, no. 201.1",
+    "reference": "Muller-Karpe, H., 1958. Beiträge zur Chronologie der Urnenfelderzeit nördlich und südlich der Alpen."
+   },
+   "EIA1_amphora": {
+    "aippd_id": "NZ_VL_SVRN_0006",
+    "form": "Anfora",
+    "period": "EIA1",
+    "subperiod": null,
+    "site": "Anzio - Viale Severiano",
+    "region": "Latium",
+    "facies": "Laziale",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": null,
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 15,
+    "max_width_cm": 14.5,
+    "rim_diameter_cm": 5.5,
+    "capacity_l": 0.909,
+    "cavity_l": 0.866,
+    "source": "Alessandri 2013, p. 177, fig./pl. 13.4",
+    "reference": "Alessandri, L., 2013. Latium Vetus in the Bronze Age and Early Iron Age, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA1_lid": {
+    "aippd_id": "PGLRN_0312",
+    "form": "Coperchio/Teglia",
+    "period": "EIA1",
+    "subperiod": "EIA1B",
+    "site": "Pagliarone",
+    "region": "Campania",
+    "facies": "Villanoviana",
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "881",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 17.875,
+    "max_width_cm": 28,
+    "rim_diameter_cm": 25.5,
+    "capacity_l": 4.101,
+    "cavity_l": 4.248,
+    "source": "Gastaldi 1998, fig./pl. 81, no. 5",
+    "reference": "Gastaldi, P., 1998. Pontecagnano. II/4: La necropoli del Pagliarone."
+   },
+   "EIA2_cup": {
+    "aippd_id": "CAP_CAPPCN_0379",
+    "form": "Tazza/Ciotola",
+    "period": "EIA2",
+    "subperiod": "EIA2A",
+    "site": "Cappuccini",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "87",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 5.375,
+    "max_width_cm": 11.75,
+    "rim_diameter_cm": 9.75,
+    "capacity_l": 0.281,
+    "cavity_l": 0.31,
+    "source": "Melandri 2011, fig./pl. 85, no. 11",
+    "reference": "Melandri, G., 2011. L’età del ferro a Capua: aspetti distintivi del contesto culturale e suo inquadramento nelle dinamiche di sviluppo dell’Italia protostorica, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA2_bowl": {
+    "aippd_id": "BDIA_0003",
+    "form": "Scodella",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Badia",
+    "region": "Etruria settentrionale",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "T. Badia",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 8.25,
+    "max_width_cm": 21.5,
+    "rim_diameter_cm": 17.5,
+    "capacity_l": 1.27,
+    "cavity_l": 1.366,
+    "source": "Cateni, Bonamici 1998, p. 44, fig./pl. 8",
+    "reference": "Cateni, G., Bonamici, M. (Eds.), 1998. Volterra: la tomba del guerriero di Poggio alle Croci: contributi allo studio del villanoviano a Volterra. Edizioni IFI, Firenze."
+   },
+   "EIA2_footed_cup": {
+    "aippd_id": "CAP_FORNC_0014",
+    "form": "Coppa",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Fornaci",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "204",
+    "technique": "Wheelmade",
+    "ware": "Argilla depurata",
+    "height_cm": 6.875,
+    "max_width_cm": 12.25,
+    "rim_diameter_cm": 10.75,
+    "capacity_l": 0.489,
+    "cavity_l": 0.523,
+    "source": "Melandri 2011, fig./pl. 2, no. 8",
+    "reference": "Melandri, G., 2011. L’età del ferro a Capua: aspetti distintivi del contesto culturale e suo inquadramento nelle dinamiche di sviluppo dell’Italia protostorica, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA2_mug": {
+    "aippd_id": "QTRR_FNTNL_0613",
+    "form": "Boccale",
+    "period": "EIA2",
+    "subperiod": null,
+    "site": "Quattro Fontanili",
+    "region": "Etruria meridionale",
+    "facies": "Villanoviana",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "BB-ɑ",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 8.75,
+    "max_width_cm": 10,
+    "rim_diameter_cm": 7.25,
+    "capacity_l": 0.372,
+    "cavity_l": 0.369,
+    "source": "Quattro Fontanili 1972, p. 217, fig./pl. 15, no. 3",
+    "reference": "AA, VV., 1972. Veio (Isola Farnese). – Continuazione degli scavi nella necropoli villanoviana in località «Quattro Fontanili». Notizie degli Scavi di Antichità XXVI, 195–384."
+   },
+   "EIA2_jug": {
+    "aippd_id": "CAP_CAPPCN_0058",
+    "form": "Brocca/Orciolo",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Cappuccini",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "1618",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 13.125,
+    "max_width_cm": 13,
+    "rim_diameter_cm": 5.25,
+    "capacity_l": 0.673,
+    "cavity_l": 0.64,
+    "source": "Melandri 2011, fig./pl. 38, no. 3",
+    "reference": "Melandri, G., 2011. L’età del ferro a Capua: aspetti distintivi del contesto culturale e suo inquadramento nelle dinamiche di sviluppo dell’Italia protostorica, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA2_jar": {
+    "aippd_id": "FRM_CNTR_MOSS_0021",
+    "form": "Olla",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Fermo - Contrada Mossa",
+    "region": "Piceno",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "44B",
+    "technique": "Wheelmade",
+    "ware": "Argilla depurata",
+    "height_cm": 22.375,
+    "max_width_cm": 29.75,
+    "rim_diameter_cm": 20.75,
+    "capacity_l": 8.835,
+    "cavity_l": 8.873,
+    "source": "Miranda 2017-2018, p. 443, fig./pl. 77, no. 10",
+    "reference": "Miranda, P., 2017-2018. Fermo (FM). La necropoli di c.da Mossa, Tesi di dottorato."
+   },
+   "EIA2_necked_jar": {
+    "aippd_id": "FRM_CNTR_MOSS_0071",
+    "form": "Vaso a collo/Biconico",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Fermo - Contrada Mossa",
+    "region": "Piceno",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "59BS",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 32.25,
+    "max_width_cm": 27,
+    "rim_diameter_cm": 15,
+    "capacity_l": 8.588,
+    "cavity_l": 8.374,
+    "source": "Miranda 2017-2018, p. 585, fig./pl. 129, no. 8",
+    "reference": "Miranda, P., 2017-2018. Fermo (FM). La necropoli di c.da Mossa, Tesi di dottorato."
+   },
+   "EIA2_amphora": {
+    "aippd_id": "CAP_CAPPCN_0094",
+    "form": "Anfora",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Cappuccini",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "1626",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 11.875,
+    "max_width_cm": 12.25,
+    "rim_diameter_cm": 7,
+    "capacity_l": 0.637,
+    "cavity_l": 0.617,
+    "source": "Melandri 2011, fig./pl. 42, no. 5",
+    "reference": "Melandri, G., 2011. L’età del ferro a Capua: aspetti distintivi del contesto culturale e suo inquadramento nelle dinamiche di sviluppo dell’Italia protostorica, BAR international series. Archaeopress, Oxford."
+   },
+   "EIA2_krater": {
+    "aippd_id": "QTRR_FNTNL_0806",
+    "form": "Cratere",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Quattro Fontanili",
+    "region": "Etruria meridionale",
+    "facies": "Villanoviana",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "G 8-9",
+    "technique": "Handmade",
+    "ware": "Argilla depurata",
+    "height_cm": 17.75,
+    "max_width_cm": 24,
+    "rim_diameter_cm": 20.5,
+    "capacity_l": 4.832,
+    "cavity_l": 4.866,
+    "source": "Quattro Fontanili 1975, p. 103, fig./pl. 25, no. 1",
+    "reference": "AA, VV., 1975. Veio (Isola Farnese). - Continuazione degli scavi nella necropoli villanoviana in località «Quattro Fontanili». Notizie degli Scavi di Antichità XXIX, 63–184."
+   },
+   "EIA2_kothon": {
+    "aippd_id": "NOVLR_0093",
+    "form": "Kothon",
+    "period": "EIA2",
+    "subperiod": "EIA2B",
+    "site": "Novilara",
+    "region": "Piceno",
+    "facies": "Picena",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "139 Molaroni",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 7.625,
+    "max_width_cm": 15.75,
+    "rim_diameter_cm": 4.75,
+    "capacity_l": 0.654,
+    "cavity_l": 0.665,
+    "source": "Beinhauer 1985, fig./pl. 43A, no. 580",
+    "reference": "Beinhauer, K.W., 1985. Untersuchungen zu den eisenzeitlichen Bestattungsplätzen von Novilara (Provinz Pésaro und Urbino, Italien): Archäologie - Anthropologie - Demographie ; Methoden u. Modelle. Haag und Herchen, Frankfurt am Main."
+   },
+   "EIA2_lid": {
+    "aippd_id": "PCNTN_0956",
+    "form": "Coperchio/Teglia",
+    "period": "EIA2",
+    "subperiod": null,
+    "site": "Picentino",
+    "region": "Campania",
+    "facies": "Villanoviana",
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "T. 4871",
+    "technique": "Handmade",
+    "ware": "Impasto",
+    "height_cm": 13.625,
+    "max_width_cm": 23.5,
+    "rim_diameter_cm": 22.25,
+    "capacity_l": 3.024,
+    "cavity_l": 3.134,
+    "source": "D'Agostino, Castaldi 1998, fig./pl. 204, no. 8",
+    "reference": "D’Agostino, B., Gastaldi, P., 1998. Pontecagnano - II. La necropoli del Picentino - 1. Le tombe della Prima Età del Ferro, Annali. Dipartimento di Studi del mondo classico e del medeiterraneo antico Sezione archeologica e storia antica."
+   },
+   "OP_cup": {
+    "aippd_id": "BSC_DEL_MNT_CT_0002",
+    "form": "Tazza/Ciotola",
+    "period": "OP",
+    "subperiod": "AOP",
+    "site": "Castelletto Ticino - Bosco del Monte",
+    "region": "Transpadana",
+    "facies": "Golasecca",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": null,
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 7.375,
+    "max_width_cm": 8.75,
+    "rim_diameter_cm": 8,
+    "capacity_l": 0.278,
+    "cavity_l": 0.279,
+    "source": "Gambari et al. 1998, fig./pl. XCVIII, no. 3",
+    "reference": "Gambari, F.M., Squarzanti, M., Baroni, R., 1998. Castelletto Ticino, loc. Bosco del Monte. Tomba golasecchiana. Quaderni della Soprintendenza Archeologica del Piemonte 15, 230–231."
+   },
+   "OP_bowl": {
+    "aippd_id": "CHVR_0013",
+    "form": "Scodella",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Chiavari",
+    "region": "Liguria",
+    "facies": "Ligure",
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "5A",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 8.75,
+    "max_width_cm": 21,
+    "rim_diameter_cm": 19.25,
+    "capacity_l": 1.84,
+    "cavity_l": 1.99,
+    "source": "Paltrinieri 2010, p. 185, fig./pl. 5, no. 2",
+    "reference": "Paltineri, S., 2010. La necropoli di Chiavari. Scavi Lamboglia (1959-1969), Collezione monografie preist. e archeol."
+   },
+   "OP_footed_cup": {
+    "aippd_id": "GAB_0002",
+    "form": "Coppa",
+    "period": "OP",
+    "subperiod": "LOP",
+    "site": "Gabii",
+    "region": "Latium",
+    "facies": null,
+    "context_type": "Cultual",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Wheelmade",
+    "ware": "Impasto",
+    "height_cm": 7.5,
+    "max_width_cm": 17,
+    "rim_diameter_cm": 16.25,
+    "capacity_l": 1.058,
+    "cavity_l": 1.156,
+    "source": "Zuchtriegel 2012, p. 372, fig./pl. VI, no. 170",
+    "reference": "Zuchtriegel, G., 2012. Das Santuario Orientale im Zeitalter der Urbanisierung: eisenzeitliche und archaische Funde der Ausgrabungen 1976-77, Gabii. Osanna, Venosa (Potenza)."
+   },
+   "OP_mug": {
+    "aippd_id": "STRN_0072",
+    "form": "Boccale",
+    "period": "OP",
+    "subperiod": "AOP",
+    "site": "Striano",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "10",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 9.75,
+    "max_width_cm": 10,
+    "rim_diameter_cm": 6.75,
+    "capacity_l": 0.4,
+    "cavity_l": 0.388,
+    "source": "D'Ambrosio et al. 2003, p. 125, fig./pl. 24, no. 45549",
+    "reference": "D’Ambrosio, A., Cozzolino, C., Vitale, R., 2003. La ricerca archeologica a Striano: La campagna di scavo in via Palma (propr. Lombardi). 1993-1994. Rivista di Studi Pompeiani 14, 85–139."
+   },
+   "OP_jug": {
+    "aippd_id": "CLS_MGLR_0091",
+    "form": "Brocca/Orciolo",
+    "period": "OP",
+    "subperiod": "LOP",
+    "site": "Cales - Migliaro",
+    "region": "Campania",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "68",
+    "technique": "Wheelmade",
+    "ware": "Bucchero",
+    "height_cm": 15,
+    "max_width_cm": 9.5,
+    "rim_diameter_cm": 6.75,
+    "capacity_l": 0.439,
+    "cavity_l": 0.399,
+    "source": "Gilotta et al. 2012, p. 278, fig./pl. LXXXI, no. 8",
+    "reference": "Gilotta, F., Passaro, C., 2012. La necropoli del Migliaro a Cales: materiali di età arcaica, Monumenti etruschi. F. Serra, Pisa Roma."
+   },
+   "OP_jar": {
+    "aippd_id": "FICN_0003",
+    "form": "Olla",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Ficana",
+    "region": "Latium",
+    "facies": "Laziale",
+    "context_type": "Settlement",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Wheelmade",
+    "ware": "Impasto",
+    "height_cm": 18.625,
+    "max_width_cm": 21,
+    "rim_diameter_cm": 19.25,
+    "capacity_l": 3.618,
+    "cavity_l": 3.631,
+    "source": "Fischer-Hansen et al. 2019, p. 46, fig./pl. 51, no. 8",
+    "reference": "Fischer-Hansen, T., Algreen-Ussing, G., Brandt, J.R., Pietilä-Castrén, L., Rathje, A., Italy (Eds.), 1990. Scavi di Ficana, Vols. 3-5: Occasional papers of the Nordic Institutes in Rome. Istituto poligrafico e Zecca dello Stato, Libreria dello Stato, Roma"
+   },
+   "OP_necked_jar": {
+    "aippd_id": "CHVR_0126",
+    "form": "Vaso a collo/Biconico",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Chiavari",
+    "region": "Liguria",
+    "facies": "Ligure",
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "50B",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 24.75,
+    "max_width_cm": 23.5,
+    "rim_diameter_cm": 16.25,
+    "capacity_l": 5.249,
+    "cavity_l": 5.093,
+    "source": "Paltrinieri 2010, p. 243, fig./pl. 63, no. 1",
+    "reference": "Paltineri, S., 2010. La necropoli di Chiavari. Scavi Lamboglia (1959-1969), Collezione monografie preist. e archeol."
+   },
+   "OP_amphora": {
+    "aippd_id": "CST_D_DCM_0097",
+    "form": "Anfora",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Castel di Decima - Necropoli",
+    "region": "Latium",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "4",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 14.625,
+    "max_width_cm": 12,
+    "rim_diameter_cm": 6,
+    "capacity_l": 0.574,
+    "cavity_l": 0.542,
+    "source": "Bartoloni et al. 1975, p. 339, fig./pl. 130, no. 19",
+    "reference": "Bartoloni, G., Cataldo Dini, M., Cordano, F., Zevi, F., 1975. Castel di Decima (Roma). La necropoli arcaica. Notizie degli Scavi di Antichità 29, 233–408."
+   },
+   "OP_krater": {
+    "aippd_id": "PGG_BUC_0424",
+    "form": "Cratere",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Poggio Buco",
+    "region": "Etruria meridionale",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "spor",
+    "technique": "Wheelmade",
+    "ware": "Impasto",
+    "height_cm": 23.25,
+    "max_width_cm": 36,
+    "rim_diameter_cm": 27.25,
+    "capacity_l": 13.69,
+    "cavity_l": 13.729,
+    "source": "Bartoloni 1972, p. 188, fig./pl. 93, no. 93",
+    "reference": "Bartoloni, G., 1972. Le tombe da Poggio Buco nel Museo Archeologico di Firenze, Istituto Nazionale di Studi Etruschi. Monumenti etruschi."
+   },
+   "OP_kothon": {
+    "aippd_id": "NOVLR_0139",
+    "form": "Kothon",
+    "period": "OP",
+    "subperiod": "AOP",
+    "site": "Novilara",
+    "region": "Piceno",
+    "facies": "Picena",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "26 bis Servici",
+    "technique": "",
+    "ware": "",
+    "height_cm": 7.125,
+    "max_width_cm": 17.25,
+    "rim_diameter_cm": 6.75,
+    "capacity_l": 0.856,
+    "cavity_l": 0.894,
+    "source": "Beinhauer 1985, fig./pl. 74A, no. 864",
+    "reference": "Beinhauer, K.W., 1985. Untersuchungen zu den eisenzeitlichen Bestattungsplätzen von Novilara (Provinz Pésaro und Urbino, Italien): Archäologie - Anthropologie - Demographie ; Methoden u. Modelle. Haag und Herchen, Frankfurt am Main."
+   },
+   "OP_lid": {
+    "aippd_id": "CHVR_0047",
+    "form": "Coperchio/Teglia",
+    "period": "OP",
+    "subperiod": "MOP",
+    "site": "Chiavari",
+    "region": "Liguria",
+    "facies": "Ligure",
+    "context_type": "Funerary",
+    "funerary_function": "Cover",
+    "grave": "25B",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 7.125,
+    "max_width_cm": 18.5,
+    "rim_diameter_cm": 17,
+    "capacity_l": 1.057,
+    "cavity_l": 1.163,
+    "source": "Paltrinieri 2010, p. 211, fig./pl. 31, no. 2",
+    "reference": "Paltineri, S., 2010. La necropoli di Chiavari. Scavi Lamboglia (1959-1969), Collezione monografie preist. e archeol."
+   },
+   "AP_cup": {
+    "aippd_id": "ASL_SEST_CALDN_0009",
+    "form": "Tazza/Ciotola",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Sesto Calende - Asilo",
+    "region": "Transpadana",
+    "facies": "Golasecca",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": null,
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 8,
+    "max_width_cm": 11.75,
+    "rim_diameter_cm": 8.5,
+    "capacity_l": 0.416,
+    "cavity_l": 0.413,
+    "source": "De Marinis 2009e, p. 170, fig./pl. 6, no. 1",
+    "reference": "De Marinis, R.C., 2009d. Sesto Calende, La seconda tomba di guerriero, in: De Marinis, R.C., Massa, S., Pizzo, M. (Eds.), Alle Origini Di Varese e Del Suo Territorio. pp. 162–203."
+   },
+   "AP_bowl": {
+    "aippd_id": "ANGN_SNT_CECL_0094",
+    "form": "Scodella",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Anagni - Santa Cecilia",
+    "region": "Latium",
+    "facies": null,
+    "context_type": "Cultual",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Wheelmade",
+    "ware": "Argilla depurata",
+    "height_cm": 7.5,
+    "max_width_cm": 11.5,
+    "rim_diameter_cm": 9,
+    "capacity_l": 0.204,
+    "cavity_l": 0.214,
+    "source": "Gatti 1994-1995, p. 57, fig./pl. 36, no. 268",
+    "reference": "Gatti, S., 1994-1995. Anagni (Frosinone). Località Santa Cecilia. Indagini nel santuario ernico: il deposito votivo arcaico. Notizie degli Scavi di Antichità, IX 5/6, 5–146."
+   },
+   "AP_footed_cup": {
+    "aippd_id": "ANGN_SNT_CECL_0074",
+    "form": "Coppa",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Anagni - Santa Cecilia",
+    "region": "Latium",
+    "facies": null,
+    "context_type": "Cultual",
+    "funerary_function": null,
+    "grave": null,
+    "technique": "Wheelmade",
+    "ware": "Bucchero",
+    "height_cm": 7.25,
+    "max_width_cm": 8.5,
+    "rim_diameter_cm": 6.75,
+    "capacity_l": 0.174,
+    "cavity_l": 0.169,
+    "source": "Gatti 1994-1995, p. 51, fig./pl. 33, no. 235",
+    "reference": "Gatti, S., 1994-1995. Anagni (Frosinone). Località Santa Cecilia. Indagini nel santuario ernico: il deposito votivo arcaico. Notizie degli Scavi di Antichità, IX 5/6, 5–146."
+   },
+   "AP_mug": {
+    "aippd_id": "CNTRD_CUGNL_0034",
+    "form": "Boccale",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Contrada Cugnolo",
+    "region": "Piceno",
+    "facies": "Picena",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "1",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 11.125,
+    "max_width_cm": 10.5,
+    "rim_diameter_cm": 9.5,
+    "capacity_l": 0.534,
+    "cavity_l": 0.517,
+    "source": "Postrioti, Voltini 2018, p. 97, fig./pl. 4, no. r.24",
+    "reference": "Postrioti, G., Voltolini, D. (Eds.), 2018. Il prestigio oltre la morte: le necropoli picene di Contrada Cugnolo a Torre di Palme. Andrea Livi editore, Fermo."
+   },
+   "AP_jug": {
+    "aippd_id": "SNT_VNDTT_0023",
+    "form": "Brocca/Orciolo",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Santo Venditti",
+    "region": "Apulia",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "7",
+    "technique": "Wheelmade",
+    "ware": "Bucchero",
+    "height_cm": 14,
+    "max_width_cm": 11.25,
+    "rim_diameter_cm": 5.75,
+    "capacity_l": 0.538,
+    "cavity_l": 0.498,
+    "source": "De Benedittis 2006, p. 47, no. 1",
+    "reference": "De Benedittis, G., 2006. Carlantino. La necropoli di S. Venditti."
+   },
+   "AP_jar": {
+    "aippd_id": "PDV_TPL_0070",
+    "form": "Olla",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Padova - Via Tiepolo - via San Massimo",
+    "region": "Veneto",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "159",
+    "technique": "",
+    "ware": "",
+    "height_cm": 16.875,
+    "max_width_cm": 16,
+    "rim_diameter_cm": 11.25,
+    "capacity_l": 1.648,
+    "cavity_l": 1.611,
+    "source": "Gambacurta 2005, p. 348, fig./pl. 11, no. 34",
+    "reference": "Gambacurta, G., 2005. Padova, necropoli orientale tra via Tiepolo e via S. Massimo: La tomba 159/1991, in: Vitali, D. (Ed.), Studi Sulla Media e Tarda Età Del Ferro Nell’Italia Settentrionale. pp. 325–358."
+   },
+   "AP_necked_jar": {
+    "aippd_id": "ST_VLL_BNVNT_0276",
+    "form": "Vaso a collo/Biconico",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Este - Villa Benvenuti",
+    "region": "Veneto",
+    "facies": "Veneta",
+    "context_type": "Funerary",
+    "funerary_function": "Urn",
+    "grave": "92",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 28.75,
+    "max_width_cm": 23.25,
+    "rim_diameter_cm": 18,
+    "capacity_l": 6.018,
+    "cavity_l": 5.804,
+    "source": "Chieco Bianchi, Calzavara Capuis 2006, fig./pl. 79, no. 1",
+    "reference": "Chieco Bianchi, A.M., Calzavara Capuis, L., 2006. Este. Vol. 2. La necropoli di Villa Benvenuti, Monumenti antichi. G. Bretschneider, Roma."
+   },
+   "AP_amphora": {
+    "aippd_id": "CLL_CPLL_0003",
+    "form": "Anfora",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Colle Cipolla",
+    "region": "Abruzzo",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "14",
+    "technique": "",
+    "ware": "",
+    "height_cm": 13.25,
+    "max_width_cm": 13.75,
+    "rim_diameter_cm": 6,
+    "capacity_l": 0.868,
+    "cavity_l": 0.826,
+    "source": "Acconcia, D'Ercole 2018, p. 31, fig./pl. 31, no. 1",
+    "reference": "Acconcia, V., D’Ercole, V., 2018. La necropoli de Le Castagne a Castel di Ieri (AQ): cultura materiale e inquadramento territoriale. Gli scavi 1983 e 1989. Bollettino di archeologia online IX, 5–42."
+   },
+   "AP_krater": {
+    "aippd_id": "PALINR_0002",
+    "form": "Cratere",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Palinuro",
+    "region": "Enotria",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "VI",
+    "technique": "Wheelmade",
+    "ware": "Argilla depurata",
+    "height_cm": 26.25,
+    "max_width_cm": 29.25,
+    "rim_diameter_cm": 20.75,
+    "capacity_l": 9.095,
+    "cavity_l": 8.969,
+    "source": "Cocorullo 2018, p. 152, fig./pl. 9",
+    "reference": "Coccurullo, A., 2018. Palinuro. Cultura enotria e simposio negli Scavi Provinciali (1939), in F. Mollo, G.F. La Torre: Il Golfo Di Policastro Tra Enotri e Lucani: Insediamenti, Assetto Istituzionale, Cultura Materiale. pp. 141–165."
+   },
+   "AP_kothon": {
+    "aippd_id": "CNTRD_CUGNL_0017",
+    "form": "Kothon",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Contrada Cugnolo",
+    "region": "Piceno",
+    "facies": "Picena",
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "9",
+    "technique": "",
+    "ware": "Impasto",
+    "height_cm": 6.875,
+    "max_width_cm": 10.75,
+    "rim_diameter_cm": 7,
+    "capacity_l": 0.349,
+    "cavity_l": 0.353,
+    "source": "Postrioti, Voltini 2018, p. 71, fig./pl. IX, no. 52",
+    "reference": "Postrioti, G., Voltolini, D. (Eds.), 2018. Il prestigio oltre la morte: le necropoli picene di Contrada Cugnolo a Torre di Palme. Andrea Livi editore, Fermo."
+   },
+   "AP_lid": {
+    "aippd_id": "CMPVLN_0002",
+    "form": "Coperchio/Teglia",
+    "period": "AP",
+    "subperiod": "AP",
+    "site": "Campovalano",
+    "region": "Piceno",
+    "facies": null,
+    "context_type": "Funerary",
+    "funerary_function": "Grave good",
+    "grave": "2",
+    "technique": "Wheelmade",
+    "ware": "Impasto",
+    "height_cm": 7.25,
+    "max_width_cm": 16.75,
+    "rim_diameter_cm": 15.25,
+    "capacity_l": 0.849,
+    "cavity_l": 0.927,
+    "source": "Chiaromonte Trerè, D'Ercole 2003, fig./pl. 14, no. 1",
+    "reference": "Chiaramonte Treré, C., D’Ercole, V., 2003. La necropoli di Campovalano, BAR. J. and E. Hedges, Oxford."
+   }
+  }
+ },
+ "nodes": {
+  "EBA_cup": {
+   "type": "freeform/vessel",
+   "label": "CATTRGN_0009",
+   "in": {
+    "outer": "17 0; 23.2 3.9; 29.6 7.3; 34.9 11; 38.9 14.7; 42.6 18.4; 43.8 21.8; 45.1 25.5; 46.6 29.2; 47.8 32.6; 46.6 36.3; 46.6 40; 45.1 43.7; 43.8 47.1; 42.6 50.8; 41.4 54.5; 40.1 57.9; 40.1 61.6; 38.9 65.3; 38.9 69; 38.9 72.4; 37.4 76.3",
+    "cavity": "7.7 9; 17 12.2; 23.2 15.6; 27.2 18.7; 29.6 21.8; 32.4 25.2; 33.6 28.2; 36.1 31.3; 37.4 34.7; 37.4 37.8; 37.4 40.9; 36.1 44.3; 36.1 47.4; 34.9 50.5; 34.9 53.9; 33.6 57; 33.6 60; 33.6 63.4; 33.6 66.5; 33.6 69.6; 34.9 73; 36.1 79.3",
+    "foot": ""
+   }
+  },
+  "EBA_bowl": {
+   "type": "freeform/vessel",
+   "label": "LUCN_POLP_0053",
+   "in": {
+    "outer": "25.9 0; 34.8 4.4; 44 8.3; 50.4 12.6; 56.8 16.5; 64.6 20.8; 68.5 24.7; 72.4 28.9; 74.9 32.8; 78.8 37.1; 80.2 41; 82.7 45.3; 85.2 49.2; 86.6 53.4; 86.6 57.3; 87.7 61.6; 87.7 65.5; 87.7 69.7; 86.6 73.6; 85.2 77.9; 82.7 81.8; 80.2 86.3",
+    "cavity": "25.9 6.4; 36.2 10.5; 41.2 14; 47.6 17.9; 54.3 21.8; 58.2 25.4; 62.1 29.3; 65.7 33.2; 68.5 36.7; 71 40.6; 73.5 44.5; 74.9 48.1; 77.4 52; 78.8 55.9; 80.2 59.5; 80.2 63.4; 80.2 67.3; 80.2 70.8; 78.8 74.7; 77.4 78.6; 76.3 82.2; 76.3 89.3",
+    "foot": ""
+   }
+  },
+  "EBA_mug": {
+   "type": "freeform/vessel",
+   "label": "CSL_SABN_0002",
+   "in": {
+    "outer": "34.9 0; 38.5 5; 42.4 9.7; 44.8 14.1; 47.6 18.8; 48.8 23.6; 50 28.4; 50 33.1; 51.6 37.5; 52.7 42.2; 52.7 47; 52.7 51.8; 52.7 56.5; 52.7 61.3; 52.7 65.6; 52.7 70.4; 51.6 75.2; 51.6 79.9; 50 84.7; 48.8 89; 46.4 93.8; 43.6 98.8",
+    "cavity": "24.6 5.2; 30.9 9.7; 34.9 14.1; 37.3 18.8; 39.7 23.2; 41.2 27.6; 42.4 31.9; 42.4 36.3; 43.6 41; 44.8 45.4; 44.8 49.8; 44.8 54.1; 44.8 58.5; 44.8 62.9; 44.8 67.6; 44.8 72; 44.8 76.3; 44.8 80.7; 43.6 85.1; 42.4 89.8; 39.7 94.2; 38.5 101.8",
+    "foot": ""
+   }
+  },
+  "EBA_jug": {
+   "type": "freeform/vessel",
+   "label": "LG_FRSSN_0031",
+   "in": {
+    "outer": "48.5 0; 53.3 8.7; 57.5 17; 59.5 25.3; 65.8 33.6; 72.7 41.9; 77.5 49.5; 82.4 57.8; 87.9 66.1; 91.4 74.4; 91.4 82.7; 88.6 91; 85.1 99.3; 81 107.6; 76.1 115.9; 72.7 124.3; 69.9 131.9; 67.1 140.2; 65.8 148.5; 65.1 156.8; 65.1 165.1; 63.7 173.8",
+    "cavity": "45.7 11.1; 50.5 19; 54.7 26.7; 59.5 34.3; 63.7 42.6; 68.5 50.2; 74.8 57.8; 80.3 65.4; 83.8 73; 85.1 80.6; 83.8 88.3; 80.3 96.6; 74.8 104.2; 71.3 111.8; 67.1 119.4; 65.1 127; 62.3 134.6; 59.5 142.3; 59.5 150.6; 59.5 158.2; 59.5 165.8; 60.9 176.8",
+    "foot": ""
+   }
+  },
+  "EBA_jar": {
+   "type": "freeform/vessel",
+   "label": "FIAV_0099",
+   "in": {
+    "outer": "49.6 0; 50.8 7.5; 53.2 14.6; 55.6 21.8; 58.6 29; 61 36.2; 62.2 42.7; 64.5 49.9; 65.7 57.1; 68.7 64.2; 69.9 71.4; 72.3 78.6; 73.5 85.8; 73.5 92.9; 74.7 100.1; 75.9 107.3; 77.7 113.8; 78.9 121; 78.9 128.2; 80.1 135.4; 81.3 142.5; 80.1 150",
+    "cavity": "41.8 15.5; 47.2 22.4; 48.4 28.4; 50.8 35; 52 41.5; 54.4 47.5; 55.6 54.1; 57.4 60.7; 58.6 66.6; 59.8 73.2; 61 79.8; 62.2 85.8; 63.3 92.3; 64.5 98.9; 65.7 104.9; 67.5 111.5; 68.7 118; 69.9 124; 71.1 130.6; 72.3 137.2; 72.3 143.1; 74.7 153",
+    "foot": "22.7 -3; 22.7 0.9; 17.9 1.5; 17.9 2.1; 6.6 2.7; 6.6 3.3; 6.6 4.8"
+   }
+  },
+  "EBA_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "LVGN_0127",
+   "in": {
+    "outer": "57.5 0; 65.1 10.6; 70.1 20.7; 78.6 30.8; 85.3 41; 91.2 51.1; 98 61.3; 103.1 71.4; 108.1 81.5; 113.2 91.7; 115.7 101.8; 118.3 111.9; 116.6 122.1; 113.2 132.2; 109 142.4; 103.9 152.5; 98.8 162.6; 93.8 172.8; 91.2 182.9; 87.9 193.1; 85.3 203.2; 82.8 213.8",
+    "cavity": "39.7 15.2; 54.9 24.9; 63.4 34.2; 72.7 43.5; 80.3 53.6; 85.3 62.9; 91.2 72.2; 96.3 81.5; 100.5 90.8; 105.6 100.1; 108.1 109.4; 106.5 119.5; 103.9 128.8; 98.8 138.1; 95.5 147.4; 90.4 156.7; 87.9 166; 83.6 175.3; 80.3 185.4; 77.7 194.7; 76 204; 76 216.8",
+    "foot": "35.5 -3; 35.5 1.3; 1.7 3.4"
+   }
+  },
+  "EBA_amphora": {
+   "type": "freeform/vessel",
+   "label": "BAND_CAVRN_0002",
+   "in": {
+    "outer": "45.5 0; 59.5 10.3; 68.6 20.3; 76.1 30.2; 82.7 40.1; 88.5 50; 92.6 59.1; 96.7 69; 99.2 78.9; 100 88.9; 101.7 98.8; 102.5 108.7; 102.5 118.6; 100 128.6; 95.1 138.5; 88.5 148.4; 83.5 157.5; 77.7 167.4; 69.4 177.3; 63.7 187.2; 59.5 197.2; 55.4 207.5",
+    "cavity": "33.1 13.2; 50.4 22.7; 61.2 31.8; 68.6 40.9; 76.1 50.8; 81 59.9; 85.1 69; 87.6 78.1; 88.5 87.2; 90.1 96.3; 90.1 105.4; 87.6 115.3; 85.1 124.4; 81 133.5; 77.7 142.6; 71.9 151.7; 67 160.8; 61.2 169.9; 55.4 179.8; 52.9 188.9; 52.1 198; 52.9 210.5",
+    "foot": ""
+   }
+  },
+  "MBA_cup": {
+   "type": "freeform/vessel",
+   "label": "BOCCZL_VCCH_0006",
+   "in": {
+    "outer": "32.3 0; 36.1 3.7; 39.9 6.9; 42.6 10.4; 45.2 13.9; 47.8 17.5; 50.5 20.7; 52.8 24.2; 55.5 27.7; 56.9 31; 58.1 34.5; 60.8 38; 61.9 41.5; 61.9 44.8; 63.1 48.3; 64.6 51.8; 65.7 55; 65.7 58.6; 67.2 62.1; 67.2 65.6; 65.7 68.8; 64.6 72.5",
+    "cavity": "29.6 15.6; 34.9 18.3; 37.6 21; 39.9 23.9; 42.6 26.6; 45.2 29.2; 46.4 31.8; 47.8 34.5; 49 37.4; 50.5 40.1; 52.8 42.7; 54.3 45.3; 55.5 48; 55.5 50.6; 56.9 53.6; 58.1 56.2; 58.1 58.9; 58.1 61.5; 59.3 64.1; 59.3 67.1; 59.3 69.7; 60.8 75.5",
+    "foot": ""
+   }
+  },
+  "MBA_bowl": {
+   "type": "freeform/vessel",
+   "label": "CASTLLR_VHO_0030",
+   "in": {
+    "outer": "45.1 0; 49.2 3.9; 54.1 7.2; 58.2 10.9; 63.1 14.5; 66 17.8; 68.4 21.5; 72.1 25.2; 75 28.5; 77.5 32.2; 79.9 35.9; 82.8 39.1; 86.5 42.8; 87.7 46.5; 91.8 49.8; 93 53.5; 95.5 57.2; 96.7 60.5; 99.6 64.1; 100.8 67.8; 102 71.1; 100.8 75",
+    "cavity": "34.8 9; 45.1 12.5; 50.4 15.4; 54.1 18.6; 57 21.5; 60.7 24.8; 63.1 28.1; 66 30.9; 69.7 34.2; 72.1 37.5; 75 40.4; 77.5 43.6; 78.7 46.5; 81.1 49.8; 84 53.1; 85.2 55.9; 86.5 59.2; 88.9 62.5; 90.6 65.4; 93 68.6; 94.3 71.5; 95.5 78",
+    "foot": ""
+   }
+  },
+  "MBA_mug": {
+   "type": "freeform/vessel",
+   "label": "FIAV_0165",
+   "in": {
+    "outer": "37.3 0; 38.8 4.7; 38.8 9.2; 39.9 13.4; 42.5 17.9; 43.7 22.4; 45.2 26.9; 46.3 31.4; 47.8 35.6; 47.8 40.1; 47.8 44.6; 50.1 49.1; 51.6 53.7; 52.7 58.2; 54.2 62.3; 56.5 66.8; 56.5 71.3; 58 75.9; 59.1 80.4; 59.1 84.5; 60.6 89; 60.6 93.8",
+    "cavity": "29.7 9; 30.9 13.4; 32.4 17.1; 33.5 21.3; 34.6 25.4; 34.6 29.2; 36.1 33.3; 37.3 37.5; 38.8 41.2; 39.9 45.4; 41 49.5; 42.5 53.3; 43.7 57.4; 45.2 61.6; 46.3 65.3; 47.8 69.5; 47.8 73.6; 48.9 77.4; 50.1 81.5; 51.6 85.7; 52.7 89.4; 54.2 96.8",
+    "foot": "9 -3; 9 0.6; 9 0.9; 9 1.9"
+   }
+  },
+  "MBA_jug": {
+   "type": "freeform/vessel",
+   "label": "BVLN_0055",
+   "in": {
+    "outer": "49.2 0; 61 7.8; 67.2 15.3; 74.7 22.7; 79.7 30.2; 84.7 37.7; 89 44.5; 92.8 52; 95.2 59.4; 97.7 66.9; 100.2 74.4; 102.7 81.9; 104 89.3; 104 96.8; 104 104.3; 102.7 111.7; 99 118.6; 91.5 126.1; 89 133.5; 87.2 141; 85.9 148.5; 84.7 156.3",
+    "cavity": "50.4 12.5; 58.5 19.6; 64.7 26.5; 71 33.3; 75.9 40.2; 79.7 47; 83.4 53.8; 85.9 60.7; 89 67.5; 90.3 74.4; 91.5 81.2; 92.8 87.5; 94 94.3; 94 101.2; 91.5 108; 89 114.9; 84.7 121.7; 79.7 128.5; 78.4 135.4; 77.2 142.2; 75.9 149.1; 77.2 159.3",
+    "foot": ""
+   }
+  },
+  "MBA_jar": {
+   "type": "freeform/vessel",
+   "label": "FIAV_0290",
+   "in": {
+    "outer": "48.6 0; 51 7.8; 52.3 15.3; 53.5 22.7; 56 30.2; 57.3 37.7; 58.5 44.5; 59.8 52; 61 59.4; 62.3 66.9; 63.5 74.4; 66.6 81.9; 67.9 89.3; 67.9 96.8; 69.1 104.3; 70.3 111.7; 71.6 118.6; 72.8 126.1; 74.1 133.5; 75.3 141; 76.6 148.5; 76.6 156.3",
+    "cavity": "3.7 8.7; 43.6 15.9; 44.8 22.7; 46.1 30.2; 47.3 37; 48.6 43.9; 51 50.7; 52.3 58.2; 53.5 65.1; 54.8 71.9; 56 78.7; 57.3 86.2; 58.5 93.1; 59.8 99.9; 61 106.8; 62.3 114.2; 63.5 121.1; 64.7 127.9; 66.6 134.8; 67.9 142.2; 69.1 149.1; 71.6 159.3",
+    "foot": ""
+   }
+  },
+  "MBA_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "GAMBL_0012",
+   "in": {
+    "outer": "52.1 0; 58.5 11.4; 64.9 22.4; 70.4 33.4; 75.9 44.3; 82.3 55.3; 86.8 66.3; 93.2 77.2; 98.7 88.2; 105.1 99.2; 110.6 110.1; 115.2 121.1; 109.7 132.1; 103.3 143; 98.7 154; 92.3 165; 85.9 176; 79.5 186.9; 73.1 197.9; 66.7 208.9; 65.8 219.8; 66.7 231.3",
+    "cavity": "11.9 5.5; 52.1 16.9; 58.5 27; 63.1 37.9; 68.6 48.9; 75 59.9; 80.4 69.9; 85.9 80.9; 92.3 91.9; 98.7 101.9; 106 112.9; 106 123.9; 99.6 134.8; 95.1 144.9; 89.6 155.8; 83.2 166.8; 76.8 176.9; 70.4 187.8; 63.1 198.8; 59.4 209.8; 59.4 219.8; 63.1 234.3",
+    "foot": ""
+   }
+  },
+  "MBA_amphora": {
+   "type": "freeform/vessel",
+   "label": "MZZN_0091",
+   "in": {
+    "outer": "44.3 0; 50.5 9.7; 58.3 19; 62.9 28.4; 69.1 37.7; 74.6 47; 79.2 55.5; 85.5 64.9; 90.9 74.2; 94.8 83.5; 97.1 92.8; 98.7 102.2; 98.7 111.5; 99.4 120.8; 97.1 130.1; 94.8 139.5; 92.5 148; 88.6 157.3; 84.7 166.6; 82.4 176; 75.4 185.3; 69.1 195",
+    "cavity": "2.3 10.9; 38.8 19.8; 46.6 28.4; 52.8 37.7; 60.6 46.2; 66.8 54.8; 73 63.3; 78.5 72.6; 82.4 81.2; 83.1 89.7; 85.5 98.3; 85.5 107.6; 85.5 116.1; 84.7 124.7; 83.1 133.2; 82.4 142.6; 79.2 151.1; 78.5 159.7; 74.6 168.2; 70.7 177.5; 66.8 186.1; 65.3 198",
+    "foot": ""
+   }
+  },
+  "MBA_lid": {
+   "type": "freeform/vessel",
+   "label": "NOCET_0042",
+   "in": {
+    "outer": "69 0; 71.6 2.4; 74.3 4.3; 75.4 6.6; 75.4 8.8; 76.9 10.7; 78.4 12.9; 79.5 15.2; 81 17.1; 82.1 19.3; 84.8 21.6; 84.8 23.4; 87.4 25.7; 88.9 27.9; 88.9 29.8; 90 32.1; 91.5 34.3; 91.5 36.2; 92.6 38.4; 92.6 40.7; 91.5 42.6; 90 45",
+    "cavity": "1.1 9; 54.4 11.1; 60.8 12.6; 63.8 14.4; 67.5 15.9; 67.5 17.8; 69 19.3; 70.1 21.2; 71.6 22.7; 72.8 24.6; 72.8 26.1; 74.3 27.9; 75.4 29.4; 76.9 31.3; 76.9 32.8; 78.4 34.7; 78.4 36.2; 79.5 38.1; 79.5 39.6; 82.1 41.4; 83.6 42.9; 84.8 48",
+    "foot": ""
+   }
+  },
+  "RBA_cup": {
+   "type": "freeform/vessel",
+   "label": "BVLN_0085",
+   "in": {
+    "outer": "37.5 0; 42.8 4; 49.2 7.8; 54.1 11.5; 59.4 15; 62.1 18.7; 65.9 22.5; 69.7 26.3; 72.3 30.1; 76.1 33.9; 78.8 37.7; 81.4 41.1; 83.7 44.9; 86.3 48.7; 87.8 52.4; 89 56.2; 90.1 60; 90.1 63.8; 91.6 67.2; 91.6 71; 92.8 74.8; 92.8 78.8",
+    "cavity": "36.3 10.6; 41.3 14.2; 46.6 17.2; 50.4 20.6; 54.1 23.7; 56.8 27.1; 60.6 30.1; 63.2 33.5; 67 36.5; 69.7 39.9; 72.3 43; 73.4 46.4; 76.1 49.4; 77.2 52.8; 79.9 55.8; 81.4 59.3; 81.4 62.3; 82.5 65.7; 82.5 68.7; 83.7 72.1; 85.2 75.2; 87.8 81.8",
+    "foot": ""
+   }
+  },
+  "RBA_bowl": {
+   "type": "freeform/vessel",
+   "label": "BVLN_0102",
+   "in": {
+    "outer": "48 0; 53.1 3.6; 56.9 7.4; 60.7 10.7; 64.9 14.5; 67.4 17.9; 72.5 21.7; 76.3 25.1; 78.8 28.4; 81.7 32.2; 84.3 35.6; 86.8 39.4; 89.3 42.8; 91.9 46.6; 94.4 49.9; 95.6 53.3; 98.6 57.1; 99.9 60.5; 102.4 64.3; 103.7 67.6; 104.9 71.4; 103.7 75",
+    "cavity": "51.8 10.5; 53.1 13.7; 55.6 16.6; 59.4 20; 60.7 23; 64.9 25.9; 67.4 28.9; 69.9 32.2; 72.5 35.2; 75 38.1; 77.5 41.1; 80.5 44.5; 81.7 47.4; 83 50.4; 86.8 53.3; 88.1 56.7; 90.6 59.6; 93.1 62.6; 94.4 65.5; 95.6 68.9; 96.9 71.8; 99.9 78",
+    "foot": "27.4 -3; 27.4 0.6; 27.4 1.1; 15.6 1.5; 15.6 1.9; 15.6 2.9"
+   }
+  },
+  "RBA_footed_cup": {
+   "type": "freeform/vessel",
+   "label": "RC_VCCH_0146",
+   "in": {
+    "outer": "30.8 0; 31.7 5.8; 39.7 11.4; 45.8 16.6; 52.3 22.2; 58.8 27.8; 65.4 33.4; 69.1 39; 72.8 44.1; 76.6 49.7; 79.4 55.3; 80.8 60.9; 81.7 66.5; 80.8 72.1; 79.4 77.3; 78 82.9; 75.6 88.5; 75.6 94.1; 75.6 99.7; 78 104.8; 80.8 110.4; 81.7 116.3",
+    "cavity": "3.7 5.1; 29.4 10.5; 38.3 16.1; 45.8 21.2; 50.9 26.4; 57.4 31.5; 62.6 37.1; 66.3 42.3; 69.1 47.4; 71.4 53; 74.2 58.1; 75.6 63.3; 75.6 68.4; 75.6 74; 74.2 79.1; 71.4 84.3; 70.5 89.9; 70.5 95; 70.5 100.1; 71.4 105.3; 74.2 110.9; 79.4 119.3",
+    "foot": ""
+   }
+  },
+  "RBA_mug": {
+   "type": "freeform/vessel",
+   "label": "PZZLL_0057",
+   "in": {
+    "outer": "32.1 0; 34.8 4.8; 35.9 9.5; 37.1 13.7; 38.7 18.4; 39.8 23; 41 27.6; 42.1 32.3; 43.7 36.5; 44.8 41.2; 46 45.8; 46 50.4; 47.5 55.1; 47.5 59.7; 46 64; 46 68.6; 44.8 73.3; 44.8 77.9; 43.7 82.5; 42.1 86.8; 41 91.4; 39.8 96.3",
+    "cavity": "25.5 8.9; 28.2 13.3; 29.4 17.2; 30.9 21.5; 32.1 25.7; 33.2 30; 34.8 33.8; 35.9 38.1; 37.1 42.3; 38.7 46.2; 39.8 50.4; 39.8 54.7; 39.8 58.9; 39.8 62.8; 39.8 67.1; 39.8 71.3; 38.7 75.2; 38.7 79.4; 37.1 83.7; 35.9 87.9; 35.9 91.8; 35.9 99.3",
+    "foot": ""
+   }
+  },
+  "RBA_jug": {
+   "type": "freeform/vessel",
+   "label": "SPSTT_0020",
+   "in": {
+    "outer": "34.1 0; 39.3 9.3; 45.3 18.2; 50.5 27.1; 54.2 36; 57.9 44.9; 60.8 53.1; 63.1 62; 64.6 70.9; 65.3 79.8; 66.8 88.7; 69.8 97.6; 70.5 106.5; 70.5 115.4; 63.1 124.3; 59.4 133.2; 57.1 141.4; 54.2 150.3; 51.9 159.2; 51.9 168.1; 52.7 177; 55.7 186.3",
+    "cavity": "28.9 8.9; 34.1 17.4; 40.1 26.3; 45.3 34.5; 48.2 42.7; 51.9 51.6; 54.2 59.7; 57.1 67.9; 57.9 76.8; 59.4 85; 60.8 93.1; 63.1 102; 63.1 110.2; 57.9 118.4; 54.2 127.3; 51.9 135.4; 49 143.6; 48.2 152.5; 46.7 160.6; 46.7 168.8; 46.7 177.7; 50.5 189.3",
+    "foot": ""
+   }
+  },
+  "RBA_jar": {
+   "type": "freeform/vessel",
+   "label": "BVLN_0136",
+   "in": {
+    "outer": "60.6 0; 70.9 10; 78.1 19.5; 86.1 29.1; 90.8 38.6; 97.2 48.2; 102 57; 105.2 66.5; 108.4 76.1; 111.6 85.7; 113.9 95.2; 114.7 104.8; 113.9 114.3; 113.9 123.9; 111.6 133.5; 108.4 143; 103.6 151.8; 98.8 161.4; 93.2 170.9; 86.9 180.5; 82.1 190; 74.1 200",
+    "cavity": "45.4 11.2; 62.9 20.3; 71.7 29.1; 79.7 38.6; 84.5 47.4; 90.8 56.2; 96.4 64.9; 99.6 74.5; 102 83.3; 106 92; 107.6 100.8; 107.6 110.4; 106 119.1; 103.6 127.9; 101.2 136.7; 97.2 146.2; 92.4 155; 86.9 163.7; 82.1 172.5; 77.3 182.1; 71.7 190.8; 70.9 203",
+    "foot": ""
+   }
+  },
+  "RBA_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "BVLN_0015",
+   "in": {
+    "outer": "50.2 0; 61.9 10.5; 70.3 20.5; 78.6 30.5; 84.5 40.6; 91.2 50.6; 96.2 59.8; 101.2 69.9; 104.6 79.9; 108.8 89.9; 112.1 100; 113.8 110; 114.6 120.1; 114.6 130.1; 112.1 140.1; 109.6 150.2; 106.3 159.4; 94.5 169.4; 87 179.5; 81.2 189.5; 78.6 199.5; 72.8 210",
+    "cavity": "37.6 10; 54.4 19.7; 62.7 29.7; 70.3 38.9; 77 48.1; 83.7 58.1; 88.7 67.4; 93.7 76.6; 97.1 86.6; 101.2 95.8; 103.7 105; 104.6 115; 106.3 124.2; 104.6 133.4; 102.1 143.5; 97.1 152.7; 89.5 161.9; 82 171.9; 77 181.1; 72.8 190.3; 70.3 200.4; 69.4 213",
+    "foot": ""
+   }
+  },
+  "RBA_amphora": {
+   "type": "freeform/vessel",
+   "label": "PZZLL_0048",
+   "in": {
+    "outer": "43.9 0; 48.1 8.7; 51.6 17.1; 55.8 25.4; 59.3 33.8; 64.1 42.2; 69.7 49.9; 73.2 58.2; 77.4 66.6; 78.1 75; 79.5 83.3; 79.5 91.7; 78.1 100; 77.4 108.4; 73.2 116.8; 70.4 125.1; 66.9 132.8; 60.7 141.2; 57.2 149.6; 53 157.9; 54.4 166.3; 55.8 175",
+    "cavity": "12.5 7.7; 43.2 15.7; 48.1 24.1; 51.6 31.7; 57.2 40.1; 62.1 47.8; 65.5 55.4; 69.7 63.8; 71.8 71.5; 73.2 79.1; 74.6 87.5; 74.6 95.2; 73.2 103.5; 70.4 111.2; 68.3 118.9; 64.1 127.2; 59.3 134.9; 54.4 142.6; 49.5 150.9; 48.1 158.6; 50.2 167; 53 178",
+    "foot": ""
+   }
+  },
+  "FBA_cup": {
+   "type": "freeform/vessel",
+   "label": "CSN_BRMS_0001",
+   "in": {
+    "outer": "37.2 0; 44.9 4.5; 52.7 9.1; 56.6 13.4; 61.6 18; 67 22.3; 70.5 26.9; 74.4 31.2; 77.1 35.8; 81 40.1; 83.7 44.7; 87.6 49; 88.7 53.7; 91 57.9; 93.8 62.6; 94.9 66.8; 96.5 71.5; 94.9 75.7; 92.6 80.4; 91 84.6; 91 89.3; 93.8 93.8",
+    "cavity": "36 11.6; 42.6 15.7; 47.6 19.6; 52.7 23.4; 57.7 27.3; 60.4 31.2; 65.5 35.1; 68.2 38.9; 72.1 42.8; 74.4 46.7; 77.1 50.6; 79.8 54.8; 82.1 58.7; 84.8 62.6; 87.6 66.4; 88.7 70.3; 89.9 74.2; 88.7 78.1; 87.6 81.9; 86 85.8; 87.6 89.7; 89.9 96.8",
+    "foot": "23.2 -3; 23.2 0.6; 23.2 1; 23.2 1.4; 18.2 1.7; 18.2 2.1; 18.2 2.5; 10.5 2.9; 10.5 3.3; 10.5 4.3"
+   }
+  },
+  "FBA_bowl": {
+   "type": "freeform/vessel",
+   "label": "CLLTLGRF_0008",
+   "in": {
+    "outer": "38.5 0; 45.2 4.8; 51.5 9.4; 55.2 13.6; 60.3 18.2; 64.4 22.8; 69.5 27.4; 73.2 31.6; 77 36.2; 81.2 40.8; 85 45.4; 88.7 49.6; 93.7 54.2; 97.9 58.8; 101.7 63.4; 103 67.6; 103 72.2; 101.7 76.8; 99.2 81.4; 97.9 85.6; 95 90.2; 92.5 95",
+    "cavity": "20.5 5; 34.7 9.4; 39.8 13.6; 46.5 18.2; 50.2 22.4; 54 26.6; 57.8 30.8; 63.2 34.9; 67 39.5; 72 43.7; 75.7 47.9; 79.9 52.1; 83.7 56.3; 88.7 60.5; 92.5 65.1; 95 69.3; 96.3 73.4; 95 77.6; 92.5 81.8; 90 86.4; 88.7 90.6; 88.7 98",
+    "foot": ""
+   }
+  },
+  "FBA_mug": {
+   "type": "freeform/vessel",
+   "label": "FSS_5_0007",
+   "in": {
+    "outer": "29.7 0; 34.5 5; 37.3 9.7; 38.5 14.1; 41.2 18.8; 43.6 23.6; 44.8 28.4; 46.4 33.1; 48.8 37.5; 50 42.2; 51.2 47; 53.9 51.8; 53.9 56.5; 55.1 61.3; 57.9 65.6; 59.1 70.4; 61.5 75.2; 64.2 79.9; 61.5 84.7; 61.5 89; 63.1 93.8; 59.1 98.8",
+    "cavity": "1.2 5.2; 30.9 9.7; 33.3 14.1; 36.1 18.8; 37.3 23.2; 38.5 27.6; 39.7 31.9; 42.4 36.3; 42.4 41; 43.6 45.4; 43.6 49.8; 44.8 54.1; 46.4 58.5; 46.4 62.9; 47.6 67.6; 50 72; 50 76.3; 51.2 80.7; 51.2 85.1; 52.7 89.8; 53.9 94.2; 57.9 101.8",
+    "foot": ""
+   }
+  },
+  "FBA_jug": {
+   "type": "freeform/vessel",
+   "label": "PDG_0235",
+   "in": {
+    "outer": "40.6 0; 50.4 9.4; 59.4 18.4; 66.9 27.4; 74.4 36.5; 83.5 45.5; 87.2 53.8; 92.5 62.8; 94.8 71.8; 94.8 80.8; 94.8 89.9; 92.5 98.9; 87.2 107.9; 76 116.9; 68.4 126; 64.7 135; 61.7 143.3; 57.9 152.3; 57.9 161.3; 57.9 170.3; 60.9 179.4; 60.9 188.8",
+    "cavity": "27.8 4.5; 45.1 13.9; 51.9 22.2; 60.9 31.2; 68.4 39.5; 76 48.5; 82 57.5; 85.7 65.8; 88.7 74.8; 88.7 83.8; 88.7 92.1; 85 101.1; 74.4 109.4; 68.4 118.4; 63.2 127.5; 57.9 135.7; 55.6 144.8; 53.4 153.8; 51.9 162.1; 51.9 171.1; 54.1 179.4; 57.9 191.8",
+    "foot": ""
+   }
+  },
+  "FBA_jar": {
+   "type": "freeform/vessel",
+   "label": "PDG_0200",
+   "in": {
+    "outer": "67.9 0; 78 9.6; 85.7 18.9; 91.1 28.2; 94.9 37.4; 98.8 46.7; 101.1 55.2; 103.4 64.5; 105 73.7; 105.8 83; 105.8 92.2; 105 101.5; 105 110.8; 101.9 120; 99.6 129.3; 95.7 138.6; 89.5 147; 84.1 156.3; 79.5 165.6; 77.2 174.8; 81.1 184.1; 81.1 193.8",
+    "cavity": "61.8 8.5; 70.2 17.4; 77.2 26.6; 81.8 35.1; 87.2 44.4; 89.5 52.9; 91.9 61.4; 93.4 70.6; 94.9 79.1; 95.7 87.6; 95.7 96.9; 95.7 105.4; 94.9 114.6; 91.9 123.1; 88 131.6; 83.4 140.9; 78 149.4; 73.3 157.9; 67.9 167.1; 67.2 175.6; 69.5 184.9; 75.6 196.8",
+    "foot": ""
+   }
+  },
+  "FBA_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "DESM_VERNLL_0030",
+   "in": {
+    "outer": "42.9 0; 54.4 11.9; 66.7 23.4; 78.2 34.8; 89.6 46.2; 101.1 57.7; 113.5 69.1; 126.8 80.6; 136.4 92; 144.9 103.5; 151.6 114.9; 151.6 126.3; 130.6 137.8; 111.6 149.2; 104.9 160.7; 98.2 172.1; 93.4 183.6; 89.6 195; 85.8 206.4; 85.8 217.9; 93.4 229.3; 101.1 241.3",
+    "cavity": "49.6 22.9; 61 33.9; 70.6 44.3; 83.9 54.8; 93.4 64.4; 104.9 74.9; 116.3 85.3; 126.8 95.8; 135.4 106.3; 140.2 116.8; 134.5 127.3; 108.7 136.8; 100.1 147.3; 93.4 157.8; 88.7 168.3; 84.9 178.8; 81.1 189.3; 78.2 199.8; 77.2 209.3; 77.2 219.8; 82 230.3; 95.4 244.3",
+    "foot": "27.7 -3; 27.7 1.4; 26.7 2.4; 23.8 3.3; 21.9 4.3; 21.9 5.2; 19.1 6.2; 15.3 7.2; 13.3 8.1; 13.3 9.1; 9.5 11.4"
+   }
+  },
+  "FBA_amphora": {
+   "type": "freeform/vessel",
+   "label": "PDG_0037",
+   "in": {
+    "outer": "67.6 0; 75.2 10.6; 82.8 20.7; 90.4 30.8; 96.3 41; 101.4 51.1; 106.5 61.3; 110.7 71.4; 113.2 81.5; 116.6 91.7; 119.1 101.8; 121.7 111.9; 123.3 122.1; 123.3 132.2; 121.7 142.4; 118.3 152.5; 110.7 162.6; 101.4 172.8; 92.9 182.9; 88.7 193.1; 93.8 203.2; 93.8 213.8",
+    "cavity": "65.9 15.2; 73.5 24.9; 80.3 34.2; 85.3 43.5; 91.2 53.6; 95.5 62.9; 98.8 72.2; 101.4 81.5; 105.6 90.8; 108.1 100.1; 110.7 109.4; 111.5 119.5; 111.5 128.8; 111.5 138.1; 109 147.4; 103.1 156.7; 95.5 166; 86.2 175.3; 80.3 185.4; 80.3 194.7; 82.8 204; 92.9 216.8",
+    "foot": "42.2 -3; 42.2 1.3; 32.9 2.1; 24.5 3; 24.5 3.8; 6.8 5.9"
+   }
+  },
+  "FBA_lid": {
+   "type": "freeform/vessel",
+   "label": "GRTT_BARCH_0008",
+   "in": {
+    "outer": "10.5 0; 20.7 4.7; 24.5 9.2; 25.6 13.4; 25.6 17.9; 11.7 22.4; 9 26.9; 9 31.4; 15.4 35.6; 27.1 40.1; 34.6 44.6; 43.7 49.1; 47.4 53.7; 55 58.2; 59.1 62.3; 64 66.8; 67.8 71.3; 74.2 75.9; 78.3 80.4; 82.1 84.5; 84.7 89; 83.2 93.8",
+    "cavity": "1.5 42.5; 12.8 45; 18.1 47.6; 20.7 49.9; 27.1 52.5; 33.5 54.8; 37.3 57.4; 41 59.7; 44.8 61.9; 48.6 64.6; 51.2 66.8; 55 69.5; 57.6 71.7; 60.2 74.4; 62.9 76.6; 66.6 78.9; 69.3 81.5; 71.9 83.8; 74.2 86.4; 76.8 88.7; 78.3 91.3; 80.6 96.8",
+    "foot": ""
+   }
+  },
+  "EIA1_cup": {
+   "type": "freeform/vessel",
+   "label": "CUMA_0104",
+   "in": {
+    "outer": "14.4 0; 15.8 3; 19.7 5.6; 22.3 8.5; 26.1 11.2; 30 14; 34.1 16.9; 36.7 19.5; 41.7 22.4; 44.4 25.3; 45.8 27.9; 48.4 30.8; 47 33.5; 47 36.3; 44.4 39.2; 41.7 41.8; 40.5 44.7; 39.3 47.6; 37.9 50.2; 39.3 53.1; 40.5 55.8; 39.3 58.8",
+    "cavity": "6.7 1.4; 13.2 4.2; 15.8 7.1; 19.7 9.7; 22.3 12.3; 26.1 15.2; 30 17.9; 32.6 20.5; 36.7 23.4; 39.3 26; 41.7 28.7; 44.4 31.5; 43.2 34.2; 41.7 36.8; 39.3 39.7; 36.7 42.3; 35.3 45; 35.3 47.8; 34.1 50.5; 34.1 53.1; 35.3 56; 37.9 61.8",
+    "foot": ""
+   }
+  },
+  "EIA1_bowl": {
+   "type": "freeform/vessel",
+   "label": "CMP_REAT_0004",
+   "in": {
+    "outer": "42.9 0; 50.4 3.5; 59.6 6.9; 66.3 10.6; 71.3 14; 75 17.3; 79.2 20.6; 82.9 24.4; 86.7 27.7; 89.6 31; 93.3 34.4; 95.8 38.1; 100 41.5; 101.3 44.8; 102.5 48.1; 103.8 51.9; 103.8 55.2; 103.8 58.5; 102.5 61.9; 101.3 65.6; 98.3 69; 95.8 72.5",
+    "cavity": "45.4 9.2; 54.6 12.3; 59.6 15.2; 66.3 18.5; 70 21.5; 73.8 24.4; 79.2 27.3; 82.9 30.2; 85.4 33.5; 89.6 36.5; 90.8 39.4; 93.3 42.3; 94.6 45.2; 97.1 48.1; 97.1 51.5; 97.1 54.4; 97.1 57.3; 95.8 60.2; 94.6 63.1; 92.1 66.5; 90.8 69.4; 90.8 75.5",
+    "foot": ""
+   }
+  },
+  "EIA1_footed_cup": {
+   "type": "freeform/vessel",
+   "label": "TRRGLL_0356",
+   "in": {
+    "outer": "35.1 0; 45.5 3.5; 54.4 6.6; 59.8 10; 63.7 13; 66.2 16.4; 68.8 19.8; 68.8 22.9; 68.8 26.2; 68.8 29.6; 67.6 32.7; 67.6 36.1; 64.8 39.1; 62.3 42.5; 58.4 45.9; 57.2 49; 54.4 52.3; 53.3 55.7; 51.9 58.8; 50.5 62.2; 53.3 65.2; 53.3 68.8",
+    "cavity": "40.1 5.1; 46.9 8.3; 51.9 11.4; 54.4 14.2; 59.8 17.3; 61.2 20.3; 63.7 23.4; 63.7 26.2; 63.7 29.3; 63.7 32.4; 61.2 35.5; 59.8 38.3; 58.4 41.4; 54.4 44.5; 51.9 47.6; 50.5 50.4; 49.4 53.5; 48 56.5; 46.9 59.6; 45.5 62.4; 46.9 65.5; 48 71.8",
+    "foot": "10.4 -3; 10.4 0.4; 10.4 0.7; 10.4 1.4"
+   }
+  },
+  "EIA1_mug": {
+   "type": "freeform/vessel",
+   "label": "GRTCLL_CALNN_0011",
+   "in": {
+    "outer": "13.1 0; 20.9 4.8; 27.1 9.5; 28.2 13.7; 30.9 18.4; 32.1 23; 34.8 27.6; 37.5 32.3; 39.8 36.5; 41.4 41.2; 41.4 45.8; 39.8 50.4; 41.4 55.1; 39.8 59.7; 39.8 64; 39.8 68.6; 39.8 73.3; 39.8 77.9; 37.5 82.5; 35.9 86.8; 34.8 91.4; 32.1 96.3",
+    "cavity": "17 11.6; 22 15.7; 24.4 19.9; 27.1 23.8; 29.8 28; 32.1 31.9; 33.6 35.8; 34.8 40; 35.9 43.9; 35.9 47.7; 35.9 52; 35.9 55.9; 35.9 60.1; 34.8 64; 34.8 67.8; 34.8 72.1; 34.8 76; 33.6 79.8; 32.1 84.1; 30.9 87.9; 29.8 92.2; 29.8 99.3",
+    "foot": ""
+   }
+  },
+  "EIA1_jug": {
+   "type": "freeform/vessel",
+   "label": "INCRNT_0100",
+   "in": {
+    "outer": "29.2 0; 35.5 7.2; 43.5 14; 51 20.9; 58.4 27.8; 64.7 34.6; 69.9 40.9; 71.6 47.8; 72.7 54.7; 71.6 61.6; 68.7 68.4; 64.7 75.3; 60.1 82.2; 52.1 89.1; 41.8 95.9; 39.5 102.8; 37.2 109.1; 35.5 116; 33.2 122.8; 29.2 129.7; 33.2 136.6; 32.1 143.8",
+    "cavity": "20.6 10.3; 34.4 16.9; 41.8 23.2; 48.7 29.5; 55 35.8; 60.1 42.1; 62.4 48.4; 63.6 54.7; 62.4 61; 60.1 67.3; 56.1 73.6; 48.7 80.5; 40.7 86.8; 33.2 93.1; 29.2 99.4; 28.1 105.7; 26.9 112; 25.8 118.3; 24.1 124.6; 21.8 130.9; 20.6 137.2; 29.2 146.8",
+    "foot": ""
+   }
+  },
+  "EIA1_jar": {
+   "type": "freeform/vessel",
+   "label": "PN_QNTN_0015",
+   "in": {
+    "outer": "33.1 0; 36.9 6.8; 40.7 13.3; 44.5 19.8; 47.2 26.3; 51 32.8; 54.8 38.8; 57.5 45.3; 59.7 51.8; 61.3 58.4; 61.3 64.9; 61.3 71.4; 61.3 77.9; 61.3 84.4; 59.7 90.9; 57.5 97.4; 53.7 103.4; 51 109.9; 47.2 116.4; 43.4 123; 42.3 129.5; 40.7 136.3",
+    "cavity": "28.2 10.3; 33.1 16.6; 36.9 22.5; 40.7 28.5; 43.4 34.5; 46.1 40.4; 49.9 46.4; 51 52.4; 52.1 58.4; 53.7 64.3; 54.8 70.3; 54.8 76.3; 53.7 82.2; 52.1 88.2; 51 94.2; 48.3 100.2; 44.5 106.1; 40.7 112.1; 36.9 118.1; 34.7 124; 34.7 130; 36.9 139.3",
+    "foot": ""
+   }
+  },
+  "EIA1_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "COLFIRT_0088",
+   "in": {
+    "outer": "72.8 0; 80.3 15.7; 86.6 30.7; 92.9 45.8; 100.4 60.9; 106.7 75.9; 111.7 91; 116.7 106; 121.7 121.1; 124.2 136.2; 125.5 151.2; 119.2 166.3; 110.4 181.3; 105.4 196.4; 97.9 211.5; 90.4 226.5; 82.8 241.6; 74 256.6; 67.8 271.7; 65.3 286.8; 69 301.8; 71.5 317.5",
+    "cavity": "26.4 13.8; 75.3 28.2; 81.6 43.3; 89.1 57.1; 95.4 72.2; 100.4 86; 105.4 101; 110.4 114.8; 115.5 129.9; 115.5 143.7; 111.7 158.8; 106.7 172.6; 99.1 187.6; 92.9 201.4; 85.3 216.5; 76.6 230.3; 69 245.3; 62.7 259.1; 59 274.2; 57.7 288; 61.5 303.1; 67.8 320.5",
+    "foot": ""
+   }
+  },
+  "EIA1_amphora": {
+   "type": "freeform/vessel",
+   "label": "NZ_VL_SVRN_0006",
+   "in": {
+    "outer": "30.5 0; 39.4 7.5; 48.4 14.6; 57.4 21.8; 62.2 29; 67.5 36.2; 71.1 42.7; 71.1 49.9; 71.1 57.1; 69.9 64.2; 65.7 71.4; 63.3 78.6; 57.4 85.8; 43 92.9; 37.1 100.1; 34.1 107.3; 31.7 113.8; 30.5 121; 29.3 128.2; 28.1 135.4; 30.5 142.5; 29.3 150",
+    "cavity": "20.3 9; 37.1 15.8; 43 22.4; 50.8 29.6; 57.4 36.2; 61 42.7; 62.2 49.3; 62.2 55.9; 62.2 63; 59.8 69.6; 55.6 76.2; 47.2 82.8; 37.1 89.3; 31.7 95.9; 29.3 103.1; 28.1 109.7; 26.9 116.2; 23.9 122.8; 22.7 129.4; 22.7 136.6; 22.7 143.1; 25.7 153",
+    "foot": ""
+   }
+  },
+  "EIA1_lid": {
+   "type": "freeform/vessel",
+   "label": "PGLRN_0312",
+   "in": {
+    "outer": "12.8 0; 19.2 8.9; 16.4 17.4; 17.8 26; 21.4 34.5; 26.3 43.1; 39.2 50.9; 57 59.5; 72.6 68; 84 76.6; 94 85.1; 101.8 93.6; 109 102.2; 116.8 110.7; 121.8 119.3; 126.8 127.8; 131 135.7; 136 144.2; 137.4 152.8; 138.2 161.3; 138.2 169.8; 134.6 178.8",
+    "cavity": "1.4 32.8; 7.8 40.2; 13.5 46.6; 30.6 53.8; 47 60.9; 55.5 68; 64.8 74.4; 74.8 81.5; 81.2 88.7; 86.2 95.1; 92.6 102.2; 99 109.3; 105.4 116.4; 108.2 122.8; 114.7 130; 119.6 137.1; 123.2 143.5; 126.1 150.6; 128.2 157.7; 129.6 164.9; 128.2 171.3; 126.8 181.8",
+    "foot": ""
+   }
+  },
+  "EIA2_cup": {
+   "type": "freeform/vessel",
+   "label": "CAP_CAPPCN_0379",
+   "in": {
+    "outer": "21 0; 27.5 2.8; 30.1 5.2; 34 7.8; 38.1 10.2; 41.9 12.9; 45.8 15.3; 49.9 18; 53.8 20.6; 56.4 23; 57.6 25.7; 59.1 28.1; 59.1 30.7; 57.6 33.1; 55 35.8; 53.8 38.4; 52.3 40.9; 51.1 43.5; 51.1 45.9; 51.1 48.6; 51.1 51; 51.1 53.8",
+    "cavity": "32.8 11.8; 35.4 13.9; 39.3 15.8; 41.9 18; 44.6 19.9; 47.2 21.8; 49.9 23.7; 51.1 25.9; 52.3 27.8; 52.3 29.8; 51.1 31.7; 49.9 33.9; 48.4 35.8; 47.2 37.7; 47.2 39.6; 47.2 41.8; 45.8 43.7; 45.8 45.7; 47.2 47.6; 47.2 49.8; 47.2 51.7; 48.4 56.8",
+    "foot": "10.6 -3; 10.6 0.4; 10.6 0.8; 10.6 1.1; 10.6 1.3; 9.2 1.6; 9.2 2; 9.2 2.3; 9.2 2.5; 8 3; 8 3.3; 8 3.5; 8 3.7; 5.3 4.2; 5.3 4.5; 5.3 4.7; 5.3 5.2; 2.7 5.4; 2.7 5.7; 2.7 5.9; 2.7 6.4; 2.7 7"
+   }
+  },
+  "EIA2_bowl": {
+   "type": "freeform/vessel",
+   "label": "BDIA_0003",
+   "in": {
+    "outer": "42.6 0; 49.1 4.1; 54.3 8; 57.8 11.9; 63 15.8; 66.9 19.8; 70.8 23.7; 76 27.6; 79.9 31.5; 82.5 35.4; 86.4 39.3; 90.3 43.2; 92.5 47.1; 96.4 51; 99 54.9; 102.9 58.8; 105.5 62.7; 108.1 66.7; 106.8 70.6; 102.9 74.5; 100.3 78.4; 95.1 82.5",
+    "cavity": "39.9 10.4; 42.6 14.1; 47.8 17.6; 51.7 21.1; 55.1 24.1; 59.1 27.6; 63 31; 65.6 34.5; 69.5 38; 73.4 41.5; 76 44.9; 79.9 48; 82.5 51.5; 86.4 54.9; 89 58.4; 91.2 61.9; 92.5 65.3; 93.8 68.8; 92.5 71.9; 90.3 75.3; 86.4 78.8; 87.7 85.5",
+    "foot": ""
+   }
+  },
+  "EIA2_footed_cup": {
+   "type": "freeform/vessel",
+   "label": "CAP_FORNC_0014",
+   "in": {
+    "outer": "29.7 0; 31.1 3.5; 36.2 6.6; 40.1 10; 44.1 13; 48 16.4; 51.9 19.8; 54.4 22.9; 57 26.2; 59.8 29.6; 60.9 32.7; 60.9 36.1; 60.9 39.1; 60.9 42.5; 59.8 45.9; 59.8 49; 57 52.3; 55.8 55.7; 55.8 58.8; 55.8 62.2; 55.8 65.2; 54.4 68.8",
+    "cavity": "24.7 3.9; 29.7 7.2; 32.3 10.2; 37.6 13.3; 41.5 16.4; 46.6 19.5; 49.4 22.6; 51.9 25.7; 53.3 28.8; 54.4 31.8; 55.8 34.9; 55.8 37.7; 55.8 40.8; 55.8 43.9; 54.4 47; 53.3 50.1; 51.9 53.2; 50.5 56.3; 50.5 59.3; 50.5 62.4; 51.9 65.5; 53.3 71.8",
+    "foot": ""
+   }
+  },
+  "EIA2_mug": {
+   "type": "freeform/vessel",
+   "label": "QTRR_FNTNL_0613",
+   "in": {
+    "outer": "26.9 0; 29.8 4.4; 33.7 8.3; 36.1 12.6; 38.6 16.8; 41.1 21.1; 42.5 25; 43.9 29.2; 46.4 33.5; 47.8 37.4; 47.8 41.6; 48.9 45.9; 48.9 50.1; 48.9 54; 48.9 58.3; 47.8 62.5; 47.8 66.4; 46.4 70.7; 45 74.9; 42.5 79.2; 41.1 83.1; 37.6 87.5",
+    "cavity": "22 7.8; 25.9 11.9; 29.8 15.4; 32.2 19.3; 34.7 23.2; 36.1 26.7; 37.6 30.6; 38.6 34.5; 40 38.1; 41.1 42; 41.1 45.9; 42.5 49.4; 42.5 53.3; 42.5 57.2; 41.1 60.8; 41.1 64.7; 40 68.5; 40 72.1; 38.6 76; 37.6 79.9; 36.1 83.4; 34.7 90.5",
+    "foot": ""
+   }
+  },
+  "EIA2_jug": {
+   "type": "freeform/vessel",
+   "label": "CAP_CAPPCN_0058",
+   "in": {
+    "outer": "28.2 0; 35.6 6.5; 43.4 12.8; 47.1 19.1; 52.3 25.4; 54.9 31.6; 58.6 37.4; 61.2 43.7; 62.2 49.9; 63.8 56.2; 63.8 62.5; 62.2 68.8; 59.6 75; 46 81.3; 39.7 87.6; 35.6 93.9; 31.9 99.6; 28.2 105.9; 23 112.2; 22 118.4; 25.6 124.7; 28.2 131.3",
+    "cavity": "14.1 4.2; 32.9 10.7; 38.2 16.5; 43.4 22.7; 47.1 28.5; 49.7 34.8; 52.3 40.5; 54.9 46.8; 56 52.6; 56 58.8; 54.9 64.6; 46 70.9; 38.2 76.6; 34.5 82.9; 31.9 88.6; 28.2 94.9; 24.1 100.7; 20.4 106.9; 19.3 112.7; 17.8 119; 20.4 124.7; 24.1 134.3",
+    "foot": ""
+   }
+  },
+  "EIA2_jar": {
+   "type": "freeform/vessel",
+   "label": "FRM_CNTR_MOSS_0021",
+   "in": {
+    "outer": "42.5 0; 49.5 11.1; 67.2 21.7; 87.6 32.3; 104.4 42.9; 117.6 53.5; 128.2 64.1; 137.1 74.7; 141.5 85.3; 144.2 96; 146.8 106.6; 148.6 117.2; 146.8 127.8; 144.2 138.4; 140.6 149; 132.7 159.6; 125.6 170.2; 117.6 180.9; 107.9 191.5; 99.1 202.1; 102.6 212.7; 115 223.8",
+    "cavity": "7.1 11.5; 46 21.7; 69.9 32.3; 88.4 42; 104.4 52.6; 117.6 62.3; 125.6 72.1; 132.7 82.7; 137.1 92.4; 140.6 102.1; 140.6 112.8; 140.6 122.5; 140.6 133.1; 137.1 142.8; 131.8 152.6; 123.8 163.2; 116.7 172.9; 106.1 182.6; 96.4 193.2; 88.4 203; 91.1 213.6; 102.6 226.8",
+    "foot": "34.5 -3; 34.5 1.3; 14.2 3.5"
+   }
+  },
+  "EIA2_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "FRM_CNTR_MOSS_0071",
+   "in": {
+    "outer": "47.2 0; 62.5 15.9; 80.3 31.2; 94.3 46.5; 109.6 61.8; 119.8 77.1; 127.5 92.4; 132.6 107.7; 132.6 123; 123.6 138.3; 117.3 153.6; 112.2 168.9; 108.3 184.2; 104.5 199.5; 100.7 214.8; 95.6 230.1; 89.2 245.4; 79 260.7; 62.5 276; 56.1 291.3; 62.5 306.6; 80.3 322.5",
+    "cavity": "47.2 16.6; 66.3 31.2; 82.9 46.5; 98.2 60.5; 109.6 75.8; 118.5 89.9; 123.6 103.9; 124.9 119.2; 117.3 133.2; 110.9 147.2; 107.1 162.5; 103.3 176.5; 99.4 191.8; 96.9 205.9; 91.8 219.9; 86.7 235.2; 79 249.2; 66.3 263.2; 51 278.5; 48.4 292.5; 52.3 307.8; 72.7 325.5",
+    "foot": ""
+   }
+  },
+  "EIA2_amphora": {
+   "type": "freeform/vessel",
+   "label": "CAP_CAPPCN_0094",
+   "in": {
+    "outer": "26.7 0; 28.1 6; 37.2 11.7; 42.4 16.9; 47.2 22.7; 52.5 28.4; 55.3 34.1; 59.1 39.8; 59.1 45.1; 60.1 50.8; 59.1 56.5; 59.1 62.2; 56.3 68; 53.9 73.7; 48.6 78.9; 39.6 84.7; 37.2 90.4; 37.2 96.1; 37.2 101.8; 37.2 107.1; 38.6 112.8; 38.6 118.8",
+    "cavity": "16.7 7.6; 29.6 13.1; 35.8 18.4; 39.6 23.6; 44.8 28.9; 47.2 34.1; 50.1 39.3; 52.5 44.6; 52.5 49.8; 52.5 55.1; 51 60.3; 50.1 66.1; 48.6 71.3; 44.8 76.5; 35.8 81.8; 32 87; 32 92.3; 32 97.5; 32 102.8; 32 108; 33.4 113.3; 33.4 121.8",
+    "foot": ""
+   }
+  },
+  "EIA2_krater": {
+   "type": "freeform/vessel",
+   "label": "QTRR_FNTNL_0806",
+   "in": {
+    "outer": "53 0; 53 8.8; 60.8 17.3; 69.3 25.8; 78.5 34.3; 86.3 42.8; 92.6 50.6; 99 59; 105.4 67.5; 108.9 76; 112.4 84.5; 116.7 93; 118.8 101.5; 118.8 110; 118.8 118.5; 116.7 126.9; 111 134.7; 106.1 143.2; 106.1 151.7; 106.1 160.2; 106.1 168.7; 105.4 177.5",
+    "cavity": "3.5 6.4; 35.4 14.5; 51.6 23; 62.9 30.8; 72.1 39.2; 79.9 47; 87 55.5; 94.8 63.3; 99.7 71.8; 104 79.6; 107.5 88; 111 95.8; 112.4 104.3; 113.9 112.1; 113.9 120.6; 110.3 128.4; 104 136.8; 99.7 144.6; 99 153.1; 99 160.9; 99 169.4; 101.1 180.5",
+    "foot": ""
+   }
+  },
+  "EIA2_kothon": {
+   "type": "freeform/vessel",
+   "label": "NOVLR_0093",
+   "in": {
+    "outer": "22 0; 28.4 3.7; 37.3 7.5; 45.3 11; 51.7 14.5; 58.1 18.3; 63.2 21.9; 68.6 25.4; 72.4 29.2; 75 32.7; 77.5 36.2; 78.8 40; 78.8 43.5; 78.8 47.1; 77.5 50.9; 75 54.4; 72.4 57.9; 67.3 61.7; 59.3 65.2; 50.4 68.8; 38.6 72.6; 29.7 76.3",
+    "cavity": "38.6 14.4; 42.8 17.4; 47.9 20.3; 55.5 23.4; 59.3 26.3; 63.2 29.2; 65.7 32.1; 69.9 34.9; 72.4 38.1; 73.7 41; 73.7 43.9; 73.7 46.7; 72.4 49.6; 69.9 52.5; 64.4 55.7; 59.3 58.5; 54.2 61.4; 47.9 64.3; 38.6 67.2; 23.3 70.3; 22 73.2; 22 79.3",
+    "foot": "10.2 -3; 10.2 0.5; 10.2 0.8; 10.2 1.1; 8.9 1.4; 8.9 1.8; 8.9 2.1; 8.9 2.4; 6.4 2.7; 6.4 3; 6.4 3.3; 6.4 3.7; 3.8 4; 3.8 4.3; 3.8 4.6; 3.8 5.4"
+   }
+  },
+  "EIA2_lid": {
+   "type": "freeform/vessel",
+   "label": "PCNTN_0956",
+   "in": {
+    "outer": "32 0; 44.5 6.8; 54.8 13.3; 61.3 19.8; 67.3 26.3; 72.7 32.8; 77.6 38.8; 81.4 45.3; 86.3 51.8; 90.7 58.4; 94.5 64.9; 98.3 71.4; 102.1 77.9; 105.9 84.4; 108 90.9; 110.7 97.4; 113.5 103.4; 114.5 109.9; 115.6 116.4; 117.3 123; 115.6 129.5; 114.5 136.3",
+    "cavity": "15.2 6.5; 33.1 12.8; 47.2 19.3; 53.7 25.2; 59.7 31.2; 65.1 37.7; 70 43.7; 72.7 49.7; 78.7 56.2; 81.4 62.2; 85.2 68.1; 89 74.6; 94.5 80.6; 96.6 86.6; 100.4 93.1; 103.1 99.1; 105.9 105; 106.9 111.6; 108 117.5; 109.7 123.5; 109.7 130; 110.7 139.3",
+    "foot": ""
+   }
+  },
+  "OP_cup": {
+   "type": "freeform/vessel",
+   "label": "BSC_DEL_MNT_CT_0002",
+   "in": {
+    "outer": "19.4 0; 24.5 3.7; 31.1 7; 34.9 10.6; 36.1 14.2; 37.3 17.8; 40 21.1; 41.2 24.6; 41.2 28.2; 42.7 31.5; 42.7 35.1; 42.7 38.7; 41.2 42.2; 40 45.5; 40 49.1; 38.8 52.7; 36.1 56; 36.1 59.6; 36.1 63.2; 38.8 66.7; 41.2 70; 42.7 73.8",
+    "cavity": "15.5 2.7; 22.1 6.1; 27.2 9.7; 31.1 13; 33.4 16.3; 34.9 19.6; 36.1 23.1; 38.8 26.4; 38.8 29.7; 38.8 33.3; 38.8 36.6; 38.8 39.9; 37.3 43.1; 36.1 46.7; 34.9 50; 33.4 53.3; 32.2 56.9; 32.2 60.2; 33.4 63.4; 33.4 66.7; 36.1 70.3; 38.8 76.8",
+    "foot": ""
+   }
+  },
+  "OP_bowl": {
+   "type": "freeform/vessel",
+   "label": "CHVR_0013",
+   "in": {
+    "outer": "63.3 0; 70.9 4.5; 76 8.7; 79.9 12.5; 85 16.8; 89.2 21; 91.7 25.3; 93 29.1; 95.6 33.3; 96.8 37.6; 99.4 41.8; 99.4 45.7; 100.7 49.9; 101.9 54.2; 103.2 58.4; 104.5 62.2; 104.5 66.5; 105.8 70.7; 104.5 75; 104.5 78.8; 103.2 83; 100.7 87.5",
+    "cavity": "65.8 12.7; 69.7 16.4; 73.5 20.2; 77.3 23.6; 79.9 27; 82.4 30.8; 85 34.2; 87.5 37.6; 90.5 41.4; 91.7 44.8; 93 48.2; 94.3 52; 95.6 55.4; 95.6 58.8; 96.8 62.7; 98.1 66; 98.1 69.4; 98.1 73.3; 98.1 76.7; 98.1 80.1; 96.8 83.9; 96.8 90.5",
+    "foot": "27.2 -3; 27.2 0.6; 27.2 1.1; 12.7 1.5; 12.7 1.9; 12.7 2.3; 2.5 2.8; 2.5 3.2; 2.5 4.2"
+   }
+  },
+  "OP_footed_cup": {
+   "type": "freeform/vessel",
+   "label": "GAB_0002",
+   "in": {
+    "outer": "54.3 0; 55.6 3.6; 63.6 7.4; 68.8 10.9; 72.6 14.3; 75 17.8; 79.1 21.6; 81.6 25.1; 84.3 28.5; 82.9 32.3; 81.6 35.8; 81.6 39.2; 81.6 42.7; 81.6 46.5; 82.9 49.9; 82.9 53.4; 82.9 57.2; 84.3 60.7; 84.3 64.1; 85.4 67.6; 85.4 71.4; 84.3 75",
+    "cavity": "49.1 7.6; 53.2 10.9; 57 14; 62.2 17.5; 64.6 20.6; 67.4 23.7; 69.8 26.8; 71.2 30.2; 72.6 33.4; 72.6 36.5; 72.6 39.6; 74 43; 75 46.1; 76.4 49.3; 76.4 52.4; 77.8 55.8; 77.8 58.9; 77.8 62; 77.8 65.1; 77.8 68.6; 80.2 71.7; 81.6 78",
+    "foot": ""
+   }
+  },
+  "OP_mug": {
+   "type": "freeform/vessel",
+   "label": "STRN_0072",
+   "in": {
+    "outer": "25.8 0; 29.8 4.9; 33.3 9.6; 36 13.9; 39.9 18.6; 41.1 23.3; 43.9 28; 46.2 32.7; 47.4 37; 47.4 41.7; 48.9 46.4; 48.9 51.1; 48.9 55.8; 48.9 60.5; 48.9 64.8; 47.4 69.5; 46.2 74.2; 45 78.9; 43.9 83.6; 41.1 87.9; 39.9 92.6; 37.2 97.5",
+    "cavity": "11.7 6.7; 20.8 11.2; 25.8 15.5; 30.9 19.8; 33.3 24.1; 37.2 28.4; 38.8 32.7; 39.9 37; 39.9 41.3; 41.1 45.6; 41.1 49.9; 41.1 54.2; 41.1 58.5; 41.1 62.8; 41.1 67.2; 39.9 71.5; 38.8 75.8; 37.2 80.1; 36 84.4; 33.3 88.7; 32.1 93; 32.1 100.5",
+    "foot": ""
+   }
+  },
+  "OP_jug": {
+   "type": "freeform/vessel",
+   "label": "CLS_MGLR_0091",
+   "in": {
+    "outer": "24.5 0; 24.5 7.5; 29.3 14.6; 35.9 21.8; 38.2 29; 41.8 36.2; 43.6 42.7; 44.8 49.9; 44.8 57.1; 46 64.2; 44.8 71.4; 38.2 78.6; 34.7 85.8; 31.7 92.9; 29.3 100.1; 26.9 107.3; 24.5 113.8; 23.3 121; 21.5 128.2; 24.5 135.4; 30.5 142.5; 33.5 150",
+    "cavity": "14.3 10.2; 24.5 17; 30.5 23.6; 33.5 30.2; 37.1 36.8; 38.2 43.3; 39.4 50.5; 40.6 57.1; 40.6 63.6; 38.2 70.2; 33.5 76.8; 30.5 83.4; 28.1 89.9; 26.9 96.5; 23.3 103.1; 21.5 109.7; 19.1 116.8; 16.7 123.4; 16.7 130; 19.1 136.6; 23.3 143.1; 31.7 153",
+    "foot": "12.5 -3; 12.5 0.9; 5.4 1.5; 5.4 3"
+   }
+  },
+  "OP_jar": {
+   "type": "freeform/vessel",
+   "label": "FICN_0003",
+   "in": {
+    "outer": "54.2 0; 62.3 9.3; 68.3 18.2; 74.9 27.1; 80.1 36; 83.8 44.9; 87.6 53.1; 89.8 62; 91.3 70.9; 94.2 79.8; 95 88.7; 96.5 97.6; 96.5 106.5; 97.9 115.4; 97.9 124.3; 97.9 133.2; 97.9 141.4; 97.9 150.3; 96.5 159.2; 95 168.1; 100.2 177; 98.7 186.3",
+    "cavity": "28.9 11.1; 50.5 19.7; 58.6 27.8; 66 36.7; 71.2 44.9; 74.9 53.1; 78.7 61.2; 80.9 69.4; 83.8 78.3; 85.3 86.4; 85.3 94.6; 86.1 102.8; 86.1 110.9; 87.6 119.1; 87.6 128; 87.6 136.2; 87.6 144.3; 86.1 152.5; 86.1 160.6; 86.1 169.6; 87.6 177.7; 95 189.3",
+    "foot": ""
+   }
+  },
+  "OP_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "CHVR_0126",
+   "in": {
+    "outer": "46 0; 44 12.2; 46 24; 58.7 35.7; 68.5 47.4; 77.3 59.2; 87.1 70.9; 94.9 82.7; 100.8 94.4; 107.6 106.1; 112.5 117.9; 114.5 129.6; 114.5 141.4; 114.5 153.1; 111.5 164.8; 103.7 176.6; 83.2 188.3; 77.3 200.1; 77.3 211.8; 77.3 223.5; 78.3 235.3; 85.1 247.5",
+    "cavity": "42.1 31.3; 54.8 41.6; 64.6 52.3; 73.4 62.1; 81.2 72.9; 87.1 82.7; 93.9 93.4; 99.8 103.2; 104.7 114; 107.6 123.8; 108.6 134.5; 108.6 144.3; 105.7 155.1; 103.7 164.8; 94.9 175.6; 74.3 185.4; 70.4 196.1; 69.5 205.9; 69.5 216.7; 68.5 226.5; 70.4 237.2; 79.2 250.5",
+    "foot": "39.1 -3; 39.1 1.5; 39.1 2.4; 38.2 3.4; 37.2 4.4; 37.2 5.4; 37.2 6.4; 35.2 7.3; 34.2 8.3; 34.2 9.3; 34.2 10.3; 33.3 11.3; 31.3 12.2; 31.3 13.2; 30.3 14.2; 30.3 15.2; 29.3 16.1; 28.4 17.1; 28.4 18.1; 28.4 20.5"
+   }
+  },
+  "OP_amphora": {
+   "type": "freeform/vessel",
+   "label": "CST_D_DCM_0097",
+   "in": {
+    "outer": "24.5 0; 30.9 7.3; 35.5 14.3; 39.6 21.3; 46 28.3; 50.1 35.3; 53.6 41.7; 57.7 48.7; 57.7 55.6; 51.3 62.6; 43.7 69.6; 38.5 76.6; 35.5 83.6; 34.4 90.6; 34.4 97.6; 33.2 104.6; 32 111; 32 118; 30.9 125; 30.9 132; 30.9 139; 32 146.3",
+    "cavity": "12.8 6.4; 26.8 13.1; 32 20.1; 37.3 26.5; 43.7 33.5; 47.2 39.9; 51.3 46.3; 53.6 53.3; 46 59.7; 38.5 66.1; 33.2 73.1; 30.9 79.5; 30.9 86.5; 28 92.9; 28 99.3; 28 106.3; 26.8 112.7; 25.6 119.2; 25.6 126.1; 25.6 132.6; 25.6 139.5; 28 149.3",
+    "foot": ""
+   }
+  },
+  "OP_krater": {
+   "type": "freeform/vessel",
+   "label": "PGG_BUC_0424",
+   "in": {
+    "outer": "54.2 0; 67.1 11.5; 84.5 22.5; 102 33.5; 117.6 44.6; 128.7 55.6; 139.7 66.6; 147 77.7; 156.2 88.7; 162.7 99.7; 167.3 110.7; 170.9 121.8; 175.5 132.8; 177.4 143.8; 179.2 154.8; 179.2 165.9; 179.2 176.9; 176.4 187.9; 173.7 199; 162.7 210; 146.1 221; 138.8 232.5",
+    "cavity": "19.3 10.1; 61.6 20.7; 78.1 31.7; 94.7 41.8; 108.4 52.8; 121.3 62.9; 131.4 74; 138.8 84.1; 146.1 95.1; 152.5 105.2; 157.1 116.3; 160.8 126.4; 163.6 137.4; 166.3 147.5; 167.3 158.5; 167.3 168.6; 166.3 179.7; 162.7 189.8; 152.5 200.8; 136.9 210.9; 125 221.9; 135.1 235.5",
+    "foot": ""
+   }
+  },
+  "OP_kothon": {
+   "type": "freeform/vessel",
+   "label": "NOVLR_0139",
+   "in": {
+    "outer": "39 0; 46.7 3.7; 55.8 6.8; 63.5 10.4; 68.8 13.5; 75.1 17; 77.6 20.5; 81.8 23.7; 85.6 27.2; 86.7 30.7; 86.7 33.9; 86.7 37.4; 86.7 40.5; 85.6 44; 82.8 47.6; 79 50.7; 76.5 54.2; 69.8 57.7; 64.6 60.9; 56.9 64.4; 45.3 67.6; 34.7 71.3",
+    "cavity": "41.4 6.3; 47.7 9.7; 53 12.8; 60.7 15.6; 66 18.8; 69.8 21.9; 75.1 25.1; 77.6 27.9; 80.4 31.1; 81.8 34.2; 81.8 37.4; 80.4 40.2; 79 43.3; 76.5 46.5; 72.7 49.7; 68.8 52.5; 63.5 55.6; 55.8 58.8; 49.1 61.9; 40 64.8; 30.9 67.9; 32.3 74.3",
+    "foot": "14 -3; 14 0.5; 14 1.4"
+   }
+  },
+  "OP_lid": {
+   "type": "freeform/vessel",
+   "label": "CHVR_0047",
+   "in": {
+    "outer": "15.8 0; 31.1 3.6; 44.3 6.9; 50.6 10.3; 59.6 13.7; 67.5 17.1; 71.3 20.4; 76.5 23.8; 80.3 27.2; 86.6 30.6; 90.8 33.9; 91.9 37.3; 93.4 40.7; 93.4 44.1; 91.9 47.4; 91.9 50.8; 91.9 54.2; 91.9 57.6; 90.8 60.9; 90.8 64.3; 89.3 67.7; 88.1 71.3",
+    "cavity": "5.3 9.4; 30 12.6; 44.3 15.6; 50.6 18.2; 58.5 21.2; 63.4 24.2; 68.6 27.2; 73.9 30.2; 77.6 32.8; 80.3 35.8; 82.9 38.8; 85.5 41.8; 85.5 44.8; 85.5 47.8; 85.5 50.4; 85.5 53.4; 85.5 56.4; 85.5 59.4; 85.5 62.4; 84 65.1; 84 68.1; 85.5 74.3",
+    "foot": ""
+   }
+  },
+  "AP_cup": {
+   "type": "freeform/vessel",
+   "label": "ASL_SEST_CALDN_0009",
+   "in": {
+    "outer": "25.9 0; 23.3 4; 22 7.6; 25.9 11.5; 30.8 15.4; 37.2 19.3; 41.1 22.8; 45 26.7; 48.9 30.6; 51.5 34.2; 54.1 38.1; 55.4 41.9; 56.7 45.8; 58 49.4; 56.7 53.3; 55.4 57.2; 54.1 60.7; 50.2 64.6; 45 68.5; 43.7 72.4; 45 76; 46.3 80",
+    "cavity": "14.3 9.1; 19.4 12.5; 24.6 16; 28.5 19.3; 33.4 22.8; 37.2 26.1; 39.8 29.3; 43.7 32.9; 46.3 36.1; 48.9 39.4; 50.2 42.9; 51.5 46.2; 52.8 49.7; 51.5 53; 51.5 56.2; 48.9 59.8; 46.3 63; 42.4 66.2; 39.8 69.8; 39.8 73; 39.8 76.6; 41.1 83",
+    "foot": "19.4 -3; 19.4 0.5; 19.4 0.8; 19.4 1.1; 19.4 1.5; 19.4 1.8; 19.4 2.1; 19.4 2.4; 16.8 2.8; 16.8 3.1; 16.8 3.4; 16.8 3.7; 10.4 4; 10.4 4.4; 10.4 4.7; 10.4 5.5"
+   }
+  },
+  "AP_bowl": {
+   "type": "freeform/vessel",
+   "label": "ANGN_SNT_CECL_0094",
+   "in": {
+    "outer": "31.3 0; 31.3 3.8; 18.2 7.1; 13.1 10.8; 11.8 14.4; 10.3 18.1; 10.3 21.4; 11.8 25.1; 13.1 28.7; 15.5 32; 25.8 35.7; 33.7 39.3; 40.1 43; 42.8 46.3; 46.8 49.9; 50.4 53.6; 51.9 56.9; 53.1 60.6; 54.4 64.2; 57.1 67.9; 55.6 71.2; 50.4 75",
+    "cavity": "17 38.9; 22.2 40.8; 25.8 42.4; 32.5 44.2; 34.9 45.7; 36.4 47.5; 40.1 49.3; 41.6 50.9; 42.8 52.7; 45.2 54.5; 45.2 56; 46.8 57.8; 46.8 59.4; 48 61.2; 48 63; 48 64.5; 46.8 66.3; 46.8 68.2; 45.2 69.7; 42.8 71.5; 42.8 73; 44 78",
+    "foot": "14.3 -3; 14.3 1.1; 11.8 2; 11.8 2.6; 10.3 3.5; 7.9 4.4; 6.7 5.3; 6.7 6.2; 6.7 6.8; 6.7 7.7; 5.2 8.7; 3.9 9.6; 3.9 10.5; 3.9 11.4; 2.7 12; 2.7 12.9; 2.7 13.8; 2.7 14.7; 1.5 15.6; 1.5 16.2; 1.5 17.2; 1.5 18.5"
+   }
+  },
+  "AP_footed_cup": {
+   "type": "freeform/vessel",
+   "label": "ANGN_SNT_CECL_0074",
+   "in": {
+    "outer": "19.4 0; 20.8 3.7; 24.7 6.9; 27 10.4; 29.6 13.9; 32.3 17.5; 33.5 20.7; 36.1 24.2; 39.9 27.7; 39.9 31; 41.4 34.5; 41.4 38; 41.4 41.5; 41.4 44.8; 38.7 48.3; 36.1 51.8; 34.9 55; 34.9 58.6; 36.1 62.1; 37.3 65.6; 37.3 68.8; 33.5 72.5",
+    "cavity": "2.6 7.9; 12.9 11; 18.2 14.2; 23.2 17.2; 24.7 20.4; 27 23.3; 29.6 26.6; 31.1 29.5; 32.3 32.4; 33.5 35.7; 34.9 38.6; 34.9 41.8; 33.5 44.8; 29.6 48; 28.5 50.9; 27 53.9; 25.8 57.1; 27 60; 27 63.3; 29.6 66.2; 29.6 69.4; 32.3 75.5",
+    "foot": ""
+   }
+  },
+  "AP_mug": {
+   "type": "freeform/vessel",
+   "label": "CNTRD_CUGNL_0034",
+   "in": {
+    "outer": "30.4 0; 34.4 5.6; 37.1 10.9; 39.3 15.9; 42 21.2; 44.7 26.6; 47.4 31.9; 47.4 37.3; 48.3 42.2; 48.3 47.6; 49.6 52.9; 49.6 58.3; 48.3 63.7; 48.3 69; 47.4 73.9; 46 79.3; 44.7 84.7; 43.3 90; 44.7 95.4; 47.4 100.3; 49.6 105.7; 49.6 111.3",
+    "cavity": "25.5 7.6; 29.5 12.7; 31.7 17.6; 34.4 22.6; 37.1 27.5; 39.3 32.4; 39.3 37.3; 40.7 42.2; 40.7 47.1; 42 52.1; 42 57; 43.3 61.9; 42 66.8; 40.7 71.7; 39.3 76.6; 38.4 81.5; 38.4 86.5; 38.4 91.4; 39.3 96.3; 40.7 101.2; 43.3 106.1; 46 114.3",
+    "foot": ""
+   }
+  },
+  "AP_jug": {
+   "type": "freeform/vessel",
+   "label": "SNT_VNDTT_0023",
+   "in": {
+    "outer": "24 0; 29 7; 34 13.7; 37.9 20.4; 42.9 27.1; 45.7 33.7; 49.6 39.9; 51.9 46.6; 53 53.3; 54.7 60; 54.7 66.7; 53 73.3; 50.8 80; 42.9 86.7; 31.8 93.4; 22.9 100.1; 21.8 106.3; 21.8 112.9; 24 119.6; 26.8 126.3; 29 133; 27.9 140",
+    "cavity": "3.9 5; 19 11.4; 29 18.1; 32.9 24.3; 37.9 31; 41.8 37.1; 45.7 43.8; 46.9 49.9; 48 56.6; 48 62.7; 48 69.4; 45.7 75.6; 40.7 82.3; 31.8 88.4; 21.8 95.1; 16.7 101.2; 15.1 107.9; 16.7 114.1; 19 120.8; 20.6 126.9; 24 133.6; 26.8 143",
+    "foot": ""
+   }
+  },
+  "AP_jar": {
+   "type": "freeform/vessel",
+   "label": "PDV_TPL_0070",
+   "in": {
+    "outer": "26.9 0; 34.3 8.4; 39.7 16.5; 44.4 24.5; 48.4 32.6; 53.1 40.7; 57.1 48.1; 62.5 56.1; 65.9 64.2; 69.9 72.3; 74 80.3; 76 88.4; 78.7 96.5; 78.7 104.5; 78.7 112.6; 77.3 120.7; 74.6 128.1; 71.3 136.1; 63.2 144.2; 54.5 152.3; 62.5 160.3; 58.5 168.8",
+    "cavity": "17.5 11.4; 27.6 19.2; 32.9 26.6; 38.3 34; 43 41.3; 48.4 48.7; 51.8 56.8; 55.8 64.2; 61.2 71.6; 64.5 79; 68.6 86.4; 69.9 93.8; 71.3 101.2; 71.3 108.6; 71.3 116; 69.9 123.4; 65.9 131.4; 58.5 138.8; 51.1 146.2; 47.1 153.6; 48.4 161; 54.5 171.8",
+    "foot": ""
+   }
+  },
+  "AP_necked_jar": {
+   "type": "freeform/vessel",
+   "label": "ST_VLL_BNVNT_0276",
+   "in": {
+    "outer": "56.8 0; 40.9 14.2; 34.1 27.8; 43.2 41.5; 53.4 55.1; 62.5 68.8; 70.5 82.4; 78.4 96; 83 109.7; 88.6 123.3; 94.3 136.9; 100 150.6; 103.4 164.2; 105.7 177.8; 109.1 191.5; 112.5 205.1; 113.6 218.8; 113.6 232.4; 112.5 246; 96.6 259.7; 88.6 273.3; 95.5 287.5",
+    "cavity": "21.6 38.6; 36.4 50.6; 45.5 63.1; 54.5 74.4; 61.4 86.9; 68.2 98.3; 72.7 109.7; 79.5 122.2; 84.1 133.5; 89.8 144.9; 94.3 157.4; 96.6 168.8; 101.1 181.3; 103.4 192.6; 105.7 204; 106.8 216.5; 108 227.8; 108 239.2; 100 251.7; 84.1 263.1; 83 275.6; 88.6 290.5",
+    "foot": "46.6 -3; 44.3 1.7; 43.2 2.8; 40.9 4; 40.9 5.1; 38.6 6.3; 37.5 7.4; 36.4 8.5; 35.2 9.7; 34.1 10.8; 31.8 11.9; 30.7 13.1; 29.5 14.2; 27.3 15.3; 27.3 16.5; 25 17.6; 23.9 18.8; 21.6 19.9; 19.3 21; 17 22.2; 12.5 25"
+   }
+  },
+  "AP_amphora": {
+   "type": "freeform/vessel",
+   "label": "CLL_CPLL_0003",
+   "in": {
+    "outer": "33.3 0; 44.3 6.6; 50.7 12.9; 56 19.3; 58.6 25.6; 63.3 31.9; 66 37.7; 67.6 44.1; 67.6 50.4; 67.6 56.7; 67.6 63.1; 66 69.4; 62.3 75.8; 57 82.1; 52.3 88.4; 45.9 94.8; 40.6 100.6; 38 106.9; 34.3 113.2; 30.6 119.6; 30.6 125.9; 29.6 132.5",
+    "cavity": "33.3 9; 39.6 15; 47 20.9; 49.6 26.7; 53.3 32.5; 57 38.3; 58.6 44.6; 61.2 50.4; 61.2 56.2; 59.7 62; 57 67.8; 53.3 73.6; 48.6 79.4; 44.3 85.3; 39.6 91.1; 35.9 96.9; 31.7 103.2; 28 109; 25.3 114.8; 23.2 120.6; 23.2 126.4; 28 135.5",
+    "foot": ""
+   }
+  },
+  "AP_krater": {
+   "type": "freeform/vessel",
+   "label": "PALINR_0002",
+   "in": {
+    "outer": "57.1 0; 45.7 13; 52.9 25.4; 70.6 37.9; 87.2 50.3; 100.6 62.8; 115.2 75.2; 123.5 87.7; 130.7 100.1; 135.9 112.6; 140.1 125; 142.1 137.5; 145.3 149.9; 144.2 162.4; 140.1 174.8; 132.8 187.3; 122.4 199.7; 111 212.2; 106.9 224.6; 106.9 237.1; 111 249.5; 113.1 262.5",
+    "cavity": "34.2 30.1; 59.1 42; 73.7 52.4; 87.2 63.8; 98.6 74.2; 108.9 85.6; 116.2 97; 122.4 107.4; 127.6 118.8; 130.7 130.2; 132.8 140.6; 132.8 152; 132.8 162.4; 129.7 173.8; 124.5 185.2; 117.2 195.6; 105.8 207; 100.6 218.4; 99.6 228.8; 99.6 240.2; 99.6 250.6; 102.7 265.5",
+    "foot": "40.5 -3; 40.5 1.6; 40.5 2.6; 40.5 3.6; 39.4 4.7; 39.4 5.7; 38.4 6.7; 38.4 7.8; 36.3 8.8; 35.3 9.9; 33.2 10.9; 30.1 11.9; 28 13; 28 14; 21.8 16.6"
+   }
+  },
+  "AP_kothon": {
+   "type": "freeform/vessel",
+   "label": "CNTRD_CUGNL_0017",
+   "in": {
+    "outer": "29.7 0; 33.7 3.5; 37.6 6.6; 38.7 10; 41.5 13; 44.1 16.4; 46.6 19.8; 48 22.9; 50.5 26.2; 51.9 29.6; 53 32.7; 53 36.1; 53 39.1; 53 42.5; 53 45.9; 51.9 49; 51.9 52.3; 50.5 55.7; 48 58.8; 45.5 62.2; 41.5 65.2; 38.7 68.8",
+    "cavity": "20.8 3.9; 25.8 7.2; 29.7 10.2; 33.7 13.3; 36.2 16.4; 38.7 19.5; 40.1 22.6; 42.7 25.7; 44.1 28.8; 45.5 31.8; 46.6 34.9; 48 37.7; 48 40.8; 49.1 43.9; 46.6 47; 46.6 50.1; 45.5 53.2; 42.7 56.3; 41.5 59.3; 37.6 62.4; 33.7 65.5; 33.7 71.8",
+    "foot": ""
+   }
+  },
+  "AP_lid": {
+   "type": "freeform/vessel",
+   "label": "CMPVLN_0002",
+   "in": {
+    "outer": "11.6 0; 24.5 3.6; 33.7 7; 42.5 10.4; 48 13.8; 55.5 17.2; 61.9 20.9; 66 24.3; 71.1 27.7; 75.2 31.1; 79 34.5; 81.7 38; 82.7 41.4; 84.1 44.8; 84.1 48.2; 84.1 51.6; 84.1 55.3; 84.1 58.7; 82.7 62.1; 82.7 65.5; 81.7 68.9; 80.3 72.5",
+    "cavity": "3.7 6.5; 18 9.7; 27.2 12.8; 36.1 16.2; 42.5 19.2; 49 22.3; 53.1 25.4; 56.8 28.4; 63.3 31.8; 66 34.9; 71.1 38; 73.9 41; 76.2 44.1; 77.6 47.1; 79 50.5; 79 53.6; 77.6 56.7; 77.6 59.7; 77.6 62.8; 76.2 66.2; 76.2 69.3; 76.2 75.5",
+    "foot": ""
+   }
+  }
+ },
+ "outputs": {
+  "EBA_cup": "@EBA_cup",
+  "EBA_bowl": "@EBA_bowl",
+  "EBA_mug": "@EBA_mug",
+  "EBA_jug": "@EBA_jug",
+  "EBA_jar": "@EBA_jar",
+  "EBA_necked_jar": "@EBA_necked_jar",
+  "EBA_amphora": "@EBA_amphora",
+  "MBA_cup": "@MBA_cup",
+  "MBA_bowl": "@MBA_bowl",
+  "MBA_mug": "@MBA_mug",
+  "MBA_jug": "@MBA_jug",
+  "MBA_jar": "@MBA_jar",
+  "MBA_necked_jar": "@MBA_necked_jar",
+  "MBA_amphora": "@MBA_amphora",
+  "MBA_lid": "@MBA_lid",
+  "RBA_cup": "@RBA_cup",
+  "RBA_bowl": "@RBA_bowl",
+  "RBA_footed_cup": "@RBA_footed_cup",
+  "RBA_mug": "@RBA_mug",
+  "RBA_jug": "@RBA_jug",
+  "RBA_jar": "@RBA_jar",
+  "RBA_necked_jar": "@RBA_necked_jar",
+  "RBA_amphora": "@RBA_amphora",
+  "FBA_cup": "@FBA_cup",
+  "FBA_bowl": "@FBA_bowl",
+  "FBA_mug": "@FBA_mug",
+  "FBA_jug": "@FBA_jug",
+  "FBA_jar": "@FBA_jar",
+  "FBA_necked_jar": "@FBA_necked_jar",
+  "FBA_amphora": "@FBA_amphora",
+  "FBA_lid": "@FBA_lid",
+  "EIA1_cup": "@EIA1_cup",
+  "EIA1_bowl": "@EIA1_bowl",
+  "EIA1_footed_cup": "@EIA1_footed_cup",
+  "EIA1_mug": "@EIA1_mug",
+  "EIA1_jug": "@EIA1_jug",
+  "EIA1_jar": "@EIA1_jar",
+  "EIA1_necked_jar": "@EIA1_necked_jar",
+  "EIA1_amphora": "@EIA1_amphora",
+  "EIA1_lid": "@EIA1_lid",
+  "EIA2_cup": "@EIA2_cup",
+  "EIA2_bowl": "@EIA2_bowl",
+  "EIA2_footed_cup": "@EIA2_footed_cup",
+  "EIA2_mug": "@EIA2_mug",
+  "EIA2_jug": "@EIA2_jug",
+  "EIA2_jar": "@EIA2_jar",
+  "EIA2_necked_jar": "@EIA2_necked_jar",
+  "EIA2_amphora": "@EIA2_amphora",
+  "EIA2_krater": "@EIA2_krater",
+  "EIA2_kothon": "@EIA2_kothon",
+  "EIA2_lid": "@EIA2_lid",
+  "OP_cup": "@OP_cup",
+  "OP_bowl": "@OP_bowl",
+  "OP_footed_cup": "@OP_footed_cup",
+  "OP_mug": "@OP_mug",
+  "OP_jug": "@OP_jug",
+  "OP_jar": "@OP_jar",
+  "OP_necked_jar": "@OP_necked_jar",
+  "OP_amphora": "@OP_amphora",
+  "OP_krater": "@OP_krater",
+  "OP_kothon": "@OP_kothon",
+  "OP_lid": "@OP_lid",
+  "AP_cup": "@AP_cup",
+  "AP_bowl": "@AP_bowl",
+  "AP_footed_cup": "@AP_footed_cup",
+  "AP_mug": "@AP_mug",
+  "AP_jug": "@AP_jug",
+  "AP_jar": "@AP_jar",
+  "AP_necked_jar": "@AP_necked_jar",
+  "AP_amphora": "@AP_amphora",
+  "AP_krater": "@AP_krater",
+  "AP_kothon": "@AP_kothon",
+  "AP_lid": "@AP_lid"
+ },
+ "view": {
+  "nodes": {
+   "EBA_cup": {
+    "x": 0,
+    "y": 0
+   },
+   "EBA_bowl": {
+    "x": 300,
+    "y": 0
+   },
+   "EBA_mug": {
+    "x": 900,
+    "y": 0
+   },
+   "EBA_jug": {
+    "x": 1200,
+    "y": 0
+   },
+   "EBA_jar": {
+    "x": 1500,
+    "y": 0
+   },
+   "EBA_necked_jar": {
+    "x": 1800,
+    "y": 0
+   },
+   "EBA_amphora": {
+    "x": 2100,
+    "y": 0
+   },
+   "MBA_cup": {
+    "x": 0,
+    "y": 200
+   },
+   "MBA_bowl": {
+    "x": 300,
+    "y": 200
+   },
+   "MBA_mug": {
+    "x": 900,
+    "y": 200
+   },
+   "MBA_jug": {
+    "x": 1200,
+    "y": 200
+   },
+   "MBA_jar": {
+    "x": 1500,
+    "y": 200
+   },
+   "MBA_necked_jar": {
+    "x": 1800,
+    "y": 200
+   },
+   "MBA_amphora": {
+    "x": 2100,
+    "y": 200
+   },
+   "MBA_lid": {
+    "x": 3000,
+    "y": 200
+   },
+   "RBA_cup": {
+    "x": 0,
+    "y": 400
+   },
+   "RBA_bowl": {
+    "x": 300,
+    "y": 400
+   },
+   "RBA_footed_cup": {
+    "x": 600,
+    "y": 400
+   },
+   "RBA_mug": {
+    "x": 900,
+    "y": 400
+   },
+   "RBA_jug": {
+    "x": 1200,
+    "y": 400
+   },
+   "RBA_jar": {
+    "x": 1500,
+    "y": 400
+   },
+   "RBA_necked_jar": {
+    "x": 1800,
+    "y": 400
+   },
+   "RBA_amphora": {
+    "x": 2100,
+    "y": 400
+   },
+   "FBA_cup": {
+    "x": 0,
+    "y": 600
+   },
+   "FBA_bowl": {
+    "x": 300,
+    "y": 600
+   },
+   "FBA_mug": {
+    "x": 900,
+    "y": 600
+   },
+   "FBA_jug": {
+    "x": 1200,
+    "y": 600
+   },
+   "FBA_jar": {
+    "x": 1500,
+    "y": 600
+   },
+   "FBA_necked_jar": {
+    "x": 1800,
+    "y": 600
+   },
+   "FBA_amphora": {
+    "x": 2100,
+    "y": 600
+   },
+   "FBA_lid": {
+    "x": 3000,
+    "y": 600
+   },
+   "EIA1_cup": {
+    "x": 0,
+    "y": 800
+   },
+   "EIA1_bowl": {
+    "x": 300,
+    "y": 800
+   },
+   "EIA1_footed_cup": {
+    "x": 600,
+    "y": 800
+   },
+   "EIA1_mug": {
+    "x": 900,
+    "y": 800
+   },
+   "EIA1_jug": {
+    "x": 1200,
+    "y": 800
+   },
+   "EIA1_jar": {
+    "x": 1500,
+    "y": 800
+   },
+   "EIA1_necked_jar": {
+    "x": 1800,
+    "y": 800
+   },
+   "EIA1_amphora": {
+    "x": 2100,
+    "y": 800
+   },
+   "EIA1_lid": {
+    "x": 3000,
+    "y": 800
+   },
+   "EIA2_cup": {
+    "x": 0,
+    "y": 1000
+   },
+   "EIA2_bowl": {
+    "x": 300,
+    "y": 1000
+   },
+   "EIA2_footed_cup": {
+    "x": 600,
+    "y": 1000
+   },
+   "EIA2_mug": {
+    "x": 900,
+    "y": 1000
+   },
+   "EIA2_jug": {
+    "x": 1200,
+    "y": 1000
+   },
+   "EIA2_jar": {
+    "x": 1500,
+    "y": 1000
+   },
+   "EIA2_necked_jar": {
+    "x": 1800,
+    "y": 1000
+   },
+   "EIA2_amphora": {
+    "x": 2100,
+    "y": 1000
+   },
+   "EIA2_krater": {
+    "x": 2400,
+    "y": 1000
+   },
+   "EIA2_kothon": {
+    "x": 2700,
+    "y": 1000
+   },
+   "EIA2_lid": {
+    "x": 3000,
+    "y": 1000
+   },
+   "OP_cup": {
+    "x": 0,
+    "y": 1200
+   },
+   "OP_bowl": {
+    "x": 300,
+    "y": 1200
+   },
+   "OP_footed_cup": {
+    "x": 600,
+    "y": 1200
+   },
+   "OP_mug": {
+    "x": 900,
+    "y": 1200
+   },
+   "OP_jug": {
+    "x": 1200,
+    "y": 1200
+   },
+   "OP_jar": {
+    "x": 1500,
+    "y": 1200
+   },
+   "OP_necked_jar": {
+    "x": 1800,
+    "y": 1200
+   },
+   "OP_amphora": {
+    "x": 2100,
+    "y": 1200
+   },
+   "OP_krater": {
+    "x": 2400,
+    "y": 1200
+   },
+   "OP_kothon": {
+    "x": 2700,
+    "y": 1200
+   },
+   "OP_lid": {
+    "x": 3000,
+    "y": 1200
+   },
+   "AP_cup": {
+    "x": 0,
+    "y": 1400
+   },
+   "AP_bowl": {
+    "x": 300,
+    "y": 1400
+   },
+   "AP_footed_cup": {
+    "x": 600,
+    "y": 1400
+   },
+   "AP_mug": {
+    "x": 900,
+    "y": 1400
+   },
+   "AP_jug": {
+    "x": 1200,
+    "y": 1400
+   },
+   "AP_jar": {
+    "x": 1500,
+    "y": 1400
+   },
+   "AP_necked_jar": {
+    "x": 1800,
+    "y": 1400
+   },
+   "AP_amphora": {
+    "x": 2100,
+    "y": 1400
+   },
+   "AP_krater": {
+    "x": 2400,
+    "y": 1400
+   },
+   "AP_kothon": {
+    "x": 2700,
+    "y": 1400
+   },
+   "AP_lid": {
+    "x": 3000,
+    "y": 1400
+   }
+  },
+  "shelf": {
+   "rows": [
+    {
+     "key": "EBA",
+     "label": "Early Bronze Age",
+     "note": "2300–1700 BC"
+    },
+    {
+     "key": "MBA",
+     "label": "Middle Bronze Age",
+     "note": "1700–1350 BC"
+    },
+    {
+     "key": "RBA",
+     "label": "Recent Bronze Age",
+     "note": "1350–1150 BC"
+    },
+    {
+     "key": "FBA",
+     "label": "Final Bronze Age",
+     "note": "1150–950 BC"
+    },
+    {
+     "key": "EIA1",
+     "label": "Early Iron Age 1",
+     "note": "950–800 BC"
+    },
+    {
+     "key": "EIA2",
+     "label": "Early Iron Age 2",
+     "note": "800–725 BC"
+    },
+    {
+     "key": "OP",
+     "label": "Orientalising period",
+     "note": "725–580 BC"
+    },
+    {
+     "key": "AP",
+     "label": "Archaic period",
+     "note": "580–480 BC"
+    }
+   ],
+   "columns": [
+    {
+     "key": "cup",
+     "label": "Cup, bowl"
+    },
+    {
+     "key": "bowl",
+     "label": "Deep bowl"
+    },
+    {
+     "key": "footed_cup",
+     "label": "Footed cup"
+    },
+    {
+     "key": "mug",
+     "label": "Mug"
+    },
+    {
+     "key": "jug",
+     "label": "Jug"
+    },
+    {
+     "key": "jar",
+     "label": "Jar"
+    },
+    {
+     "key": "necked_jar",
+     "label": "Necked jar, biconical urn"
+    },
+    {
+     "key": "amphora",
+     "label": "Amphora"
+    },
+    {
+     "key": "krater",
+     "label": "Krater"
+    },
+    {
+     "key": "kothon",
+     "label": "Kothon"
+    },
+    {
+     "key": "lid",
+     "label": "Lid, pan"
+    }
+   ],
+   "place": {
+    "EBA_cup": [
+     "EBA",
+     "cup"
+    ],
+    "EBA_bowl": [
+     "EBA",
+     "bowl"
+    ],
+    "EBA_mug": [
+     "EBA",
+     "mug"
+    ],
+    "EBA_jug": [
+     "EBA",
+     "jug"
+    ],
+    "EBA_jar": [
+     "EBA",
+     "jar"
+    ],
+    "EBA_necked_jar": [
+     "EBA",
+     "necked_jar"
+    ],
+    "EBA_amphora": [
+     "EBA",
+     "amphora"
+    ],
+    "MBA_cup": [
+     "MBA",
+     "cup"
+    ],
+    "MBA_bowl": [
+     "MBA",
+     "bowl"
+    ],
+    "MBA_mug": [
+     "MBA",
+     "mug"
+    ],
+    "MBA_jug": [
+     "MBA",
+     "jug"
+    ],
+    "MBA_jar": [
+     "MBA",
+     "jar"
+    ],
+    "MBA_necked_jar": [
+     "MBA",
+     "necked_jar"
+    ],
+    "MBA_amphora": [
+     "MBA",
+     "amphora"
+    ],
+    "MBA_lid": [
+     "MBA",
+     "lid"
+    ],
+    "RBA_cup": [
+     "RBA",
+     "cup"
+    ],
+    "RBA_bowl": [
+     "RBA",
+     "bowl"
+    ],
+    "RBA_footed_cup": [
+     "RBA",
+     "footed_cup"
+    ],
+    "RBA_mug": [
+     "RBA",
+     "mug"
+    ],
+    "RBA_jug": [
+     "RBA",
+     "jug"
+    ],
+    "RBA_jar": [
+     "RBA",
+     "jar"
+    ],
+    "RBA_necked_jar": [
+     "RBA",
+     "necked_jar"
+    ],
+    "RBA_amphora": [
+     "RBA",
+     "amphora"
+    ],
+    "FBA_cup": [
+     "FBA",
+     "cup"
+    ],
+    "FBA_bowl": [
+     "FBA",
+     "bowl"
+    ],
+    "FBA_mug": [
+     "FBA",
+     "mug"
+    ],
+    "FBA_jug": [
+     "FBA",
+     "jug"
+    ],
+    "FBA_jar": [
+     "FBA",
+     "jar"
+    ],
+    "FBA_necked_jar": [
+     "FBA",
+     "necked_jar"
+    ],
+    "FBA_amphora": [
+     "FBA",
+     "amphora"
+    ],
+    "FBA_lid": [
+     "FBA",
+     "lid"
+    ],
+    "EIA1_cup": [
+     "EIA1",
+     "cup"
+    ],
+    "EIA1_bowl": [
+     "EIA1",
+     "bowl"
+    ],
+    "EIA1_footed_cup": [
+     "EIA1",
+     "footed_cup"
+    ],
+    "EIA1_mug": [
+     "EIA1",
+     "mug"
+    ],
+    "EIA1_jug": [
+     "EIA1",
+     "jug"
+    ],
+    "EIA1_jar": [
+     "EIA1",
+     "jar"
+    ],
+    "EIA1_necked_jar": [
+     "EIA1",
+     "necked_jar"
+    ],
+    "EIA1_amphora": [
+     "EIA1",
+     "amphora"
+    ],
+    "EIA1_lid": [
+     "EIA1",
+     "lid"
+    ],
+    "EIA2_cup": [
+     "EIA2",
+     "cup"
+    ],
+    "EIA2_bowl": [
+     "EIA2",
+     "bowl"
+    ],
+    "EIA2_footed_cup": [
+     "EIA2",
+     "footed_cup"
+    ],
+    "EIA2_mug": [
+     "EIA2",
+     "mug"
+    ],
+    "EIA2_jug": [
+     "EIA2",
+     "jug"
+    ],
+    "EIA2_jar": [
+     "EIA2",
+     "jar"
+    ],
+    "EIA2_necked_jar": [
+     "EIA2",
+     "necked_jar"
+    ],
+    "EIA2_amphora": [
+     "EIA2",
+     "amphora"
+    ],
+    "EIA2_krater": [
+     "EIA2",
+     "krater"
+    ],
+    "EIA2_kothon": [
+     "EIA2",
+     "kothon"
+    ],
+    "EIA2_lid": [
+     "EIA2",
+     "lid"
+    ],
+    "OP_cup": [
+     "OP",
+     "cup"
+    ],
+    "OP_bowl": [
+     "OP",
+     "bowl"
+    ],
+    "OP_footed_cup": [
+     "OP",
+     "footed_cup"
+    ],
+    "OP_mug": [
+     "OP",
+     "mug"
+    ],
+    "OP_jug": [
+     "OP",
+     "jug"
+    ],
+    "OP_jar": [
+     "OP",
+     "jar"
+    ],
+    "OP_necked_jar": [
+     "OP",
+     "necked_jar"
+    ],
+    "OP_amphora": [
+     "OP",
+     "amphora"
+    ],
+    "OP_krater": [
+     "OP",
+     "krater"
+    ],
+    "OP_kothon": [
+     "OP",
+     "kothon"
+    ],
+    "OP_lid": [
+     "OP",
+     "lid"
+    ],
+    "AP_cup": [
+     "AP",
+     "cup"
+    ],
+    "AP_bowl": [
+     "AP",
+     "bowl"
+    ],
+    "AP_footed_cup": [
+     "AP",
+     "footed_cup"
+    ],
+    "AP_mug": [
+     "AP",
+     "mug"
+    ],
+    "AP_jug": [
+     "AP",
+     "jug"
+    ],
+    "AP_jar": [
+     "AP",
+     "jar"
+    ],
+    "AP_necked_jar": [
+     "AP",
+     "necked_jar"
+    ],
+    "AP_amphora": [
+     "AP",
+     "amphora"
+    ],
+    "AP_krater": [
+     "AP",
+     "krater"
+    ],
+    "AP_kothon": [
+     "AP",
+     "kothon"
+    ],
+    "AP_lid": [
+     "AP",
+     "lid"
+    ]
+   }
+  }
+ }
+}
