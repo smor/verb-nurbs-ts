@@ -1,7 +1,12 @@
 name: ci
+# One run per change: a pull request's commits run as the pull request (whatever branch it targets), and main, release
+# tags and manual runs as themselves. (Running on every push as well ran each pull request's commits twice.)
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -35,21 +40,31 @@ jobs:
       fail-fast: false
       matrix:
         node: [20, 22, 24]
+    # pull requests test on Node 22; main, release tags and manual runs on every supported version. On a pull request
+    # the Node 20 and 24 jobs still start, so the checks the branch rules require are reported, but skip every step
+    # and finish in seconds.
+    env:
+      RUN: ${{ matrix.node == 22 || github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+        if: env.RUN == 'true'
       - uses: actions/setup-node@v4
+        if: env.RUN == 'true'
         with:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+        if: env.RUN == 'true'
+      # coverage (five times slower than the plain run) on main, release tags and manual runs, on Node 22; a drop
+      # shows on main right after the merge
       - name: test with coverage (fails below the thresholds)
-        if: matrix.node == 22
+        if: matrix.node == 22 && github.event_name != 'pull_request'
         run: npm run coverage
       - name: test
-        if: matrix.node != 22
+        if: env.RUN == 'true' && (matrix.node != 22 || github.event_name == 'pull_request')
         run: npm test
       - name: upload coverage report
-        if: matrix.node == 22
+        if: matrix.node == 22 && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: coverage

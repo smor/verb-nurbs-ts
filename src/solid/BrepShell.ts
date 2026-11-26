@@ -59,6 +59,9 @@ export interface ShellFace {
 
 // A closed shell of trimmed NURBS faces with exact topology: vertices, edges (curves with p-curves and tolerances)
 // and faces bounded by loops of edges. Each edge is used once each way by the loops: twice by one face for a seam.
+// The nearest point of a surface to p, and its parameters (from `hint` when given: see `ShellBuilder.projector`).
+export type Projector = (p : Point, hint? : UV) => { uv : UV, p : Point };
+
 export interface BrepShell {
     vertices : Array<Point>;
     edges : Array<ShellEdge>;
@@ -86,8 +89,8 @@ export class ShellBuilder {
         const tol = options != null && options.tolerance != null ? options.tolerance : 0.01;
         const T = ShellBuilder.topology( r );
         const faces : Array<SeamFace> = r.faces.map( (f, fi) => ({ surface : f.surface, sameSense : ShellBuilder.sameSense( r, fi ), project : ShellBuilder.projector( f.surface ) }) );
-        const on = faces.map( F => (p : Point) => F.project( p ).p );
-        const onBoth = (e : { left : number, right : number }, p : Point) => { let q = p; for (let k = 0; k < 4; k++) q = on[e.right]( on[e.left]( q ) ); return q; };
+        const projectors = faces.map( F => F.project );
+        const onBoth = (e : { left : number, right : number }, p : Point) => ShellBuilder.onBoth( projectors[e.left], projectors[e.right], p );
         const vertices : Array<Point> = [], index = new Map<number, number>();
         const vertexOf = (m : number) => {
             let k = index.get( m );
@@ -95,7 +98,7 @@ export class ShellBuilder {
             return k;
         };
         const edges : Array<SeamEdge> = T.edges.map( e => ({
-            pts : ShellBuilder.refine( e.chain.map( i => r.mesh.vertices[i] ), on[e.left], on[e.right], 0.25 * tol ),
+            pts : ShellBuilder.refine( e.chain.map( i => r.mesh.vertices[i] ), projectors[e.left], projectors[e.right], 0.25 * tol ),
             start : vertexOf( e.chain[0] ), end : vertexOf( e.chain[e.chain.length - 1] ), left : e.left, right : e.right,
         }) );
         const cut = Seams.cut( faces, edges, vertices, T.loops, tol, onBoth );
@@ -491,7 +494,8 @@ export class ShellBuilder {
     // ---------- geometry ----------
 
     // The point of a surface nearest p: from the nearest of a grid of samples, by Newton's method.
-    public static projector( s : NurbsSurfaceData ) : (p : Point) => { uv : UV, p : Point } {
+    // (`hint`: the parameters of the nearest point to a point close by, from which Newton's method alone finds it)
+    public static projector( s : NurbsSurfaceData ) : Projector {
         const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
         const periodic : [boolean, boolean] = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
         const seeds : Array<{ uv : UV, p : Point }> = [];
@@ -517,9 +521,31 @@ export class ShellBuilder {
             const t = (x - d[2 * c]) / span[c];
             return d[2 * c] + (t - Math.floor( t )) * span[c];
         };
-        return (p : Point) => {
-            let best = seeds[0], bd = Vec.distSquared( best.p, p );
-            for (const x of seeds) { const dd = Vec.distSquared( x.p, p ); if (dd < bd) { best = x; bd = dd; } }
+        const nearest = ShellBuilder.nearest( seeds.map( x => x.p ) );
+        // Poles: rows of samples that are all one point (a side of the domain the surface shrinks to, as a disc's
+        // centre in polar parameters). There every value of the other parameter is the same point, so the nearest
+        // sample says nothing of it; a point near a pole starts from the nearest sample off the poles instead, which
+        // lies in the right direction from it. (`side`: the parameter, 0 or 1, that is fixed along the pole's row.)
+        const poleOf = seeds.map( () => -1 );
+        const nu = su.length, nv = sv.length, same = (a : Point, b : Point) => Vec.distSquared( a, b ) <= 1e-24;
+        for (let j = 0; j < nv; j++) {
+            let all = true;
+            for (let i = 1; i < nu && all; i++) all = same( seeds[i * nv + j].p, seeds[j].p );
+            if (all) for (let i = 0; i < nu; i++) poleOf[i * nv + j] = 1;
+        }
+        for (let i = 0; i < nu; i++) {
+            let all = true;
+            for (let j = 1; j < nv && all; j++) all = same( seeds[i * nv + j].p, seeds[i * nv].p );
+            if (all) for (let j = 0; j < nv; j++) poleOf[i * nv + j] = 0;
+        }
+        const off = seeds.map( (_, k) => k ).filter( k => poleOf[k] < 0 );
+        const nearestOff = off.length < seeds.length && off.length > 0 ? ShellBuilder.nearest( off.map( k => seeds[k].p ) ) : null;
+        return (p : Point, hint? : UV) => {
+            if (hint != null) { const x = ShellBuilder.newton( s, d, breaks, inDomain, p, hint ); return { uv : x.uv, p : x.p }; }
+            const k0 = nearest( p );
+            let best = seeds[k0], bd = Vec.distSquared( best.p, p );
+            const pole = poleOf[k0] >= 0 && nearestOff != null ? { side : poleOf[k0], at : best, d : bd } : null;
+            if (pole != null) { best = seeds[off[nearestOff!( p )]]; bd = Vec.distSquared( best.p, p ); }
             // closer, on finer grids round the nearest sample (Newton alone can run off along a surface of revolution)
             let h = [Math.min( span[0] / g, 2 * gap( su, best.uv[0] ) ), Math.min( span[1] / g, 2 * gap( sv, best.uv[1] ) )];
             // (at each spacing, moving on while the nearest is at the edge of the grid round it: the nearest sample can
@@ -536,7 +562,62 @@ export class ShellBuilder {
                 h = [h[0] / 2.5, h[1] / 2.5]; round++; moves = 0;
             }
             const x = ShellBuilder.newton( s, d, breaks, inDomain, p, best.uv );
-            return x.d <= bd ? { uv : x.uv, p : x.p } : { uv : best.uv, p : best.p };
+            const found = x.d <= bd ? { uv : x.uv, p : x.p, d : x.d } : { uv : best.uv, p : best.p, d : bd };
+            // the pole itself, if it is nearer still, in the direction found
+            if (pole != null && pole.d < found.d) {
+                const uv = found.uv.slice() as UV;
+                uv[pole.side] = pole.at.uv[pole.side];
+                return { uv : uv, p : pole.at.p };
+            }
+            return { uv : found.uv, p : found.p };
+        };
+    }
+
+    // The nearest of a set of points, found on a uniform grid of cells, rings of cells round the point's cell in turn
+    // until no cell further out can hold a nearer one. It returns what a scan of them all would: the first of the
+    // nearest, in the points' order.
+    public static nearest( pts : Array<Point> ) : (p : Point) => number {
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const q of pts) for (let c = 0; c < 3; c++) { lo[c] = Math.min( lo[c], q[c] ); hi[c] = Math.max( hi[c], q[c] ); }
+        // about two points a cell, for points spread over a surface
+        const ext = Math.max( hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], 1e-12 );
+        const h = ext / Math.max( 1, Math.ceil( Math.sqrt( pts.length / 2 ) ) );
+        const n = [0, 1, 2].map( c => Math.max( 1, Math.ceil( (hi[c] - lo[c]) / h ) + 1 ) );
+        const cell = (x : number, c : number) => Math.max( 0, Math.min( n[c] - 1, Math.floor( (x - lo[c]) / h ) ) );
+        const cells = new Map<number, Array<number>>();
+        pts.forEach( (q, k) => {
+            const key = (cell( q[0], 0 ) * n[1] + cell( q[1], 1 )) * n[2] + cell( q[2], 2 );
+            let list = cells.get( key );
+            if (list == null) cells.set( key, list = [] );
+            list.push( k );
+        } );
+        const rmax = Math.max( n[0], n[1], n[2] );
+        return (p : Point) => {
+            const c = [cell( p[0], 0 ), cell( p[1], 1 ), cell( p[2], 2 )];
+            let best = -1, bd = Infinity;
+            for (let r = 0; r <= rmax; r++) {
+                const a = [0, 1, 2].map( k => Math.max( 0, c[k] - r ) ), b = [0, 1, 2].map( k => Math.min( n[k] - 1, c[k] + r ) );
+                for (let i = a[0]; i <= b[0]; i++) for (let j = a[1]; j <= b[1]; j++) for (let k = a[2]; k <= b[2]; k++) {
+                    // the ring only: cells at the distance r from the point's cell in some direction
+                    if (Math.max( Math.abs( i - c[0] ), Math.abs( j - c[1] ), Math.abs( k - c[2] ) ) != r) continue;
+                    const list = cells.get( (i * n[1] + j) * n[2] + k );
+                    if (list == null) continue;
+                    for (const m of list) {
+                        const dd = Vec.distSquared( pts[m], p );
+                        if (dd < bd || (dd == bd && m < best)) { bd = dd; best = m; }
+                    }
+                }
+                // the nearest any cell beyond the ring can be: the distance to the ring's outer face, on the sides where
+                // there are cells beyond it
+                let reach = Infinity;
+                for (let k = 0; k < 3; k++) {
+                    if (c[k] + r < n[k] - 1) reach = Math.min( reach, Math.max( 0, lo[k] + (c[k] + r + 1) * h - p[k] ) );
+                    if (c[k] - r > 0) reach = Math.min( reach, Math.max( 0, p[k] - (lo[k] + (c[k] - r) * h) ) );
+                }
+                if (reach == Infinity || bd < reach * reach) break;
+            }
+            // (none: a point that is not one, NaN somewhere, for which a scan would keep the first)
+            return best < 0 ? 0 : best;
         };
     }
 
@@ -566,6 +647,9 @@ export class ShellBuilder {
             const r = Vec.sub( D[0][0], p );
             const g = [Vec.dot( r, D[1][0] ), Vec.dot( r, D[0][1] )];
             const H = [[Vec.dot( D[1][0], D[1][0] ), Vec.dot( D[1][0], D[0][1] )], [Vec.dot( D[1][0], D[0][1] ), Vec.dot( D[0][1], D[0][1] )]];
+            // converged: the offset is normal to both tangents, to round-off (within 1e-13 radians)
+            const rr = Vec.dot( r, r );
+            if (rr == 0 || (g[0] * g[0] <= 1e-26 * rr * H[0][0] && g[1] * g[1] <= 1e-26 * rr * H[1][1])) break;
             const det = H[0][0] * H[1][1] - H[0][1] * H[1][0];
             let step : Array<number>;
             if (Math.abs( det ) > 1e-12 * (H[0][0] * H[1][1] + 1e-300)) step = [(H[1][1] * g[0] - H[0][1] * g[1]) / det, (H[0][0] * g[1] - H[1][0] * g[0]) / det];
@@ -576,6 +660,8 @@ export class ShellBuilder {
             for (const t0 of tries) {
               step = t0;
               for (let half = 0; half < 30 && !moved; half++) {
+                // (a step below round-off of the domain moves nothing)
+                if (Math.abs( step[0] ) <= 1e-15 * (d[1] - d[0]) && Math.abs( step[1] ) <= 1e-15 * (d[3] - d[2])) break;
                 const next : UV = [uv[0] - step[0], uv[1] - step[1]];
                 for (let c = 0; c < 2; c++) {
                     const a = uv[c], b = next[c], eps = 1e-9 * (d[2 * c + 1] - d[2 * c]);
@@ -600,8 +686,16 @@ export class ShellBuilder {
     // chord strays from the faces by more than `tol` at its middle, a point is put on the faces (projected onto one,
     // then the other, a few times: alternating projections onto the two surfaces), and so on, down to 1/64 of the
     // first spacing.
-    private static refine( pts : Array<Point>, onA : (p : Point) => Point, onB : (p : Point) => Point, tol : number ) : Array<Point> {
-        const onBoth = (p : Point) => { let q = p; for (let k = 0; k < 4; k++) q = onB( onA( q ) ); return q; };
+    // A point on the curve where two faces meet, near p: projected onto one, then the other, four times (alternating
+    // projections). After the first, each projection starts from the last one's parameters on that face.
+    private static onBoth( A : Projector, B : Projector, p : Point ) : Point {
+        let a = A( p ), b = B( a.p );
+        for (let k = 1; k < 4; k++) { a = A( b.p, a.uv ); b = B( a.p, b.uv ); }
+        return b.p;
+    }
+
+    private static refine( pts : Array<Point>, A : Projector, B : Projector, tol : number ) : Array<Point> {
+        const onBoth = (p : Point) => ShellBuilder.onBoth( A, B, p );
         const out : Array<Point> = [pts[0]];
         const split = (a : Point, b : Point, depth : number) => {
             const mid = Vec.mul( 0.5, Vec.add( a, b ) );
@@ -614,7 +708,19 @@ export class ShellBuilder {
     }
 
     // A cubic B-spline through a chain of points, within `tol` of the polyline (its ends exact).
-    private static fitChain( pts : Array<Point>, tol : number ) : NurbsCurveData {
+    private static fitChain( given : Array<Point>, tol : number ) : NurbsCurveData {
+        // repeated points (a chain that starts at a pole, where the faces' curve leaves a point several samples share)
+        // would give repeated parameters, and a singular fit: kept once, the chain's ends exact
+        const pts : Array<Point> = [given[0]];
+        for (let k = 1; k < given.length; k++) {
+            if (Vec.dist( given[k], pts[pts.length - 1] ) > 1e-12) pts.push( given[k] );
+            else if (k == given.length - 1) pts[pts.length - 1] = given[k];
+        }
+        if (pts.length == 1) {
+            // a point: the segment between the chain's ends, on [0, 1]
+            const p0 = given[0], p1 = given[given.length - 1];
+            return new NurbsCurveData( 1, [0, 0, 1, 1], [[p0[0], p0[1], p0[2], 1], [p1[0], p1[1], p1[2], 1]] );
+        }
         if (pts.length <= 3) return Fit.curve( pts, Math.min( 3, pts.length - 1 ) );
         const u = Fit.chordLengthParams( pts );
         const at = (s : number) : Point => {

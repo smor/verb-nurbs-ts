@@ -5,6 +5,7 @@ import { SurfacePoint } from "../core/Intersections.js";
 import { Trig } from "../core/Trig.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "./Eval.js";
+import { jitter } from "../core/Jitter.js";
 
 // `Tess` contains static, immutable algorithms for tessellation of NURBS curves and sufaces. Tessellation is the decomposition
 // of the analytical NURBS representation into discrete meshes or polylines that are useful for drawing.
@@ -119,7 +120,7 @@ export class Tess {
 		//sample curve at three pts
 		const p1 = Eval.rationalCurvePoint(curve, start),
 			p3 = Eval.rationalCurvePoint(curve, end),
-			t = 0.5 + 0.2 * Math.random(),
+			t = 0.5 + 0.2 * jitter( start, end ),
 			mid = start + (end - start) * t,
 			p2 = Eval.rationalCurvePoint(curve, mid);
 

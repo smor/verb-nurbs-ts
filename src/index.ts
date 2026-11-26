@@ -68,6 +68,8 @@ export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { ShellBuilder } from "./solid/BrepShell.js";
+import { ShellMesher } from "./solid/ShellMesher.js";
+export type { MeshTolerance, ShellMesh } from "./solid/ShellMesher.js";
 export type { BrepShell, ShellEdge, ShellFace, ShellOptions, ShellTopology } from "./solid/BrepShell.js";
 import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
@@ -118,7 +120,7 @@ import { Model } from "./model/Model.js";
 export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 import { Graph } from "./model/Graph.js";
-export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult } from "./model/Graph.js";
+export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult, GraphOptions, GraphMesh } from "./model/Graph.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
 
@@ -204,6 +206,7 @@ export {
     FaceMesher,
     BrepBoolean,
     ShellBuilder,
+    ShellMesher,
     Fillet,
     FilletCorner,
     BrepEdges,
@@ -324,6 +327,7 @@ export const solid = {
     FaceMesher,
     BrepBoolean,
     ShellBuilder,
+    ShellMesher,
     Fillet,
     FilletCorner,
     BrepEdges,
