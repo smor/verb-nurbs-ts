@@ -280,6 +280,58 @@ branches as cuts. A branch is clipped where it crosses an edge, at the point whe
 surface, and the faces keep only what lies inside their trims. So a rounded part can be drilled or united without
 rounding it again. See [exact-booleans.md](exact-booleans.md), step A3.
 
+## Export mesh
+
+The result's mesh is the one the Booleans work on: a dense grid per face (`BrepFace.divs`), which the intersection
+search and the ray classification rely on. What leaves the library is a second mesh, tessellated from the exact shell
+within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher.ts`; #72, section 1).
+
+* **Tolerances.** `chordal` (mm), the largest distance from a triangle to its face; `angle` (degrees), the largest turn
+  of the normal across a span; `maxEdge`. The presets: `print` (0.02 mm) and `view` (0.1 mm, 20°).
+* **Edges first.** Each edge is sampled once, adaptively, and both of its faces use those points: the mesh is closed and
+  manifold by construction, without welding.
+* **Faces.** A planar face is its loops triangulated in its plane, with no inner points. Other faces are triangulated
+  (constrained Delaunay) in their parameters, stretched to the surface's lengths: a straight direction (the rulings of a
+  cylinder) gets one span, a curved one lines at steps of the sag bound L ≤ √(8 r tol). Then every triangle is measured
+  at its centroid and its inner edges' midpoints, against the true distance to the surface, and gets a point where it
+  strays further than the tolerance.
+* **What it guarantees.** A closed 2-manifold, a shell face (so a persistent name) per triangle, and a deviation
+  measured and returned. That deviation is within the tolerance plus the face's edges' own tolerance (edges lie within
+  their tolerances of their faces: up to 4e-3 mm at fitted setback corners). The vertices lie on the faces, so the volume
+  is biased low on convex parts, by at most the deviation times the area.
+
+Triangles at `print`, against the analysis mesh, and the time to build the shell and mesh it (the lone cylinder gets
+98 at `view`):
+
+| Part | `print` | analysis mesh | shell | mesh |
+|---|---|---|---|---|
+| Lone cylinder, r 3.125, h 6 | 190 | 9,024 | | |
+| Box 40 × 28 × 20, edges rounded at 4 (ball corners) | 1,796 | 3,848 | | 0.3 s |
+| The same, radii 3, 4 and 5 (setback corners) | 4,376 | 4,164 | 3.2 s | 0.7 s |
+| 507 slotted block (B) | 154 | 3,622 | 0.8 s | |
+| 507 tube and flange (C) | 672 | 15,358 | 0.6 s | |
+| 507 rim and spoke (E) | 1,112 | 2,376 | 1.1 s | |
+| Mug, rounded handle | 23,304 | 33,276 | 4.4 s | 3.0 s |
+
+What keeps those down:
+
+* **Density by normal curvature.** A direction's lines are spaced by the curvature of the surface along it (the normal
+  curvature), not by its iso-curve's: on a sphere's parallels near a pole the iso-curve turns ever faster within the
+  surface, while a chord across the surface sags only by the sphere's radius.
+* **Thinning.** The lines of a direction are spaced for the iso-curve that needs most of them; where the others are
+  shorter (towards a pole) a grid point within 0.7 of the length a step should have there of one already kept is left
+  out. Refinement adds the worst points first, none within half a step of another added in the same round.
+* **Projection.** `ShellBuilder.projector` finds its starting sample on a grid of cells, not by a scan of all of them,
+  and Newton's method stops once the offset is normal to both tangents to round-off. Alternating projections onto two
+  faces, and the mesh's checks, start from the parameters they already have (`hint`), and fall back to the whole face
+  only where that is not close enough.
+
+Limits: a ball corner gets about 190 triangles at 0.02 mm, where equilateral triangles at the sag bound would take
+about 120. Building the exact shell is still the longer part, a few seconds on a filleted part. Where windows cut a
+disc as sectors from its centre one at a time (507's fixture D, `one-by-one-4` and `one-by-one-6`), a vertex of the
+analysis mesh at the disc's centre lies 0.06 mm off it, and the shell's seam cut starts there: two of its loops do not
+close, and its export mesh has four open edges. The shell's checks do not catch it yet (every edge is used twice).
+
 ## Seams of surfaces of revolution
 
 When both faces are perfectly round about the same axis, their seams can cross a branch at the very same point. The

@@ -35,8 +35,9 @@ checks that solids are valid manifolds.
 2. Write the test first. State the geometric property you guarantee, such as "the fillet meets both faces with G1
    continuity to 1e-6", and check it numerically.
 3. Keep tolerances explicit: take a `tol` and pass it on.
-4. `npm run check` must pass. CI runs the same steps on Node 20, 22 and 24, plus the demos, the apps and the API
-   docs.
+4. `npm run check` must pass. CI runs the same steps, plus the demos, the apps and the API docs: on Node 22 for a pull
+   request, and on Node 20, 22 and 24 on main, on release tags and on demand. Coverage (`npm run coverage`, which fails
+   below its thresholds) runs on main, release tags and on demand; run it locally before a change that may lower it.
 
 ## Pull requests
 
@@ -53,8 +54,8 @@ Every gate runs locally and in CI, so a change that passes on your machine passe
 | Layering | pre-commit hook, `npm run check` | `static` job |
 | Lint, with a warning cap | pre-commit hook, `npm run check` | `static` job |
 | No gate loosened | `npm run ratchets` | `static` job, on pull requests, against the target branch |
-| Full test suite, no `.only` | pre-push hook, `npm run check` | `test` job on Node 20, 22, 24 |
-| Coverage thresholds | `npm run coverage` | `test` job on Node 22 |
+| Full test suite, no `.only` | pre-push hook, `npm run check` | `test` job: Node 22 on pull requests; 20, 22, 24 on main and releases |
+| Coverage thresholds | `npm run coverage` | `test` job on Node 22, on main and releases |
 | Demos, apps, API docs build | `npm run build`, `viewer`, `playground`, `docs` | `demos` job |
 
 The thresholds are ratchets: the lint cap and the list of files exempt from the determinism rule only shrink,
@@ -77,6 +78,7 @@ rule, or a ruleset):
   and an author cannot approve their own pull request. With a second reviewer, require one approval and review
   from Code Owners (`.github/CODEOWNERS`).
 - Require status checks to pass: `typecheck, layers, lint, ratchets`, `test (node 20)`, `test (node 22)`,
-  `test (node 24)` and `demos, apps and API docs`. Require branches to be up to date before merging.
+  `test (node 24)` and `demos, apps and API docs`. Require branches to be up to date before merging. (On a pull
+  request the Node 20 and 24 jobs report success after skipping their steps; they test on main and releases.)
 - Require conversation resolution, and block force pushes and deletions.
 - Apply the rules to administrators too.

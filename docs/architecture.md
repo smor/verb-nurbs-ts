@@ -20,7 +20,7 @@ through it, which invariants hold everywhere, and where to start reading for eac
                  ┌───────────────────────┴───────────────────────┐
    solid         │ Brep, SurfaceIntersect, BrepBoolean, Fillet,  │
                  │ FilletCorner, BrepEdges, BrepShell, Seams,    │
-                 │ Shell                                         │
+                 │ Shell, ShellMesher                            │
                  │ TriMesh, MeshBVH, Makeable  (mesh side)       │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
