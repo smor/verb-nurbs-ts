@@ -42,6 +42,9 @@ export interface MugParams extends FreeformVesselParams {
     ribFillet? : number;
     // the fillets' cross-section: "circular" (default) or "curvature" (G2 with the faces)
     filletShape? : FilletShape;
+    // prove the Boolean's intersections complete (`IntersectionCertificate`); the result's report says which pairs of
+    // faces could not be proven (default false: it costs time, so a makeable build asks for it)
+    certify? : boolean;
 }
 
 export interface Mug {
@@ -71,6 +74,8 @@ export interface PierceParams extends FreeformVesselParams {
     rimFillet? : number;
     // the fillets' cross-section: "circular" (default) or "curvature" (G2 with the faces)
     filletShape? : FilletShape;
+    // prove the Boolean's intersections complete, as for `MugParams.certify` (default false)
+    certify? : boolean;
 }
 
 export interface PiercedVessel {
@@ -206,7 +211,7 @@ export class BooleanObjectsRecipe {
             let rib = false;
             for (let i = n + 1; i < f.length; i++) rib = rib || f[i];
             return (joined && !f[n]) || (rib && f[0]);
-        }, { filletShape : p.filletShape, fillet : (c : { solids : [number, number] }) =>
+        }, { filletShape : p.filletShape, certify : p.certify === true, fillet : (c : { solids : [number, number] }) =>
             c.solids[1] > n ? (c.solids[0] == n ? fb : 0) : c.solids[0] != 0 || c.solids[1] == n ? 0 : c.solids[1] == 1 ? fr : fa } );
         return { body : solids.body, cavity : solids.cavity, handle : handle, handleRail : rail, result : result };
     }
@@ -245,7 +250,7 @@ export class BooleanObjectsRecipe {
         const fr = p.fillet != null ? p.fillet : 0, rim = p.rimFillet != null ? p.rimFillet : 0;
         // the rim's inner edge is the one between the body's top (face 2) and the cavity's wall
         const result = BrepBoolean.evaluate( [solids.body, solids.cavity].concat( tools ),
-            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { filletShape : p.filletShape, fillet : (c : { solids : [number, number], faces : [number, number] }) =>
+            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { filletShape : p.filletShape, certify : p.certify === true, fillet : (c : { solids : [number, number], faces : [number, number] }) =>
                 c.solids[1] >= 2 ? fr : c.solids[0] == 0 && c.solids[1] == 1 && c.faces[0] == 2 ? rim : 0 } );
         return { body : solids.body, cavity : solids.cavity, tools : tools, result : result };
     }

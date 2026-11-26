@@ -9,7 +9,7 @@ import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
-import { Machine, Makeable } from "../solid/Makeable.js";
+import { Machine, Makeable, MakeableReport } from "../solid/Makeable.js";
 import { TriMesh } from "../solid/TriMesh.js";
 import { Expr } from "./Expr.js";
 import { Wall } from "./Wall.js";
@@ -109,6 +109,9 @@ export interface ModelVerdict {
     checks : Array<{ name : string, passed : boolean, detail : string }>;
     // what is worth knowing but does not make the model visual (supports needed, the build direction, ...)
     notes : Array<string>;
+    // the machine check behind the "makeable" check, when the document names a machine and the result is closed:
+    // its measured wall, size, orientation and mould release, for display
+    makeable? : MakeableReport;
 }
 
 // A model: a document of parameters and features, regenerated deterministically into a solid with persistent names.
@@ -680,6 +683,11 @@ export class Model {
     // How thin a shell's measured wall may be against the thickness asked: the mesh's chords cut inside curved faces.
     public static WALL_TOLERANCE = 0.03;
 
+    /**
+     * The verdict on a result (see `ModelVerdict`): buildable or visual, with the checks and their reasons. Any B-rep
+     * result can be judged, a recipe's as well as a document's; `walls` and `lattice` come from a document's shells
+     * and lattice output.
+     */
     public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice ) : ModelVerdict {
         if (lattice != null) return Model.latticeVerdict( lattice, machine );
         const m = r.report.manifold;
@@ -698,13 +706,14 @@ export class Model {
         if (cert != null) notes.push( cert.unproven.length == 0
             ? `every intersection is proven complete (${cert.pairs} pairs of faces)`
             : `${cert.unproven.length} of ${cert.pairs} pairs of faces are not proven free of missed intersections (near tangency, or a small loop could hide there)` );
+        let makeable : MakeableReport | undefined;
         if (machine != null && checks[0].passed) {
-            const mk = Makeable.check( r.mesh, machine );
+            const mk = makeable = Makeable.check( r.mesh, machine );
             notes.push( ...mk.notes );
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks, notes : notes };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable };
     }
 
     // A lattice is judged on its mesh: closed, outward, its thinnest wall against the machine's, and makeable. It is a
@@ -727,15 +736,16 @@ export class Model {
                        detail : l.voids == 0 ? "no sealed voids: every cavity opens to the outside" :
                                 `${l.voids} sealed void(s) inside the skin` + (drains ? `: the ${mc.name}'s material would be trapped; open a face of the skin` : " (no harm on this process)") } );
         const notes : Array<string> = [];
+        let makeable : MakeableReport | undefined;
         if (machine != null && m.closedManifold) {
-            const mk = Makeable.check( l.mesh, machine );
+            const mk = makeable = Makeable.check( l.mesh, machine );
             notes.push( ...mk.notes );
             const min = mk.machine.minWall;
             checks.push( { name : "lattice wall", passed : thinnest >= min, detail : `the lattice's walls are ${thinnest} at their thinnest (${mk.machine.name} needs ${min})` } );
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks, notes : notes };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable };
     }
 
     // ---------- hashing ----------
