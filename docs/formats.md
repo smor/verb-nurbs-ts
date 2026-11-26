@@ -174,8 +174,9 @@ node.
 * **What is refused:** a component that uses itself (directly or not), a `use` with nothing to resolve it, a pinned
   hash that does not match, an input or an output the component does not have, `use` or `hash` on another node, and
   a number node whose id is already an instance's compiled parameter name (`crank1__rod`).
-* **Limits.** A component whose output is a round (or a lattice) can be an output of the using document, but not
-  moved or combined further, since a round is the last feature of a model (docs/model.md). The node editor shows
+* **Limits.** A component whose output is a round can be moved, rotated and uniformly scaled, but not yet combined
+  in a further Boolean, since a round is the last feature of a model (docs/model.md, "Limits", says why and what
+  it would take); a lattice cannot be moved either. The node editor shows
   components' outputs in files it opens but cannot open their documents yet.
 
 ## Model document, version 1

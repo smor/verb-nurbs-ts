@@ -41,6 +41,12 @@ describe("verb.model.Expr", function(){
 	});
 });
 
+function bounds(mesh) {
+	var lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+	mesh.vertices.forEach(function(v){ for (var i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], v[i]); hi[i] = Math.max(hi[i], v[i]); } });
+	return [lo, hi];
+}
+
 // a block with a peg on top and a bore through it, the peg's foot and the bore's rim rounded
 function bracket() {
 	return {
@@ -183,6 +189,39 @@ describe("verb.model.Model", function(){
 		bad(function(d){ d.features.other = { type : 'union', of : ['rounded', 'block'] }; d.output = 'other'; }).should.throw(/can only be the last feature/);
 		bad(function(d){ d.features.block = { type : 'sphere' }; }).should.throw(/unknown feature type/);
 		bad(function(d){ d.features.block.min = [0, 0, {}]; }).should.throw(/must be a number or an expression/);
+	});
+
+	it('moves a rounded solid: the round of the moved solid, its fillets named through the move, radii scaled with it', function(){
+		var r0 = new Model().evaluate(bracket());
+		var v0 = r0.result.report.volume;
+		// a quarter turn about z and a shift: the same solid, its fillets now named after the moved faces
+		var doc = bracket();
+		doc.features.placed = { type : 'transform', of : 'rounded', rotate : { axis : [0, 0, 1], degrees : 90 }, translate : [100, 0, 0] };
+		doc.output = 'placed';
+		var r = new Model().evaluate(doc);
+		r.verdict.kind.should.be.equal('buildable');
+		r.result.report.volume.should.be.approximately(v0, 1e-6 * v0);
+		r.result.report.fillets.should.be.equal(2);
+		r.faceNames.should.containEql('round(placed/block.+z|placed/peg.tube)');
+		// the block (40 × 28) turned a quarter: x spans 100 - 28 .. 100, y spans 0 .. 40
+		var box = bounds(r.result.mesh);
+		box[0][0].should.be.approximately(72, 1e-9); box[1][0].should.be.approximately(100, 1e-9);
+		box[0][1].should.be.approximately(0, 1e-9); box[1][1].should.be.approximately(40, 1e-9);
+		// a chain of two transforms, one of them a uniform scale by 2 (and its mirror): volumes 8 times, radii doubled
+		doc = bracket();
+		doc.features.big = { type : 'transform', of : 'rounded', scale : -2 };
+		doc.features.placed = { type : 'transform', of : 'big', translate : [0, 0, 50] };
+		doc.output = 'placed';
+		var compiled = Model.liftRound(doc);
+		compiled.output.should.be.equal('rounded');
+		compiled.features.rounded.rules.map(function(x){ return x.radius; }).should.be.eql(['(foot) * abs(-2)', '(rim) * abs(-2)']);
+		compiled.features.rounded.rules[0].edges.should.be.equal('placed/big/block.+z|placed/big/peg.tube');
+		var big = new Model().evaluate(doc);
+		big.result.report.volume.should.be.approximately(8 * v0, 2e-3 * 8 * v0);
+		big.verdict.kind.should.be.equal('buildable');
+		// a scale that differs along the axes does not commute with rounding: still refused
+		doc.features.big.scale = [1, 2, 1];
+		(function(){ new Model().evaluate(doc); }).should.throw(/can only be the last feature/);
 	});
 
 	it('hashes canonical JSON: key order and -0 do not matter, values do', function(){

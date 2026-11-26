@@ -219,16 +219,20 @@ describe("Components (docs/formats.md)", function () {
 		// the editor's sample, whose round names "box.*|box.*", used as a component, then placed
 		var resolveSample = function () { return read(path.join(fixtures, 'cone-cut.graph.json')); };
 		var direct = new Graph().evaluate(resolveSample());
-		// (a round is the last feature of a model, so the instance's output is used as it is, not moved)
+		// its output is a round: moving the instance moves the rounded solid
 		var doc = { version : 2, nodes : {
 			h : { type : 'number', in : { value : 24 } },
 			part : { type : 'component', use : 'cone-cut.graph.json', in : { h : '@h' } },
-		}, outputs : { solid : '@part.solid' } };
+			moved : { type : 'transform/move', in : { of : '@part.solid', x : 100 } },
+		}, outputs : { solid : '@moved' } };
 		var r = new Graph().evaluate(doc, { resolve : resolveSample });
 		r.result.report.volume.should.be.approximately(direct.result.report.volume, 1e-6 * direct.result.report.volume);
 		var fillets = function (names) { return names.filter(function (n) { return n.indexOf('round(') >= 0; }).length; };
 		fillets(r.faceNames).should.equal(fillets(direct.faceNames)).and.above(0);
 		r.verdict.kind.should.equal('buildable');
+		r.faceNames.should.containEql('round(moved/part/box.+z|moved/part/box.-x)');
+		var xs = r.result.mesh.vertices.map(function (v) { return v[0]; });
+		((Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2).should.be.approximately(100, 1e-9);
 		Graph.compile(doc, { resolve : resolveSample }).features['part/round'].rules[0].edges.should.equal('part/box.*|part/box.*');
 	});
 

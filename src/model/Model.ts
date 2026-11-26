@@ -144,15 +144,19 @@ export interface ModelVerdict {
 //   are never thinner than asked. The result's walls are then measured for the verdict (docs/model.md, "Shells").
 //
 // Limits: rounding applies to the output's Boolean as a whole (a round is the last feature on its branch), and a
-// rounded solid cannot yet be an operand of a further Boolean.
+// rounded solid cannot yet be an operand of a further Boolean: the Boolean takes primitives whose faces are whole
+// NURBS surfaces, and a rounded solid has trimmed faces and blends. It can be moved, rotated and uniformly scaled
+// (`Model.liftRound`), since those commute with rounding.
 export class Model {
 
     private cache = new Map<string, unknown>();
 
     // Regenerates a document. The model keeps what it built, so evaluating an edited document rebuilds only what
     // the edit changed.
-    public evaluate( doc : ModelDocument ) : ModelResult {
-        if (doc.version !== 1) throw new Error( "Model: unknown document version " + String( doc.version ) );
+    public evaluate( given : ModelDocument ) : ModelResult {
+        if (given.version !== 1) throw new Error( "Model: unknown document version " + String( given.version ) );
+        if (given.features?.[given.output] == null) throw new Error( `Model: the output "${given.output}" is not a feature` );
+        const doc = Model.liftRound( given );
         const params = Model.parameters( doc.parameters ?? {} );
         const num = (v : ModelValue, what : string) : number => {
             if (typeof v == "number") { if (!isFinite( v )) throw new Error( `Model: ${what} is not finite` ); return v; }
@@ -335,6 +339,45 @@ export class Model {
         const report : ModelResult["features"] = {};
         for (const [id, h] of hashes) report[id] = { hash : h, built : built.has( id ) };
         return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice };
+    }
+
+    /**
+     * A document whose solid is a round moved by transforms (the round of a part, then placed), rewritten as the round
+     * of the moved part: rigid motions commute with rounding, and a uniform scale does once the radii are scaled with
+     * it, so the solid is the same, and the round stays the last feature, as the single Boolean that builds it needs.
+     * (A scale that differs along the axes does not commute: such a document is left as it is, and refused.) The round takes the id of the outermost
+     * transform's round, its edge patterns gain the transforms' path ("T/" before each name, as the faces under T
+     * are named), and its faces are named `round(T/a.x|T/b.y)`. Any other document is returned as it is.
+     */
+    public static liftRound( doc : ModelDocument ) : ModelDocument {
+        const features = doc.features;
+        const top = features[doc.output];
+        const solidId = top.type == "lattice" ? top.of : doc.output;
+        const chain : Array<string> = [];
+        let id = solidId;
+        while (features[id]?.type == "transform") { chain.push( id ); id = (features[id] as Extract<ModelFeature, { type : "transform" }>).of; }
+        const round = features[id];
+        if (chain.length == 0 || round?.type != "round") return doc;
+        // the product of the chain's uniform scales, by which the radii grow (its size: a mirror rounds the same)
+        const factors : Array<ModelValue> = [];
+        for (const t of chain) {
+            const sc = (features[t] as Extract<ModelFeature, { type : "transform" }>).scale;
+            if (sc == null) continue;
+            if (!Array.isArray( sc )) { factors.push( sc ); continue; }
+            if (Model.canonical( sc[0] ) != Model.canonical( sc[1] ) || Model.canonical( sc[0] ) != Model.canonical( sc[2] )) return doc;
+            factors.push( sc[0] );
+        }
+        const grow = ( r : ModelValue ) : ModelValue => factors.length == 0 ? r
+            : factors.every( f => typeof f == "number" ) && typeof r == "number" ? factors.reduce( (a : number, f) => a * Math.abs( f as number ), r )
+            : `(${r})` + factors.map( f => ` * abs(${f})` ).join( "" );
+        const path = chain.join( "/" ) + "/";
+        const prefix = ( g : string ) => g.split( "|" ).map( t => path + t ).join( "|" );
+        const out : { [id : string] : ModelFeature } = { ...features };
+        const last = chain[chain.length - 1];
+        out[last] = { ...(features[last] as Extract<ModelFeature, { type : "transform" }>), of : round.of };
+        out[id] = { ...round, of : chain[0], rules : round.rules.map( r => ({ edges : prefix( r.edges ), radius : grow( r.radius ) }) ) };
+        if (top.type == "lattice") return { ...doc, features : { ...out, [doc.output] : { ...top, of : id } } };
+        return { ...doc, features : out, output : id };
     }
 
     // ---------- parameters and values ----------
