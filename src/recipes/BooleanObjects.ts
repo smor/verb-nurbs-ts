@@ -131,18 +131,22 @@ export class BooleanObjectsRecipe {
         const a = at( H * hz[0] ), b = at( H * hz[1] ), m = at( H * (hz[0] + hz[1]) / 2 );
         const up : Point = [0, 0, 1];
         const depth = (vp.wallThickness as number) + 2 * r;
+        // the legs of the handle lean towards each other as they leave the wall; keep them at least three pipe
+        // radii apart, where the joints allow
+        const gap = H * (hz[1] - hz[0]);
+        const lift = Math.max( 0, Math.min( 0.1 * H, (gap - 3 * r) / 2 ) );
         const pts : Array<Point> = [
             Vec.sub( a.w, Vec.mul( depth, a.n ) ),
             Vec.add( Vec.add( a.w, Vec.mul( 0.3 * reach, a.n ) ), Vec.mul( 0.02 * H, up ) ),
-            Vec.add( Vec.add( a.w, Vec.mul( 0.85 * reach, a.n ) ), Vec.mul( 0.1 * H, up ) ),
+            Vec.add( Vec.add( a.w, Vec.mul( 0.85 * reach, a.n ) ), Vec.mul( lift, up ) ),
             Vec.add( m.w, Vec.mul( reach, m.n ) ),
-            Vec.add( Vec.add( b.w, Vec.mul( 0.85 * reach, b.n ) ), Vec.mul( -0.1 * H, up ) ),
+            Vec.add( Vec.add( b.w, Vec.mul( 0.85 * reach, b.n ) ), Vec.mul( -lift, up ) ),
             Vec.add( Vec.add( b.w, Vec.mul( 0.3 * reach, b.n ) ), Vec.mul( -0.02 * H, up ) ),
             Vec.sub( b.w, Vec.mul( depth, b.n ) ),
         ];
         const rail = Make.rationalInterpCurve( pts, 3 );
         let pipe : NurbsSurfaceData;
-        if (p.handleSection == null && p.handleSwell == null) pipe = Sweep.pipe( rail, r, { tolerance : 2e-3 } ).surface;
+        if (p.handleSection == null && p.handleSwell == null) pipe = Sweep.pipe( rail, r, { tolerance : 2e-3, noFold : true } ).surface;
         else {
             // a variable-section sweep: the section's width lies across the handle's plane, whatever the start frame
             const sec = p.handleSection != null ? p.handleSection : [2 * r, 2 * r];
@@ -152,7 +156,7 @@ export class BooleanObjectsRecipe {
             const fr = new RotationMinimizingFrames( rail ).frameAt( u0 );
             const twist = Math.atan2( Vec.dot( across, fr.binormal ), Vec.dot( across, fr.normal ) );
             const profile = BooleanObjectsRecipe.superellipse( sec[0] / 2, sec[1] / 2, 2.6, 32 );
-            pipe = Sweep.surface( rail, profile, { tolerance : 2e-3, twist : twist, scale : (u : number) => {
+            pipe = Sweep.surface( rail, profile, { tolerance : 2e-3, twist : twist, noFold : true, scale : (u : number) => {
                 const t = Math.sin( Math.PI * (u - u0) / (u1 - u0) );
                 return 1 + (swell - 1) * t * t;
             } } ).surface;

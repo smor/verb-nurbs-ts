@@ -395,6 +395,10 @@ export class FaceMesher {
                 const ci = Math.floor( (pa[0] + pb[0] + pc[0]) / 3 / hx ), cj = Math.floor( (pa[1] + pb[1] + pc[1]) / 3 / hy );
                 if (!isBlocked( clampI( ci ), clampJ( cj ) )) continue;
                 const area = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
+                // a flat triangle along three collinear grid nodes (a diagonal of the staircase between blocked and
+                // kept cells) has its centroid on a node, where the cell test cannot tell which side it is on; it
+                // covers nothing, and keeping it would use the nodes' edges a third time
+                if (Math.abs( area ) <= 1e-9 * hx * hy) continue;
                 triangles.push( area > 0 ? [a, b, c] : [a, c, b] );
             }
         }

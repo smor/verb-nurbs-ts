@@ -87,6 +87,8 @@ export interface BooleanResult {
         fillets : number;
         filletsFailed : number;
         filletsSkipped : number;
+        // closed fillets made smaller than asked, so that their edges on a face they share keep clear of each other
+        filletsReduced : number;
         // with `certify`: the pairs of faces whose boxes meet, how many of them are proven complete, and the others
         // (their pairs of cells left undecided, where the faces may be tangent or a loop may hide, and the starts of
         // branches found on no curve)
@@ -115,6 +117,65 @@ export interface BooleanResult {
 // the same branch), branches of one face must not cross each other, and faces must not touch tangentially.
 
 export class BrepBoolean {
+
+    // Closed blends whose contact curves on a shared face come within a tenth of the smaller radius of each other
+    // (or cross) are rebuilt at 0.8 times their radius, up to six times; a pair that still cannot keep clear is left
+    // sharp. Returns how many blends were made smaller, and how many dropped.
+    private static keepBlendsApart( runs : Array<{ ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : FilletRadius }>,
+                                    curves : BooleanResult["curves"], blends : Map<number, FilletResult>, tol : number,
+                                    shape? : FilletShape ) : { count : number, dropped : number } {
+        const size = (r : FilletRadius) => typeof r == "number" ? r : Math.min( ...Array.from( { length : 17 }, (_, k) => r( k / 16 ) ) );
+        const scaled = (r : FilletRadius, f : number) : FilletRadius => typeof r == "number" ? r * f : (t : number) => r( t ) * f;
+        const onFace = (g : number) => {
+            const e = curves[runs[g].ci], b = blends.get( g )!;
+            return [{ key : e.solids[0] + ":" + e.faces[0], cuts : b.cutA }, { key : e.solids[1] + ":" + e.faces[1], cuts : b.cutB }];
+        };
+        // whether two sets of cuts come within d of each other, segment against segment
+        const near = (a : Array<FaceCut>, b : Array<FaceCut>, d : number) => {
+            const segs = (c : FaceCut) => { const n = c.points.length, m = c.closed ? n : n - 1; return Array.from( { length : m }, (_, k) => [c.points[k], c.points[(k + 1) % n]] ); };
+            const A = a.flatMap( segs ), B = b.flatMap( segs );
+            for (const [p0, p1] of A) for (const [q0, q1] of B) {
+                if (Math.min( p0[0], p1[0] ) > Math.max( q0[0], q1[0] ) + d || Math.min( q0[0], q1[0] ) > Math.max( p0[0], p1[0] ) + d) continue;
+                if (Math.min( p0[1], p1[1] ) > Math.max( q0[1], q1[1] ) + d || Math.min( q0[1], q1[1] ) > Math.max( p0[1], p1[1] ) + d) continue;
+                if (Math.min( p0[2], p1[2] ) > Math.max( q0[2], q1[2] ) + d || Math.min( q0[2], q1[2] ) > Math.max( p0[2], p1[2] ) + d) continue;
+                if (BrepBoolean.segmentsDistance( p0, p1, q0, q1 ) < d) return true;
+            }
+            return false;
+        };
+        const reducedSet = new Set<number>();
+        let dropped = 0;
+        for (let round = 0; round < 6; round++) {
+            const gs = Array.from( blends.keys() );
+            const clash = new Set<number>();
+            for (let i = 0; i < gs.length; i++) for (let j = i + 1; j < gs.length; j++) {
+                const gap = 0.1 * Math.min( size( runs[gs[i]].radius ), size( runs[gs[j]].radius ) );
+                const fi = onFace( gs[i] ), fj = onFace( gs[j] );
+                if (fi.some( a => fj.some( b => a.key == b.key && near( a.cuts, b.cuts, gap ) ) )) { clash.add( gs[i] ); clash.add( gs[j] ); }
+            }
+            if (clash.size == 0) break;
+            for (const g of clash) {
+                const r = runs[g];
+                if (round == 5) { blends.delete( g ); dropped++; continue; }
+                r.radius = scaled( r.radius, 0.8 );
+                const fr = Fillet.rollingBall( r.sides![0], r.sides![1], r.curve, r.radius, tol, shape );
+                if (fr == null) { blends.delete( g ); dropped++; } else { blends.set( g, fr ); reducedSet.add( g ); }
+            }
+        }
+        for (const g of reducedSet) if (!blends.has( g )) reducedSet.delete( g );
+        return { count : reducedSet.size, dropped : dropped };
+    }
+
+    // The distance between segments p0p1 and q0q1 (closest points, clamped to both segments).
+    private static segmentsDistance( p0 : Point, p1 : Point, q0 : Point, q1 : Point ) : number {
+        const u = Vec.sub( p1, p0 ), v = Vec.sub( q1, q0 ), w = Vec.sub( p0, q0 );
+        const a = Vec.dot( u, u ), b = Vec.dot( u, v ), c = Vec.dot( v, v ), d = Vec.dot( u, w ), e = Vec.dot( v, w );
+        const den = a * c - b * b;
+        let sN = den > 1e-24 ? (b * e - c * d) / den : 0;
+        sN = Math.min( 1, Math.max( 0, sN ) );
+        let t = c > 1e-24 ? (b * sN + e) / c : 0;
+        if (t < 0 || t > 1) { t = Math.min( 1, Math.max( 0, t ) ); sN = a > 1e-24 ? Math.min( 1, Math.max( 0, (b * t - d) / a ) ) : 0; }
+        return Vec.norm( Vec.sub( Vec.add( p0, Vec.mul( sN, u ) ), Vec.add( q0, Vec.mul( t, v ) ) ) );
+    }
 
     public static union( solids : Array<BrepSolid>, options? : BooleanOptions ) : BooleanResult {
         return BrepBoolean.evaluate( solids, f => f.some( x => x ), options );
@@ -251,6 +312,7 @@ export class BrepBoolean {
         const blends : Array<FilletResult> = [];
         const filletInfo : BooleanResult["fillets"] = [];
         let failed = ownFailed, skipped = 0;
+        let reduced = { count : 0, dropped : 0 };
         const closedBlends = new Map<number, FilletResult>();
         const openBlends = new Map<number, OpenBlend>();
         runs.forEach( (r, g) => {
@@ -274,6 +336,12 @@ export class BrepBoolean {
             if (sec == null) { failed++; return; }
             openBlends.set( g, FilletCorner.open( A, B, sec, o.filletShape ) );
         } );
+        // closed blends on the same face must keep clear of each other: two contact curves that cross (handle joints
+        // close together, holes close together) would cut the face into pieces that belong to neither. Where two come
+        // within a tenth of the smaller radius, both are rebuilt smaller, in steps, until they keep clear; a blend
+        // that still cannot is left sharp (counted as failed)
+        reduced = BrepBoolean.keepBlendsApart( runs, curves, closedBlends, tol, o.filletShape );
+        failed += reduced.dropped;
         // corners: the ends of the runs that are edges of the result
         const key = (s : number, f : number) => s + ":" + f;
         const faceKeys = (g : number) => { const e = curves[runs[g].ci]; return [key( e.solids[0], e.faces[0] ), key( e.solids[1], e.faces[1] )]; };
@@ -582,7 +650,7 @@ export class BrepBoolean {
         out.compact(); // drops the same degenerate triangles
         return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, patchXY : patchXY, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, tangentContacts : tangentContacts, maxCurveError : maxErr,
-            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, certificate : certificate } };
+            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, filletsReduced : reduced.count, certificate : certificate } };
     }
 
     // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher

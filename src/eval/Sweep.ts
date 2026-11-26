@@ -187,25 +187,24 @@ export class Sweep {
             const n = Sweep.FOLD_SAMPLES;
             const u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
             const reach = Sweep.reach( rail, profile, frames, twist, userScale, n );
-            // the factor each sample needs, eroded then blurred over the same width so the result is smooth and
-            // still at or below every sample's need
-            const need = reach.map( r => Math.min( 1, r > limit ? limit / r : 1 ) );
-            const w = Math.max( 2, Math.round( n / 40 ) );
-            const at = (i : number) => frames.closed ? need[((i % n) + n) % n] : need[Math.min( Math.max( i, 0 ), n - 1 )];
-            const eroded = need.map( (_, i) => { let m = 1; for (let k = -2 * w; k <= 2 * w; k++) m = Math.min( m, at( i + k ) ); return m; } );
-            const at2 = (i : number) => frames.closed ? eroded[((i % n) + n) % n] : eroded[Math.min( Math.max( i, 0 ), n - 1 )];
-            const smooth = eroded.map( (_, i) => {
-                let sum = 0, wsum = 0;
-                for (let k = -2 * w; k <= 2 * w; k++) { const g = Math.exp( -0.5 * (k / w) * (k / w) ); sum += g * at2( i + k ); wsum += g; }
-                return Math.min( 1, sum / wsum );
-            } );
+            const fold = reach.map( r => Math.min( 1, r > limit ? limit / r : 1 ) );
+            // two passes: the parts of the rail that are near each other along it are left to the fold test, and
+            // how near is set by the section's size, which the first pass may have narrowed
+            let smooth = Sweep.smoothFactor( fold, frames.closed );
+            for (let pass = 0; pass < 2; pass++) {
+                const clear = Sweep.clearance( rail, profile, frames, twist, (u : number) => userScale( u ), n, limit,
+                                               smooth.map( x => x ) );
+                const need = fold.map( (x, i) => Math.min( x, clear[i] ) );
+                smooth = Sweep.smoothFactor( need, frames.closed );
+            }
             let worst = 0;
             for (let i = 1; i < n; i++) if (smooth[i] < smooth[worst]) worst = i;
+            const sm = smooth;
             const factor = (u : number) => {
                 const x = (u - u0) / (u1 - u0) * (frames.closed ? n : n - 1);
                 const i = Math.floor( x ), t = x - i;
-                const a = frames.closed ? smooth[((i % n) + n) % n] : smooth[Math.min( i, n - 1 )];
-                const b = frames.closed ? smooth[(((i + 1) % n) + n) % n] : smooth[Math.min( i + 1, n - 1 )];
+                const a = frames.closed ? sm[((i % n) + n) % n] : sm[Math.min( i, n - 1 )];
+                const b = frames.closed ? sm[(((i + 1) % n) + n) % n] : sm[Math.min( i + 1, n - 1 )];
                 const h = t * t * (3 - 2 * t);
                 return a + (b - a) * h;
             };
@@ -282,6 +281,57 @@ export class Sweep {
     }
 
     private static FOLD_SAMPLES = 720;
+
+    // The factor each sample needs, eroded then blurred over the same width, so the result is smooth and still at or
+    // below every sample's need.
+    private static smoothFactor( need : Array<number>, closed : boolean ) : Array<number> {
+        const n = need.length, w = Math.max( 2, Math.round( n / 40 ) );
+        const at = (a : Array<number>, i : number) => closed ? a[((i % n) + n) % n] : a[Math.min( Math.max( i, 0 ), n - 1 )];
+        const eroded = need.map( (_, i) => { let m = 1; for (let k = -2 * w; k <= 2 * w; k++) m = Math.min( m, at( need, i + k ) ); return m; } );
+        return eroded.map( (_, i) => {
+            let sum = 0, wsum = 0;
+            for (let k = -2 * w; k <= 2 * w; k++) { const g = Math.exp( -0.5 * (k / w) * (k / w) ); sum += g * at( eroded, i + k ); wsum += g; }
+            return Math.min( 1, sum / wsum );
+        } );
+    }
+
+    // For each of `n` samples of the rail, the factor its section must be narrowed by so that it keeps clear of the
+    // sections of the parts of the sweep that come back near it (strands of a knot, turns of a coil). Two samples
+    // further apart along the rail than half a turn of their sections' size are compared: the section of each reaches
+    // some way towards the other (over the profile's control points, so never less than the surface does), and the
+    // two reaches together must stay within `limit` of the distance between the samples. Samples nearer along the rail
+    // are the fold test's business. `current` is the factor so far, which sets the sections' size.
+    private static clearance( rail : NurbsCurveData, profile : NurbsCurveData, frames : RotationMinimizingFrames,
+                              twist : (u : number) => number, scale : (u : number) => number, n : number, limit : number,
+                              current : Array<number> ) : Array<number> {
+        const u0 = rail.knots[0], u1 = rail.knots[rail.knots.length - 1];
+        const prof = profile.controlPoints.map( p => { const w = p[p.length - 1]; return [p[0] / w, p[1] / w]; } );
+        const P : Array<Point> = [], S : Array<Array<Point>> = [], R : Array<number> = [], arc : Array<number> = [0];
+        for (let i = 0; i < n; i++) {
+            const u = u0 + (u1 - u0) * i / (frames.closed ? n : n - 1);
+            const fr = frames.frameAt( u ), a = twist( u ), s = scale( u ), c = Math.cos( a ), sn = Math.sin( a );
+            const sec = prof.map( p => Vec.add( Vec.mul( s * (p[0] * c - p[1] * sn), fr.normal ), Vec.mul( s * (p[0] * sn + p[1] * c), fr.binormal ) ) );
+            P.push( fr.point ); S.push( sec );
+            R.push( Math.max( ...sec.map( q => Vec.norm( q ) ) ) );
+            if (i > 0) arc.push( arc[i - 1] + Vec.dist( P[i - 1], P[i] ) );
+        }
+        const length = arc[n - 1] + (frames.closed ? Vec.dist( P[n - 1], P[0] ) : 0);
+        const reachTo = (i : number, d : Point) => { let m = 0; for (const q of S[i]) m = Math.max( m, Vec.dot( q, d ) ); return m; };
+        const out = new Array<number>( n ).fill( 1 );
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+            const ri = R[i] * current[i], rj = R[j] * current[j];
+            let along = arc[j] - arc[i];
+            if (frames.closed) along = Math.min( along, length - along );
+            if (along < Math.PI * Math.max( ri, rj )) continue;
+            const v = Vec.sub( P[j], P[i] ), d = Vec.norm( v );
+            if (d >= R[i] + R[j]) continue;
+            if (d < 1e-12) { out[i] = out[j] = 0; continue; }
+            const dir = Vec.mul( 1 / d, v );
+            const both = reachTo( i, dir ) + reachTo( j, Vec.neg( dir ) );
+            if (both > limit * d) { const f = limit * d / both; out[i] = Math.min( out[i], f ); out[j] = Math.min( out[j], f ); }
+        }
+        return out;
+    }
 
     // At `n` samples of the rail: curvature times the section's furthest reach towards the centre of the bend. The
     // surface's derivative along the rail is the rail's speed times (1 - that product) in the tangent direction plus
