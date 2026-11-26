@@ -1151,7 +1151,11 @@ export class FilletCorner {
             return BrepBoolean.facePieces( face, uv, seam, points, false );
         };
         const real = F.rows.slice( 2, F.rows.length - 2 );
-        const arcs = real.map( (r, k) => Fillet.crossSection( F.A, F.B, F.sections[Math.min( k, F.sections.length - 1 )], F.shape ) );
+        // a section repeated where the edge crosses a face's seam (once as a sample, once as the crossing) would give
+        // the loft a step of zero length, and control points of NaN: keep one
+        const secs = real.map( (_r, k) => F.sections[Math.min( k, F.sections.length - 1 )] );
+        const distinct = secs.filter( (x, k) => k == 0 || Vec.dist( x.pa, secs[k - 1].pa ) > 1e-9 || Vec.dist( x.pb, secs[k - 1].pb ) > 1e-9 );
+        const arcs = distinct.map( x => Fillet.crossSection( F.A, F.B, x, F.shape ) );
         const surface = Make.loftedSurface( arcs, Math.min( 3, arcs.length - 1 ) );
         const cutA = contact( 0, sideA, F.A.face ), cutB = contact( m, sideB, F.B.face );
         for (const x of F.extra) {
