@@ -85,6 +85,9 @@ it cannot prove are named in `result.report.certificate`.
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
 
   Any failed check makes the model **visual**: fine to look at and render, not to fabricate. The reasons say why.
+  Fillets made smaller than asked so that they keep clear of each other (`report.filletsReduced`) are in place and
+  leave the model buildable; the notes say how many.
+
   With a machine, `verdict.makeable` is the machine's full report (the wall measured, the size, the build
   orientation, the mould's pull) for display. `Model.verdict( result, machine )` judges any B-rep result the same way,
   so recipes that build their own Booleans (the mug, the pierced vessel, the appliance) get the same verdict; the

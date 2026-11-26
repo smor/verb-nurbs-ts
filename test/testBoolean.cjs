@@ -267,6 +267,11 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		big.report.filletsReduced.should.be.equal(2);
 		big.report.filletsFailed.should.be.equal(0);
 		big.report.manifold.genus.should.be.equal(1);
+		// still buildable, and the verdict says the fillets were made smaller
+		var v = lib.Model.verdict(big);
+		v.kind.should.be.equal('buildable');
+		v.notes.some(function(n){ return /2 fillet\(s\) made smaller/.test(n); }).should.be.true();
+		lib.Model.verdict(small).notes.some(function(n){ return /made smaller/.test(n); }).should.be.false();
 	});
 
 	it('rim notches on folded and narrowing walls: each notch arc is one branch, from rim to rim', function(){

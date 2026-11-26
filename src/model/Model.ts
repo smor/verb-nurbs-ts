@@ -702,6 +702,9 @@ export class Model {
             checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
         }
         const notes : Array<string> = [];
+        // fillets made smaller to keep clear of each other are in place, so the model stays buildable; it is said
+        const reduced = r.report.filletsReduced ?? 0;
+        if (reduced > 0) notes.push( `${reduced} fillet(s) made smaller than asked, so that they keep clear of each other on a face they share` );
         const cert = r.report.certificate;
         if (cert != null) notes.push( cert.unproven.length == 0
             ? `every intersection is proven complete (${cert.pairs} pairs of faces)`
