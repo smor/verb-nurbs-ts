@@ -1,6 +1,6 @@
 # Plan: Booleans on any solid, rounded ones included
 
-Status: A1 and A2 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
+Status: A1, A2 and A3 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
 tests.
 
 ## The goal
@@ -115,6 +115,35 @@ Computational Geometry and Applications 11(1), 2001; and Hoffmann (1989), ch. 4 
 Tests: a rounded box minus a cylinder through a fillet and through a face, against the same solid built in one pass
 where both can be (volumes to the mesh tolerance, the same face names); unions of two rounded parts are closed
 2-manifolds with the expected genus; a part drilled through a setback corner.
+
+Built: `ShellBuilder.solid(shell, mesh)` (`src/solid/BrepShell.ts`) makes a shell an operand. Each face keeps its whole
+surface, with `trims`: its loops, as polygons in its parameters walked along its edges' p-curves. Each edge becomes a
+`TrimEdge`: points along its curve (ending exactly at its vertices) with their parameters on both faces. An edge
+that runs along a side of a face's domain all the way is put exactly on it. Without that, a setback corner's fitted
+parts were off by 1e-6, and the face mesher split the edge on one side only. The shell's mesh stands in for its
+inside tests.
+
+In `BrepBoolean.evaluate` (`src/solid/BrepBoolean.ts`), an operand's edges join the branches as curves marked
+`trim`:
+* Where a branch crosses one (in either face's parameters, ends of segments included), the crossing goes into the
+  branch, the edge, and the third branch through it. Two faces of a shell meet tangentially as often as not (a blend
+  and the face it rounds), so there the three-face Newton step is singular. The crossing is found instead by
+  bisection along the edge against the branch's other surface (`edgeCross`).
+* A run of a branch outside either face's trims is dropped. So is a region of a face outside its trims.
+* The edges are cuts in the face mesher like any branch.
+* They take no part in fillets or seam sides.
+
+Tests in `test/testShellBoolean.cjs`:
+* A rounded box rebuilt from its shell, drilled through a face (genus 1) and notched through a blend. Volumes are
+  within 0.5% of the exact integral; the mesh is chordal.
+* The union and intersection of two overlapping rounded boxes: closed, genus 0, with V(A∪B) + V(A∩B) = V(A) + V(B).
+* A box with setback corners rebuilt, and drilled through a corner: closed, genus 1, with V(C − D) + V(C ∩ D) = V(C).
+
+Not yet:
+* Comparison with the same solid built in one pass, and face names through the cut. These come with A4, which
+  builds such models.
+* A tool tangent to a shell's face (a cylinder touching a box's side) leaves the result open, as it does for
+  primitives.
 
 ### A4. `Model` evaluates in stages
 

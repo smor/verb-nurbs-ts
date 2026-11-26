@@ -3,7 +3,9 @@ import { Vec } from "../core/Vec.js";
 import { Analyze } from "../eval/Analyze.js";
 import { Eval } from "../eval/Eval.js";
 import { Fit } from "../eval/Fit.js";
+import { BrepFace, BrepSolid, TrimEdge } from "./Brep.js";
 import { BooleanResult } from "./BrepBoolean.js";
+import { TriMesh } from "./TriMesh.js";
 import { SurfaceLoops } from "./SurfaceLoops.js";
 import { SeamEdge, SeamFace, SeamLoop, Seams } from "./Seams.js";
 
@@ -132,6 +134,82 @@ export class ShellBuilder {
             return { curve : curve, start : keep( e.start ), end : keep( e.end ), left : left[k], right : right[k], pcurves : pcurves, tolerance : tolerance };
         } );
         return { vertices : vs, edges : shellEdges, faces : shellFaces, tolerance : tol };
+    }
+
+    // A shell as an operand of a Boolean (route A, step A3): a solid whose faces are the shell's, on their whole
+    // surfaces but trimmed by their loops (`BrepFace.trims`), with the shell's edges between them (`BrepSolid.edges`,
+    // each sampled once, so both faces share its points) and its mesh for telling inside from outside. Faces are open
+    // in both directions: the shell's faces on closed surfaces are already cut at their seams, and a seam edge runs
+    // along a side of the domain. `spacing` is the length of an edge's segments and of a face's grid cells (default:
+    // the shell's size over 48).
+    public static solid( shell : BrepShell, mesh : TriMesh, spacing? : number ) : BrepSolid {
+        const bb = mesh.boundingBox();
+        const h = spacing != null ? spacing : Vec.dist( bb.min, bb.max ) / 48;
+        const faces : Array<BrepFace> = shell.faces.map( F => {
+            const s = F.surface, d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+            // the surface's extent each way, along its middle iso-curves
+            const len = (alongU : boolean) => {
+                let L = 0, prev : Point | null = null;
+                for (let i = 0; i <= 32; i++) {
+                    const t = i / 32, p = alongU ? Eval.rationalSurfacePoint( s, d[0] + t * (d[1] - d[0]), 0.5 * (d[2] + d[3]) )
+                        : Eval.rationalSurfacePoint( s, 0.5 * (d[0] + d[1]), d[2] + t * (d[3] - d[2]) );
+                    if (prev != null) L += Vec.dist( prev, p );
+                    prev = p;
+                }
+                return L;
+            };
+            const divs : [number, number] = [Math.max( 4, Math.min( 96, Math.ceil( len( true ) / h ) ) ), Math.max( 4, Math.min( 96, Math.ceil( len( false ) / h ) ) )];
+            return { surface : s, periodic : [false, false], divs : divs, reversed : !F.sameSense, name : F.name, trims : [] };
+        } );
+        // each edge sampled by its length; its points and their parameters on its two faces, at the same parameters
+        const edges : Array<TrimEdge> = shell.edges.map( e => {
+            const a = e.curve.knots[0], b = e.curve.knots[e.curve.knots.length - 1];
+            let L = 0, prev = Eval.rationalCurvePoint( e.curve, a );
+            for (let i = 1; i <= 64; i++) { const p = Eval.rationalCurvePoint( e.curve, a + (b - a) * i / 64 ); L += Vec.dist( prev, p ); prev = p; }
+            const n = Math.max( 4, Math.min( 400, Math.ceil( 2 * L / h ) ) );
+            const ts = Array.from( { length : n + 1 }, (_, i) => a + (b - a) * i / n );
+            const points = ts.map( t => Eval.rationalCurvePoint( e.curve, t ) );
+            points[0] = shell.vertices[e.start]; points[n] = shell.vertices[e.end];
+            const closed = e.start == e.end && n > 2;
+            // parameters within rounding of a side of the domain are on it (an edge along a side, as a blend's contact
+            // curve, then runs along it, and the face's mesh takes its points as the side's)
+            const uvOf = (pc : NurbsCurveData, fi : number) => {
+                const sf = shell.faces[fi].surface, d = [sf.knotsU[0], sf.knotsU[sf.knotsU.length - 1], sf.knotsV[0], sf.knotsV[sf.knotsV.length - 1]];
+                const snap = (x : number, c : number) => {
+                    const lo = d[2 * c], hi = d[2 * c + 1], w = 1e-7 * (hi - lo);
+                    return Math.abs( x - lo ) < w ? lo : Math.abs( x - hi ) < w ? hi : x;
+                };
+                const uv = ts.map( t => { const x = Eval.rationalCurvePoint( pc, t ); return [snap( x[0], 0 ), snap( x[1], 1 )] as UV; } );
+                // an edge that runs along a side all the way is on it, though a fit's gap (a setback corner's parts are
+                // fits within 1e-3 of the radius) puts its p-curve a little inside: the mesh would split it there
+                for (let c = 0; c < 2; c++) for (const side of [d[2 * c], d[2 * c + 1]]) {
+                    const w = 1e-4 * (d[2 * c + 1] - d[2 * c]);
+                    if (uv.every( q => Math.abs( q[c] - side ) < w )) for (const q of uv) q[c] = side;
+                }
+                return uv;
+            };
+            const uvA = uvOf( e.pcurves[0], e.left ), uvB = uvOf( e.pcurves[1], e.right );
+            // a closed edge drops its repeated last point
+            if (closed) { points.pop(); uvA.pop(); uvB.pop(); }
+            return { faces : [e.left, e.right], points : points, uvA : uvA, uvB : uvB, closed : closed };
+        } );
+        // each face's trims: its loops, walked along their edges' parameters on it
+        shell.faces.forEach( (F, fi) => {
+            for (const loop of F.loops) {
+                const poly : Array<UV> = [];
+                for (const [ei, fwd] of loop.edges) {
+                    const E = edges[ei], uv = (fwd ? E.uvA : E.uvB).slice();
+                    if (E.closed) uv.push( uv[0] );
+                    const run = fwd ? uv : uv.reverse();
+                    poly.push( ...run.slice( 0, run.length - 1 ) );
+                }
+                if (poly.length >= 3) (faces[fi].trims as Array<Array<UV>>).push( poly );
+            }
+        } );
+        const solid = new BrepSolid( faces );
+        solid.edges = edges;
+        solid.boundary = mesh;
+        return solid;
     }
 
     // The largest distance between a curve and a surface at the curve's p-curve on it, at the same parameter: sampled

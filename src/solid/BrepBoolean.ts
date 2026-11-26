@@ -66,7 +66,8 @@ export interface BooleanResult {
     // (null for other triangles): with the corner's `ribbons`, the exact patch there (`Transfinite.evaluate`)
     patchXY : Array<[XY, XY, XY] | null>;
     // the intersection branches, then any own edges rounded (`own` set: the domain sides they run along)
-    curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve, own? : [DomainSide, DomainSide] }>;
+    // (`trim`: an edge of a solid made from a shell, between two of its trimmed faces)
+    curves : Array<{ solids : [number, number], faces : [number, number], curve : IntersectionCurve, own? : [DomainSide, DomainSide], trim? : boolean }>;
     // the rolling-ball blends added, with the index of the edge each one rounds
     fillets : Array<{ curve : number, radius : FilletRadius, blend : FilletResult }>;
     // corners where three fillets meet, and the corner's face in `faces`: a ball where their radii are equal (its
@@ -223,6 +224,16 @@ export class BrepBoolean {
             } ) );
         }
 
+        // a solid made from a shell brings the edges between its trimmed faces: curves like the branches, whose
+        // crossings with the branches are the points where a branch leaves a face for its neighbour
+        solids.forEach( (solid, si) => { if (solid.edges != null) for (const e of solid.edges) {
+            const copy = (x : Array<UV>) => x.map( p => [p[0], p[1]] as UV );
+            curves.push( { solids : [si, si], faces : [e.faces[0], e.faces[1]], trim : true, curve : { points : e.points.slice(), uvA : copy( e.uvA ), uvB : copy( e.uvB ),
+                           seamA : e.points.map( _ => 0 ), seamB : e.points.map( _ => 0 ), closed : e.closed } } );
+        } } );
+        // the part of a face a trimmed face covers: a branch keeps only its runs inside the trims of both its faces
+        const inTrims = (si : number, fi : number, uv : UV) => { const F = solids[si].faces[fi]; return F.trims == null || BrepSolid.insideTrims( F.trims, uv ); };
+
         // where branches cross inside a face, three faces meet at one point: find it exactly and put it in every
         // branch through it, so the faces share it
         BrepBoolean.insertTriplePoints( solids, curves, tol, weldTol * 50 );
@@ -254,7 +265,13 @@ export class BrepBoolean {
                                                 seamA : idx.map( k => c.seamA[k] ), seamB : idx.map( k => c.seamB[k] ), closed : closed };
                 let mid = run.points[run.points.length >> 1];
                 if (!closed && run.points.length == 2) mid = Vec.lerp( 0.5, run.points[0], run.points[1] );
-                runs.push( { ci : ci, curve : run, sides : BrepBoolean.sides( solids, meshes, expr, e, mid ), radius : 0 } );
+                if (!e.trim) {
+                    const m = run.points.length >> 1;
+                    const uvA = closed || run.points.length > 2 ? run.uvA[m] : Vec.lerp( 0.5, run.uvA[0], run.uvA[1] ) as UV;
+                    const uvB = closed || run.points.length > 2 ? run.uvB[m] : Vec.lerp( 0.5, run.uvB[0], run.uvB[1] ) as UV;
+                    if (!inTrims( e.solids[0], e.faces[0], uvA ) || !inTrims( e.solids[1], e.faces[1], uvB )) return;
+                }
+                runs.push( { ci : ci, curve : run, sides : e.trim ? null : BrepBoolean.sides( solids, meshes, expr, e, mid ), radius : 0 } );
             };
             const ks = c.points.map( (_, k) => k ).filter( k => isCorner( c.points[k] ) );
             if (c.closed && ks.length == 0) { take( c.points.map( (_, k) => k ), true ); return; }
@@ -548,7 +565,7 @@ export class BrepBoolean {
         // the three faces meeting there (two of this solid, one of the other) share its points
         solids.forEach( (solid, si) => solid.faces.forEach( (_, fi) => {
             for (const c of cuts[si][fi].slice()) {
-                if (BrepBoolean.side( solid.faces[fi], c.uv ) == null) continue;
+                if (solid.edges != null || BrepBoolean.side( solid.faces[fi], c.uv ) == null) continue;
                 solid.faces.forEach( (g, gi) => {
                     if (gi == fi || cuts[si][gi].some( x => x.points == c.points )) return;
                     const across = BrepBoolean.along( g, c.points, snap );
@@ -588,6 +605,17 @@ export class BrepBoolean {
             const fills : Array<{ reg : Array<number> }> = [];
             let keptFlip : boolean | null = null;
             for (const reg of regions) {
+                // a trimmed face keeps the regions inside its trims (at the middle of the region's largest triangle)
+                if (face.trims != null) {
+                    let big = reg[0], ba = -1;
+                    for (const k of reg) {
+                        const [a, b, c] = t.triangles[k].map( i => t.uv[i] );
+                        const ar = Math.abs( (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) );
+                        if (ar > ba) { ba = ar; big = k; }
+                    }
+                    const [a, b, c] = t.triangles[big].map( i => t.uv[i] );
+                    if (!BrepSolid.insideTrims( face.trims, [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3] )) continue;
+                }
                 let runoutTag = -1;
                 if (strip.length > 0) {
                     const tags = BrepBoolean.regionTags( t, reg );
@@ -788,7 +816,7 @@ export class BrepBoolean {
             for (let x = 0; x < 3; x++) {
                 const a = tri[x], b = tri[(x + 1) % 3], c = tri[(x + 2) % 3];
                 const g = tagOf.get( key( a, b ) );
-                if (g == null || g < 0 || g >= runs.length || runs[g].own) continue;
+                if (g == null || g < 0 || g >= runs.length || runs[g].own || curves[runs[g].ci].trim) continue;
                 const e = curves[runs[g].ci], run = runs[g].curve;
                 const mine = e.solids[0] == own ? 0 : 1, other = 1 - mine;
                 if (e.solids[mine] != own) continue;
@@ -1084,6 +1112,8 @@ export class BrepBoolean {
                 const oa = a.onA ? [a.e.solids[1], a.e.faces[1]] : [a.e.solids[0], a.e.faces[0]];
                 const ob = b.onA ? [b.e.solids[1], b.e.faces[1]] : [b.e.solids[0], b.e.faces[0]];
                 if (oa[0] == ob[0] && oa[1] == ob[1]) continue;
+                // two edges of one solid meet only at its vertices, which they share already
+                if (a.e.trim && b.e.trim) continue;
                 const ua = a.onA ? a.e.curve.uvA : a.e.curve.uvB, ub = b.onA ? b.e.curve.uvA : b.e.curve.uvB;
                 const na = ua.length, nb = ub.length;
                 const sa = a.e.curve.closed ? na : na - 1, sb = b.e.curve.closed ? nb : nb - 1;
@@ -1094,7 +1124,8 @@ export class BrepBoolean {
                     for (let j = 0; j < sb; j++) {
                         const q0 = ub[j], q1 = ub[(j + 1) % nb];
                         if (jump( q0, q1 )) continue;
-                        const st = BrepBoolean.segCross( p0, p1, q0, q1, span );
+                        // (an edge's samples fall on a branch as often as not, at a corner of a box's face: the ends count)
+                        const st = BrepBoolean.segCross( p0, p1, q0, q1, span, a.e.trim || b.e.trim ? -1e-9 : 1e-9 );
                         if (st == null) continue;
                         // estimates on all three faces
                         const G = face( oa[0], oa[1] ), H = face( ob[0], ob[1] );
@@ -1102,7 +1133,15 @@ export class BrepBoolean {
                         const uvF = Vec.lerp( 1 - st[0], p0, p1 ) as UV;
                         const uvG = SurfaceIntersect.lerpUV( BrepSolid.domainOf( G ), st[0], ga[i], ga[(i + 1) % na] );
                         const uvH = SurfaceIntersect.lerpUV( BrepSolid.domainOf( H ), st[1], hb[j], hb[(j + 1) % nb] );
-                        const r = BrepBoolean.triple( F, G, H, uvF, uvG, uvH, tol );
+                        // where a branch crosses an edge of a solid made from a shell, the two faces of the edge meet
+                        // tangentially as often as not (a blend and a face it rounds), and the three-face Newton step
+                        // is singular: the point is where the edge crosses the branch's other face instead
+                        let r = a.e.trim || b.e.trim
+                            ? BrepBoolean.edgeCross( a.e.trim ? a.e.curve : b.e.curve, a.e.trim ? i : j, a.e.trim ? st[0] : st[1],
+                                                     a.e.trim ? H : G, a.e.trim ? uvH : uvG, a.e.trim ? a.onA : b.onA )
+                            : BrepBoolean.triple( F, G, H, uvF, uvG, uvH, tol );
+                        // (edgeCross gives the edge's other face second: here that is H when b is the edge)
+                        if (r != null && b.e.trim) r = { point : r.point, uvF : r.uvF, uvG : r.uvH, uvH : r.uvG };
                         if (r == null) continue;
                         if (found.some( p => Vec.dist( p, r.point ) < same )) continue;
                         found.push( r.point );
@@ -1123,15 +1162,52 @@ export class BrepBoolean {
 
     // Parameters (s, t) where segments p0-p1 and q0-q1 cross (strictly inside both), measured in units of the domain
     // spans so the test is not skewed by the parameterisation; null if they do not.
-    private static segCross( p0 : UV, p1 : UV, q0 : UV, q1 : UV, span : Array<number> ) : [number, number] | null {
+    private static segCross( p0 : UV, p1 : UV, q0 : UV, q1 : UV, span : Array<number>, eps = 1e-9 ) : [number, number] | null {
         const ax = (p1[0] - p0[0]) / span[0], ay = (p1[1] - p0[1]) / span[1];
         const bx = (q1[0] - q0[0]) / span[0], by = (q1[1] - q0[1]) / span[1];
         const cx = (q0[0] - p0[0]) / span[0], cy = (q0[1] - p0[1]) / span[1];
         const den = ax * by - ay * bx;
         if (Math.abs( den ) < 1e-18) return null;
         const s = (cx * by - cy * bx) / den, t = (cx * ay - cy * ax) / den;
-        if (s <= 1e-9 || s >= 1 - 1e-9 || t <= 1e-9 || t >= 1 - 1e-9) return null;
+        if (s <= eps || s >= 1 - eps || t <= eps || t >= 1 - eps) return null;
         return [s, t];
+    }
+
+    // Where an edge of a solid made from a shell (a polyline of points on both its faces, F and G) crosses the
+    // surface of face H: the point of the polyline, near segment k at fraction t, on H (by bisection on the side of H,
+    // over the segment and its neighbours). Returns it with its parameters on F (the face the crossing was found on,
+    // the edge's first face when `onA`), on G (the edge's other face, along the edge's parameters) and on H.
+    private static edgeCross( e : IntersectionCurve, k : number, t : number, H : BrepFace, uvH0 : UV, onA : boolean )
+        : { point : Point, uvF : UV, uvG : UV, uvH : UV } | null {
+        const n = e.points.length, m = e.closed ? n : n - 1;
+        const at = (x : number) => {
+            // position along the polyline: segment index plus fraction, wrapped on a closed edge
+            let i = Math.floor( x ), f = x - i;
+            if (e.closed) i = ((i % n) + n) % n; else if (i < 0) { i = 0; f = 0; } else if (i >= m) { i = m - 1; f = 1; }
+            const j = (i + 1) % n;
+            return { p : Vec.lerp( f, e.points[j], e.points[i] ), uvA : Vec.lerp( f, e.uvA[j], e.uvA[i] ) as UV, uvB : Vec.lerp( f, e.uvB[j], e.uvB[i] ) as UV };
+        };
+        let seed = uvH0;
+        const side = (x : number) => {
+            const q = at( x ).p, uv = SurfaceIntersect.project( H.surface, q, 12, seed );
+            const D = Eval.rationalSurfaceDerivatives( H.surface, uv[0], uv[1], 1 );
+            seed = uv;
+            return { s : Vec.dot( Vec.sub( q, D[0][0] ), Vec.cross( D[1][0], D[0][1] ) ), uv : uv };
+        };
+        let lo = k + t - 1, hi = k + t + 1;
+        let slo = side( lo ).s;
+        seed = uvH0;
+        const shi = side( hi ).s;
+        if (slo * shi > 0) return null;
+        let uvH = uvH0;
+        for (let it = 0; it < 60; it++) {
+            const mid = 0.5 * (lo + hi), sm = side( mid );
+            uvH = sm.uv;
+            if (sm.s * slo > 0) { lo = mid; slo = sm.s; } else hi = mid;
+        }
+        const x = at( 0.5 * (lo + hi) );
+        const uvF = onA ? x.uvA : x.uvB, uvG = onA ? x.uvB : x.uvA;
+        return { point : x.p, uvF : uvF, uvG : uvG, uvH : uvH };
     }
 
     // F(a) = G(b) = H(c) by Newton's method.
