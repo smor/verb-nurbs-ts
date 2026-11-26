@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strictPropertyInitialization": false,
+    "useDefineForClassFields": false,
+    "noImplicitAny": true
+  },
+  "include": [
+    "*.ts",
+    "*.tsx",
+    "../src/types/*.d.ts"
+  ]
+}

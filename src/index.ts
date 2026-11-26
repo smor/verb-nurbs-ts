@@ -115,6 +115,8 @@ import { Step } from "./io/Step.js";
 import { Model } from "./model/Model.js";
 export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
+import { Graph } from "./model/Graph.js";
+export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult } from "./model/Graph.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
 
@@ -224,6 +226,7 @@ export {
     Inspect,
     Step,
     Model,
+    Graph,
     Expr,
     registerSerializable,
 };
@@ -352,6 +355,7 @@ export const io = {
 
 export const model = {
     Model,
+    Graph,
     Expr,
 };
 
