@@ -363,6 +363,9 @@ nature, which is the honest answer.
 
 ## Limits (next steps)
 
+The plan for the largest one, Booleans whose operands are themselves results (a rounded solid drilled, two rounded
+parts joined), is [exact-booleans.md](exact-booleans.md).
+
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
 * **More than two branches crossing at one point** (four or more faces meeting) is not handled.
