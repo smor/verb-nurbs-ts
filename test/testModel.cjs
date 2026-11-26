@@ -257,6 +257,10 @@ describe("verb.model.Model shells", function(){
 		wall(r).should.be.above(2 * (1 - Model.WALL_TOLERANCE));
 		// the handle is hollow and open to the cup: two handles' worth of genus
 		r.result.report.manifold.genus.should.be.equal(2);
+		// every face has a finite surface (a ring blend whose sections close on themselves once lofted to NaN), so the
+		// mug exports
+		r.result.faces.forEach(function(f){ f.surface.controlPoints.forEach(function(row){ row.forEach(function(p){ p.every(isFinite).should.be.true(); }); }); });
+		lib.Step.write(r.result, { name : 'mug' }).should.match(/MANIFOLD_SOLID_BREP/);
 	});
 
 	it('goes through rigid and uniformly scaled transforms, and says what it cannot shell', function(){
