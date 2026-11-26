@@ -109,9 +109,10 @@ export class IntersectionCertificate {
                 return;
             }
             if (d == 0) { out.pairs++; out.unresolved++; return; }
-            // split the cell whose normals turn most (they keep the cones from parting); the larger if they tie
+            // split the cell whose normals turn most (they keep the cones from parting), unless it is already much
+            // smaller than the other (a cell round a pole keeps a wide cone however small: then the boxes must part)
             const ea = Vec.dist( a.min, a.max ), eb = Vec.dist( b.min, b.max );
-            const first = a.angle > b.angle + 1e-9 || (Math.abs( a.angle - b.angle ) <= 1e-9 && ea >= eb);
+            const first = 2 * ea < eb ? false : 2 * eb < ea ? true : a.angle > b.angle + 1e-9 || (Math.abs( a.angle - b.angle ) <= 1e-9 && ea >= eb);
             if (first) for (const s of IntersectionCertificate.split( a )) visit( s, b, d - 1 );
             else for (const s of IntersectionCertificate.split( b )) visit( a, s, d - 1 );
         };

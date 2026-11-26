@@ -323,12 +323,20 @@ surface patch intersections", CAGD 5, 1988), with Sinha's theorem as above:
    counted in `unresolved`: the surfaces may be tangent there, or a loop smaller than the cells may hide there.
 
 The result is `proven` only when nothing is unresolved and nothing was missed. Cells round a pole (a cap's centre)
-have wide cones until they are small, so pairs may be split 8 times by default.
+have wide cones however small they get, so pairs may be split 8 times by default. A cell already less than half the
+size of the other is not split again; the other one is, until the boxes part.
 
 With `certify: true`, `BrepBoolean` runs the check on every pair of faces whose boxes meet, and reports
 `report.certificate`: the pairs, how many are proven, and the others with their counts. A model document with
 `certify: true` passes it on, and its verdict notes either that every intersection is proven complete or how many
-pairs are not. The mug's union, cup and handle, is proven complete in all 3 pairs. A plane through a cylinder or a
+pairs are not. The test suite runs it as a gate on reference models, and every pair is proven:
+- the mug's union: 3 pairs;
+- a filleted boss: 3 pairs;
+- a shelled and rounded tray: 4 pairs;
+- slot rims: 8 pairs.
+
+The shelled mug is proven in all 20 pairs, but that takes 20 s (its offset surfaces have many spans), so it is not
+in the suite. A plane through a cylinder or a
 sphere is proven complete in about 0.15 s. Dropping the curve reports start points all around it. A sphere grazing a
 plane (a loop of radius 0.014) is not proven, with or without that loop: the normals there are nearly parallel by
 nature, which is the honest answer.

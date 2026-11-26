@@ -79,6 +79,27 @@ describe("verb.model.Model: certified intersections", function(){
 		r.verdict.kind.should.be.equal('buildable');
 	});
 
+	// a gate: the reference models' Booleans stay proven complete
+	it('proves the reference models\' intersections complete: a filleted boss, a rounded tray, slot rims', function(){
+		this.timeout(120000);
+		function line(a, b) { return Make.rationalBezierCurve([a, b]); }
+		function model(features, output) { return new lib.Model().evaluate({ version : 1, certify : true, features : features, output : output }).result; }
+		var block = { type : "box", min : [0, 0, 0], max : [40, 30, 20] };
+		var results = {
+			boss : lib.BrepBoolean.union([lib.BrepSolid.cappedTube(Sweep.pipe(line([0,0,-5], [0,0,5]), 30).surface, [8, 96]),
+			                              lib.BrepSolid.cappedTube(Sweep.pipe(line([0,0,0], [0,0,30]), 8).surface, [24, 96])], { fillet : 4, certify : true }),
+			tray : model({ box : block, tray : { type : "shell", of : "box", thickness : 2, open : ["box.+z"] },
+			               r : { type : "round", of : "tray", rules : [{ edges : "*box.+z*", radius : 0 }, { edges : "box.*", radius : 4 }, { edges : "*", radius : 2 }] } }, "r"),
+			slot : model({ block : block, slot : { type : "box", min : [15, -5, 12], max : [25, 35, 25] }, d : { type : "difference", from : "block", minus : ["slot"] },
+			               r : { type : "round", of : "d", rules : [{ edges : "block.+z|slot.*", radius : 2 }] } }, "r"),
+		};
+		Object.keys(results).forEach(function(k){
+			var c = results[k].report.certificate;
+			c.pairs.should.be.above(0, k);
+			c.unproven.should.be.eql([], k);
+		});
+	});
+
 	it('leaves the certificate out unless asked', function(){
 		this.timeout(60000);
 		var r = new lib.Model().evaluate(mug(false));
