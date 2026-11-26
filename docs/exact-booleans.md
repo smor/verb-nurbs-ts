@@ -1,6 +1,6 @@
 # Plan: Booleans on any solid, rounded ones included
 
-Status: A1 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
+Status: A1, A2 and A3 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
 tests.
 
 ## The goal
@@ -77,6 +77,25 @@ modelling with local tolerances", ACM Symposium on Solid Modeling and Applicatio
 Tests: Euler–Poincaré on every result in the suite; each edge within its tolerance of both faces; p-curves map to
 the 3D curve within the tolerance; STEP files unchanged in content.
 
+Built: `ShellBuilder.fromResult` (`src/solid/BrepShell.ts`, with `Seams` moved to `src/solid/`) gives a `BrepShell`:
+vertices; edges with their curve, a p-curve on each face over the curve's own parameter (a seam edge's are the seam's
+two sides, exactly), and their tolerance (the largest distance from the curve to either face at its p-curve, found by
+sampling and golden sections); faces with their source face and name. `Step.write` writes it through
+`Step.writeShell`. Moving the code left the STEP files byte for byte the same on six parts. Checking the shells then
+found point projection unreliable on surfaces whose knot spans differ widely in length (a cap on a rounded rectangle):
+the slotted block's edges were up to 0.5 mm off its caps. Projection now seeds by knot spans and takes Gauss–Newton
+steps that respect breakpoints and domain sides, and p-curves get triple knots where they cross a breakpoint: those
+edges are within 1.3e-3, and the six STEP files keep their entities, with control points moved by that correction.
+Tests in `test/testShell.cjs`: each edge used once each way, Euler–Poincaré against the mesh's genus, edges within
+their tolerance of both faces by independent projection, p-curves giving the curve, tolerances within half the
+fitting tolerance (plus 5e-3 at setback corners), on rounded boxes (ball and setback), a ring on a seam, the
+filleted mug and three 507 parts.
+
+Not yet: the wheels of 507 (A, and D cut one window at a time) give shells that fail Euler–Poincaré. Their caps,
+discs with a pole at the centre, come out of the Boolean in several faces on one surface with slivers round the pole,
+and the seam cut makes seam stretches of zero length there. Edges between exact faces have tolerances of about 1e-3,
+not 1e-9: their curves are fitted to a quarter of the tolerance, as the STEP export always did.
+
 ### A3. Booleans take shells
 
 `BrepBoolean.evaluate` accepts shells as well as primitives:
@@ -96,6 +115,43 @@ Computational Geometry and Applications 11(1), 2001; and Hoffmann (1989), ch. 4 
 Tests: a rounded box minus a cylinder through a fillet and through a face, against the same solid built in one pass
 where both can be (volumes to the mesh tolerance, the same face names); unions of two rounded parts are closed
 2-manifolds with the expected genus; a part drilled through a setback corner.
+
+Built: `ShellBuilder.solid(shell, mesh)` (`src/solid/BrepShell.ts`) makes a shell an operand. Each face keeps its whole
+surface, with `trims`: its loops, as polygons in its parameters walked along its edges' p-curves. Each edge becomes a
+`TrimEdge`: points along its curve (ending exactly at its vertices) with their parameters on both faces. An edge
+that runs along a side of a face's domain all the way is put exactly on it. Without that, a setback corner's fitted
+parts were off by 1e-6, and the face mesher split the edge on one side only. The shell's mesh stands in for its
+inside tests.
+
+In `BrepBoolean.evaluate` (`src/solid/BrepBoolean.ts`), an operand's edges join the branches as curves marked
+`trim`:
+* Where a branch crosses one (in either face's parameters, ends of segments included), the crossing goes into the
+  branch, the edge, and the third branch through it. Two faces of a shell meet tangentially as often as not (a blend
+  and the face it rounds), so there the three-face Newton step is singular. The crossing is found instead by
+  bisection along the edge against the branch's other surface (`edgeCross`).
+* A run of a branch outside either face's trims is dropped. So is a region of a face outside its trims.
+* The edges are cuts in the face mesher like any branch.
+* They take no part in fillets or seam sides.
+
+Tests in `test/testShellBoolean.cjs`:
+* A rounded box rebuilt from its shell (genus 0), drilled through a face (genus 1) and notched through a blend
+  (genus 0). Volumes are within 2e-5 of the exact ones: Steiner's formula, less the cylinder or a 1D integral.
+* The union and intersection of two overlapping rounded boxes: closed, genus 0, with V(A∪B) + V(A∩B) = V(A) + V(B)
+  within 2e-5.
+* A box with setback corners rebuilt, and drilled through a corner: closed, genus 1, with V(C − D) + V(C ∩ D) = V(C)
+  within 2e-5.
+
+Volumes are measured on the shells' exact faces, not on the mesh (`ShellBuilder.volume`). It integrates the flux of
+the position over each trimmed face, turned into an integral round its loops by Green's theorem, with Gauss–Legendre
+sums over knot spans. The mesh's chords cut inside every curved face, which puts its volume 0.3% under on these
+fillets. The shells' volumes are 3e-7 off on the rounded box and 7e-6 after a drill; the edges' 1e-3 tolerance
+accounts for that.
+
+Not yet:
+* Comparison with the same solid built in one pass, and face names through the cut. These come with A4, which
+  builds such models.
+* A tool tangent to a shell's face (a cylinder touching a box's side) leaves the result open, as it does for
+  primitives.
 
 ### A4. `Model` evaluates in stages
 

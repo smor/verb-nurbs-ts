@@ -272,6 +272,14 @@ above apply. `BrepSolid.box` with all twelve edges rounded at one radius gets ei
 Minkowski sum of the inner box and the ball (to within the chords, 0.3% low at r = 2); with three radii, setback
 corners where they differ; chamfered, flat and faceted corners.
 
+## Shells as operands
+
+A Boolean result's exact shell (`ShellBuilder.fromResult`) can be an operand of the next Boolean, through
+`ShellBuilder.solid(shell, mesh)`. Its faces keep their whole surfaces, trimmed to their loops, and its edges join the
+branches as cuts. A branch is clipped where it crosses an edge, at the point where the edge meets the branch's other
+surface, and the faces keep only what lies inside their trims. So a rounded part can be drilled or united without
+rounding it again. See [exact-booleans.md](exact-booleans.md), step A3.
+
 ## Seams of surfaces of revolution
 
 When both faces are perfectly round about the same axis, their seams can cross a branch at the very same point. The

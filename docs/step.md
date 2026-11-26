@@ -30,15 +30,21 @@ and AP242. Units are millimetres. The context carries the tolerance as its uncer
 
 ## How edges are found and made exact
 
+The B-rep written is the result's exact shell, built in `solid/` (`ShellBuilder.fromResult`, `src/solid/BrepShell.ts`;
+see [exact-booleans.md](exact-booleans.md), step A2). `Step.writeShell` writes any shell as it is.
+
 1. **Topology from the welded mesh.** Neighbouring faces share their boundary vertices exactly in the result's
    mesh. Each run of mesh edges between the same two faces, from a point where three or more faces meet to the next,
    is one edge. Loops follow from the edges' ends. The result passes Euler–Poincaré, `V − E + F − (L − F) = 2(1 − g)`
    (tested).
 2. **Curves on the faces, not on the mesh.** A run is refined: between two points whose chord strays from the faces,
-   a point is put on both faces by alternating projections onto the two surfaces. Then a cubic B-spline is fitted to
+   a point is put on both faces by alternating projections onto the two surfaces. A projection starts from the
+   nearest of samples placed uniformly and three to each knot span (a cap on a rounded rectangle, whose long sides
+   take a tenth of its domain, is otherwise sampled once along a whole side), then follows Gauss–Newton steps that go
+   down hill, stop just past a breakpoint where the surface is only C0, and slide along a side of the domain. Then a cubic B-spline is fitted to
    the refined run. Each step takes a quarter of the tolerance, so the curve lies within half of it of both faces.
 3. **End points exact.** Each curve starts and ends exactly at its vertices, so the shell is closed by construction.
-4. **Seams** (`src/io/Seams.ts`). A surface closed in one direction (a pipe, a wall of revolution, a disc with a pole
+4. **Seams** (`src/solid/Seams.ts`). A surface closed in one direction (a pipe, a wall of revolution, a disc with a pole
    at its centre) is written with its closed flag set, and each face on it is cut along the surface's seam, where its
    parameter jumps from the end of the domain back to the start. Where a loop crosses the seam a vertex goes on its
    edge; the stretches of the seam inside the face (bounded by those crossings, or by a pole) become seam edges, which
@@ -81,6 +87,7 @@ OpenCascade's `STEPControl_Reader` with `BRepCheck_Analyzer`, and the volume fro
 
 ## Limits
 
-* No p-curves (`SURFACE_CURVE`/`PCURVE`): readers compute them from the 3D edges.
+* No p-curves written (`SURFACE_CURVE`/`PCURVE`): readers compute them from the 3D edges. The shell has them
+  (`ShellEdge.pcurves`), so writing them is a matter of entities.
 * One solid per file, no colours, no assembly structure.
 * Faces on surfaces closed in both directions (a torus) are not cut; their loops are all written as `FACE_BOUND`.

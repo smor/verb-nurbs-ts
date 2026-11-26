@@ -19,6 +19,18 @@ export interface BrepFace {
     // true when the outward normal is -(dS/du x dS/dv); set by `BrepSolid.orient`
     reversed : boolean;
     name? : string;
+    // a trimmed face (of a solid made from a shell, `ShellBuilder.solid`): the loops in its parameters that bound the
+    // part of its surface it covers; the surface carries on past them
+    trims? : Array<Array<UV>>;
+}
+
+// An edge between two trimmed faces of a solid: its points, shared by both faces, with their parameters on each.
+export interface TrimEdge {
+    faces : [number, number];
+    points : Array<Point>;
+    uvA : Array<UV>;
+    uvB : Array<UV>;
+    closed : boolean;
 }
 
 // A polyline in a face's parameter domain whose vertices carry their exact 3D points. Cut curves are shared by the
@@ -81,6 +93,11 @@ export class Welder {
 
 // A closed solid bounded by NURBS faces.
 export class BrepSolid {
+
+    // A solid of trimmed faces (`ShellBuilder.solid`) also has the edges between them, and its boundary as a mesh,
+    // which stands for it when points are tested against it (its faces' surfaces carry on past their trims).
+    public edges? : Array<TrimEdge>;
+    public boundary? : TriMesh;
 
     constructor( public faces : Array<BrepFace> ) {}
 
@@ -170,6 +187,7 @@ export class BrepSolid {
 
     // A watertight triangle mesh of the solid (outward facing once `orient` has run).
     public tessellate( welder? : Welder ) : TriMesh {
+        if (this.boundary != null && welder == null) return this.boundary;
         if (welder == null) welder = new Welder( this.weldTolerance() );
         const out = new TriMesh();
         for (const f of this.faces) {
@@ -206,6 +224,19 @@ export class BrepSolid {
     public weldTolerance() : number {
         const b = this.boundingBox();
         return Vec.dist( b.min, b.max ) * 1e-7;
+    }
+
+    // Whether a point of a face's parameters lies inside its trims (by the parity of the trims it is inside).
+    public static insideTrims( trims : Array<Array<UV>>, p : UV ) : boolean {
+        let inside = false;
+        for (const poly of trims) {
+            const n = poly.length;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+                const a = poly[i], b = poly[j];
+                if ((a[1] > p[1]) != (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+            }
+        }
+        return inside;
     }
 
     public static domainOf( f : BrepFace ) : SurfaceDomain {
