@@ -21,7 +21,7 @@ declare const WORKER_SOURCE : string;
 
 const REGISTRY = Graph.REGISTRY;
 const REF = /^@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_ ]*))?$/;
-const ref = ( v : ModelValue | undefined ) : [string, string] | null => {
+const ref = ( v : ModelValue | object | undefined ) : [string, string] | null => {
     if (typeof v != "string") return null;
     const m = REF.exec( v.trim() );
     return m ? [m[1], m[2] ?? ""] : null;
@@ -133,6 +133,23 @@ function TextInput( { id, k, port } : { id : string, k : string, port : Extract<
     </div>;
 }
 
+// a profile (JSON { outer, holes }), edited as JSON: kept as typed until it parses
+function OutlineInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "outline" }> } ) {
+    const { changed } = useContext( Ctx );
+    const v = JSON.stringify( DOC.nodes[id].in?.[k] ?? port.value );
+    const [text, setText] = useState( v );
+    const [bad, setBad] = useState( false );
+    useEffect( () => { setText( v ); setBad( false ); }, [v] );
+    const set = ( x : string ) => {
+        try { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : JSON.parse( x ) }; setBad( false ); changed(); } catch { setBad( true ); }
+    };
+    return <div className="row">
+        <span className="lbl">{port.label}</span>
+        <input className={"nodrag val wide" + (bad ? " bad" : "")} aria-label={port.label} title="A profile as JSON: { outer, holes }" value={text}
+            onChange={e => setText( e.target.value )} onBlur={() => set( text )} onKeyDown={e => { if (e.key == "Enter") (e.target as HTMLInputElement).blur(); }} />
+    </div>;
+}
+
 function GraphNodeView( { id } : NodeProps ) {
     const nd = DOC.nodes[id], t = REGISTRY[nd?.type];
     const { status, shown, changed } = useContext( Ctx );
@@ -150,6 +167,7 @@ function GraphNodeView( { id } : NodeProps ) {
                 <Handle type="target" position={Position.Left} id={k} className="h-solid" />
                 <span className="lbl">{p.label}</span>
                 <span className="wired">{ref( nd.in?.[k] ) ? "← " + (DOC.nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : "connect a solid"}</span></div>
+            : p.kind == "outline" ? <OutlineInput key={k} id={id} k={k} port={p} />
             : <TextInput key={k} id={id} k={k} port={p} /> )}
         {Object.entries( t.outputs ).map( ([k, ty]) => <div className="row out" key={k}>
             {isSolid && <button className="nodrag show" aria-pressed={shown == id} onClick={() => { DOC.view = { ...DOC.view, show : id }; changed(); }}>
