@@ -52,6 +52,9 @@ model.evaluate(doc).features;  // only "rounded" is rebuilt; the rest comes from
 Every number may be an expression over the parameters (`Expr`: arithmetic, `^`, `min`, `max`, `sqrt`, trigonometry
 in radians, `rad`, `deg`, `clamp`, `lerp`, `pi`). Parameters may use other parameters; cycles are refused.
 `machine` (a `Makeable.MACHINES` key or a machine) adds a fabrication check to the verdict.
+`certify: true` proves every intersection of the model's Booleans complete, with no branch or small loop missed (see
+[booleans.md](booleans.md), "Proving that no branch was missed"). The verdict notes the result, and pairs of faces
+it cannot prove are named in `result.report.certificate`.
 
 ## How it works
 
