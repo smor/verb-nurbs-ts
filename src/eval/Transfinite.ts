@@ -1,4 +1,4 @@
-import cdt2d from "cdt2d";
+import { triangulate } from "./Cdt.js";
 import { NurbsSurfaceData, Point } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Fit } from "./Fit.js";
@@ -18,6 +18,14 @@ export interface Ribbon {
     cross : Array<Point>;
     second? : Array<Point>;
     tangents? : Array<Point>;
+    // How far into the patch the ribbon reaches (in the polygon's units; none: without limit). The ribbon is followed
+    // at d' = reach tanh(d / reach) in place of d: the same to second order at its side (d' = d - d^3 / (3 reach^2)),
+    // so the patch keeps every continuity it has there, but it never runs on further than `reach` (see `evaluate`).
+    reach? : number;
+    // A third derivative across the side (per unit of distance cubed), at the samples: free for the patch's
+    // continuity (G1 depends on the first derivative, G2 on the second), it bends the ribbon as it runs on into the
+    // patch, which shapes the patch's middle (see `evaluate`).
+    third? : Array<Point>;
 }
 
 // Transfinite n-sided patches: Kato's side-based interpolant over a regular polygon (S. Kato, "Generation of n-sided
@@ -42,6 +50,13 @@ export interface Ribbon {
 //
 // (Salvi, Várady and Rockwood, above, discuss this parametrisation term for G^k ribbons.) For n = 4, a = 0 and the
 // correction vanishes.
+//
+// Reach. The patch is a convex combination of its ribbons, each followed at its distance d_i from its side, which runs
+// up to the polygon's width: far from its side, a ribbon's straight (or quadratic) run carries on well past the
+// surfaces around the patch, and the patch, which takes a share of it, bulges past them. A ribbon's `reach` bends its
+// run over smoothly (d -> reach tanh(d / reach)): the ribbon is unchanged to second order at its own side, which is
+// all the continuity there depends on (every other ribbon's blend vanishes to that order on the side), and stays
+// within `reach` of it everywhere. Where every ribbon point lies on one side of a surface, so does the patch.
 export class Transfinite {
 
     // The domain: a regular n-gon of side 1, its vertex i at the start of side i, counter-clockwise.
@@ -75,14 +90,16 @@ export class Transfinite {
             const a = d[(i + n - 1) % n], b = d[(i + 1) % n];
             const s = a + b > 0 ? a / (a + b) : 0;
             const rb = ribbons[i];
-            let r = Vec.add( Transfinite.at( rb.points, s, undefined, rb.tangents ), Vec.mul( d[i], Transfinite.at( rb.cross, s, rb.points ) ) );
+            const di = rb.reach != null ? rb.reach * Math.tanh( d[i] / rb.reach ) : d[i];
+            let r = Vec.add( Transfinite.at( rb.points, s, undefined, rb.tangents ), Vec.mul( di, Transfinite.at( rb.cross, s, rb.points ) ) );
             if (g2) {
                 const dr = Transfinite.derivatives( rb );
                 const as = (1 - 2 * s) * cot;
                 const K = Vec.sub( Transfinite.at( rb.second as Array<Point>, s, rb.points ),
                     Vec.add( Vec.mul( as * as, Transfinite.at( dr.C2, s, rb.points ) ), Vec.mul( 2 * as, Transfinite.at( dr.T1, s, rb.points ) ) ) );
-                r = Vec.add( r, Vec.mul( 0.5 * d[i] * d[i], K ) );
+                r = Vec.add( r, Vec.mul( 0.5 * di * di, K ) );
             }
+            if (rb.third != null) r = Vec.add( r, Vec.mul( di * di * di / 6, Transfinite.at( rb.third, s, rb.points ) ) );
             out = Vec.add( out, Vec.mul( w, r ) );
             total += w;
         }
@@ -146,7 +163,7 @@ export class Transfinite {
                 points.push( Transfinite.evaluate( ribbons, x, P ) ); xy.push( x );
             }
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         return { points : points, triangles : tris, boundary : nb, domain : xy };
     }
 

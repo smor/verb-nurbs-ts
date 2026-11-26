@@ -44,6 +44,20 @@ describe("verb.solid.Makeable", function(){
 		big.makeable.should.be.false();
 	});
 
+	it('rejects a closed surface that passes through itself, and says where', function(){
+		this.timeout(60000);
+		var folded = lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, noFold : false, divsU : 200, divsV : 32 });
+		var c = lib.Makeable.check(folded.mesh, 'fdm', 500);
+		folded.report.manifold.closedManifold.should.be.true();
+		c.makeable.should.be.false();
+		c.selfIntersections.should.be.above(0);
+		c.crossings.length.should.be.above(0);
+		c.issues.some(function(x){ return /passes through itself/.test(x); }).should.be.true();
+		var ok = lib.Makeable.check(lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, divsU : 200, divsV : 32 }).mesh, 'fdm', 500);
+		ok.selfIntersections.should.be.equal(0);
+		ok.makeable.should.be.true();
+	});
+
 	it('rejects open sheets and inside-out meshes', function(){
 		var sheet = SweptObjectsRecipe.ribbonKnot({ thickness : 0, divsU : 200 });
 		sheet.report.manifold.closedManifold.should.be.false();
@@ -65,4 +79,59 @@ describe("verb.solid.Makeable", function(){
 		var v = FreeformVesselRecipe.build({ wallThickness : 2.5, divsU : 32, divsV : 128 });
 		Makeable.check(v.mesh, 'sla').wall.median.should.be.approximately(2.5, 0.1);
 	});
+
+	// a frustum: a square base `b` wide, a top `t` wide, `h` high
+	function frustum(b, t, h) {
+		var m = new lib.TriMesh(), o = (b - t) / 2;
+		var v = [[0,0,0],[b,0,0],[b,b,0],[0,b,0],[o,o,h],[o+t,o,h],[o+t,o+t,h],[o,o+t,h]].map(function(p){ return m.addVertex(p); });
+		[[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]].forEach(function(q){ m.addQuad(v[q[0]], v[q[1]], v[q[2]], v[q[3]]); });
+		return m;
+	}
+
+	it('finds the build direction that needs no supports, and says when every direction needs them', function(){
+		// a T: a wide cap on a narrow stem. Cap up, its underside overhangs; built upside down, nothing does
+		var BrepSolid = lib.BrepSolid, BrepBoolean = lib.BrepBoolean;
+		var T = BrepBoolean.evaluate([BrepSolid.box([0, 0, 20], [40, 40, 26], 4), BrepSolid.box([15, 15, 0], [25, 25, 21], 4)], function(x){ return x[0] || x[1]; });
+		T.report.manifold.closedManifold.should.be.true();
+		var o = Makeable.orient(T.mesh, 45);
+		o.up.should.eql([0, 0, -1]);
+		o.overhang.should.be.equal(0);
+		// with z up, the cap's underside (40 x 40 less the stem's 10 x 10) overhangs
+		var f = Makeable.check(T.mesh, 'fdm');
+		f.makeable.should.be.true();
+		f.notes[0].should.match(/without supports with -z up/);
+		// a ball overhangs whichever way up it is built: about a sixth of a sphere faces down past 45 degrees
+		var ball = lib.Implicit.mesh(lib.Implicit.ball([0, 0, 0], 10), [-11, -11, -11], [11, 11, 11], 0.5);
+		var b = Makeable.orient(ball, 45);
+		b.overhang.should.be.within(0.13, 0.16);
+		Makeable.check(ball, 'fdm').notes[0].should.match(/Needs supports: 1[45]\.\d% of the surface overhangs past 45/);
+	});
+
+	it('checks that a cast comes out of its mould: draft along the pull, and no undercuts', function(){
+		// a frustum tapered by 5 degrees comes out; a box sticks (its sides have no draft)
+		var h = 20, t = 30 - 2 * h * Math.tan(5 * Math.PI / 180);
+		var good = Makeable.check(frustum(30, t, h), 'ceramic');
+		good.release.pull.should.eql([0, 0, 1]);
+		good.release.lowDraft.should.be.equal(0);
+		good.release.undercut.should.be.equal(0);
+		good.issues.join(' ').should.not.match(/draft|undercut/);
+		var box30 = Makeable.check(box(30, 30, 30), 'ceramic');
+		box30.release.lowDraft.should.be.approximately(4 / 6, 1e-9);
+		box30.makeable.should.be.false();
+		box30.issues.join(' ').should.match(/less than 1° of draft/);
+		// a hole across a tapered block: undercut for the pull that the taper suits, without draft along the hole
+		var I = lib.Implicit, k = Math.tan(5 * Math.PI / 180);
+		var block = I.of(function(p){
+			var side = Math.max(Math.abs(p[0] - 20), Math.abs(p[1] - 20)) - (20 - k * p[2]);
+			return Math.max(side * Math.cos(5 * Math.PI / 180), -p[2], p[2] - 30);
+		});
+		var holed = I.mesh(I.difference(block, I.capsule([-10, 20, 15], [50, 20, 15], 5)), [-1, -1, -1], [41, 41, 31], 0.5);
+		holed.checkClosedManifold().closedManifold.should.be.true();
+		var r = Makeable.release(holed, 1);
+		(r.lowDraft + r.undercut).should.be.above(0.05);
+		var c = Makeable.check(holed, 'ceramic');
+		c.makeable.should.be.false();
+		c.issues.join(' ').should.match(/undercut|draft/);
+	});
+
 });

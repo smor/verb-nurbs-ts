@@ -67,13 +67,14 @@
     }
   },
   "dependencies": {
-    "cdt2d": "^1.0.0"
+    "cdt2d": "^1.0.0",
+    "robust-in-sphere": "^1.2.1"
   },
   "engines": {
     "node": ">=20"
   },
   "sideEffects": false,
   "config": {
-    "maxLintWarnings": 64
+    "maxLintWarnings": 60
   }
 }

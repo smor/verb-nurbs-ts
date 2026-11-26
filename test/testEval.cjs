@@ -3985,3 +3985,32 @@ describe("verb.eval.Eval.curveRegularSample",function(){
 	});
 });
 
+
+describe("verb.eval.Cdt.triangulate",function(){
+
+	var triangulate = require('../dist/eval/Cdt.js').triangulate;
+	var cdt2d = require('cdt2d');
+
+	// a deterministic generator, so the cases are the same on every run
+	function rng( seed ){ return function(){ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }; }
+	function canon( tris ){ return tris.map( function(t){ return t.slice().sort( function(a, b){ return a - b; } ).join(); } ).sort().join('|'); }
+
+	it('makes the triangles of cdt2d, on random points and on cocircular grids, inside and out', function(){
+		var r = rng( 7 );
+		for (var t = 0; t < 200; t++){
+			var pts = [[-1, -1], [5, -1], [5, 5], [-1, 5]], seen = {};
+			var n = 20 + Math.floor( r() * 150 );
+			for (var i = 0; i < n; i++){
+				// odd cases snap to a grid: many points on one circle, where the exact predicate decides
+				var p = t % 2 ? [Math.floor( r() * 12 ) / 3, Math.floor( r() * 12 ) / 3] : [4 * r(), 4 * r()];
+				if (seen[p.join()]) continue;
+				seen[p.join()] = true;
+				pts.push( p );
+			}
+			var edges = [[0, 1], [1, 2], [2, 3], [3, 0]];
+			[true, false].forEach( function(ex){
+				canon( triangulate( pts, edges, { exterior : ex } ) ).should.equal( canon( cdt2d( pts, edges, { exterior : ex } ) ) );
+			} );
+		}
+	});
+});

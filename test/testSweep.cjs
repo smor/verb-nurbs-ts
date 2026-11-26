@@ -125,6 +125,68 @@ describe("verb.recipes.SweptObjectsRecipe", function(){
 		wasm.setup();
 	});
 
+	it('measures how far a section reaches into the bends: past 1 the surface crosses itself, and the measure says so before meshing', function(){
+		this.timeout(60000);
+		var plain = lib.SweptObjectsRecipe.twistedRing({ wave : 12, waves : 4, noFold : false, divsU : 200, divsV : 32 });
+		plain.sweep.fold.ratio.should.be.above(1);
+		plain.mesh.selfIntersections().pairs.should.be.above(0);
+		// the default ring stays well inside its bends, and is crossing-free
+		var calm = lib.SweptObjectsRecipe.twistedRing({ divsU : 200, divsV : 32 });
+		calm.sweep.fold.ratio.should.be.below(0.5);
+		calm.mesh.selfIntersections().pairs.should.be.equal(0);
+	});
+
+	it('keeps a sweep from folding by narrowing the section only where a bend is too tight for it', function(){
+		this.timeout(60000);
+		[{ wave : 12, waves : 4 }, { wave : 12, waves : 8 }, { width : 14, radius : 15 }, { radius : 15, wave : 6, waves : 5, width : 8, height : 5 }].forEach(function(p){
+			var o = lib.SweptObjectsRecipe.twistedRing(Object.assign({ divsU : 200, divsV : 32 }, p));
+			o.sweep.fold.ratio.should.be.belowOrEqual(0.9 + 1e-6);
+			o.sweep.narrowed.scale.should.be.below(1);
+			o.report.manifold.closedManifold.should.be.true();
+			o.mesh.selfIntersections().pairs.should.be.equal(0);
+		});
+		// a sweep that does not need it is left exactly as it was
+		var a = lib.SweptObjectsRecipe.twistedRing({ divsU : 120, divsV : 24 }), b = lib.SweptObjectsRecipe.twistedRing({ divsU : 120, divsV : 24, noFold : false });
+		a.sweep.narrowed.scale.should.be.equal(1);
+		a.sweep.surface.controlPoints.should.eql(b.sweep.surface.controlPoints);
+		// a ring that folds only a little in its wave troughs is narrowed only a little there
+		var s = lib.SweptObjectsRecipe.twistedRing({ wave : 8, waves : 5, divsU : 120, divsV : 24 });
+		s.sweep.narrowed.scale.should.be.within(0.5, 0.99);
+	});
+
+	it('keeps distant parts of a sweep clear of each other: strands of a knot, turns of a coil', function(){
+		this.timeout(60000);
+		// a coil whose pitch is less than the pipe's width: each turn runs into the next
+		var pts = [];
+		for (var i = 0; i <= 60; i++) { var t = 2 * Math.PI * 3 * i / 60; pts.push([20 * Math.cos(t), 20 * Math.sin(t), 2 * t]); }
+		var coil = Fit.curve(pts, 3);
+		var plain = Sweep.pipe(coil, 9, { tolerance : 0.01 });
+		Shell.tube(plain.surface, false, { divsU : 240, divsV : 24 }).selfIntersections().pairs.should.be.above(0);
+		var kept = Sweep.pipe(coil, 9, { tolerance : 0.01, noFold : true });
+		kept.narrowed.scale.should.be.below(1);
+		var m = Shell.tube(kept.surface, false, { divsU : 240, divsV : 24 });
+		m.checkClosedManifold().closedManifold.should.be.true();
+		m.selfIntersections().pairs.should.be.equal(0);
+		// knots that used to cross where their strands meet
+		[{ p : 4, q : 6, radius : 51, tubeRadius : 25, pipeRadius : 5.7, pipeSwell : 0.69 },
+		 { p : 4, q : 4, radius : 45, tubeRadius : 13.5, pipeRadius : 3.6, pipeSwell : 0.55 },
+		 { p : 3, q : 5, radius : 21, tubeRadius : 22.5, pipeRadius : 3.8, pipeSwell : 0.01 }].forEach(function(k){
+			var o = lib.SweptObjectsRecipe.knotPipe(Object.assign({ divsU : 300, divsV : 20, tolerance : 0.05 }, k));
+			o.report.manifold.closedManifold.should.be.true();
+			o.mesh.selfIntersections().pairs.should.be.equal(0);
+		});
+	});
+
+	it('draws a torus knot whose indices share a factor once, and keeps its tube off the axis', function(){
+		var a = lib.SweptObjectsRecipe.knotPipe({ p : 4, q : 6, divsU : 120, divsV : 12, tolerance : 0.1 });
+		var b = lib.SweptObjectsRecipe.knotPipe({ p : 2, q : 3, divsU : 120, divsV : 12, tolerance : 0.1 });
+		a.rail.controlPoints.should.eql(b.rail.controlPoints);
+		var c = lib.SweptObjectsRecipe.knotPipe({ radius : 20, tubeRadius : 30, divsU : 120, divsV : 12, tolerance : 0.1 });
+		var nearest = Infinity;
+		c.rail.controlPoints.forEach(function(p){ nearest = Math.min(nearest, Math.hypot(p[0] / p[3], p[1] / p[3])); });
+		nearest.should.be.above(0.1 * 20);
+	});
+
 	['knotPipe', 'twistedRing'].forEach(function(name){
 		it(name + ' is a genus 1 solid accepted by manifold-3d', function(){
 			var o = lib.SweptObjectsRecipe[name]({ divsU : 160, divsV : 24 });

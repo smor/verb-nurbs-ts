@@ -1,4 +1,4 @@
-import cdt2d from "cdt2d";
+import { triangulate } from "../eval/Cdt.js";
 import { NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
@@ -167,6 +167,68 @@ export class FilletCorner {
         else if (far( y1, r1 )) ok = FilletCorner.lean( c2, c1, X, uvX, y1 as Crossing, r2, r1, third, tol );
         else ok = FilletCorner.even( c1, c2, X, uvX, r1, r2, third, tol );
         return ok;
+    }
+
+    // A blend that runs out onto a face: at a corner where its edge meets two sharp edges, A|C and B|C, the blend ends
+    // where it goes through the third face C. The trim is the blend's section by C: each column of the blend where it
+    // crosses C, from A's contact curve on edge A|C (t = 0) to B's on edge B|C (t = 1). Returns that section as a cut
+    // of C (its parameters on C and its points, which are the trim's), and the functions that put its ends into the
+    // edges where they are branches; null if the blend does not cross C there.
+    public static runout( F : OpenBlend, e : number, C : BrepFace, edgeA : ThirdEdge, edgeB : ThirdEdge, tol : number )
+        : { uv : Array<UV>, points : Array<Point>, inserts : Array<() => void> } | null {
+        const n = FilletCorner.near( F, e );
+        const ends : Array<TrimPoint> = [], endUV : Array<UV> = [], inserts : Array<() => void> = [];
+        for (const [b, edge] of [[1, edgeA], [0, edgeB]] as Array<[number, ThirdEdge]>) {
+            const c : Corner = { F : F, e : e, b : b, n : n, sX : 0 };
+            const r = FilletCorner.reach( c, edge, true, tol );
+            if (r == null) return null;
+            let point = r.point, uvOwn = r.uv, uvC : UV;
+            if (edge.kind == "curve") {
+                const q = FilletCorner.onCurve( edge, r.f as number, tol );
+                if (q == null) return null;
+                point = q.point; uvOwn = q.uv1; uvC = q.uv2;
+                inserts.push( q.insert );
+            } else {
+                const guess = SurfaceIntersect.project( C.surface, point );
+                guess[edge.axis2] = edge.value2;
+                uvC = FilletCorner.onSide( C, guess, edge.axis2, point );
+            }
+            ends.push( { point : point, s : r.s, t : b == 1 ? 0 : 1, uv : uvOwn } );
+            endUV.push( uvC );
+        }
+        // the inner columns: where each goes through C, by the sign of the distance to C along C's normal
+        const signed = (p : Point, seed : UV) => {
+            const uv = SurfaceIntersect.project( C.surface, p, 12, seed );
+            const d = Eval.rationalSurfaceDerivatives( C.surface, uv[0], uv[1], 1 );
+            return { g : Vec.dot( Vec.sub( p, d[0][0] ), Vec.cross( d[1][0], d[0][1] ) ), uv : uv };
+        };
+        const m = F.m, mid : Array<TrimPoint> = [], midUV : Array<UV> = [];
+        let seed = endUV[0];
+        for (let i = 1; i < m; i++) {
+            let found = false;
+            let prev = signed( F.rows[n[0]].points[i], seed );
+            for (let j = 1; j < n.length && !found; j++) {
+                const cur = signed( F.rows[n[j]].points[i], prev.uv );
+                if (prev.g == 0 || prev.g * cur.g <= 0) {
+                    const f = prev.g == cur.g ? 0 : prev.g / (prev.g - cur.g);
+                    const r0 = F.rows[n[j - 1]], r1 = F.rows[n[j]];
+                    const p = Vec.lerp( f, r1.points[i], r0.points[i] );
+                    const uv = SurfaceIntersect.project( C.surface, p, 12, prev.uv );
+                    // off C's domain (the blend's end would need C carried on past its edge): not done
+                    if (Vec.dist( Eval.rationalSurfacePoint( C.surface, uv[0], uv[1] ), p ) > 0.05 * F.radius) return null;
+                    mid.push( { point : Eval.rationalSurfacePoint( C.surface, uv[0], uv[1] ), s : r0.s + f * (r1.s - r0.s), t : i / m } );
+                    midUV.push( uv );
+                    seed = uv;
+                    found = true;
+                }
+                prev = cur;
+            }
+            if (!found) return null;
+        }
+        // the section must stay near the corner (within a few radii of the ends)
+        if (mid.some( x => Vec.dist( x.point, ends[0].point ) > 4 * F.radius )) return null;
+        F.trims[e] = [ends[0]].concat( mid, [ends[1]] );
+        return { uv : [endUV[0]].concat( midUV, [endUV[1]] ), points : F.trims[e]!.map( x => x.point ), inserts : inserts };
     }
 
     // rows from the end inwards, as far as a few radii from the corner
@@ -522,6 +584,7 @@ export class FilletCorner {
 
     // How far a setback corner stops each blend short of where its contact curves meet the others', in radii.
     public static setbackFactor = 0.6;
+    public static perSide = false;
 
     // A setback vertex blend: three blends of any radii and kinds (convex, concave or mixed), between three faces that
     // meet at a point. Each blend stops a setback short of where its contact curves cross its neighbours' (on the face they
@@ -667,7 +730,8 @@ export class FilletCorner {
             const sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
             return { points : pts, tangents : along[j], cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
         } );
-        if (ends.every( x => x.F.shape == "curvature" )) {
+        const g2 = ends.every( x => x.F.shape == "curvature" );
+        if (g2) {
             // curvature-continuous blends get a curvature-continuous corner (G2): each ribbon also carries the second
             // derivative across its side, along the blend (from its rows) or of the face along the cross direction
             ribbons.forEach( (rb, j) => {
@@ -680,6 +744,20 @@ export class FilletCorner {
                 const c = curves[o.f];
                 const uvs = o.reverse ? c.uv.slice().reverse() : c.uv;
                 (rb as Ribbon).second = rb.cross.map( (w, k) => FilletCorner.faceSecond( c.side.face.surface, uvs[k], w ) );
+            } );
+        }
+        if (FilletCorner.perSide) {
+            // each side's cross derivative sized to reach the patch's middle: the world distance from the side's
+            // midpoint to the centroid of the boundary, over the hexagon's inradius
+            const all = ([] as Array<Point>).concat( ...sides );
+            const g = Vec.mul( 1 / all.length, all.reduce( (a, p) => Vec.add( a, p ), [0, 0, 0] as Point ) );
+            const inr = 0.5 / Math.tan( Math.PI / sides.length );
+            ribbons.forEach( (rb, j) => {
+                const pts = sides[j], mid = pts[pts.length >> 1];
+                const f = Vec.dist( mid, g ) / inr / lambda;
+                rb.cross = rb.cross.map( v => Vec.mul( f, v ) );
+                const r2 = rb as Ribbon;
+                if (r2.second != null) r2.second = r2.second.map( v => Vec.mul( f * f, v ) );
             } );
         }
         if (ends[0].F.shape == "chamfer") {
@@ -698,6 +776,9 @@ export class FilletCorner {
                 } );
             } );
         }
+        FilletCorner.contain( ribbons, touch.map( t => faceOf( t[0].i, t[0].b ) ), curves.map( c => c.uv[0] ),
+                              Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) ), rMax,
+                              Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ), g2 ? [] : rows.map( (r, i) => FilletCorner.envelope( r, ends[i].F.side ) ), !g2 );
         const m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
         // outward, with the faces: the triangles turned one way in the polygon, then all flipped if the one at the
         // patch's first boundary point (on the first face curve, where the patch is tangent to that face) faces against
@@ -728,6 +809,145 @@ export class FilletCorner {
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
                  parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
                  ribbons : ribbons, domain : m.domain };
+    }
+
+    // Keep a setback corner on the blends' side of the three faces it rounds. The patch is a convex combination of its
+    // six ribbons, each carried on into the patch from its side; carried on without limit, a ribbon runs past the
+    // faces round the corner (by 0.17 for radii 3, 4 and 5 on a 40 x 28 x 20 box), and the patch, which takes a share
+    // of it, bulges past them. So each ribbon is given a reach (`Ribbon.reach`): it bends over smoothly, unchanged to
+    // second order at its own side, so the patch keeps its fullness there and every continuity it has (G1, or G2 for
+    // curvature-continuous blends). The reach is the longest, by a scan and bisection, at which no sample of the
+    // patch lies on the other side of a face from the blends' centres. Deterministic, and a no-op where nothing
+    // crosses. (An earlier version shortened the cross derivatives instead, which flattens the patch at its sides
+    // and, for a G2 patch, makes the second-order terms dominate: its curvature across the sides drifted.)
+    private static contain( ribbons : Array<Ribbon>, faces : Array<FilletSide>, uv0 : Array<UV>, centre : Point, size : number, density : number,
+                            envelopes : Array<(p : Point) => number> = [], bendFirst = true ) : void {
+        const reach = (D : number | undefined) => ribbons.forEach( r => { r.reach = D; } );
+        // samples of the polygon: the inner vertices of the patch's mesh (they do not depend on the reach)
+        const m = Transfinite.mesh( ribbons, density );
+        const samples = m.domain.slice( m.boundary );
+        const tol = 1e-6 * size;
+        const sideOf = faces.map( (F, k) => FilletCorner.signedDistance( F, centre, uv0[k] ).d < 0 ? -1 : 1 );
+        // how far the patch crosses the faces, at worst (0: not at all)
+        const crossing = () => {
+            let worst = 0.0;
+            for (const x of samples) {
+                const p = Transfinite.evaluate( ribbons, x );
+                faces.forEach( (F, k) => { worst = Math.max( worst, -sideOf[k] * FilletCorner.signedDistance( F, p, uv0[k] ).d ); } );
+                for (const e of envelopes) worst = Math.max( worst, e( p ) );
+            }
+            return worst > tol ? worst : 0;
+        };
+        if (crossing() == 0) return;
+        // first, bend the ribbons in: a third derivative across each side, towards the blends' centres, square to the
+        // side and to its cross derivative. It leaves every continuity at the sides alone and rounds the patch's
+        // middle the way a ball corner is round; the least bend that keeps the patch inside is taken
+        const inward = ribbons.map( rb => rb.points.map( (p, k) => {
+            const t = rb.tangents != null ? rb.tangents[k] : Vec.sub( rb.points[Math.min( k + 1, rb.points.length - 1 )], rb.points[Math.max( k - 1, 0 )] );
+            let n = Vec.cross( t, rb.cross[k] );
+            const l = Vec.norm( n );
+            if (l < 1e-300) return [0, 0, 0] as Point;
+            n = Vec.mul( 1 / l, n );
+            return Vec.dot( n, Vec.sub( centre, p ) ) < 0 ? Vec.mul( -1, n ) : n;
+        } ) );
+        const bend = (b : number) => ribbons.forEach( (rb, j) => { rb.third = b == 0 ? undefined : inward[j].map( (n, k) => Vec.mul( b * Vec.norm( rb.cross[k] ), n ) ); } );
+        let bent = -1;
+        if (bendFirst) for (const b of [0.5, 1, 1.5, 2, 3, 4, 6, 8]) {
+            bend( b );
+            if (crossing() == 0) { bent = b; break; }
+        }
+        if (bent > 0) {
+            let lo2 = bent == 0.5 ? 0 : [0.5, 1, 1.5, 2, 3, 4, 6, 8][[0.5, 1, 1.5, 2, 3, 4, 6, 8].indexOf( bent ) - 1], hi2 = bent;
+            for (let it = 0; it < 6; it++) {
+                const mid = 0.5 * (lo2 + hi2);
+                bend( mid );
+                if (crossing() > 0) lo2 = mid; else hi2 = mid;
+            }
+            bend( hi2 );
+            return;
+        }
+        bend( 0 );
+        // where no bend keeps the patch within the blends' envelopes, keeping it within them would dent it: it is
+        // held within the faces only, which a full patch always manages
+        if (envelopes.length > 0) {
+            FilletCorner.contain( ribbons, faces, uv0, centre, size, density, [], bendFirst );
+            return;
+        }
+        // the longest reach that does not cross (bisection between the steps of a coarse scan, in the polygon's units:
+        // its side is 1); where every reach crosses (the boundary itself curves out, which no reach undoes), the one
+        // that crosses least
+        let best = 1.0, least = Infinity, lo = -1;
+        for (const D of [1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1]) {
+            reach( D );
+            const c = crossing();
+            if (c == 0) { lo = D; break; }
+            if (c < least) { least = c; best = D; }
+        }
+        if (lo < 0) { reach( best ); return; }
+        // the step above the one found
+        const steps = [2.0, 1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1];
+        let hi = steps[steps.indexOf( lo ) - 1];
+        for (let it = 0; it < 7; it++) {
+            const mid = 0.5 * (lo + hi);
+            reach( mid );
+            if (crossing() > 0) hi = mid; else lo = mid;
+        }
+        reach( lo );
+    }
+
+    // How far a point lies past a blend carried on straight beyond its end section (0 where it does not): the blend's
+    // envelope, which a corner must stay within to look flush with it (a rounded box's corner inside the cylinders of
+    // its fillets). The section is swept along the blend's direction at its end; the point is compared, round the
+    // section's centre, with the section's point in the same direction. Only points beyond the end and within the
+    // section's wedge count (the faces bound the rest). For a convex blend (side -1) past means further from the
+    // centre; for a concave one, nearer.
+    private static envelope( row : { points : Array<Point>, dP : Array<Point>, centre : Point }, side : number ) : (p : Point) => number {
+        const m = row.points.length - 1;
+        const D = Vec.normalized( row.dP[m >> 1] );
+        const c = row.centre;
+        const flat = (v : Point) => Vec.sub( v, Vec.mul( Vec.dot( v, D ), D ) );
+        const spokes = row.points.map( q => flat( Vec.sub( q, c ) ) );
+        const dirs = spokes.map( v => Vec.normalized( v ) );
+        return (p : Point) => {
+            const v = Vec.sub( p, c );
+            if (Vec.dot( v, D ) <= 0) return 0;
+            const u = flat( v ), len = Vec.norm( u );
+            if (len < 1e-12) return 0;
+            const un = Vec.mul( 1 / len, u );
+            // the two spokes either side of the point's direction, and the section's distance between them
+            const ang = (a : Point, b : Point) => Math.atan2( Vec.norm( Vec.cross( a, b ) ), Vec.dot( a, b ) );
+            for (let k = 0; k < m; k++) {
+                const a = ang( dirs[k], dirs[k + 1] ), x = ang( dirs[k], un ), y = ang( un, dirs[k + 1] );
+                if (Math.abs( x + y - a ) > 1e-9 * Math.max( 1, a )) continue;
+                // the section's distance at that angle, on the chord between the spokes' ends
+                const sd = Vec.norm( spokes[k] ) * Vec.norm( spokes[k + 1] ) * Math.sin( a ) /
+                           Math.max( 1e-300, Vec.norm( spokes[k] ) * Math.sin( x ) + Vec.norm( spokes[k + 1] ) * Math.sin( y ) );
+                return Math.max( 0, -side * (len - sd) );
+            }
+            return 0;
+        };
+    }
+
+    // The signed distance from a point to a face, along the face's normal (as Fillet orients it), at the point's
+    // projection on the face: Newton steps from uv0, clamped to the domain.
+    private static signedDistance( F : FilletSide, p : Point, uv0 : UV ) : { d : number, uv : UV } {
+        const s = F.face.surface, dom = SurfaceIntersect.domain( s );
+        let uv : UV = [uv0[0], uv0[1]];
+        for (let it = 0; it < 20; it++) {
+            const e = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+            const r = Vec.sub( p, e[0][0] ), su = e[1][0], sv = e[0][1];
+            const a = Vec.dot( su, su ), b = Vec.dot( su, sv ), c = Vec.dot( sv, sv );
+            const det = a * c - b * b;
+            if (Math.abs( det ) < 1e-300) break;
+            const f = Vec.dot( r, su ), g = Vec.dot( r, sv );
+            const du = (c * f - b * g) / det, dv = (a * g - b * f) / det;
+            const next = SurfaceIntersect.toDomain( { surface : s, periodic : F.face.periodic }, [uv[0] + du, uv[1] + dv] );
+            const moved = Math.abs( next[0] - uv[0] ) + Math.abs( next[1] - uv[1] );
+            uv = next;
+            if (moved < 1e-14 * (dom[1] - dom[0] + dom[3] - dom[2])) break;
+        }
+        const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] );
+        return { d : Vec.dot( Vec.sub( p, q ), Fillet.normal( F, uv ) ), uv : uv };
     }
 
     // A blend's section at s, between its rows: points across it, parameters of its feet, the derivatives of its points
@@ -831,7 +1051,7 @@ export class FilletCorner {
             }
             points.push( p ); xy.push( project( p ) );
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         if (tris.length == 0) return null;
         // outward: away from the centre on a convex corner (the ball is in the material), towards it on a concave one
         const triangles = tris.map( t => {
@@ -905,7 +1125,7 @@ export class FilletCorner {
             const r = F.rows[k];
             if (inRange( r.s, i / m )) add( r.points[i], r.s, i / m );
         }
-        const tris = cdt2d( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
+        const tris = triangulate( xy, edges, { exterior : false } ) as Array<[number, number, number]>;
         if (tris.length == 0) return null;
         // counter-clockwise in (s, t), with s along the edge and t from A to B, as the closed blends' (k, i) grid
         const triangles : Array<[number, number, number]> = tris.map( tr => {
@@ -931,7 +1151,11 @@ export class FilletCorner {
             return BrepBoolean.facePieces( face, uv, seam, points, false );
         };
         const real = F.rows.slice( 2, F.rows.length - 2 );
-        const arcs = real.map( (r, k) => Fillet.crossSection( F.A, F.B, F.sections[Math.min( k, F.sections.length - 1 )], F.shape ) );
+        // a section repeated where the edge crosses a face's seam (once as a sample, once as the crossing) would give
+        // the loft a step of zero length, and control points of NaN: keep one
+        const secs = real.map( (_r, k) => F.sections[Math.min( k, F.sections.length - 1 )] );
+        const distinct = secs.filter( (x, k) => k == 0 || Vec.dist( x.pa, secs[k - 1].pa ) > 1e-9 || Vec.dist( x.pb, secs[k - 1].pb ) > 1e-9 );
+        const arcs = distinct.map( x => Fillet.crossSection( F.A, F.B, x, F.shape ) );
         const surface = Make.loftedSurface( arcs, Math.min( 3, arcs.length - 1 ) );
         const cutA = contact( 0, sideA, F.A.face ), cutB = contact( m, sideB, F.B.face );
         for (const x of F.extra) {

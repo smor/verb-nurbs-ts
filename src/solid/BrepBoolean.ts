@@ -5,6 +5,7 @@ import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
+import { IntersectionCertificate } from "./IntersectionCertificate.js";
 import { MeshBVH } from "./MeshBVH.js";
 import { BrepEdges, DomainSide, SolidEdge } from "./BrepEdges.js";
 import { Fillet, FilletRadius, FilletResult, FilletShape, FilletSide } from "./Fillet.js";
@@ -29,7 +30,8 @@ export interface BooleanOptions {
     tolerance? : number;
     // rolling-ball fillet radius for the new edges: one radius for all, or per intersection curve (0: no fillet).
     // Edges are the runs of the branches between corners; only runs that are edges of the result are filleted. A run
-    // that ends at corners is rounded where each corner joins it to one other rounded edge across a sharp one.
+    // that ends at corners is rounded where each corner joins it to one other rounded edge across a sharp one, to two
+    // other rounded edges, or (running out onto a face) to two sharp ones.
     // The function may also return a function of the position along the edge (see `FilletRadius`): a variable-radius
     // fillet.
     // the shape of the fillets' cross-sections (default "circular"; see `FilletShape`)
@@ -44,6 +46,9 @@ export interface BooleanOptions {
     edges? : Array<{ solid : number, faces : [number, number], radius : FilletRadius }>;
     // look for intersection loops too small for the search grids (see `SurfaceLoops`; default true)
     loops? : boolean;
+    // prove each pair of faces' intersection complete, no branch or loop missed (`IntersectionCertificate`; default
+    // false: it costs a fraction of a second per pair of faces that meet), into `report.certificate`
+    certify? : boolean;
 }
 
 // A position in a transfinite patch's polygon.
@@ -73,6 +78,8 @@ export interface BooleanResult {
         manifold : ManifoldReport;
         volume : number;
         intersectionCurves : number;
+        // branches along which two faces touch without crossing (tangent): the result is not a manifold there
+        tangentContacts : number;
         // the largest distance between the two surfaces at the vertices of the intersection curves
         maxCurveError : number;
         // edges rounded; edges that asked for a fillet the ball could not roll along (too large a radius); and edges
@@ -80,6 +87,13 @@ export interface BooleanResult {
         fillets : number;
         filletsFailed : number;
         filletsSkipped : number;
+        // closed fillets made smaller than asked, so that their edges on a face they share keep clear of each other
+        filletsReduced : number;
+        // with `certify`: the pairs of faces whose boxes meet, how many of them are proven complete, and the others
+        // (their pairs of cells left undecided, where the faces may be tangent or a loop may hide, and the starts of
+        // branches found on no curve)
+        certificate? : { pairs : number, proven : number,
+                         unproven : Array<{ solids : [number, number], faces : [number, number], unresolved : number, missed : number }> };
     };
 }
 
@@ -103,6 +117,65 @@ export interface BooleanResult {
 // the same branch), branches of one face must not cross each other, and faces must not touch tangentially.
 
 export class BrepBoolean {
+
+    // Closed blends whose contact curves on a shared face come within a tenth of the smaller radius of each other
+    // (or cross) are rebuilt at 0.8 times their radius, up to six times; a pair that still cannot keep clear is left
+    // sharp. Returns how many blends were made smaller, and how many dropped.
+    private static keepBlendsApart( runs : Array<{ ci : number, curve : IntersectionCurve, sides : [FilletSide, FilletSide] | null, radius : FilletRadius }>,
+                                    curves : BooleanResult["curves"], blends : Map<number, FilletResult>, tol : number,
+                                    shape? : FilletShape ) : { count : number, dropped : number } {
+        const size = (r : FilletRadius) => typeof r == "number" ? r : Math.min( ...Array.from( { length : 17 }, (_, k) => r( k / 16 ) ) );
+        const scaled = (r : FilletRadius, f : number) : FilletRadius => typeof r == "number" ? r * f : (t : number) => r( t ) * f;
+        const onFace = (g : number) => {
+            const e = curves[runs[g].ci], b = blends.get( g )!;
+            return [{ key : e.solids[0] + ":" + e.faces[0], cuts : b.cutA }, { key : e.solids[1] + ":" + e.faces[1], cuts : b.cutB }];
+        };
+        // whether two sets of cuts come within d of each other, segment against segment
+        const near = (a : Array<FaceCut>, b : Array<FaceCut>, d : number) => {
+            const segs = (c : FaceCut) => { const n = c.points.length, m = c.closed ? n : n - 1; return Array.from( { length : m }, (_, k) => [c.points[k], c.points[(k + 1) % n]] ); };
+            const A = a.flatMap( segs ), B = b.flatMap( segs );
+            for (const [p0, p1] of A) for (const [q0, q1] of B) {
+                if (Math.min( p0[0], p1[0] ) > Math.max( q0[0], q1[0] ) + d || Math.min( q0[0], q1[0] ) > Math.max( p0[0], p1[0] ) + d) continue;
+                if (Math.min( p0[1], p1[1] ) > Math.max( q0[1], q1[1] ) + d || Math.min( q0[1], q1[1] ) > Math.max( p0[1], p1[1] ) + d) continue;
+                if (Math.min( p0[2], p1[2] ) > Math.max( q0[2], q1[2] ) + d || Math.min( q0[2], q1[2] ) > Math.max( p0[2], p1[2] ) + d) continue;
+                if (BrepBoolean.segmentsDistance( p0, p1, q0, q1 ) < d) return true;
+            }
+            return false;
+        };
+        const reducedSet = new Set<number>();
+        let dropped = 0;
+        for (let round = 0; round < 6; round++) {
+            const gs = Array.from( blends.keys() );
+            const clash = new Set<number>();
+            for (let i = 0; i < gs.length; i++) for (let j = i + 1; j < gs.length; j++) {
+                const gap = 0.1 * Math.min( size( runs[gs[i]].radius ), size( runs[gs[j]].radius ) );
+                const fi = onFace( gs[i] ), fj = onFace( gs[j] );
+                if (fi.some( a => fj.some( b => a.key == b.key && near( a.cuts, b.cuts, gap ) ) )) { clash.add( gs[i] ); clash.add( gs[j] ); }
+            }
+            if (clash.size == 0) break;
+            for (const g of clash) {
+                const r = runs[g];
+                if (round == 5) { blends.delete( g ); dropped++; continue; }
+                r.radius = scaled( r.radius, 0.8 );
+                const fr = Fillet.rollingBall( r.sides![0], r.sides![1], r.curve, r.radius, tol, shape );
+                if (fr == null) { blends.delete( g ); dropped++; } else { blends.set( g, fr ); reducedSet.add( g ); }
+            }
+        }
+        for (const g of reducedSet) if (!blends.has( g )) reducedSet.delete( g );
+        return { count : reducedSet.size, dropped : dropped };
+    }
+
+    // The distance between segments p0p1 and q0q1 (closest points, clamped to both segments).
+    private static segmentsDistance( p0 : Point, p1 : Point, q0 : Point, q1 : Point ) : number {
+        const u = Vec.sub( p1, p0 ), v = Vec.sub( q1, q0 ), w = Vec.sub( p0, q0 );
+        const a = Vec.dot( u, u ), b = Vec.dot( u, v ), c = Vec.dot( v, v ), d = Vec.dot( u, w ), e = Vec.dot( v, w );
+        const den = a * c - b * b;
+        let sN = den > 1e-24 ? (b * e - c * d) / den : 0;
+        sN = Math.min( 1, Math.max( 0, sN ) );
+        let t = c > 1e-24 ? (b * sN + e) / c : 0;
+        if (t < 0 || t > 1) { t = Math.min( 1, Math.max( 0, t ) ); sN = a > 1e-24 ? Math.min( 1, Math.max( 0, (b * t - d) / a ) ) : 0; }
+        return Vec.norm( Vec.sub( Vec.add( p0, Vec.mul( sN, u ) ), Vec.add( q0, Vec.mul( t, v ) ) ) );
+    }
 
     public static union( solids : Array<BrepSolid>, options? : BooleanOptions ) : BooleanResult {
         return BrepBoolean.evaluate( solids, f => f.some( x => x ), options );
@@ -129,12 +202,22 @@ export class BrepBoolean {
         const cuts : Array<Array<Array<FaceCut>>> = solids.map( s => s.faces.map( _ => [] as Array<FaceCut> ) );
         const curves : BooleanResult["curves"] = [];
         let maxErr = 0.0;
+        let tangentContacts = 0;
+        const certificate = o.certify ? { pairs : 0, proven : 0, unproven : [] as NonNullable<BooleanResult["report"]["certificate"]>["unproven"] } : undefined;
         for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
             solids[i].faces.forEach( (fa, ia) => solids[j].faces.forEach( (fb, ib) => {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
                 const step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
-                const found = SurfaceIntersect.surfaces( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
+                const res = SurfaceIntersect.analyze( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
+                tangentContacts += res.tangent.length;
+                const found = res.curves;
+                if (certificate != null) {
+                    const c = IntersectionCertificate.check( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), found );
+                    certificate.pairs++;
+                    if (c.proven) certificate.proven++;
+                    else certificate.unproven.push( { solids : [i, j], faces : [ia, ib], unresolved : c.unresolved, missed : c.missed.length } );
+                }
                 for (const c of BrepBoolean.dropRetraces( found, 0.02 * step ))
                     curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
@@ -215,7 +298,11 @@ export class BrepBoolean {
                 if (fin == fout) continue;
                 const pe : SolidEdge = { faces : e.faces, sides : e.sides, curve : piece };
                 curves.push( { solids : [x.solid, x.solid], faces : x.faces, curve : piece, own : e.sides } );
-                runs.push( { ci : curves.length - 1, curve : piece, sides : BrepEdges.filletSides( solid, pe, piece.points.length >> 1 ), radius : x.radius, own : true } );
+                // a solid the result keeps the outside of (taken away): its faces face the other way, and the edge
+                // is concave, so each face's kept part lies outside the other's solid where it was inside
+                let sides = BrepEdges.filletSides( solid, pe, piece.points.length >> 1 );
+                if (!fin) sides = sides.map( sd => ({ face : sd.face, sign : -sd.sign, keptInsideOther : sd.keptInsideOther }) ) as [FilletSide, FilletSide];
+                runs.push( { ci : curves.length - 1, curve : piece, sides : sides, radius : x.radius, own : true } );
             }
         }
 
@@ -248,6 +335,12 @@ export class BrepBoolean {
             if (sec == null) { failed++; return; }
             openBlends.set( g, FilletCorner.open( A, B, sec, o.filletShape ) );
         } );
+        // closed blends on the same face must keep clear of each other: two contact curves that cross (handle joints
+        // close together, holes close together) would cut the face into pieces that belong to neither. Where two come
+        // within a tenth of the smaller radius, both are rebuilt smaller, in steps, until they keep clear; a blend
+        // that still cannot is left sharp (counted as failed)
+        const reduced = BrepBoolean.keepBlendsApart( runs, curves, closedBlends, tol, o.filletShape );
+        failed += reduced.dropped;
         // corners: the ends of the runs that are edges of the result
         const key = (s : number, f : number) => s + ":" + f;
         const faceKeys = (g : number) => { const e = curves[runs[g].ci]; return [key( e.solids[0], e.faces[0] ), key( e.solids[1], e.faces[1] )]; };
@@ -266,7 +359,9 @@ export class BrepBoolean {
         const inserts : Array<{ g : [number, number], insert : () => void }> = [];
         const balls : Array<{ g : Array<number>, patch : NonNullable<ReturnType<typeof FilletCorner.ball>> }> = [];
         const partners = new Map<number, Array<number>>();
-        for (const [, at] of corners) {
+        // blends that run out onto a third face: its cut along their end section, and its corner there
+        const runouts : Array<{ g : number, solid : number, face : number, uv : Array<UV>, points : Array<Point>, P : Point }> = [];
+        for (const [P, at] of corners) {
             const filleted = at.filter( x => openBlends.has( x.g ) );
             if (filleted.length == 0) continue;
             const others = at.filter( x => !openBlends.has( x.g ) );
@@ -326,6 +421,67 @@ export class BrepBoolean {
                     }
                 }
             }
+            if (!ok && filleted.length == 1 && others.length <= 2) {
+                const x = filleted[0], F = openBlends.get( x.g ) as OpenBlend;
+                const [ka, kb] = faceKeys( x.g );
+                const face = (k : string) => { const q = k.split( ":" ).map( Number ); return solids[q[0]].faces[q[1]]; };
+                let found : { kc : string, edgeA : ThirdEdge, edgeB : ThirdEdge } | null = null;
+                const curveEdge = (y : { g : number, end : number }, k : string, kc : string) : ThirdEdge => ({ kind : "curve", curve : runs[y.g].curve,
+                    a1IsA : faceKeys( y.g )[0] == k, a1 : face( k ), a2 : face( kc ), atStart : y.end == 0 });
+                // the edge between faces k and kc of one solid that ends at P, as a third edge
+                const ownEdge = (k : string, kc : string) : ThirdEdge | null => {
+                    const [s1, f1] = k.split( ":" ).map( Number ), [s2, f2] = kc.split( ":" ).map( Number );
+                    if (s1 != s2) return null;
+                    const e = BrepEdges.between( solids[s1], f1, f2 );
+                    // P on it: at an end, or within it where a branch splits it
+                    if (e == null || !e.curve.points.some( (q, j) => j > 0 && BrepBoolean.segmentDistance( P, e.curve.points[j - 1], q ) < snap )) return null;
+                    return { kind : "boundary", a1 : face( k ), a2 : face( kc ), axis1 : e.sides[0].axis, value1 : e.sides[0].value, axis2 : e.sides[1].axis, value2 : e.sides[1].value };
+                };
+                if (others.length == 2 && others.every( y => !runs[y.g].own )) {
+                    // two branches, from A and from B to the same third face
+                    const ta = others.find( y => faceKeys( y.g ).includes( ka ) ), tb = others.find( y => faceKeys( y.g ).includes( kb ) );
+                    if (ta != null && tb != null && ta !== tb) {
+                        const kca = faceKeys( ta.g ).find( k => k != ka ), kcb = faceKeys( tb.g ).find( k => k != kb );
+                        if (kca != null && kca == kcb && kca != ka && kca != kb) found = { kc : kca, edgeA : curveEdge( ta, ka, kca ), edgeB : curveEdge( tb, kb, kca ) };
+                    }
+                } else if (others.length == 1 && !runs[others[0].g].own) {
+                    // a branch from one of A and B to the third face, and an edge of a solid from the other
+                    const y = others[0], ky = faceKeys( y.g );
+                    for (const [k, kOther] of [[ka, kb], [kb, ka]]) {
+                        if (found != null || !ky.includes( k )) continue;
+                        const kc = ky.find( z => z != k );
+                        if (kc == null || kc == ka || kc == kb) continue;
+                        const own = ownEdge( kOther, kc );
+                        if (own == null) continue;
+                        const branch = curveEdge( y, k, kc );
+                        found = k == ka ? { kc : kc, edgeA : branch, edgeB : own } : { kc : kc, edgeA : own, edgeB : branch };
+                    }
+                } else if (others.length == 0 && runs[x.g].own) {
+                    // a solid's own vertex: the face of that solid meeting both A and B there
+                    const si = Number( ka.split( ":" )[0] ), fa = Number( ka.split( ":" )[1] ), fb = Number( kb.split( ":" )[1] );
+                    const solid = solids[si];
+                    const at = (e : SolidEdge | null) => e != null && !e.curve.closed && [e.curve.points[0], e.curve.points[e.curve.points.length - 1]].some( q => Vec.dist( q, P ) < snap );
+                    for (let fc = 0; fc < solid.faces.length && found == null; fc++) {
+                        if (fc == fa || fc == fb) continue;
+                        const ea = BrepEdges.between( solid, fa, fc ), eb = BrepEdges.between( solid, fb, fc );
+                        if (!at( ea ) || !at( eb )) continue;
+                        const C = solid.faces[fc], A = solid.faces[fa], B = solid.faces[fb];
+                        const ia = ea as SolidEdge, ib = eb as SolidEdge;
+                        found = { kc : key( si, fc ),
+                            edgeA : { kind : "boundary", a1 : A, a2 : C, axis1 : ia.sides[0].axis, value1 : ia.sides[0].value, axis2 : ia.sides[1].axis, value2 : ia.sides[1].value },
+                            edgeB : { kind : "boundary", a1 : B, a2 : C, axis1 : ib.sides[0].axis, value1 : ib.sides[0].value, axis2 : ib.sides[1].axis, value2 : ib.sides[1].value } };
+                    }
+                }
+                if (found != null) {
+                    const q = found.kc.split( ":" ).map( Number );
+                    const cut = FilletCorner.runout( F, x.end, solids[q[0]].faces[q[1]], found.edgeA, found.edgeB, tol );
+                    if (cut != null) {
+                        ok = true;
+                        runouts.push( { g : x.g, solid : q[0], face : q[1], uv : cut.uv, points : cut.points, P : P } );
+                        for (const ins of cut.inserts) inserts.push( { g : [x.g, x.g], insert : ins } );
+                    }
+                }
+            }
             if (!ok) for (const x of filleted) unsupported.add( x.g );
         }
         // a blend that cannot end at one of its corners takes its partners at the others with it
@@ -360,17 +516,26 @@ export class BrepBoolean {
             if (r.own) for (let k = 0; k < 2; k++) ownStrips.push( { solid : e.solids[k], face : e.faces[k], tag : runs.length + g, side : (e.own as [DomainSide, DomainSide])[k] } );
         };
         runs.forEach( (_, g) => { const fr = closedBlends.get( g ) || built.get( g ); if (fr != null) addBlend( g, fr ); } );
+        for (const x of runouts) {
+            if (!built.has( x.g )) continue;
+            const C = solids[x.solid].faces[x.face];
+            const pieces = BrepBoolean.facePieces( C, x.uv, x.uv.map( _ => 0 ), x.points, false );
+            for (const pc of pieces) pc.tag = runs.length + x.g;
+            cuts[x.solid][x.face].push( ...pieces );
+        }
         // ball corners whose three blends were built
         const ballPatches = balls.filter( b => b.g.every( g => built.has( g ) ) ).map( b => b.patch );
 
-        // the runs as cuts of their faces
+        // the runs as cuts of their faces; a branch that another one, found earlier on the same face, already traces
+        // (two coincident faces crossing a third) cuts that face once
+        const traced = BrepBoolean.traced( curves, snap );
         runs.forEach( (r, g) => {
             if (r.own) return;
             const c = r.curve, e = curves[r.ci], i = e.solids[0], j = e.solids[1];
             const fa = solids[i].faces[e.faces[0]], fb = solids[j].faces[e.faces[1]];
             const tag = (x : Array<FaceCut>) => { for (const p of x) p.tag = g; return x; };
-            cuts[i][e.faces[0]].push( ...tag( BrepBoolean.facePieces( fa, c.uvA, c.seamA, c.points, c.closed ) ) );
-            cuts[j][e.faces[1]].push( ...tag( BrepBoolean.facePieces( fb, c.uvB, c.seamB, c.points, c.closed ) ) );
+            if (!traced.has( r.ci + ":0" )) cuts[i][e.faces[0]].push( ...tag( BrepBoolean.facePieces( fa, c.uvA, c.seamA, c.points, c.closed ) ) );
+            if (!traced.has( r.ci + ":1" )) cuts[j][e.faces[1]].push( ...tag( BrepBoolean.facePieces( fb, c.uvB, c.seamB, c.points, c.closed ) ) );
         } );
         curves.forEach( e => {
             const c = e.curve, fa = solids[e.solids[0]].faces[e.faces[0]], fb = solids[e.solids[1]].faces[e.faces[1]];
@@ -379,6 +544,18 @@ export class BrepBoolean {
                 maxErr = Math.max( maxErr, err );
             }
         } );
+        // a cut along a side of a face runs along an edge of its solid: the face across that edge gets it too, so that
+        // the three faces meeting there (two of this solid, one of the other) share its points
+        solids.forEach( (solid, si) => solid.faces.forEach( (_, fi) => {
+            for (const c of cuts[si][fi].slice()) {
+                if (BrepBoolean.side( solid.faces[fi], c.uv ) == null) continue;
+                solid.faces.forEach( (g, gi) => {
+                    if (gi == fi || cuts[si][gi].some( x => x.points == c.points )) return;
+                    const across = BrepBoolean.along( g, c.points, snap );
+                    if (across != null) cuts[si][gi].push( { uv : across, points : c.points, closed : c.closed, tag : -1 } );
+                } );
+            }
+        } ) );
         // within a face, ends of pieces that meet get the same parameters
         solids.forEach( (solid, si) => solid.faces.forEach( (face, fi) => BrepBoolean.joinEnds( face, cuts[si][fi] ) ) );
 
@@ -392,21 +569,7 @@ export class BrepBoolean {
         solids.forEach( (solid, si) => solid.faces.forEach( (face, fi) => {
             const t = FaceMesher.mesh( face, cuts[si][fi], welder );
             const regions = BrepBoolean.regions( t );
-            for (const reg of regions) {
-                if (strip.length > 0) {
-                    const tags = BrepBoolean.regionTags( t, reg );
-                    if (strip.some( x => tags.has( x[0] ) && tags.has( x[1] ) )) continue;
-                    // the strip along an own edge: bounded by the contact curve, and reaching the face's side
-                    if (ownStrips.some( x => x.solid == si && x.face == fi && tags.has( x.tag ) && BrepBoolean.touches( face, t, reg, x.side ) )) continue;
-                }
-                const inside = BrepBoolean.classify( t, reg, si, meshes );
-                // next to a seam with another solid, the side is exact: it does not depend on how finely that solid is
-                // tessellated, which matters when the two barely overlap
-                for (const [k, x] of BrepBoolean.seamSides( t, reg, si, solids, runs, curves )) inside[k] = x;
-                const fin = expr( inside.map( (x, k) => k == si ? true : x ) );
-                const fout = expr( inside.map( (x, k) => k == si ? false : x ) );
-                if (fin == fout) continue;
-                const flip = face.reversed != !fin; // keep the material side of the result behind the face
+            const emit = (reg : Array<number>, flip : boolean) => {
                 for (const k of reg) {
                     const tri = t.triangles[k];
                     const a = t.ids[tri[0]], b = t.ids[tri[1]], c = t.ids[tri[2]];
@@ -417,7 +580,46 @@ export class BrepBoolean {
                 }
                 faces.push( { solid : si, face : fi, name : face.name != null ? face.name : "", surface : face.surface,
                               reversed : flip, loops : BrepBoolean.loops( t, reg ) } );
+            };
+            // the corners of this face that blends run out onto: the region there is cut off where the blend rounds a
+            // convex edge, and filled in where it fills a concave one (on the side the rest of the face is kept)
+            const mine = runouts.filter( x => x.solid == si && x.face == fi && built.has( x.g ) );
+            // (the face's other regions are kept with the material on one side: a corner filled in has it there too)
+            const fills : Array<{ reg : Array<number> }> = [];
+            let keptFlip : boolean | null = null;
+            for (const reg of regions) {
+                let runoutTag = -1;
+                if (strip.length > 0) {
+                    const tags = BrepBoolean.regionTags( t, reg );
+                    for (const x of mine) {
+                        const tg = runs.length + x.g;
+                        if (tags.has( tg ) && reg.some( k => t.triangles[k].some( v => Vec.dist( t.points[v], x.P ) < snap ) )) runoutTag = tg;
+                    }
+                    if (strip.some( x => tags.has( x[0] ) && tags.has( x[1] ) )) continue;
+                    // the strip along an own edge: bounded by the contact curve, and reaching the face's side
+                    if (ownStrips.some( x => x.solid == si && x.face == fi && tags.has( x.tag ) && BrepBoolean.touches( face, t, reg, x.side ) )) continue;
+                }
+                const inside = BrepBoolean.classify( t, reg, si, meshes );
+                // next to a seam with another solid, the side is exact: it does not depend on how finely that solid is
+                // tessellated, which matters when the two barely overlap
+                for (const [k, x] of BrepBoolean.seamSides( t, reg, si, solids, runs, curves )) inside[k] = x;
+                // on a face of another solid (coincident faces): just behind the region, that solid is inside where
+                // its face points the same way, outside where it points against; just in front, the reverse
+                const on = BrepBoolean.coincident( face, t, reg, si, solids, weldTol * 50 );
+                const fin = expr( inside.map( (x, k) => k == si ? true : on.has( k ) ? on.get( k ) as boolean : x ) );
+                const fout = expr( inside.map( (x, k) => k == si ? false : on.has( k ) ? !on.get( k ) : x ) );
+                if (runoutTag >= 0) {
+                    if (fin == fout) fills.push( { reg : reg } );
+                    continue;
+                }
+                if (fin == fout) continue;
+                // the solids sharing the region would each keep it: the first of them does
+                if (Array.from( on.keys() ).some( k => k < si )) continue;
+                const flip = face.reversed != !fin; // keep the material side of the result behind the face
+                keptFlip = flip;
+                emit( reg, flip );
             }
+            for (const x of fills) if (keptFlip != null) emit( x.reg, keptFlip );
         } ) );
         for (const b of blends) {
             const ids = b.points.map( p => welder.id( p ) );
@@ -446,8 +648,8 @@ export class BrepBoolean {
         patchXY = patchXY.filter( (_, k) => kept( k ) );
         out.compact(); // drops the same degenerate triangles
         return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, patchXY : patchXY, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
-            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, maxCurveError : maxErr,
-            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
+            manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, tangentContacts : tangentContacts, maxCurveError : maxErr,
+            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, filletsReduced : reduced.count, certificate : certificate } };
     }
 
     // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher
@@ -540,6 +742,13 @@ export class BrepBoolean {
     }
 
     // Whether a region of a face's tessellation has a vertex on a side of the face's domain.
+    // The distance from p to the segment a-b.
+    private static segmentDistance( p : Point, a : Point, b : Point ) : number {
+        const ab = Vec.sub( b, a ), l2 = Math.max( Vec.dot( ab, ab ), 1e-300 );
+        const t = Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) );
+        return Vec.dist( p, Vec.add( a, Vec.mul( t, ab ) ) );
+    }
+
     private static touches( f : BrepFace, t : FaceTessellation, region : Array<number>, side : DomainSide ) : boolean {
         const d = SurfaceIntersect.domain( f.surface );
         const eps = 1e-9 * (d[2 * side.axis + 1] - d[2 * side.axis]);
@@ -593,6 +802,114 @@ export class BrepBoolean {
         const out = new Map<number, boolean>();
         for (const [k, v] of votes) if (Math.max( v[0], v[1] ) >= 0.9 * (v[0] + v[1])) out.set( k, v[0] > v[1] );
         return out;
+    }
+
+    // The other solids that a region of a face lies on: for each, whether its face there points the same way (true)
+    // or against (false). Decided at the centres of the region's largest triangles, projected exactly onto the faces
+    // of the other solids whose boxes hold them; all of them must agree.
+    private static coincident( f : BrepFace, t : FaceTessellation, region : Array<number>, own : number,
+                               solids : Array<BrepSolid>, eps : number ) : Map<number, boolean> {
+        const out = new Map<number, boolean>();
+        const area = (k : number) => {
+            const tri = t.triangles[k];
+            return Vec.norm( Vec.cross( Vec.sub( t.points[tri[1]], t.points[tri[0]] ), Vec.sub( t.points[tri[2]], t.points[tri[0]] ) ) );
+        };
+        const sample = region.slice().sort( (a, b) => area( b ) - area( a ) ).slice( 0, 3 ).map( k => {
+            const tri = t.triangles[k];
+            const uv : UV = [(t.uv[tri[0]][0] + t.uv[tri[1]][0] + t.uv[tri[2]][0]) / 3, (t.uv[tri[0]][1] + t.uv[tri[1]][1] + t.uv[tri[2]][1]) / 3];
+            return { p : BrepBoolean.eval( f.surface, uv ), n : BrepBoolean.normal( f, uv ) };
+        } );
+        if (sample.length == 0) return out;
+        solids.forEach( (solid, k) => {
+            if (k == own) return;
+            let same : boolean | null = null;
+            for (const x of sample) {
+                let found : boolean | null = null;
+                for (const g of solid.faces) {
+                    const b = BrepSolid.faceBox( g );
+                    if (x.p.some( (c, a) => c < b.min[a] - eps || c > b.max[a] + eps )) continue;
+                    const uv = SurfaceIntersect.project( g.surface, x.p );
+                    if (Vec.dist( BrepBoolean.eval( g.surface, uv ), x.p ) > eps) continue;
+                    const c = Vec.dot( x.n, BrepBoolean.normal( g, uv ) );
+                    if (Math.abs( c ) < 1 - 1e-6) continue; // crossing, not coincident
+                    found = c > 0;
+                    break;
+                }
+                if (found == null || (same != null && same != found)) return;
+                same = found;
+            }
+            out.set( k, same as boolean );
+        } );
+        return out;
+    }
+
+    // The sides ("curve:k") of branches that an earlier branch on the same face of the same solid already traces:
+    // every point of one lies on the other's polyline, and the other way round.
+    private static traced( curves : BooleanResult["curves"], eps : number ) : Set<string> {
+        const out = new Set<string>();
+        const near = (p : Point, c : IntersectionCurve) => {
+            const n = c.points.length, segs = c.closed ? n : n - 1;
+            for (let k = 0; k < segs; k++) {
+                const a = c.points[k], b = c.points[(k + 1) % n], ab = Vec.sub( b, a ), l2 = Vec.dot( ab, ab );
+                const t = l2 > 0 ? Math.min( 1, Math.max( 0, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) ) : 0;
+                if (Vec.dist( p, Vec.add( a, Vec.mul( t, ab ) ) ) < eps + 0.05 * Math.sqrt( l2 )) return true;
+            }
+            return false;
+        };
+        curves.forEach( (e, ci) => { for (let k = 0; k < 2; k++) {
+            for (let cj = 0; cj < ci; cj++) {
+                const f = curves[cj];
+                const shared = [0, 1].some( m => f.solids[m] == e.solids[k] && f.faces[m] == e.faces[k] );
+                if (!shared || f.curve.closed != e.curve.closed) continue;
+                if (e.curve.points.every( p => near( p, f.curve ) ) && f.curve.points.every( p => near( p, e.curve ) )) { out.add( ci + ":" + k ); break; }
+            }
+        } } );
+        return out;
+    }
+
+    // The side of a face's domain that a polyline lies on (all its parameters exactly there), or null.
+    private static side( f : BrepFace, uv : Array<UV> ) : DomainSide | null {
+        if (uv.length < 2) return null;
+        const d = SurfaceIntersect.domain( f.surface );
+        for (let axis = 0; axis < 2; axis++) {
+            if (f.periodic[axis]) continue;
+            for (const value of [d[2 * axis], d[2 * axis + 1]]) if (uv.every( p => p[axis] == value )) return { axis : axis, value : value };
+        }
+        return null;
+    }
+
+    // The parameters of points on a side of a face's domain (within eps in space), or null if they are not all there.
+    private static along( g : BrepFace, points : Array<Point>, eps : number ) : Array<UV> | null {
+        const b = BrepSolid.faceBox( g );
+        if (points.some( p => p.some( (c, a) => c < b.min[a] - eps || c > b.max[a] + eps ) )) return null;
+        const d = SurfaceIntersect.domain( g.surface );
+        const near = (x : number, lo : number, hi : number) => Math.abs( x - lo ) < 1e-7 * (hi - lo) ? lo : Math.abs( x - hi ) < 1e-7 * (hi - lo) ? hi : null;
+        const out : Array<UV> = [];
+        let side : string | null = null;
+        for (const p of points) {
+            const uv = SurfaceIntersect.project( g.surface, p );
+            if (Vec.dist( BrepBoolean.eval( g.surface, uv ), p ) > eps) return null;
+            const u = g.periodic[0] ? null : near( uv[0], d[0], d[1] ), v = g.periodic[1] ? null : near( uv[1], d[2], d[3] );
+            // the same side for all points (a point at a corner is on two)
+            const sides = [u != null ? "u" + u : null, v != null ? "v" + v : null].filter( x => x != null ) as Array<string>;
+            if (sides.length == 0) return null;
+            if (side == null || !sides.includes( side )) {
+                if (side != null && out.length > 1) return null;
+                side = sides.length == 1 || side == null ? sides[0] : sides.find( x => x != side ) as string;
+            }
+            out.push( [u != null ? u : uv[0], v != null ? v : uv[1]] );
+        }
+        // all on that side exactly
+        const axis = side![0] == "u" ? 0 : 1, value = Number( side!.slice( 1 ) );
+        for (const p of out) p[axis] = value;
+        return out;
+    }
+
+    // the outward unit normal of a face
+    private static normal( f : BrepFace, uv : UV ) : Point {
+        const d = Eval.rationalSurfaceDerivatives( f.surface, uv[0], uv[1], 1 );
+        const n = Vec.normalized( Vec.cross( d[1][0], d[0][1] ) );
+        return f.reversed ? Vec.mul( -1, n ) : n;
     }
 
     // the tags of the cut edges around a region

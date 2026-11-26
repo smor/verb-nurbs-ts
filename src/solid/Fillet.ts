@@ -103,7 +103,11 @@ export class Fillet {
             }
         }
         const reversed = Fillet.orientTriangles( points, triangles, sections[0].centre, s );
-        const surface = Make.loftedSurface( arcs.concat( [arcs[0]] ), 3 );
+        // the loop closed: the first arc again at the end, unless the sections already end where they began (a
+        // repeated section would give the loft a step of zero length, and control points of NaN)
+        const last = sections[N - 1], first = sections[0];
+        const repeats = Vec.dist( last.pa, first.pa ) < 1e-9 && Vec.dist( last.pb, first.pb ) < 1e-9;
+        const surface = Make.loftedSurface( repeats ? arcs : arcs.concat( [arcs[0]] ), 3 );
         return { sections : sections, side : s, cutA : cutA, cutB : cutB, surface : surface, points : points, triangles : triangles,
                  reversed : reversed, closed : true };
     }

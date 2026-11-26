@@ -42,6 +42,9 @@ export interface MugParams extends FreeformVesselParams {
     ribFillet? : number;
     // the fillets' cross-section: "circular" (default) or "curvature" (G2 with the faces)
     filletShape? : FilletShape;
+    // prove the Boolean's intersections complete (`IntersectionCertificate`); the result's report says which pairs of
+    // faces could not be proven (default false: it costs time, so a makeable build asks for it)
+    certify? : boolean;
 }
 
 export interface Mug {
@@ -71,6 +74,8 @@ export interface PierceParams extends FreeformVesselParams {
     rimFillet? : number;
     // the fillets' cross-section: "circular" (default) or "curvature" (G2 with the faces)
     filletShape? : FilletShape;
+    // prove the Boolean's intersections complete, as for `MugParams.certify` (default false)
+    certify? : boolean;
 }
 
 export interface PiercedVessel {
@@ -131,18 +136,22 @@ export class BooleanObjectsRecipe {
         const a = at( H * hz[0] ), b = at( H * hz[1] ), m = at( H * (hz[0] + hz[1]) / 2 );
         const up : Point = [0, 0, 1];
         const depth = (vp.wallThickness as number) + 2 * r;
+        // the legs of the handle lean towards each other as they leave the wall; keep them at least three pipe
+        // radii apart, where the joints allow
+        const gap = H * (hz[1] - hz[0]);
+        const lift = Math.max( 0, Math.min( 0.1 * H, (gap - 3 * r) / 2 ) );
         const pts : Array<Point> = [
             Vec.sub( a.w, Vec.mul( depth, a.n ) ),
             Vec.add( Vec.add( a.w, Vec.mul( 0.3 * reach, a.n ) ), Vec.mul( 0.02 * H, up ) ),
-            Vec.add( Vec.add( a.w, Vec.mul( 0.85 * reach, a.n ) ), Vec.mul( 0.1 * H, up ) ),
+            Vec.add( Vec.add( a.w, Vec.mul( 0.85 * reach, a.n ) ), Vec.mul( lift, up ) ),
             Vec.add( m.w, Vec.mul( reach, m.n ) ),
-            Vec.add( Vec.add( b.w, Vec.mul( 0.85 * reach, b.n ) ), Vec.mul( -0.1 * H, up ) ),
+            Vec.add( Vec.add( b.w, Vec.mul( 0.85 * reach, b.n ) ), Vec.mul( -lift, up ) ),
             Vec.add( Vec.add( b.w, Vec.mul( 0.3 * reach, b.n ) ), Vec.mul( -0.02 * H, up ) ),
             Vec.sub( b.w, Vec.mul( depth, b.n ) ),
         ];
         const rail = Make.rationalInterpCurve( pts, 3 );
         let pipe : NurbsSurfaceData;
-        if (p.handleSection == null && p.handleSwell == null) pipe = Sweep.pipe( rail, r, { tolerance : 2e-3 } ).surface;
+        if (p.handleSection == null && p.handleSwell == null) pipe = Sweep.pipe( rail, r, { tolerance : 2e-3, noFold : true } ).surface;
         else {
             // a variable-section sweep: the section's width lies across the handle's plane, whatever the start frame
             const sec = p.handleSection != null ? p.handleSection : [2 * r, 2 * r];
@@ -152,7 +161,7 @@ export class BooleanObjectsRecipe {
             const fr = new RotationMinimizingFrames( rail ).frameAt( u0 );
             const twist = Math.atan2( Vec.dot( across, fr.binormal ), Vec.dot( across, fr.normal ) );
             const profile = BooleanObjectsRecipe.superellipse( sec[0] / 2, sec[1] / 2, 2.6, 32 );
-            pipe = Sweep.surface( rail, profile, { tolerance : 2e-3, twist : twist, scale : (u : number) => {
+            pipe = Sweep.surface( rail, profile, { tolerance : 2e-3, twist : twist, noFold : true, scale : (u : number) => {
                 const t = Math.sin( Math.PI * (u - u0) / (u1 - u0) );
                 return 1 + (swell - 1) * t * t;
             } } ).surface;
@@ -206,7 +215,7 @@ export class BooleanObjectsRecipe {
             let rib = false;
             for (let i = n + 1; i < f.length; i++) rib = rib || f[i];
             return (joined && !f[n]) || (rib && f[0]);
-        }, { filletShape : p.filletShape, fillet : (c : { solids : [number, number] }) =>
+        }, { filletShape : p.filletShape, certify : p.certify === true, fillet : (c : { solids : [number, number] }) =>
             c.solids[1] > n ? (c.solids[0] == n ? fb : 0) : c.solids[0] != 0 || c.solids[1] == n ? 0 : c.solids[1] == 1 ? fr : fa } );
         return { body : solids.body, cavity : solids.cavity, handle : handle, handleRail : rail, result : result };
     }
@@ -221,6 +230,10 @@ export class BooleanObjectsRecipe {
         const rows = p.rows != null ? p.rows : 2;
         const hr = p.holeRadius != null ? p.holeRadius : 7;
         const R = Math.max( ...(vp.radius as Array<number>) ) * 1.6;
+        // the tools start well inside the cavity wherever they cut, even where the wall leans in: at half the larger
+        // radius, but no further out than 0.6 times the smaller one (a vessel narrowing to its rim had its notches
+        // start inside the wall, and their end caps cut a pocket in it)
+        const start = Math.min( 0.5 * R / 1.6, 0.6 * Math.min( ...(vp.radius as Array<number>) ) );
         const tools : Array<BrepSolid> = [];
         for (let row = 0; row < rows; row++) {
             const z = H * (0.35 + 0.35 * (rows == 1 ? 0.5 : row / (rows - 1)));
@@ -229,7 +242,7 @@ export class BooleanObjectsRecipe {
                 const th = 2 * Math.PI * (k + 0.5 + 0.5 * (row % 2)) / n;
                 const dir : Point = [Math.cos( th ), Math.sin( th ), 0];
                 // from inside the cavity (not through the axis, so each tool cuts the wall once) to well outside
-                const a = Vec.add( [0, 0, z], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, z], Vec.mul( R, dir ) );
+                const a = Vec.add( [0, 0, z], Vec.mul( start, dir ) ), b = Vec.add( [0, 0, z], Vec.mul( R, dir ) );
                 const tube = Sweep.pipe( Make.rationalBezierCurve( [a, b] ), hr ).surface;
                 tools.push( BrepSolid.cappedTube( tube, [12, 32] ) );
             }
@@ -239,13 +252,13 @@ export class BooleanObjectsRecipe {
         for (let k = 0; k < notches; k++) {
             const th = 2 * Math.PI * (k + (p.notchPhase != null ? p.notchPhase : 0.5)) / notches;
             const dir : Point = [Math.cos( th ), Math.sin( th ), 0];
-            const a = Vec.add( [0, 0, H], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
+            const a = Vec.add( [0, 0, H], Vec.mul( start, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
             tools.push( BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), nr ).surface, [12, 32] ) );
         }
         const fr = p.fillet != null ? p.fillet : 0, rim = p.rimFillet != null ? p.rimFillet : 0;
         // the rim's inner edge is the one between the body's top (face 2) and the cavity's wall
         const result = BrepBoolean.evaluate( [solids.body, solids.cavity].concat( tools ),
-            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { filletShape : p.filletShape, fillet : (c : { solids : [number, number], faces : [number, number] }) =>
+            f => f[0] && !f[1] && !f.slice( 2 ).some( x => x ), { filletShape : p.filletShape, certify : p.certify === true, fillet : (c : { solids : [number, number], faces : [number, number] }) =>
                 c.solids[1] >= 2 ? fr : c.solids[0] == 0 && c.solids[1] == 1 && c.faces[0] == 2 ? rim : 0 } );
         return { body : solids.body, cavity : solids.cavity, tools : tools, result : result };
     }

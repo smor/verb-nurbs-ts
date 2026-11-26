@@ -100,6 +100,13 @@ exactly where a contact curve crosses a periodic seam. The strip of each face be
 is dropped: it is the region bounded by both curves. The blend's mesh uses the contact points themselves on its two
 boundary rows, so it welds to the faces and the result stays watertight.
 
+**Fillets that crowd each other.** Two closed blends on the same face, such as the two handle joints of a short mug
+or two holes close together, can have contact curves that come close or cross on that face. Crossing contact curves
+cut the face into pieces that belong to neither blend, and the result is not a solid. Where two contact curves come
+within a tenth of the smaller radius of each other (segment against segment, in space), both blends are rebuilt at
+0.8 times their radius, up to six times. Each blend made smaller is counted in `report.filletsReduced`, and one that
+still cannot keep clear is left sharp and counted in `report.filletsFailed`.
+
 Checks: a disc with a hole and a rod through a disc have exactly known fillet volumes (Pappus: the corner region of
 area (1 - pi/4) r^2 swept around the hole). The volume removed or added agrees to 0.3% at 256 divisions around, and to
 1.5% at 128, converging as the tessellation refines. The ball is at distance r from both contact points, along both
@@ -186,6 +193,24 @@ setback vertex blending", Computer-Aided Design 29(6):413–425, 1997):
   midpoints of its two sides, the centre), each mapped bilinearly from the unit square and fitted to the patch, so
   neighbours meet along their shared sides to within the fit's tolerance. (A single square mapped radially onto the
   hexagon was tried first: the map's kinks along the diagonals showed up as creases in the fit.)
+* the corner stays **flush**: never past the faces it rounds. The patch is a convex combination of its ribbons, each
+  carried on from its side into the patch; carried on without limit (to the far side of the hexagon) a ribbon runs
+  out past the faces round the corner, and the patch takes a share of it: on a 40 x 28 x 20 box with radii 3, 4 and 5
+  the corners stuck out by 0.11 (circular) and 0.17 (G2). Each ribbon gets a **reach** (`Ribbon.reach`): it is
+  followed at `reach tanh(d / reach)` in place of the distance `d` from its side, the same to second order at the side
+  (so every continuity there stays, G2 included) and never further than `reach`. The longest reach that keeps every
+  sample of the patch behind all three faces is found by a scan and bisection; corners that already fit are left
+  alone. Both kinds of corner now stay inside exactly. (Shortening the cross derivatives instead, the first fix,
+  flattened the patch at its sides and, for G2 corners, let the second-order terms take over: it left 0.04 of bulge
+  and tripled the curvature jump across the sides.)
+* a circular corner also stays within its **blends' envelopes**: each blend carried on straight past its end section
+  (a quarter cylinder, on a box). Behind the faces alone it still stuck out of them by up to 0.22, a visible blob past
+  the fillets. The ribbons are first bent in (`Ribbon.third`, a third derivative across each side towards the blends'
+  centres, which leaves G1 and G2 at the sides alone), by the least bend, found by scan and bisection, that keeps the
+  patch behind the faces and within the envelopes. Where no bend does it without a dent, the corner is held within the
+  faces only, with a reach as above. On the box, 7 of 12 edges meet flush corners and the rest stick out by 0.064 at
+  most. G2 corners keep the faces-only rule: held within the envelopes as well, their reach had to shrink so far
+  that it dented them.
 
 The setback makes the corner a smooth "pillow" in place of the crease a ball corner would need between unequal
 blends.
@@ -201,8 +226,16 @@ Limits:
 * A corner is rounded where two rounded edges that share a face meet a sharp edge, or where three rounded edges meet:
   a ball for one radius and one kind (convex or concave), a setback vertex blend otherwise, including mixed corners
   (a convex fillet flaring into two concave ones, as where a rounded boss's vertical edge meets the fillets round its
-  base). More than three edges, or a rounded edge meeting an unrounded one, are left sharp and counted in
-  `report.filletsSkipped`, with the other edges around the same corners.
+  base). More than three edges are left sharp and counted in `report.filletsSkipped`, with the other edges around
+  the same corners.
+* A rounded edge that meets two sharp ones **runs out** onto the third face there (the vertical edges of a box under a
+  sharp top, a slot's rim where it leaves the block, the inside corners of an open tray at the rim). The blend ends
+  at its section by that face: each column of the blend where it crosses the face, from one contact curve on the
+  first sharp edge to the other on the second, and that section is cut into the face. On a convex edge the face's
+  corner outside the section is cut off; on a concave one it is filled in, on the side the rest of the face is kept.
+  The third face may be a face of either solid, met at a slant. Where the section leaves the third face's surface
+  (a fillet at a narrow step's foot, running off its side into the air) the face would have to be carried on past its
+  edge: that is not done, and the edge is left sharp and counted.
 * Where contact curves cross beyond a blend's end (two concave fillets round a convex edge, at a boss's base), they
   are carried on straight past their ends to find the crossing, for mitres as for setbacks.
 * An own edge that a Boolean's branch ends on (a boss's vertical edge, where it enters the base) is split there; each
@@ -246,6 +279,75 @@ sat on the seam was taken for the wrong end of the domain. `BrepBoolean.cleanSea
 exactly on a periodic seam and merges repeated vertices, combining their flags. `facePieces` reads which end of the
 domain a seam vertex stands for from the first neighbour that is not itself on the seam.
 
+## Coincident faces
+
+Solids placed flush with each other are everyday modelling: a slot through a plate, a boss standing on a face, two
+parts sharing a face. Three things make them work.
+
+* **On-classification (regularised set operations, after Requicha).** A region of a face that lies on a face of
+  another solid is neither inside nor outside it. Just behind the region, that solid is inside where its face points
+  the same way and outside where it points against; just in front, the reverse. The region is a face of the result
+  where the expression differs across it, and of all the solids sharing it, the first keeps it. Coincidence is
+  decided at the centres of the region's largest triangles, projected exactly onto the other solid's faces
+  (`SurfaceIntersect.project`: a grid seed, then Newton).
+* **Sides lying on faces.** When a side of one face's domain lies on the other surface along its whole length (a
+  tube ending on a plane, a box's edge on another box's face), the meshes touch along an edge and their intersection
+  breaks up. `SurfaceIntersect.sidesOn` gives that branch exactly (the side, sampled, and its projection), and the
+  pieces found along it are dropped. A cut that lies along a face's side gives that side its points (the grid nodes
+  inside it are left out), and the face across that edge of the same solid gets the same cut, so the three faces
+  that meet there share their vertices.
+* **Stretches of sides on faces.** `sidesOn` finds runs, not only whole sides: a box's edge lies on a wider
+  cylinder's cap only between the points where the cap's rim crosses it. The run's ends are found by bisection. Where
+  a side of B lies along the same run too (two tubes end to end), the faces meet edge to edge and no branch is made.
+* **Broken branches are traced again.** Where both grid meshes put vertices on the branch (a bore at exactly half a
+  coaxial cap's radius), their intersection breaks into pieces that end inside both domains or overlap. A branch ends
+  only where it leaves a domain or closes, so such pieces are only seeds: the branches are traced again from their
+  points by marching (Barnhill and Kersey), each once.
+* **One cut per curve.** Two coincident faces crossing a third face (a boss's cap on a box's top, both crossed by a
+  bore) give two branches along the same curve. The third face is cut by the first of them only.
+
+The test "BrepBoolean degenerate configurations" runs 25 such cases (flush slots, notches, pockets, equal solids,
+boxes touching at a vertex, bores through a corner or along an edge, bosses, stacked cylinders, counterbores): each
+is closed, with the exact volume, and a tangent cylinder keeps its volume and is reported. Before this work, 21 of the
+25 failed.
+
+## Proving that no branch was missed
+
+`IntersectionCertificate.check(A, B, curves)` proves, or fails to prove, that `curves` holds every branch of the
+intersection of two surfaces, closed loops included. It follows Sederberg and Meyers ("Loop detection in
+surface patch intersections", CAGD 5, 1988), with Sinha's theorem as above:
+
+1. Both domains are split into cells (4 × 4 by default). Each cell is cut out of its surface exactly, as rational
+   Bézier patches, by knot insertion. Its control points bound it: their box contains the cell.
+2. Each cell gets a **rigorous normal cone**. The numerators of the rational partial derivatives,
+   `w P_u − w_u P` and `w P_v − w_v P`, are polynomial patches whose Bézier coefficients come from products of
+   Bernstein bases; every normal of the cell is a positive combination of the cross products of their coefficients.
+3. A pair of cells whose boxes are apart cannot meet. A pair whose cones (and their opposites) are apart cannot
+   have parallel normals, so by Sinha's theorem no closed loop lies inside it: every branch through it crosses an
+   edge of one of the two cells. Those crossings are computed (each isocurve against the whole other surface, once)
+   and each must lie on a given curve. One that does not is reported in `missed`, as a start point on the branch.
+4. Any other pair is split, the cell whose normals turn most first, up to `depth` times. A pair still undecided is
+   counted in `unresolved`: the surfaces may be tangent there, or a loop smaller than the cells may hide there.
+
+The result is `proven` only when nothing is unresolved and nothing was missed. Cells round a pole (a cap's centre)
+have wide cones however small they get, so pairs may be split 8 times by default. A cell already less than half the
+size of the other is not split again; the other one is, until the boxes part.
+
+With `certify: true`, `BrepBoolean` runs the check on every pair of faces whose boxes meet, and reports
+`report.certificate`: the pairs, how many are proven, and the others with their counts. A model document with
+`certify: true` passes it on, and its verdict notes either that every intersection is proven complete or how many
+pairs are not. The test suite runs it as a gate on reference models, and every pair is proven:
+- the mug's union: 3 pairs;
+- a filleted boss: 3 pairs;
+- a shelled and rounded tray: 4 pairs;
+- slot rims: 8 pairs.
+
+The shelled mug is proven in all 20 pairs, but that takes 20 s (its offset surfaces have many spans), so it is not
+in the suite. A plane through a cylinder or a
+sphere is proven complete in about 0.15 s. Dropping the curve reports start points all around it. A sphere grazing a
+plane (a loop of radius 0.014) is not proven, with or without that loop: the normals there are nearly parallel by
+nature, which is the honest answer.
+
 ## How it is checked
 
 * The intersection points lie on both surfaces to about 1e-9 (`report.maxCurveError`).
@@ -264,13 +366,25 @@ domain a seam vertex stands for from the first neighbour that is not itself on t
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
 * **More than two branches crossing at one point** (four or more faces meeting) is not handled.
-* **Tangent and coincident faces.** Isolated points of tangency are detected and reported. Faces that touch along a
-  curve, or that overlap over an area, are not handled. Leave tools long and let the Boolean cut them, as the mug
-  does with its handle and cavity, rather than placing faces flush.
-* **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
-  sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
-  of the derivative surfaces).
+* **Tangent faces.** A branch along which the two faces' normals stay parallel (a cylinder lying on a plane) is a
+  line of contact, not of crossing. It is left out of the branches and counted in `report.tangentContacts`. The two
+  solids then touch along that line: the volume is right, but the result is not a manifold there (it is not, in
+  exact arithmetic either), and the Model verdict calls it visual. Near-tangent pairs that do cross are traced as
+  usual.
+* **Topology is certified on request, not by default.** Broken-up branches are detected (an end inside both domains,
+  a piece lying on another, after Barton, Elber and Hanniel's single-component count, or a piece that turns straight
+  back on itself, which the meshes' intersection produces where they cross at a grazing angle) and traced again. A
+  branch whose two ends lie on sides of a domain stays open even when its ends are closer than a mesh edge (a narrow
+  notch across a rim).
+  `certify: true` (a Boolean option, or a model document's flag) runs `IntersectionCertificate.check` (below) on
+  every pair of faces that meet. It is off by default because it costs a fraction of a second per pair. Pairs it
+  leaves unresolved, near tangency, are where a missed loop could still hide.
+* **Small loops** are found from collinear normal points. The normal cones that select their candidate cells are
+  sampled; the certificate's cones are rigorous, and could replace them.
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
   for export (see [step.md](step.md)); p-curves are left to the reader.
+* **Narrow fillets meeting a sharp edge.** A blend that ends in a mitre at a sharp edge (a rim notch filleted with the
+  rim left sharp) can overlap its neighbour there when it is much narrower than the tessellation of the faces around
+  it (a 0.2 mm fillet on a notch meshed in millimetre steps).
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
   hierarchy would make it scale to many tools.

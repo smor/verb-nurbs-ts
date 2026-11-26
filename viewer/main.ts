@@ -12,7 +12,8 @@ interface Layer {
     pos : Float32Array; idx : Uint32Array | null; pick : Int32Array | null; nrm : Float32Array | null; fields : Record<string, Field>;
 }
 interface Item { label : string; type : string; facts : Array<[string, string]>; overlay : Array<Layer> }
-interface ViewMsg { id : number; ok : boolean; message? : string; title : string; kind : string; facts : Array<[string, string]>; layers : Array<Layer>; items : Array<Item>; ms : number }
+interface ViewMsg { id : number; ok : boolean; message? : string; title : string; kind : string; facts : Array<[string, string]>; layers : Array<Layer>; items : Array<Item>; ms : number; solid? : boolean }
+interface StepMsg { id : number; ok : true; step : string; name : string }
 
 const $ = (id : string) => document.getElementById( id )!;
 const GROUPS = ["Curves", "Surfaces", "B-reps", "Meshes"] as const;
@@ -344,9 +345,29 @@ function loadFile( f : File ) {
     $( "note" ).textContent = "Your file " + f.name + ", read in this browser.";
     f.arrayBuffer().then( data => worker.postMessage( { id : ++seq, file : { name : f.name, data } }, [data] ) );
 }
+let stepSeq = -1;
+function downloadStep() {
+    if (!view || !view.solid) return;
+    stepSeq = ++seq;
+    status( "Writing STEP…", "busy" );
+    worker.postMessage( { id : stepSeq, step : true } );
+}
 worker.onmessage = (e : MessageEvent) => {
+    if (e.data.id == stepSeq) {
+        stepSeq = -1;
+        if (!e.data.ok) { status( "Can't write STEP: " + e.data.message, "bad" ); return; }
+        const s = e.data as StepMsg;
+        const a = document.createElement( "a" );
+        a.href = URL.createObjectURL( new Blob( [s.step], { type : "application/step" } ) );
+        a.download = s.name.toLowerCase().replace( /[^a-z0-9]+/g, "-" ).replace( /^-|-$/g, "" ) + ".step";
+        a.click();
+        setTimeout( () => URL.revokeObjectURL( a.href ), 1000 );
+        status( "Saved " + a.download + ": a closed solid of trimmed NURBS faces.", "good" );
+        return;
+    }
     const r = e.data as ViewMsg;
     if (r.id != seq) return;
+    $( "stepRow" ).style.display = r.ok && r.solid ? "" : "none";
     if (!r.ok) { status( "Can't show this: " + r.message, "bad" ); return; }
     show( r );
     const hint = r.items.length > 0 ? " Click a face to inspect it." : "";
@@ -378,6 +399,7 @@ function renderExamples() {
 ($( "stripes" ) as HTMLInputElement).oninput = e => { stripes = +(e.target as HTMLInputElement).value; analysisUniforms.stripes.value = stripes; };
 ($( "colour" ) as HTMLSelectElement).onchange = e => { colourMode = (e.target as HTMLSelectElement).value; paint(); };
 $( "recenter" ).onclick = () => frame();
+$( "step" ).onclick = () => downloadStep();
 $( "open" ).onclick = () => ($( "file" ) as HTMLInputElement).click();
 ($( "file" ) as HTMLInputElement).onchange = e => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) loadFile( f ); };
 const stage = $( "stage" );

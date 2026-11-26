@@ -10,7 +10,8 @@ through it, which invariants hold everywhere, and where to start reading for eac
    apps          │ viewer/ playground/   (three.js, web workers) │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
-   view, io      │ Inspect: objects → plain display layers       │
+   view, io,     │ Inspect: objects → plain display layers       │
+   model         │ Model: JSON documents → named solids, verdict │
                  │ Step: B-rep results → STEP files              │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
@@ -61,8 +62,8 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
    exported as six four-sided B-spline surfaces.
 5. **Own edges** (`BrepEdges`): a solid's existing edges can be filleted too, alone or together with the
    Boolean's new edges.
-6. **Tessellation**: each face is meshed inside its trims with constrained Delaunay triangulation (cdt2d), sharing
-   seam vertices with its neighbours. The result is checked as a closed 2-manifold.
+6. **Tessellation**: each face is meshed inside its trims with constrained Delaunay triangulation (cdt2d's sweep
+   with the filtered Delaunay flips of `eval/Cdt`), sharing seam vertices with its neighbours. The result is checked as a closed 2-manifold.
 
 `docs/booleans.md` describes each step's method, its checks and its known limits.
 
@@ -73,7 +74,12 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 * **Tolerance flows down.** Public entry points take a `tol` and pass it on. Don't add new magic epsilons; use
   `Constants` or a parameter.
 * **Makeable is opt-in.** Free-form, open or self-crossing geometry is legal. `Makeable.check` decides whether a
-  mesh can be fabricated on a given machine.
+  mesh can be fabricated on a given machine, and a surface that passes through itself never can.
+* **Sweeps don't fold or collide by accident.** A section that reaches past the centre of a bend turns the surface
+  inside out there. `SweepResult.fold` measures it (curvature times the section's reach towards the bend's centre: 1
+  or more folds). Parts of a sweep far apart along the rail can also come back near each other (strands of a knot,
+  turns of a coil). `noFold` narrows the section smoothly where, and only where, either would happen, and the swept
+  recipes turn it on.
 * **No rendering in the library.** `view/Inspect` returns plain arrays. three.js lives only in `viewer/` and
   `playground/`.
 
@@ -93,6 +99,9 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Meshes, fabrication checks | `src/solid/TriMesh.ts`, `src/solid/Makeable.ts` |
 | Display data | `src/view/Inspect.ts` |
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
+| Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |
+| Primitive solids (prisms, cones, spheres, tori, polyhedra, ...) | `src/solid/primitives/`, [primitives.md](primitives.md) |
+| Grasshopper-style builders (loft, sweep1/2, pipe, boundary, plane, 4-point) | `src/solid/primitives/Nodes.ts`, [primitives.md](primitives.md#grasshopper-style-builders) |
 
 ## Tests
 

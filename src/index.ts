@@ -29,6 +29,10 @@ import { Analyze, KnotMultiplicity } from "./eval/Analyze.js";
 import { Check } from "./eval/Check.js";
 import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
+import { Fair } from "./eval/Fair.js";
+import { THB } from "./eval/THB.js";
+export type { THBSpace, THBFunction, THBBasis, THBSample, THBFitOptions } from "./eval/THB.js";
+export type { FairCurveOptions, FairSurfaceOptions } from "./eval/Fair.js";
 import { Fit } from "./eval/Fit.js";
 import { Transfinite } from "./eval/Transfinite.js";
 export type { Ribbon } from "./eval/Transfinite.js";
@@ -67,8 +71,25 @@ import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
 import { FilletCorner } from "./solid/FilletCorner.js";
 import { BrepEdges } from "./solid/BrepEdges.js";
+import { Primitives } from "./solid/primitives/Primitives.js";
+export type { PrismOptions, Density } from "./solid/primitives/Primitives.js";
+import { Profile } from "./solid/primitives/Profile.js";
+export type { ProfileSegment, CapLoop, ProfileDensity } from "./solid/primitives/Profile.js";
+import { Profiles } from "./solid/primitives/Profiles.js";
+import { Polyhedra } from "./solid/primitives/Polyhedra.js";
+import { Catalog } from "./solid/primitives/Catalog.js";
+export type { CatalogEntry, CatalogParameter } from "./solid/primitives/Catalog.js";
+import { Nodes } from "./solid/primitives/Nodes.js";
+export type { LoftOptions, LoftType, NodeDensity, PipeCaps, Sweep2Options } from "./solid/primitives/Nodes.js";
+export type { PolyhedronData } from "./solid/primitives/Polyhedra.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
+import { IntersectionCertificate } from "./solid/IntersectionCertificate.js";
+import { Growth } from "./solid/Growth.js";
+export type { GrowthZone, GrowthOptions, GrowthResult, GrownSolid } from "./solid/Growth.js";
+export type { IntersectionCertificateResult, IntersectionCertificateOptions } from "./solid/IntersectionCertificate.js";
+import { Implicit } from "./solid/Implicit.js";
+export type { Field, Grade, LatticePattern } from "./solid/Implicit.js";
 import { Makeable } from "./solid/Makeable.js";
 export type { Machine, MakeableReport } from "./solid/Makeable.js";
 import { MeshBVH } from "./solid/MeshBVH.js";
@@ -91,6 +112,9 @@ export type { SweptObject, KnotPipeParams, TwistedRingParams, RibbonKnotParams }
 import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
+import { Model } from "./model/Model.js";
+export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
+import { Expr } from "./model/Expr.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
 
@@ -142,6 +166,8 @@ export {
     Divide,
     CurveLengthSample,
     Eval,
+    Fair,
+    THB,
     Fit,
     Transfinite,
     EvalIntersect,
@@ -176,6 +202,15 @@ export {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Primitives,
+    Profile,
+    Profiles,
+    Polyhedra,
+    Catalog,
+    Nodes,
+    Implicit,
+    IntersectionCertificate,
+    Growth,
     Makeable,
     MeshBVH,
     Shell,
@@ -188,6 +223,8 @@ export {
     SweptObjectsRecipe,
     Inspect,
     Step,
+    Model,
+    Expr,
     registerSerializable,
 };
 
@@ -241,6 +278,8 @@ export const eval_ = {
     Divide,
     CurveLengthSample,
     Eval,
+    Fair,
+    THB,
     Fit,
     Transfinite,
     Intersect: EvalIntersect,
@@ -281,6 +320,15 @@ export const solid = {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Primitives,
+    Profile,
+    Profiles,
+    Polyhedra,
+    Catalog,
+    Nodes,
+    Implicit,
+    IntersectionCertificate,
+    Growth,
     Makeable,
     MeshBVH,
     Shell,
@@ -302,7 +350,12 @@ export const io = {
     Step,
 };
 
-const verb = { core, eval: eval_, geom, exe, solid, recipes, view, io };
+export const model = {
+    Model,
+    Expr,
+};
+
+const verb = { core, eval: eval_, geom, exe, solid, recipes, view, io, model };
 export default verb;
 
 // register every class so that `Deserializer.deserialize` can rebuild serialized objects

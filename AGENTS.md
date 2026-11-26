@@ -46,8 +46,9 @@ and explain why.
   `SurfaceLoops`) over damping or retries. Say in a comment why a formulation is stable.
 - **Unused things.** Delete dead code rather than commenting it out. Unused parameters that a signature needs
   start with `_`.
-- **Dependencies.** The runtime has one dependency (`cdt2d`). Adding a runtime dependency needs a reason in
-  the pull request.
+- **Dependencies.** The runtime depends on `cdt2d` and on its own exact in-circle predicate (`robust-in-sphere`,
+  which `eval/Cdt` calls when its floating-point filter cannot decide). Adding a runtime dependency needs a reason
+  in the pull request.
 
 ## Workflow
 

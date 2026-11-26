@@ -13,6 +13,8 @@ The goal is a small, open-source, Rhino/Grasshopper-like toolkit that runs in th
 * **Solids.** `TriMesh` is an indexed triangle mesh with a closed-manifold check, volume, STL/OBJ export and conversion to manifold-3d's `Mesh`. `Shell.openVessel` turns an outer and an inner wall into one watertight solid, and `Shell.tube` turns a swept surface into a capped solid (open rail) or a ring-shaped solid of genus 1 (closed rail).
 * **NURBS booleans.** `BrepSolid` is a closed solid bounded by NURBS faces (capped tubes, capped walls). `BrepBoolean` computes union, intersection, difference, or any Boolean expression over any number of solids. Seams are surface/surface intersection curves refined onto both faces (to about 1e-9), carried as trim curves in each face's parameters, and shared vertex for vertex by the two faces, so the result is watertight. Seams may run across the edges between faces and meet at triple points, as in a notch through a rim. See [docs/booleans.md](docs/booleans.md) for the method and its current limits.
 * **Free form or makeable.** Nothing forces a shape to be a solid: open sheets and self-crossing sweeps are fine for visual work (`Shell.sheet`). When a shape is meant to be fabricated, `Makeable.check(mesh, machine)` says whether it can be: a closed, outward-facing solid that fits the machine's build volume, with no wall thinner than the machine holds. Wall thickness is measured by inward ray casts through a bounding volume hierarchy (`MeshBVH`). Machine presets cover FDM, resin, SLS, 3-axis CNC and ceramic slip casting, and you can pass your own.
+* **Primitive solids.** `Primitives` builds about seventy parameterised solids as exact closed B-reps: boxes and wedges, prisms over any profile (polygons, stars, rounded shapes, hearts, structural sections; straight, tapered, twisted or oblique), pyramids and frusta, cones, cylinders, spheres and their caps, zones and sectors, ellipsoids, capsules, paraboloids, lenses, tori, tubes, eggs and ogives, and the Platonic, Archimedean and Catalan polyhedra. Conics and quadrics are rational, so exact. They take part in Booleans, edge rounding and STEP export as they are. `Nodes` adds the surface builders of Grasshopper on curves (Plane Surface, 4Point Surface, Boundary Surfaces, Loft, Sweep1, Sweep2, Pipe with open, flat or round caps), each with a capped solid where the sections are closed. See [docs/primitives.md](docs/primitives.md).
+* **Models.** `Model` regenerates a JSON document of parameters and features (boxes, cylinders, pipes, revolves, transforms, Booleans, rounds selected by edge name) into a solid, deterministically. Faces keep persistent names across edits, only what an edit changes is rebuilt, and every result says whether it is buildable or visual, and why. See [docs/model.md](docs/model.md).
 * **STEP export.** `Step.write(result)` writes any closed B-rep result (Booleans, fillets, corners) as a STEP solid of trimmed NURBS faces with shared B-spline edges that lie on both faces. See [docs/step.md](docs/step.md).
 * **Recipes.** `FreeformVesselRecipe` builds an Aalto-style free-form vessel end to end, `SweptObjectsRecipe` a torus-knot pipe, a twisted ring and a ribbon knot (a bare sheet at zero thickness), and `BooleanObjectsRecipe` a mug and a pierced vessel with NURBS booleans (see below).
 
@@ -49,7 +51,7 @@ import verb from "verb-nurbs-ts";
 const crv = verb.geom.NurbsCurve.byPoints([[0, 0, 0], [1, 1, 0], [2, 0, 0]], 2);
 ```
 
-`dist/` is plain ES modules. The only runtime dependency is [cdt2d](https://github.com/mikolalysenko/cdt2d) (constrained Delaunay triangulation, used to tessellate trimmed faces); bundle it with esbuild or use an import map to load the library in a browser.
+`dist/` is plain ES modules. The runtime dependencies are [cdt2d](https://github.com/mikolalysenko/cdt2d) (constrained Delaunay triangulation, used to tessellate trimmed faces) and its exact in-circle predicate robust-in-sphere; bundle it with esbuild or use an import map to load the library in a browser.
 
 ## Demo: a free-form vessel, validated as a manifold
 
@@ -141,7 +143,17 @@ a.assembly;                                                 // all four, for dis
 npm run playground   # writes playground/dist/index.html, a single self-contained file
 ```
 
-Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot and the four-part appliance with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the STL can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+Open the file in a browser to shape the vessel, the knot pipe, the twisted ring, the mug, the pierced vessel, the ribbon knot, the four-part appliance, a block and a grown sheet with sliders. In **Free form** mode anything goes; in **Makeable** mode each final model is checked for the chosen machine, problems are listed in plain words, and the files can be downloaded only when the check passes. Each change builds a quick preview in a web worker, then a full-resolution model a moment later. The page shows the watertightness check, genus, volume and fit error, and downloads the solid as a binary STL.
+
+* **B-rep models** (the mug, the pierced vessel, the appliance's four parts, the block) are judged in Makeable mode by
+  the model verdict (`Model.verdict`, [docs/model.md](docs/model.md)): closed, outward, every fillet in place, and the
+  machine's check. They also download as **STEP**. **Prove seams** runs the intersection certificate on them, which
+  proves no seam between two faces was missed; it takes from half a minute to a few minutes, so it runs only when asked.
+* The **block** is a model document (`Model`), not a recipe: a box with a bore, rounded by rules over its faces'
+  persistent names, hollowed into an open tray or filled with a lattice inside a skin. Only the features a slider
+  touches are rebuilt.
+* The **grown sheet** is differential growth (`Growth`, [docs/growth.md](docs/growth.md)): a disc that grows at its
+  rim, round its centre or everywhere, buckles into ruffles, and is thickened into a closed solid for the final model.
 
 ## Inspector
 
@@ -156,6 +168,7 @@ A viewer that shows each kind of object as what it is:
   (sides of the domain that collapse to a point), and Gaussian or mean curvature as colour.
 * **B-reps**: each trimmed face in its own colour and fillets in gold. Edges are told apart as trims, natural edges and
   seams, and fillets' contact curves are drawn. Click a face to list its surface's facts and see its control net.
+  **Download STEP** saves the solid on show as a STEP file for any CAD system (see [docs/step.md](docs/step.md)).
 * **Meshes**: the wireframe, open edges, non-manifold edges, and wall thickness as colour.
 
 It comes with examples of each kind, and you can drop your own STL or OBJ mesh, or a NURBS curve or surface as

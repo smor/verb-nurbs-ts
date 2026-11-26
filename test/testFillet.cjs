@@ -246,6 +246,54 @@ describe("verb.solid.Fillet", function(){
 		res.report.volume.should.be.below(exact);
 	});
 
+	it("keeps setback corners inside the faces they round: no corner of a rounded box bulges past the box", function(){
+		// radii 3, 4 and 5 on a 40 x 28 x 20 box: with the ribbons carried on without limit, the corners stuck out by
+		// 0.11 (circular) and 0.17 (curvature-continuous). With a reach, both stay inside exactly, the G2 ones still G2
+		[['circular', 1e-9], ['curvature', 1e-9]].forEach(function(x){
+			var b = BrepSolid.box([0, 0, 0], [40, 28, 20], 12);
+			var E = lib.BrepEdges.all(b).map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; });
+			var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : x[0], edges : E });
+			res.corners.length.should.be.equal(8);
+			res.report.manifold.closedManifold.should.be.true();
+			var out = 0;
+			res.mesh.vertices.forEach(function(p){ out = Math.max(out, -p[0], p[0] - 40, -p[1], p[1] - 28, -p[2], p[2] - 20); });
+			out.should.be.below(x[1]);
+		});
+	});
+
+	it("keeps circular setback corners flush: within the cylinders of the fillets they join, as a rounded box's corners are", function(){
+		// each fillet of a box carried on past its end is a quarter cylinder; a corner should not stick out of it where it
+		// overlaps its wedge. Held within the faces only, the corners stuck out by up to 0.22 for radii 3, 4 and 5 (on
+		// every edge). Bent in, they are flush wherever a bend keeps them within every cylinder (7 of the 12 edges); the
+		// rest, which no bend fits without a dent, keep the full patch within the faces, and stick out by 0.064 at most
+		var b = BrepSolid.box([0, 0, 0], [40, 28, 20], 12), size = [40, 28, 20];
+		var E = lib.BrepEdges.all(b);
+		var res = BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : 'circular',
+			edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; }) });
+		res.report.manifold.closedManifold.should.be.true();
+		// the corners' vertices
+		var onCorner = {};
+		res.mesh.triangles.forEach(function(t, i){ if (res.faces[res.faceOf[i]].name == 'fillet corner') t.forEach(function(v){ onCorner[v] = true; }); });
+		var worst = 0, flush = 0;
+		E.forEach(function(e, k){
+			var r = [3, 4, 5][k % 3], edge = 0;
+			// the two coordinates the edge keeps, and the axis of its fillet's cylinder in them
+			var a = e.curve.points[0], z = e.curve.points[e.curve.points.length - 1];
+			var cs = [0, 1, 2].filter(function(i){ return Math.abs(a[i] - z[i]) < 1e-9; }).map(function(i){
+				return { axis : i, c : a[i] < 1e-9 ? r : size[i] - r, out : a[i] < 1e-9 ? -1 : 1 }; });
+			cs.length.should.be.equal(2);
+			res.mesh.vertices.forEach(function(p, v){
+				if (!onCorner[v] || !cs.every(function(c){ return c.out * (p[c.axis] - c.c) > 0; })) return;
+				var d = Math.sqrt(cs.reduce(function(a, c){ return a + Math.pow(p[c.axis] - c.c, 2); }, 0));
+				edge = Math.max(edge, d - r);
+			});
+			worst = Math.max(worst, edge);
+			if (edge < 1e-6) flush++;
+		});
+		worst.should.be.below(0.07);
+		flush.should.be.aboveOrEqual(7);
+	});
+
 	it("rounds a box's edges with three radii: setback corners where they differ, in every section shape", function(){
 		var b = BrepSolid.box([0, 0, 0], [20, 14, 10], 12);
 		var E = lib.BrepEdges.all(b);

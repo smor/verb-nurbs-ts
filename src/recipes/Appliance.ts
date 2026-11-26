@@ -60,6 +60,8 @@ export interface ApplianceParams {
     // tessellation of the base's wall (around)
     divs? : number;
     fine? : boolean;
+    // prove every part's Boolean intersections complete (`IntersectionCertificate`; default false, as it costs time)
+    certify? : boolean;
 }
 
 export interface Appliance {
@@ -169,6 +171,7 @@ export class ApplianceRecipe {
 
         const ft = p.topFillet != null ? p.topFillet : 10, fs = p.seatFillet != null ? p.seatFillet : 4, fa = p.archFillet != null ? p.archFillet : 6;
         const base = BrepBoolean.evaluate( solids, f => (f[0] && !f[1] && !f[2] && !f[4]) || f[3], {
+            certify : p.certify === true,
             fillet : (c : { solids : [number, number] }) => {
                 const k = c.solids[0] + "," + c.solids[1];
                 return k == "0,1" ? ft : k == "1,2" ? fs : k == "1,3" ? fa : k == "2,4" ? 2 : 0;
@@ -184,7 +187,7 @@ export class ApplianceRecipe {
             fillet : p.handleFillet != null ? p.handleFillet : 4,
             addons : keyFoot != null ? [keyFoot] : [], addonFillet : 1,
             ribs : p.ribs != null ? p.ribs : 3, ribHeights : [0.12, 0.62], ribSize : [7, 5], ribFillet : 1.5,
-            divsU : fine ? 48 : 24, divsV : fine ? 192 : 96, offsetTolerance : fine ? 0.02 : 0.08
+            divsU : fine ? 48 : 24, divsV : fine ? 192 : 96, offsetTolerance : fine ? 0.02 : 0.08, certify : p.certify === true
         } );
         const lid = ApplianceRecipe.lid( p, bH, bR, p.bowlWall != null ? p.bowlWall : 2.5, gap, fine );
         const cup = ApplianceRecipe.cup( p, bH + (p.lidThickness != null ? p.lidThickness : 6), gap, fine );
@@ -234,6 +237,7 @@ export class ApplianceRecipe {
         const hollow = ApplianceRecipe.tube( [rIn( z0 - 2 ) - gap - pw, rIn( bH - 2 ) - gap - pw], z0 - 2, bH - 2, [8, around] );
         const bore = ApplianceRecipe.tube( hole, bH - depth - 6, bH + T + 6, [8, fine ? 96 : 64] );
         return BrepBoolean.evaluate( [plate, plug, hollow, bore], f => (f[0] || f[1]) && !f[2] && !f[3], {
+            certify : p.certify === true,
             // the hole's edge on the plate's top (face 2) and on the hollow's ceiling (its end cap, face 2)
             fillet : (c : { solids : [number, number], faces : [number, number] }) =>
                 c.solids[1] == 3 && c.faces[0] == 2 && (c.solids[0] == 0 || c.solids[0] == 2) ? (c.solids[0] == 0 ? fl : 0.5 * fl) : 0
@@ -267,6 +271,7 @@ export class ApplianceRecipe {
         const c0 = z0 + w, c1 = zTop + T + 4;
         const cavity = ApplianceRecipe.tube( [rTop - w - taper * (zTop - c0), rTop - w + taper * (c1 - zTop)], c0, c1, [8, around] );
         return BrepBoolean.evaluate( [flange, body, cavity], f => (f[0] || f[1]) && !f[2], {
+            certify : p.certify === true,
             // the joint under the flange (its bottom, face 1) and the cavity's rim on the flange's top (face 2)
             fillet : (c : { solids : [number, number], faces : [number, number] }) =>
                 c.solids[0] == 0 && c.solids[1] == 1 && c.faces[0] == 1 ? 1 : c.solids[0] == 0 && c.solids[1] == 2 && c.faces[0] == 2 ? 1.2 : 0

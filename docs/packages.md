@@ -7,14 +7,16 @@ boundaries and how they would map to packages, so new code respects them now.
 
 | Folder | What it holds | Depends on |
 |---|---|---|
-| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`) | each other |
+| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`, `Fair`, `THB`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
-| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks | core, eval |
+| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`), parameterised primitive solids (`solid/primitives/`: `Profile`, `Profiles`, `Polyhedra`, `Primitives`, `Catalog`, and the Grasshopper-style builders `Nodes`) | core, eval |
 | `recipes` | parametric objects (vessels, mug, appliance, …) | core, eval, solid |
+| `model` | the feature tree: documents of parameters and features regenerated into named solids (`Model`, `Expr`) | core, eval, solid |
 | `io` | file formats: STEP export of B-rep results (`Step`) | core, eval, solid |
 | `view` | `Inspect`, display data for curves, surfaces, B-reps and meshes | core, eval, solid |
 | `playground/`, `viewer/` | single-file web apps (three.js) | the library |
+| `experimental` | parked work that no model, recipe or app uses yet: `IGA` (isogeometric analysis). Not in `src/index.ts`; import it by path (`dist/experimental/IGA.js`) | core, eval |
 
 Dependencies only point down this table: no folder imports from one below it.
 
@@ -22,19 +24,20 @@ Dependencies only point down this table: no folder imports from one below it.
 
 1. **nurbs**: `core`, `eval`, `geom`, `exe`. `core` and `eval` import each other (the bounding box trees in `core` use
    `eval`), as they did upstream, so they belong in one package.
-2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`. These three depend only on `core/Data`, `core/Vec` and each other, so they can
-   serve any mesh, not just ours.
-3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `Fillet`, `Shell`. Depends on nurbs and mesh.
+2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`, `Implicit`, `Growth`. These depend only on `core/Data`, `core/Vec` and each other, so they
+   can serve any mesh, not just ours.
+3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `Fillet`, `Shell`, and the primitives (`solid/primitives/`). Depends on nurbs and mesh.
 4. **recipes**: depends on nurbs and brep.
-5. **io**: `io/Step.ts`. Depends on nurbs and brep. It could live in brep; on its own it keeps file formats out of the
+5. **model**: `model/`. Depends on nurbs and brep. The modelling front end that recipes and apps build on.
+6. **io**: `io/Step.ts`. Depends on nurbs and brep. It could live in brep; on its own it keeps file formats out of the
    modelling package, and new formats (IGES, 3MF) join it.
-6. **inspect**: `view/Inspect.ts`, which turns objects into plain layers. Depends on nurbs, brep and mesh.
-7. **apps**: the playground and the viewer, which depend on everything above and on three.js.
+7. **inspect**: `view/Inspect.ts`, which turns objects into plain layers. Depends on nurbs, brep and mesh.
+8. **apps**: the playground and the viewer, which depend on everything above and on three.js.
 
 ## Rules to keep the split easy
 
 * Don't import from a layer above (for example `solid` must not import from `recipes` or `view`).
-* `TriMesh`, `MeshBVH` and `Makeable` import nothing from the B-rep code.
+* `TriMesh`, `MeshBVH`, `Makeable`, `Implicit` and `Growth` import nothing from the B-rep code.
 * Rendering code (three.js) stays in the apps; `Inspect` returns plain arrays.
 * `src/index.ts` is generated; each package would get its own index the same way.
 

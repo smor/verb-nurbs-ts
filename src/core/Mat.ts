@@ -187,9 +187,20 @@ export class Mat {
                 ++i;
             }
 
+            // Interpolation matrices are banded: skip the rows with nothing to eliminate and stop each row update
+            // at the pivot row's last nonzero. With finite multipliers the skipped operations subtract exact zeros,
+            // so the factors are bit for bit those of the full update below.
+            let last = n - 1;
+            while (last > k && Ak[last] === 0) --last;
             i = k+1;
             while (i < n){
                 Ai = A[i];
+                const m = Ai[k];
+                if (Number.isFinite( m )) {
+                    if (m !== 0) for (j = k+1; j <= last; ++j) Ai[j] -= m * Ak[j];
+                    ++i;
+                    continue;
+                }
                 j = k+1;
                 while (j < n1){
                     Ai[j] -= Ai[k] * Ak[j];

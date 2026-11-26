@@ -10,7 +10,7 @@ npm run check      # typecheck, layer check, lint, build and the full test suite
 `npm ci` also points git at the hooks in `.githooks/` (see below). Contributors of every kind, people and AI
 agents alike, follow [AGENTS.md](AGENTS.md): the definition of done and the rules that keep the baseline.
 
-Node 20 or later. The only runtime dependency is `cdt2d`. `manifold-3d` is a dev dependency that independently
+Node 20 or later. The runtime dependencies are `cdt2d` and its exact predicate `robust-in-sphere`. `manifold-3d` is a dev dependency that independently
 checks that solids are valid manifolds.
 
 ## Everyday commands
