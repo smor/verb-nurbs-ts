@@ -13,6 +13,37 @@ the reference: what each format holds, what it means, and what may change. Both 
 object file comes from source code: a project may keep it as a cache or for review, but should regenerate it from the
 graph. Model documents written by hand stay supported (they are what `docs/model.md` describes).
 
+## Vocabulary
+
+The words below have one meaning each, in this repository and in projects built on it. They follow STEP (ISO 10303,
+whose product structure separates a definition from its occurrences), the mechanical CAD systems (Onshape, Fusion)
+and USD. The key distinction is between a **definition** (what a thing is) and an **instance** (one place it is used).
+
+| Term | Meaning | Elsewhere |
+|---|---|---|
+| **Document** | one JSON file: a graph document or a model document | |
+| **Node** | one operation in a graph document, of a type from the registry | Grasshopper component, Dynamo node |
+| **Feature** | a solid node once compiled into a model document | history-based CAD feature |
+| **Body** | one closed solid, the result of a solid node | Onshape part, Fusion body |
+| **Part** | a body made as one piece, exported by name from a document (an output), with a role and a process | STEP product (a part), 507 manifest `parts` |
+| **Region** | a named set of a part's faces, chosen by face-name patterns, for a colour, a material or an engraving | 507 manifest `regions` |
+| **Imported part** | a part whose geometry is a mesh file pinned by its hash: no named faces, so no fillet or Boolean on it | reference geometry |
+| **Standard part** | a part that is bought, not made (screw, washer, standoff): listed in the bill of materials, drawn from a catalogue | purchased part, 507 `hardware` |
+| **Parameter** | a number node a document exposes to whoever uses it | Onshape configuration input, Houdini promoted parameter |
+| **Component** | a document used by other documents: its parameters are its inputs, its outputs are parts or placed instances | Fusion component, Grasshopper cluster, Houdini digital asset |
+| **Instance** | one use of a component inside another document, with its own parameter values and placement; names nest (`crank1/rod`) | STEP occurrence, USD instance |
+| **Placement** | the rigid motion (rotation, then translation) that puts an instance or a part where it goes | STEP placement, glTF node transform |
+| **Assembly** | a component whose outputs are placed instances, adding no geometry of its own; a **sub-assembly** is one used as an instance | STEP assembly |
+| **Variant** | a named set of parameter values of a component | Onshape configuration, USD variant, 507 `variant` |
+| **Library** | a folder of components, referred to by path and pinned by content hash | |
+| **Joint** | (later) a constraint between two instances (revolute, slider, gear ratio) that drives motion | Onshape mate, Fusion joint |
+| **Make check** | a part checked for manufacture: closed, oriented, walls, machine (the verdict) | |
+| **Fit check** | (later) an assembly checked for clearance and interference between its instances | interference detection |
+
+Today a document has nodes, parameters (its `number` nodes, set from outside with `set`) and parts (its outputs).
+Components, instances, placements, assemblies, variants, regions and imported parts are the planned additions,
+named here first so that they keep these names.
+
 ## Units
 
 Lengths are in millimetres and angles in degrees, everywhere, with no unit field and no conversion. The
