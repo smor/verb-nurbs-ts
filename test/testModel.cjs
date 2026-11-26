@@ -127,6 +127,8 @@ describe("verb.model.Model", function(){
 		var r = new Model().evaluate(doc);
 		r.verdict.kind.should.be.equal('buildable');
 		r.verdict.checks.map(function(c){ return c.name; }).should.containEql('makeable');
+		// pins standing on a plate print as they stand
+		r.verdict.notes.should.eql(['Builds without supports with +z up.']);
 		['left/pin.tube', 'pin.tube', 'right/pin.tube', 'left/pin.end cap'].forEach(function(n){ r.faceNames.should.containEql(n); });
 		r.result.report.volume.should.be.approximately(60 * 20 * 4 + 3 * Math.PI * 9 * 10, 30);
 		// the same leaf twice in one Boolean is ambiguous

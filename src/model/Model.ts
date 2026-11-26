@@ -104,6 +104,8 @@ export interface ModelVerdict {
     reasons : Array<string>;
     // the checks, each passed or not
     checks : Array<{ name : string, passed : boolean, detail : string }>;
+    // what is worth knowing but does not make the model visual (supports needed, the build direction, ...)
+    notes : Array<string>;
 }
 
 // A model: a document of parameters and features, regenerated deterministically into a solid with persistent names.
@@ -688,12 +690,14 @@ export class Model {
             const ok = w.thinnest >= w.thickness * (1 - Model.WALL_TOLERANCE);
             checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
         }
+        const notes : Array<string> = [];
         if (machine != null && checks[0].passed) {
             const mk = Makeable.check( r.mesh, machine );
+            notes.push( ...mk.notes );
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks, notes : notes };
     }
 
     // A lattice is judged on its mesh: closed, outward, its thinnest wall against the machine's, and makeable. It is a
@@ -715,14 +719,16 @@ export class Model {
         checks.push( { name : "drains", passed : l.voids == 0 || !drains,
                        detail : l.voids == 0 ? "no sealed voids: every cavity opens to the outside" :
                                 `${l.voids} sealed void(s) inside the skin` + (drains ? `: the ${mc.name}'s material would be trapped; open a face of the skin` : " (no harm on this process)") } );
+        const notes : Array<string> = [];
         if (machine != null && m.closedManifold) {
             const mk = Makeable.check( l.mesh, machine );
+            notes.push( ...mk.notes );
             const min = mk.machine.minWall;
             checks.push( { name : "lattice wall", passed : thinnest >= min, detail : `the lattice's walls are ${thinnest} at their thinnest (${mk.machine.name} needs ${min})` } );
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks, notes : notes };
     }
 
     // ---------- hashing ----------

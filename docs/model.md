@@ -78,7 +78,7 @@ in radians, `rad`, `deg`, `clamp`, `lerp`, `pi`). Parameters may use other param
   | `closed` | every edge joins exactly two faces |
   | `outward` | the volume is positive |
   | `fillets` | every requested fillet is in place (none too large, none left sharp at a corner) |
-  | `makeable` | (with a machine) `Makeable.check` passes: fits, no wall too thin |
+  | `makeable` | (with a machine) `Makeable.check` passes: fits, no wall too thin, no sealed void on a machine that drains, and for a moulded process (`Machine.draft`) enough draft and no undercut along the best pull |
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
 
   Any failed check makes the model **visual**: fine to look at and render, not to fabricate. The reasons say why.
@@ -170,6 +170,12 @@ The verdict judges the mesh:
 
 `Makeable.check` reports sealed voids for any mesh (`voids`), and counts them as an issue on machines that drain,
 so a shell with no open face fails on a resin printer too.
+
+Fabrication notes. `ModelVerdict.notes` lists what is worth knowing without making the model visual. For a printer
+with an `overhang` limit (FDM and resin: 45°), it gives the build direction, of the six axes, that leaves the least
+area overhanging, and whether supports are still needed (`Makeable.orient`). For slip casting (`draft`: 1°), the
+pull direction is chosen the same way (`Makeable.release`), and too little draft or an undercut is an issue: the cast
+would stick or could not leave a two-part mould.
 
 ## Limits
 
