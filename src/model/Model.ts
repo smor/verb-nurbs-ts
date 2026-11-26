@@ -157,6 +157,22 @@ export interface ModelVerdict {
 // Limits: a round over a rounded operand is refused (rounding the edges a Boolean makes on a shell is step A5), and
 // so is a shell of one (its offset is not built). A round as the output, moved by transforms, is still rewritten as
 // the round of the moved part (`Model.liftRound`), so its single Boolean builds it.
+/**
+ * Why a model could not be built, and where: the feature at fault (its id, `crank1/disc` inside a component instance)
+ * and its type, when the failure is a feature's. A failure from inside the kernel keeps the kernel's error as `cause`.
+ */
+export class ModelError extends Error {
+    public readonly feature? : string;
+    public readonly type? : string;
+    constructor( message : string, where : { feature? : string, type? : string } = {}, cause? : unknown ) {
+        super( message );
+        this.name = "ModelError";
+        if (where.feature != null) this.feature = where.feature;
+        if (where.type != null) this.type = where.type;
+        if (cause !== undefined) (this as { cause? : unknown }).cause = cause;
+    }
+}
+
 export class Model {
 
     private cache = new Map<string, unknown>();
@@ -189,8 +205,15 @@ export class Model {
             if (f == null) throw new Error( `Model: unknown feature "${id}"` );
             if (visiting.has( id )) throw new Error( `Model: feature "${id}" depends on itself` );
             visiting.add( id );
-            const resolved = Model.resolve( f, num, point );
-            const inputs = Model.inputs( f ).map( hashOf );
+            let resolved : unknown, inputs : Array<string>;
+            try {
+                resolved = Model.resolve( f, num, point );
+                inputs = Model.inputs( f ).map( hashOf );
+            } catch (e) {
+                // a feature's own values or inputs at fault: the error names it (an input's own error names the input)
+                if (e instanceof ModelError && e.feature != null) throw e;
+                throw new ModelError( e instanceof Error ? e.message : String( e ), { feature : id, type : f.type }, e instanceof Error ? (e as { cause? : unknown }).cause : undefined );
+            }
             visiting.delete( id );
             const h = Model.hash( Model.canonical( { type : f.type, values : resolved, inputs : inputs } ) );
             hashes.set( id, h );
@@ -213,8 +236,10 @@ export class Model {
                 v = make();
             } catch (e) {
                 const message = e instanceof Error ? e.message : String( e );
-                const error = message.startsWith( "Model:" ) ? (e instanceof Error ? e : new Error( message ))
-                    : Object.assign( new Error( `Model: building "${id}" failed: ${message}` ), { cause : e } );
+                const where = { feature : id, type : features[id]?.type };
+                const error = e instanceof ModelError && e.feature != null ? e
+                    : message.startsWith( "Model:" ) ? new ModelError( message, where, e instanceof Error ? (e as { cause? : unknown }).cause : undefined )
+                    : new ModelError( `Model: building "${id}" failed: ${message}`, where, e );
                 this.cache.set( key, new ModelFailure( error ) );
                 built.add( id );
                 throw error;

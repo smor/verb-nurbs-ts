@@ -1,6 +1,6 @@
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { Expr } from "./Expr.js";
-import { Model } from "./Model.js";
+import { Model, ModelError } from "./Model.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
 import { ShellMesher } from "../solid/ShellMesher.js";
 import type { BrepShell } from "../solid/BrepShell.js";
@@ -100,8 +100,41 @@ export interface GraphMesh {
     deviation : number | null;
 }
 
-// A document compiled whole: every parameter and feature, and the feature each output names.
-interface Compiled { parameters : { [name : string] : ModelValue }, features : { [id : string] : ModelFeature }, outputs : { [name : string] : string } }
+// A document compiled whole: every parameter and feature, the feature each output names, and the node type of each
+// feature (an instance's features under their prefixed ids).
+interface Compiled { parameters : { [name : string] : ModelValue }, features : { [id : string] : ModelFeature }, outputs : { [name : string] : string },
+                     types : { [feature : string] : string } }
+
+// Where a graph failed: the node (a path of ids through component instances: "crank1/disc"), its type and the port, or
+// the output, when the failure is theirs.
+interface Where { node? : string, type? : string, port? : string, output? : string }
+
+/**
+ * Why a graph could not be evaluated, and where, for a caller to report (#68 A6):
+ * * `stage`: "document" (the document as a whole: its version, a top-level key, an output, a `set`), "node" (a node's
+ *   own definition: its type, a port, a wire, an expression) or "build" (building the solid failed);
+ * * `node`: the node at fault, as a path of ids from the top document through component instances (`crank1/disc` is
+ *   the node `disc` of the instance `crank1`); `type`: its node type; `port`: the port at fault;
+ * * `output`: the output at fault, for a document's failure about one.
+ * The message is the same as before, naming them too. A failure from inside the kernel keeps its error as `cause`.
+ */
+export class GraphError extends Error {
+    public readonly stage : "document" | "node" | "build";
+    public readonly node? : string;
+    public readonly type? : string;
+    public readonly port? : string;
+    public readonly output? : string;
+    constructor( message : string, stage : "document" | "node" | "build", where : Where = {}, cause? : unknown ) {
+        super( message );
+        this.name = "GraphError";
+        this.stage = stage;
+        if (where.node != null) this.node = where.node;
+        if (where.type != null) this.type = where.type;
+        if (where.port != null) this.port = where.port;
+        if (where.output != null) this.output = where.output;
+        if (cause !== undefined) (this as { cause? : unknown }).cause = cause;
+    }
+}
 
 /** A graph evaluated: the model's result, the model document it compiled into, and each node's state. */
 export interface GraphResult extends ModelResult {
@@ -167,13 +200,13 @@ export class Graph {
      */
     public evaluate( doc : GraphDocument | ModelDocument, options : GraphOptions = {} ) : GraphResult {
         if (doc.version === 1) {
-            const r = this.model.evaluate( doc );
+            const r = Graph.build( () => this.model.evaluate( doc ), Object.fromEntries( Object.entries( doc.features ).map( ([id, f]) => [id, f.type] ) ) );
             const nodes : GraphResult["nodes"] = {};
             for (const [id, f] of Object.entries( r.features )) nodes[id] = f.built ? "built" : "cached";
             return this.withMesh( { ...r, model : doc, output : doc.output, nodes : nodes }, options );
         }
-        const model = Graph.compile( doc, options );
-        const r = this.model.evaluate( model );
+        const { model, types } = Graph.compileTyped( doc, options );
+        const r = Graph.build( () => this.model.evaluate( model ), types );
         const nodes : GraphResult["nodes"] = {};
         for (const id of Object.keys( doc.nodes )) {
             const t = Graph.REGISTRY[doc.nodes[id].type];
@@ -232,6 +265,25 @@ export class Graph {
      * for something other than a `number` node. Every output is checked, whichever one is compiled.
      */
     public static compile( doc : GraphDocument, options : GraphOptions = {} ) : ModelDocument {
+        return Graph.compileTyped( doc, options ).model;
+    }
+
+    // Builds a model, reporting a failure as a `GraphError` at the node of the feature at fault (`types`: each
+    // feature's node type).
+    private static build( make : () => ModelResult, types : { [feature : string] : string } ) : ModelResult {
+        try {
+            return make();
+        } catch (e) {
+            if (e instanceof GraphError) throw e;
+            const message = e instanceof Error ? e.message : String( e );
+            const feature = e instanceof ModelError ? e.feature : undefined;
+            const cause = e instanceof Error && (e as { cause? : unknown }).cause !== undefined ? (e as { cause? : unknown }).cause : e;
+            throw new GraphError( message, "build", feature == null ? {} : { node : feature, type : types[feature] ?? (e as ModelError).type }, cause );
+        }
+    }
+
+    // `compile`, with each feature's node type.
+    private static compileTyped( doc : GraphDocument, options : GraphOptions ) : { model : ModelDocument, types : { [feature : string] : string } } {
         const c = Graph.compileAll( doc, options, [] );
         const names = Object.keys( doc.outputs );
         const want = options.output ?? names[0];
@@ -239,15 +291,15 @@ export class Graph {
         if (want.startsWith( "@" )) {
             const m = REF.exec( want.trim() );
             const f = m == null ? null : m[2] == null ? m[1] : c.features[m[1] + "/" + (c.outputs[`${m[1]}.${m[2]}`] ?? "")] != null ? m[1] + "/" + c.outputs[`${m[1]}.${m[2]}`] : null;
-            if (f == null || c.features[f] == null) throw new Error( `Graph: the output "${want}" is ${JSON.stringify( want )}, not a reference to a solid node` );
+            if (f == null || c.features[f] == null) throw new GraphError( `Graph: the output "${want}" is ${JSON.stringify( want )}, not a reference to a solid node`, "document", { output : want } );
             output = f;
         } else {
-            if (c.outputs[want] == null) throw new Error( `Graph: the document has no output "${want}" (${names.join( ", " )})` );
+            if (c.outputs[want] == null) throw new GraphError( `Graph: the document has no output "${want}" (${names.join( ", " )})`, "document", { output : want } );
             output = c.outputs[want];
         }
         const model : ModelDocument = { version : 1, parameters : c.parameters, features : c.features, output : output };
         if (doc.machine != null) model.machine = doc.machine;
-        return model;
+        return { model : model, types : c.types };
     }
 
     /**
@@ -262,6 +314,18 @@ export class Graph {
     // instance's output, "instance.output" to the feature inside it, without the instance's prefix). `stack`: the
     // components being compiled, outermost first, to refuse a component that uses itself.
     private static compileAll( doc : GraphDocument, options : GraphOptions, stack : Array<string> ) : Compiled {
+        const where : Where = {};
+        try {
+            return Graph.compileIn( doc, options, stack, where );
+        } catch (e) {
+            if (e instanceof GraphError) throw e;
+            throw new GraphError( e instanceof Error ? e.message : String( e ), where.node != null ? "node" : "document", where );
+        }
+    }
+
+    // `compileAll`'s work, keeping in `where` the node, port or output it is at, for the error if it fails.
+    private static compileIn( doc : GraphDocument, options : GraphOptions, stack : Array<string>, where : Where ) : Compiled {
+        const here = ( w : Where ) => { delete where.node; delete where.type; delete where.port; delete where.output; Object.assign( where, w ); };
         if (doc.version !== 2) throw new Error( `Graph: unknown document version ${String( ( doc as { version? : unknown } ).version )}` );
         for (const k of Object.keys( doc )) if (!TOP.includes( k )) throw new Error( `Graph: "${k}" is not a key of a graph document (${TOP.join( ", " )})` );
         let nodes = doc.nodes ?? {};
@@ -278,6 +342,7 @@ export class Graph {
         const inner : { [id : string] : { doc : GraphDocument, compiled : Compiled } } = {};
         const from = stack.length == 0 ? null : stack[stack.length - 1];
         for (const [id, n] of Object.entries( nodes )) {
+            here( { node : id, type : n.type } );
             if (!ID.test( id )) throw new Error( `Graph: "${id}" is not a valid node id (letters, digits and _, not starting with a digit)` );
             if (n.type == "component") {
                 if (typeof n.use != "string" || n.use == "") throw new Error( `Graph: component "${id}" has no "use"` );
@@ -286,14 +351,23 @@ export class Graph {
                 const used = options.resolve( n.use, from );
                 if (n.hash != null && Graph.hash( used ) != n.hash)
                     throw new Error( `Graph: component "${id}" pins "${n.use}" at ${n.hash}, but it is now ${Graph.hash( used )}` );
-                const compiled = Graph.compileAll( used, { resolve : options.resolve }, [...stack, n.use] );
+                let compiled : Compiled;
+                try {
+                    compiled = Graph.compileAll( used, { resolve : options.resolve }, [...stack, n.use] );
+                } catch (e) {
+                    // inside the instance: its path goes through the instance (the component's own document at fault
+                    // is the instance node)
+                    if (!(e instanceof GraphError)) throw e;
+                    throw new GraphError( e.message, "node", e.node != null ? { node : id + "/" + e.node, type : e.type, port : e.port }
+                        : { node : id, type : "component", output : e.output }, (e as { cause? : unknown }).cause );
+                }
                 inner[id] = { doc : used, compiled : compiled };
                 types[id] = Graph.componentType( n.use, used );
             } else if (n.use != null || n.hash != null) throw new Error( `Graph: node "${id}" has "use" or "hash", which only a component has` );
             const t = types[id] ?? Graph.REGISTRY[n.type];
             if (t == null) throw new Error( `Graph: node "${id}" has an unknown type "${n.type}"` );
             types[id] = t;
-            for (const k of Object.keys( n.in ?? {} )) if (t.inputs[k] == null) throw new Error( `Graph: node "${id}" (${n.type}) has no input "${k}"` );
+            for (const k of Object.keys( n.in ?? {} )) if (t.inputs[k] == null) { here( { node : id, type : n.type, port : k } ); throw new Error( `Graph: node "${id}" (${n.type}) has no input "${k}"` ); }
             if (Graph.isNumber( t )) {
                 // a number node is a parameter, named by its id in expressions
                 if (Expr.reserved( id )) throw new Error( `Graph: "${id}" is a function or constant of expressions; give the number node another id` );
@@ -302,6 +376,7 @@ export class Graph {
         }
         // "@id" or "@id.port", checked against the node's outputs and the wire's kind
         const wire = ( id : string, k : string, v : string, want : GraphWire ) : string => {
+            here( { node : id, type : nodes[id].type, port : k } );
             const m = REF.exec( v.trim() );
             if (m == null) throw new Error( `Graph: "${id}.${k}" must be a reference like "@node", not "${v}"` );
             const src = nodes[m[1]];
@@ -315,6 +390,7 @@ export class Graph {
         };
         // a number input: literal, expression over number nodes ("@h" may stand for "h"), or a wire
         const number = ( id : string, k : string ) : ModelValue => {
+            here( { node : id, type : nodes[id].type, port : k } );
             const p = types[id].inputs[k] as Extract<GraphPort, { kind : "number" }>;
             const v = nodes[id].in?.[k] ?? p.value;
             if (typeof v == "number") return v;
@@ -326,6 +402,7 @@ export class Graph {
             return `(${text})`;
         };
         const input = ( id : string, k : string ) : ModelValue => {
+            here( { node : id, type : nodes[id].type, port : k } );
             const p = types[id].inputs[k];
             const v = nodes[id].in?.[k];
             switch (p.kind) {
@@ -386,6 +463,7 @@ export class Graph {
         const parameters : { [name : string] : ModelValue } = {};
         const features : { [id : string] : ModelFeature } = {};
         for (const [id, n] of Object.entries( nodes )) {
+            here( { node : id, type : n.type } );
             const t = types[id];
             const at = ( k : string ) => input( id, k );
             if (n.type == "component") {
@@ -487,6 +565,7 @@ export class Graph {
         }
         // every output names a solid node, or an instance's output
         const solidOf = ( name : string, ref : unknown ) : string => {
+            here( { output : name } );
             const m = typeof ref == "string" ? REF.exec( ref.trim() ) : null;
             const sub = m == null ? null : inner[m[1]];
             const f = m == null ? null : sub != null ? (m[2] != null && sub.compiled.outputs[m[2]] != null ? m[1] + "/" + sub.compiled.outputs[m[2]] : null)
@@ -494,18 +573,27 @@ export class Graph {
             if (f == null || features[f] == null) throw new Error( `Graph: the output "${name}" is ${JSON.stringify( ref )}, not a reference to a solid node` );
             return f;
         };
+        here( {} );
         const outputs = doc.outputs ?? {};
         const names = Object.keys( outputs );
         if (names.length == 0) throw new Error( `Graph: the document has no outputs` );
         const resolved : { [name : string] : string } = {};
         for (const name of names) {
+            here( { output : name } );
             if (!NAME.test( name )) throw new Error( `Graph: "${name}" is not a valid output name (letters, digits, _ and -, starting with a letter or _)` );
             resolved[name] = solidOf( name, outputs[name] );
         }
         // for "@instance.output" references from `compile`
         for (const [id, sub] of Object.entries( inner ))
             for (const [name, f] of Object.entries( sub.compiled.outputs )) resolved[`${id}.${name}`] = f;
-        return { parameters : parameters, features : features, outputs : resolved };
+        // each feature's node type: a node's own, an instance's from inside it. A node that compiles to several
+        // features (`freeform/vessel` gives `v/body`, `v/cavity`, ...) names them under its id, like an instance.
+        const typeOf : { [feature : string] : string } = {};
+        for (const fid of Object.keys( features )) {
+            const slash = fid.indexOf( "/" ), owner = slash < 0 ? fid : fid.slice( 0, slash );
+            typeOf[fid] = inner[owner] != null ? inner[owner].compiled.types[fid.slice( slash + 1 )] : nodes[owner].type;
+        }
+        return { parameters : parameters, features : features, outputs : resolved, types : typeOf };
     }
 
     // The node type of a component: its `number` nodes are its inputs (with their values, when numbers, as defaults),
