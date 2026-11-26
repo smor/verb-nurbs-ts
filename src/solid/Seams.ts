@@ -13,6 +13,9 @@ export interface SeamEdge {
     left : number;
     right : number;
     curve? : NurbsCurveData;
+    // a seam edge's curves in its face's parameters, for its forward use (the face on its left) and its backward use:
+    // the seam's two sides, as lines over the curve's parameter
+    pcurves? : [NurbsCurveData, NurbsCurveData];
 }
 
 // A face while the B-rep is built: its surface, whether the surface's normal points out of the solid, and the nearest
@@ -171,7 +174,14 @@ export class Seams {
                 };
                 const curve = Fit.approximateCurve( iso, 3, [0, 0, 0, 0, 1, 1, 1, 1], 0.25 * tol, 8 ).curve;
                 seamUse.set( out.length, lowFwd ? 0 : 1 );
-                out.push( { pts : [vertices[sm.a], vertices[sm.b]], start : sm.a, end : sm.b, left : fi, right : fi, curve : curve } );
+                const line = (side : number) : NurbsCurveData => {
+                    const c = c0 + side * per;
+                    const a : UV = d == 0 ? [c, sm.wa] : [sm.wa, c], b : UV = d == 0 ? [c, sm.wb] : [sm.wb, c];
+                    return new NurbsCurveData( 1, [0, 0, 1, 1], [[a[0], a[1], 1], [b[0], b[1], 1]] );
+                };
+                const fwdSide = lowFwd ? 0 : 1;
+                out.push( { pts : [vertices[sm.a], vertices[sm.b]], start : sm.a, end : sm.b, left : fi, right : fi, curve : curve,
+                            pcurves : [line( fwdSide ), line( 1 - fwdSide )] } );
             }
             const uses : Array<[number, boolean]> = ([] as Array<[number, boolean]>).concat( ...loops[fi].map( expand ) );
             for (const e of seamUse.keys()) uses.push( [e, true], [e, false] );

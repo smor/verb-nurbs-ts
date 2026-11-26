@@ -67,6 +67,8 @@ import { Welder, BrepSolid, FaceMesher } from "./solid/Brep.js";
 export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
+import { ShellBuilder } from "./solid/BrepShell.js";
+export type { BrepShell, ShellEdge, ShellFace, ShellOptions, ShellTopology } from "./solid/BrepShell.js";
 import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
 import { FilletCorner } from "./solid/FilletCorner.js";
@@ -201,6 +203,7 @@ export {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    ShellBuilder,
     Fillet,
     FilletCorner,
     BrepEdges,
@@ -320,6 +323,7 @@ export const solid = {
     BrepSolid,
     FaceMesher,
     BrepBoolean,
+    ShellBuilder,
     Fillet,
     FilletCorner,
     BrepEdges,
