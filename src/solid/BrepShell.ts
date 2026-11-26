@@ -134,13 +134,34 @@ export class ShellBuilder {
         return { vertices : vs, edges : shellEdges, faces : shellFaces, tolerance : tol };
     }
 
-    // The largest distance between a curve and a surface at the curve's p-curve on it, at the same parameter.
+    // The largest distance between a curve and a surface at the curve's p-curve on it, at the same parameter: sampled
+    // uniformly and eight times in each knot span of either curve, then the largest sample's neighbourhood searched by
+    // golden sections (the distance between samples can rise above the samples).
     public static deviation( curve : NurbsCurveData, surface : NurbsSurfaceData, pcurve : NurbsCurveData, samples : number = 64 ) : number {
         const a = curve.knots[0], b = curve.knots[curve.knots.length - 1];
-        let worst = 0;
-        for (let i = 0; i <= samples; i++) {
-            const t = a + (b - a) * i / samples, uv = Eval.rationalCurvePoint( pcurve, t );
-            worst = Math.max( worst, Vec.dist( Eval.rationalSurfacePoint( surface, uv[0], uv[1] ), Eval.rationalCurvePoint( curve, t ) ) );
+        const dist = (t : number) => {
+            const uv = Eval.rationalCurvePoint( pcurve, t );
+            return Vec.dist( Eval.rationalSurfacePoint( surface, uv[0], uv[1] ), Eval.rationalCurvePoint( curve, t ) );
+        };
+        const ts : Array<number> = [];
+        for (let i = 0; i <= samples; i++) ts.push( a + (b - a) * i / samples );
+        for (const ks of [curve.knots, pcurve.knots]) for (let i = 0; i + 1 < ks.length; i++) {
+            if (ks[i + 1] > ks[i]) for (let k = 1; k < 8; k++) ts.push( ks[i] + (ks[i + 1] - ks[i]) * k / 8 );
+        }
+        ts.sort( (x, y) => x - y );
+        const ds = ts.map( dist );
+        let worst = Math.max( ...ds );
+        const g = (Math.sqrt( 5 ) - 1) / 2;
+        // each local maximum of the samples within half of the largest
+        for (let m = 0; m < ds.length; m++) {
+            if (ds[m] < 0.5 * worst || (m > 0 && ds[m - 1] > ds[m]) || (m + 1 < ds.length && ds[m + 1] > ds[m])) continue;
+            let lo = ts[Math.max( 0, m - 1 )], hi = ts[Math.min( ts.length - 1, m + 1 )];
+            let x1 = hi - g * (hi - lo), x2 = lo + g * (hi - lo), f1 = dist( x1 ), f2 = dist( x2 );
+            for (let it = 0; it < 30; it++) {
+                if (f1 > f2) { hi = x2; x2 = x1; f2 = f1; x1 = hi - g * (hi - lo); f1 = dist( x1 ); }
+                else { lo = x1; x1 = x2; f1 = f2; x2 = lo + g * (hi - lo); f2 = dist( x2 ); }
+            }
+            worst = Math.max( worst, f1, f2 );
         }
         return worst;
     }
@@ -191,13 +212,38 @@ export class ShellBuilder {
             scale = Math.max( scale, Vec.norm( dd[1][0] ), Vec.norm( dd[0][1] ) );
         }
         const spans = Math.max( 1, Math.min( 32, n >> 2 ) );
+        const inner : Array<number> = [];
+        for (let k = 1; k < spans; k++) inner.push( a + (b - a) * k / spans );
+        // where the edge crosses a breakpoint of the surface (a knot of full multiplicity, where it is only C0) its
+        // parameters turn a corner: a triple knot there lets the p-curve turn it too
+        const breaks = [ShellBuilder.breakpoints( s.knotsU, s.degreeU ), ShellBuilder.breakpoints( s.knotsV, s.degreeV )];
+        const corners : Array<number> = [];
+        for (let i = 0; i < n; i++) for (let c = 0; c < 2; c++) for (const k of breaks[c]) {
+            const x0 = uvs[i][c], x1 = uvs[i + 1][c];
+            for (const kk of periodic[c] ? [k - per[c], k, k + per[c]] : [k]) {
+                if ((x0 - kk) * (x1 - kk) >= 0) continue;
+                // the crossing, by bisection on the projected parameter
+                let lo = ts[i], hi = ts[i + 1];
+                for (let it = 0; it < 50; it++) {
+                    const mid = 0.5 * (lo + hi), x = near( Eval.rationalCurvePoint( curve, mid ), uvs[i] )[c];
+                    if ((x - kk) * (x0 - kk) > 0) lo = mid; else hi = mid;
+                }
+                corners.push( 0.5 * (lo + hi) );
+            }
+        }
+        const minGap = 1e-3 * (b - a);
         const knots = [a, a, a, a];
-        for (let k = 1; k < spans; k++) knots.push( a + (b - a) * k / spans );
+        const all = inner.filter( t => corners.every( x => Math.abs( x - t ) > minGap ) ).map( t => [t, 1] )
+            .concat( corners.filter( t => t > a + minGap && t < b - minGap ).map( t => [t, 3] ) ).sort( (x, y) => x[0] - y[0] );
+        for (const [t, mult] of all) for (let k = 0; k < mult; k++) knots.push( t );
         knots.push( b, b, b, b );
         const fit = Fit.approximateCurve( f, 3, knots, 0.05 * tol / Math.max( scale, 1e-300 ), 8 ).curve;
         // the ends exactly at the end points' parameters
         const cp = fit.controlPoints, e0 = uvs[0], e1 = uvs[n];
         cp[0] = [e0[0], e0[1], 1]; cp[cp.length - 1] = [e1[0], e1[1], 1];
+        // inside the domain where the surface is open: the control points kept in it, so the curve is (it lies in their
+        // hull); a fit along a side would stray past it by a little, where the surface is only carried on
+        for (const x of cp) for (let c = 0; c < 2; c++) if (!periodic[c]) x[c] = Math.max( d[2 * c], Math.min( d[2 * c + 1], x[c] ) );
         return fit;
     }
 
@@ -294,10 +340,21 @@ export class ShellBuilder {
         const periodic : [boolean, boolean] = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
         const seeds : Array<{ uv : UV, p : Point }> = [];
         const g = 16;
-        for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
-            const uv : UV = [d[0] + (d[1] - d[0]) * i / g, d[2] + (d[3] - d[2]) * j / g];
-            seeds.push( { uv : uv, p : Eval.rationalSurfacePoint( s, uv[0], uv[1] ) } );
-        }
+        // samples in each direction: a uniform grid, and three in each knot span (a surface whose spans differ in
+        // length, as a cap on a rounded rectangle whose long sides take a tenth of its domain, would otherwise be
+        // sampled across a whole side at one point), up to 64 spans
+        const samples = (knots : Array<number>, a : number, b : number) => {
+            const xs : Array<number> = [];
+            for (let i = 0; i <= g; i++) xs.push( a + (b - a) * i / g );
+            const ks = knots.filter( (k, i) => i == 0 || k > knots[i - 1] );
+            if (ks.length - 1 <= 64) for (let i = 0; i + 1 < ks.length; i++) for (const f of [0.25, 0.5, 0.75]) xs.push( ks[i] + f * (ks[i + 1] - ks[i]) );
+            return xs.sort( (x, y) => x - y );
+        };
+        const su = samples( s.knotsU, d[0], d[1] ), sv = samples( s.knotsV, d[2], d[3] );
+        const breaks : [Array<number>, Array<number>] = [ShellBuilder.breakpoints( s.knotsU, s.degreeU ), ShellBuilder.breakpoints( s.knotsV, s.degreeV )];
+        for (const u of su) for (const v of sv) seeds.push( { uv : [u, v], p : Eval.rationalSurfacePoint( s, u, v ) } );
+        // each sample's neighbours' spacing, for the finer grids round the nearest
+        const gap = (xs : Array<number>, x : number) => { let h = Infinity; for (const y of xs) if (y != x) h = Math.min( h, Math.abs( y - x ) ); return h; };
         const span = [d[1] - d[0], d[3] - d[2]];
         const inDomain = (x : number, c : number) => {
             if (!periodic[c]) return Math.max( d[2 * c], Math.min( d[2 * c + 1], x ) );
@@ -308,21 +365,79 @@ export class ShellBuilder {
             let best = seeds[0], bd = Vec.distSquared( best.p, p );
             for (const x of seeds) { const dd = Vec.distSquared( x.p, p ); if (dd < bd) { best = x; bd = dd; } }
             // closer, on finer grids round the nearest sample (Newton alone can run off along a surface of revolution)
-            let h = [span[0] / g, span[1] / g];
-            for (let round = 0; round < 4; round++) {
+            let h = [Math.min( span[0] / g, 2 * gap( su, best.uv[0] ) ), Math.min( span[1] / g, 2 * gap( sv, best.uv[1] ) )];
+            // (at each spacing, moving on while the nearest is at the edge of the grid round it: the nearest sample can
+            // be a span or more from the point where the samples are sparse)
+            for (let round = 0, moves = 0; round < 4; ) {
                 const c = best;
                 for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
                     const uv : UV = [inDomain( c.uv[0] + i * h[0] / 2, 0 ), inDomain( c.uv[1] + j * h[1] / 2, 1 )];
                     const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] ), dd = Vec.distSquared( q, p );
                     if (dd < bd) { best = { uv : uv, p : q }; bd = dd; }
                 }
-                h = [h[0] / 2.5, h[1] / 2.5];
+                const atEdge = Math.abs( best.uv[0] - c.uv[0] ) > 0.75 * h[0] || Math.abs( best.uv[1] - c.uv[1] ) > 0.75 * h[1];
+                if (atEdge && moves < 16) { moves++; continue; }
+                h = [h[0] / 2.5, h[1] / 2.5]; round++; moves = 0;
             }
-            const uv = SurfaceLoops.project( { surface : s, periodic : periodic }, p, best.uv );
-            if (uv == null) return { uv : best.uv, p : best.p };
-            const q = Eval.rationalSurfacePoint( s, uv[0], uv[1] );
-            return Vec.distSquared( q, p ) <= bd ? { uv : uv, p : q } : { uv : best.uv, p : best.p };
+            const x = ShellBuilder.newton( s, d, breaks, inDomain, p, best.uv );
+            return x.d <= bd ? { uv : x.uv, p : x.p } : { uv : best.uv, p : best.p };
         };
+    }
+
+    // The interior knots of full multiplicity in each direction: where the surface is only C0 (the corners of a
+    // rounded rectangle swept or capped), and Newton's method, which follows one span's polynomial past its end, can
+    // settle on a foot of the wrong span.
+    private static breakpoints( knots : Array<number>, degree : number ) : Array<number> {
+        const out : Array<number> = [];
+        for (let i = degree + 1; i < knots.length - degree - 1; ) {
+            let j = i; while (j + 1 < knots.length && knots[j + 1] == knots[i]) j++;
+            if (j - i + 1 >= degree) out.push( knots[i] );
+            i = j + 1;
+        }
+        return out;
+    }
+
+    // Gauss-Newton on the squared distance (its step always goes down hill, where Newton's, with the surface's
+    // curvature in it, can climb away on a corner span), halved until the distance falls, and a step that would
+    // cross a breakpoint stopping just past it (in the next span, whose polynomial is then followed). Returns the
+    // nearest point it reached.
+    private static newton( s : NurbsSurfaceData, d : Array<number>, breaks : [Array<number>, Array<number>], inDomain : (x : number, c : number) => number,
+                           p : Point, uv0 : UV ) : { uv : UV, p : Point, d : number } {
+        let uv : UV = [inDomain( uv0[0], 0 ), inDomain( uv0[1], 1 )];
+        let q = Eval.rationalSurfacePoint( s, uv[0], uv[1] ), dq = Vec.distSquared( q, p );
+        for (let it = 0; it < 60; it++) {
+            const D = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+            const r = Vec.sub( D[0][0], p );
+            const g = [Vec.dot( r, D[1][0] ), Vec.dot( r, D[0][1] )];
+            const H = [[Vec.dot( D[1][0], D[1][0] ), Vec.dot( D[1][0], D[0][1] )], [Vec.dot( D[1][0], D[0][1] ), Vec.dot( D[0][1], D[0][1] )]];
+            const det = H[0][0] * H[1][1] - H[0][1] * H[1][0];
+            let step : Array<number>;
+            if (Math.abs( det ) > 1e-12 * (H[0][0] * H[1][1] + 1e-300)) step = [(H[1][1] * g[0] - H[0][1] * g[1]) / det, (H[0][0] * g[1] - H[1][0] * g[0]) / det];
+            else step = [H[0][0] > 0 ? g[0] / H[0][0] : 0, H[1][1] > 0 ? g[1] / H[1][1] : 0]; // at a pole: each direction alone
+            // the full step, then (held at a side of the domain, the full step can make no headway) each direction alone
+            const tries = [step, [H[0][0] > 0 ? g[0] / H[0][0] : 0, 0], [0, H[1][1] > 0 ? g[1] / H[1][1] : 0]];
+            let moved = false;
+            for (const t0 of tries) {
+              step = t0;
+              for (let half = 0; half < 30 && !moved; half++) {
+                const next : UV = [uv[0] - step[0], uv[1] - step[1]];
+                for (let c = 0; c < 2; c++) {
+                    const a = uv[c], b = next[c], eps = 1e-9 * (d[2 * c + 1] - d[2 * c]);
+                    for (const k of breaks[c]) {
+                        if (a < k - eps && b > k) next[c] = Math.min( next[c], k + eps );
+                        else if (a > k + eps && b < k) next[c] = Math.max( next[c], k - eps );
+                    }
+                    next[c] = inDomain( next[c], c );
+                }
+                const qn = Eval.rationalSurfacePoint( s, next[0], next[1] ), dn = Vec.distSquared( qn, p );
+                if (dn < dq) { moved = Math.abs( next[0] - uv[0] ) + Math.abs( next[1] - uv[1] ) > 1e-16; uv = next; q = qn; dq = dn; break; }
+                step = [step[0] / 2, step[1] / 2];
+              }
+              if (moved) break;
+            }
+            if (!moved) break;
+        }
+        return { uv : uv, p : q, d : dq };
     }
 
     // A chain of points on the curve where two faces meet, made dense enough to follow it: between two points whose

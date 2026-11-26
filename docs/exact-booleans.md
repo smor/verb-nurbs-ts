@@ -1,6 +1,6 @@
 # Plan: Booleans on any solid, rounded ones included
 
-Status: A1 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
+Status: A1 and A2 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
 tests.
 
 ## The goal
@@ -76,6 +76,25 @@ modelling with local tolerances", ACM Symposium on Solid Modeling and Applicatio
 
 Tests: Euler–Poincaré on every result in the suite; each edge within its tolerance of both faces; p-curves map to
 the 3D curve within the tolerance; STEP files unchanged in content.
+
+Built: `ShellBuilder.fromResult` (`src/solid/BrepShell.ts`, with `Seams` moved to `src/solid/`) gives a `BrepShell`:
+vertices; edges with their curve, a p-curve on each face over the curve's own parameter (a seam edge's are the seam's
+two sides, exactly), and their tolerance (the largest distance from the curve to either face at its p-curve, found by
+sampling and golden sections); faces with their source face and name. `Step.write` writes it through
+`Step.writeShell`. Moving the code left the STEP files byte for byte the same on six parts. Checking the shells then
+found point projection unreliable on surfaces whose knot spans differ widely in length (a cap on a rounded rectangle):
+the slotted block's edges were up to 0.5 mm off its caps. Projection now seeds by knot spans and takes Gauss–Newton
+steps that respect breakpoints and domain sides, and p-curves get triple knots where they cross a breakpoint: those
+edges are within 1.3e-3, and the six STEP files keep their entities, with control points moved by that correction.
+Tests in `test/testShell.cjs`: each edge used once each way, Euler–Poincaré against the mesh's genus, edges within
+their tolerance of both faces by independent projection, p-curves giving the curve, tolerances within half the
+fitting tolerance (plus 5e-3 at setback corners), on rounded boxes (ball and setback), a ring on a seam, the
+filleted mug and three 507 parts.
+
+Not yet: the wheels of 507 (A, and D cut one window at a time) give shells that fail Euler–Poincaré. Their caps,
+discs with a pole at the centre, come out of the Boolean in several faces on one surface with slivers round the pole,
+and the seam cut makes seam stretches of zero length there. Edges between exact faces have tolerances of about 1e-3,
+not 1e-9: their curves are fitted to a quarter of the tolerance, as the STEP export always did.
 
 ### A3. Booleans take shells
 
