@@ -55,6 +55,19 @@ describe("507 regressions (test/fixtures/507)", function () {
 		builds('D', 'union-of-2', 2 * (46 / 360) * PI * (29 * 29 - 9 * 9) * 8);
 	});
 
+	it('D: windows cut one after another skip the pairs of faces that cannot meet on the result (#66)', function () {
+		// pairs of faces from two different windows are skipped, unless their faces coincide (all the hubs lie on one
+		// cylinder): the pairs intersected no longer grow with the square of the windows (61, 238, 531 before)
+		var pairs = [2, 4, 6].map(function (n) {
+			var r = builds('D', 'one-by-one-' + n, PI * 35 * 35 * 6 - n * win);
+			return r.result.report.facePairs;
+		});
+		pairs.map(function (p) { return p.intersected + p.skipped; }).should.eql([61, 238, 531]);
+		var step1 = pairs[1].intersected - pairs[0].intersected, step2 = pairs[2].intersected - pairs[1].intersected;
+		step2.should.be.belowOrEqual(1.6 * step1);
+		pairs[2].skipped.should.be.above(pairs[2].intersected);
+	});
+
 	it('E: a union of solids sharing their top and bottom planes (#63)', function () {
 		builds('E', 'rim-spoke', PI * (35 * 35 - 29 * 29) * 6 + (14 / 360) * PI * 29 * 29 * 6);
 	});
