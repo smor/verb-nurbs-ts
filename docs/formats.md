@@ -174,6 +174,27 @@ takes a value hashed from its inputs (`src/core/Jitter.ts`). `test/testDetermini
 507's slotted block in two processes and compares them with hashes checked in (`test/fixtures/mesh-hashes.json`); a
 change that moves a mesh on purpose regenerates them with `node test/support/meshHash.cjs`.
 
+#### Failures
+
+A document that cannot be evaluated throws a `GraphError` (exported with `Graph`), whose message is written for a
+person and whose fields say where, for a caller to report (`test/testGraphErrors.cjs`):
+
+| Field | |
+|---|---|
+| `stage` | `"document"`: the document as a whole (its version, a top-level key, an output, a `set`); `"node"`: a node's own definition (its type, a port, a wire, an expression); `"build"`: building the solid failed |
+| `node` | the node at fault, as a path of ids through component instances: `crank1/disc` is the node `disc` inside the instance `crank1`; an instance itself, for its own inputs or a component pinned at another hash |
+| `type` | the node's type (`primitive/cylinder`, `component`) |
+| `port` | the port at fault, for a node's failure about one |
+| `output` | the output at fault, for a document's failure about one |
+| `cause` | for a build, the error from inside the kernel |
+
+```js
+try { g.evaluate( doc, { resolve } ); }
+catch (e) { if (e instanceof GraphError) report( e.node, e.type, e.message ); }
+```
+
+A model document's own failures are `ModelError`s, with the `feature` at fault and its `type`.
+
 ### Components
 
 Any graph document is a component: another document uses it through a node of type `component`, one instance per
