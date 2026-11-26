@@ -1,10 +1,10 @@
 // Builds models off the main thread so the sliders stay responsive.
-import { ApplianceRecipe, BooleanObjectsRecipe, FreeformVesselRecipe, Growth, Makeable, Model, Step, SweptObjectsRecipe } from "../src/index.js";
+import { ApplianceRecipe, BooleanObjectsRecipe, Catalog, FreeformVesselRecipe, Growth, Makeable, Model, Primitives, Step, SweptObjectsRecipe } from "../src/index.js";
 import type { BooleanResult, GrowthResult, LatticePattern, ManifoldReport, ModelDocument, ModelVerdict, Point, TriMesh } from "../src/index.js";
 
-export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance" | "block" | "grown";
+export type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance" | "block" | "grown" | "primitive";
 
-export interface BuildRequest { type? : "build"; id : number; model : ModelId; params : Record<string, number>; fine : boolean; make : boolean; machine : string; certify? : boolean }
+export interface BuildRequest { type? : "build"; id : number; model : ModelId; params : Record<string, number | string>; fine : boolean; make : boolean; machine : string; certify? : boolean }
 export interface StepRequest { type : "step"; id : number }
 
 // A B-rep part of a build: what STEP export writes, and what the Model verdict judges.
@@ -201,6 +201,29 @@ function block( p : Record<string, number>, fine : boolean, certify : boolean, m
              parts : [{ name : "Block", result : r.result }], verdict : r.verdict };
 }
 
+// A primitive from the catalogue, as a Model document: the shape with its parameters ("p:<name>" in the request),
+// and every edge rounded at `round` when it is positive (those a fillet cannot take stay sharp, and say so).
+const primitiveModel = new Model();
+function primitive( p : Record<string, number | string>, certify : boolean, machine? : string ) : Built {
+    const values : Record<string, number> = {};
+    for (const k of Object.keys( p )) if (k.startsWith( "p:" )) values[k.slice( 2 )] = Number( p[k] );
+    const round = Number( p.round ) || 0;
+    const features : ModelDocument["features"] = { shape : { type : "primitive", shape : String( p.shape ), values } };
+    // the creases only: a tangent join (a torus's two halves, a capsule's caps) is an edge but has nothing to round
+    if (round > 0) {
+        const solid = Catalog.build( String( p.shape ), values );
+        const name = (k : number) => "shape." + (solid.faces[k].name ?? "face" + k);
+        const rules = Primitives.creases( solid ).map( e => ({ edges : Model.edgeName( name( e.faces[0] ), name( e.faces[1] ) ), radius : round }) );
+        features.rounded = { type : "round", of : "shape", rules : rules.concat( [{ edges : "*", radius : 0 }] ) };
+    }
+    const r = primitiveModel.evaluate( { version : 1, parameters : {}, features, output : round > 0 ? "rounded" : "shape", machine, certify } );
+    const rep = r.result.report;
+    const notes : Array<string> = [];
+    if (round > 0 && rep.filletsSkipped > 0) notes.push( rep.filletsSkipped + " edges stay sharp: they end at a corner the fillets cannot blend yet (an apex, or a vertex of four edges or more)." );
+    return { mesh : r.result.mesh, report : rep, error : rep.maxCurveError, ok : rep.manifold.closedManifold, notes,
+             parts : [{ name : String( p.shape ), result : r.result }], verdict : r.verdict };
+}
+
 // The grown sheet: a disc that grows at its rim, round its centre or everywhere, buckling as it goes; the final model
 // is thickened into a closed solid. The growth is kept, so the final build only thickens what the preview grew.
 let grownCache : { key : string, grown : GrowthResult } | null = null;
@@ -271,10 +294,19 @@ function build( req : BuildRequest ) {
     const certify = req.certify === true;
     const t0 = performance.now();
     try {
-        const p = params, m = make && fine ? machine : undefined;
+        const m = make && fine ? machine : undefined;
+        if (model == "primitive") return send( primitive( params, certify, m ) );
+        const p = params as Record<string, number>;
         const r : Built = model == "vessel" ? vessel( p, fine ) : model == "knot" ? knot( p, fine ) : model == "ring" ? ring( p, fine )
             : model == "mug" ? mug( p, fine, certify ) : model == "pierced" ? pierced( p, fine, certify ) : model == "ribbon" ? ribbon( p, fine )
             : model == "appliance" ? appliance( p, fine, certify ) : model == "block" ? block( p, fine, certify, m ) : grown( p, fine );
+        send( r );
+    } catch (err) {
+        self.postMessage( { id, model, fine, ok : false, message : String( err ) } );
+    }
+
+    function send( r : Built ) {
+        const m = make && fine ? machine : undefined;
         const check = m != null ? judge( r, m ) : null;
         if (fine) { lastParts = r.parts ?? []; lastModel = model; }
         const ms = performance.now() - t0;
@@ -295,10 +327,11 @@ function build( req : BuildRequest ) {
                 size : [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]]
             }
         }, { transfer : [pos.buffer, idx.buffer] } );
-    } catch (err) {
-        self.postMessage( { id, model, fine, ok : false, message : String( err ) } );
     }
 }
+
+// the catalogue's shapes and parameters, for the primitive model's controls
+self.postMessage( { type : "catalog", entries : Catalog.ENTRIES.map( e => ({ name : e.name, family : e.family, parameters : e.parameters }) ) } );
 
 self.onmessage = (e : MessageEvent<BuildRequest | StepRequest>) => {
     const req = e.data;

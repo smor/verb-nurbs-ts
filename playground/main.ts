@@ -5,12 +5,12 @@ import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.j
 
 declare const WORKER_SOURCE : string;
 
-type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance" | "block" | "grown";
+type ModelId = "vessel" | "knot" | "ring" | "mug" | "pierced" | "ribbon" | "appliance" | "block" | "grown" | "primitive";
 // `labels`: names for a slider's whole-number positions (a choice among a few kinds)
 interface Slider { key : string; label : string; min : number; max : number; step : number; value : number; unit? : string; labels? : Array<string> }
 
 // the models built from B-rep solids: they go out as STEP, and their seams can be proven complete
-const BREP : Array<ModelId> = ["mug", "pierced", "appliance", "block"];
+const BREP : Array<ModelId> = ["mug", "pierced", "appliance", "block", "primitive"];
 
 const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[] }> = {
     vessel : {
@@ -143,6 +143,14 @@ const MODELS : Record<ModelId, { name : string; note : string; sliders : Slider[
             { key : "skin", label : "Skin", min : 0, max : 3, step : 0.1, value : 1.6, unit : "mm" },
         ]
     },
+    primitive : {
+        name : "Primitive",
+        note : "A primitive solid from the catalogue (docs/primitives.md): boxes, prisms over any profile, pyramids, cones, spheres, tori, tubes, eggs and polyhedra, each an exact closed B-rep. Round its edges to see which ones a fillet can take.",
+        // the shape's own sliders come from the catalogue, which the worker sends (see `primitiveSliders`)
+        sliders : [
+            { key : "round", label : "Edge radius (0: sharp)", min : 0, max : 5, step : 0.25, value : 0, unit : "mm" },
+        ]
+    },
     grown : {
         name : "Grown sheet",
         note : "Differential growth: a disc whose rim, centre or whole surface grows faster than the rest, so it buckles into ruffles. Folds are kept apart as it grows, and the final model thickens the sheet into a closed solid.",
@@ -164,7 +172,7 @@ const MACHINES : [string, string][] = [
 
 const $ = (id : string) => document.getElementById( id )!;
 let current : ModelId = "vessel";
-const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {}, ribbon : {}, appliance : {}, block : {}, grown : {} };
+const values : Record<ModelId, Record<string, number>> = { vessel : {}, knot : {}, ring : {}, mug : {}, pierced : {}, ribbon : {}, appliance : {}, block : {}, grown : {}, primitive : {} };
 let mode : "free" | "make" = "free", machine = "fdm";
 for (const m of Object.keys( MODELS ) as ModelId[]) for (const s of MODELS[m].sliders) values[m][s.key] = s.value;
 try {
@@ -174,6 +182,36 @@ try {
     if (saved && (saved.mode == "free" || saved.mode == "make")) mode = saved.mode;
     if (saved && MACHINES.some( m => m[0] == saved.machine )) machine = saved.machine;
 } catch (e) { /* storage unavailable */ }
+// The primitive catalogue, as the worker sends it: each shape's name, family and parameters. A shape's sliders are
+// keyed by its index and the parameter's, so every shape keeps its own values.
+interface CatalogParam { name : string; value : number; min : number; max : number; integer? : boolean; degrees? : boolean }
+let catalog : Array<{ name : string; family : string; parameters : Array<CatalogParam> }> = [];
+const shapeKey = (e : number, i : number) => "e" + e + "p" + i;
+function primitiveSliders() : Slider[] {
+    const e = Math.min( Math.max( 0, Math.round( values.primitive.shape ?? 0 ) ), Math.max( 0, catalog.length - 1 ) );
+    const entry = catalog[e];
+    if (entry == null) return MODELS.primitive.sliders;
+    const own = entry.parameters.map( (p, i) : Slider => {
+        if (p.integer) return { key : shapeKey( e, i ), label : p.name, min : p.min, max : Math.min( p.max, 24 ), step : 1, value : p.value };
+        if (p.degrees) return { key : shapeKey( e, i ), label : p.name, min : p.min, max : Math.min( p.max, 360 ), step : 1, value : p.value, unit : "°" };
+        const a = Math.abs( p.value ) || 1;
+        const lo = p.min >= 0 ? p.min : Math.max( p.min, -3 * a ), hi = Math.min( p.max, Math.max( 3 * a, 1 ) );
+        const step = hi - lo > 40 ? 0.5 : hi - lo > 4 ? 0.1 : 0.01;
+        return { key : shapeKey( e, i ), label : p.name, min : p.min > 0 ? Math.max( lo, step ) : lo, max : hi, step, value : p.value, unit : p.max > 100 ? "mm" : "" };
+    } );
+    for (const s of own) if (values.primitive[s.key] == null) values.primitive[s.key] = s.value;
+    return own.concat( MODELS.primitive.sliders );
+}
+const slidersOf = (m : ModelId) : Slider[] => m == "primitive" ? primitiveSliders() : MODELS[m].sliders;
+// the values a build gets: for a primitive, its shape's name and parameters by name
+function buildParams() : Record<string, number | string> {
+    if (current != "primitive") return values[current];
+    const e = Math.round( values.primitive.shape ?? 0 ), entry = catalog[e];
+    const out : Record<string, number | string> = { round : values.primitive.round ?? 0, shape : entry != null ? entry.name : "box" };
+    if (entry != null) entry.parameters.forEach( (p, i) => { const v = values.primitive[shapeKey( e, i )]; if (v != null) out["p:" + p.name] = v; } );
+    return out;
+}
+
 const remember = () => { try { localStorage.setItem( "verb-playground", JSON.stringify( { current, values, mode, machine } ) ); } catch (e) { /* ignore */ } };
 
 // ---------- three.js view ----------
@@ -249,13 +287,14 @@ function request( fine : boolean, certify : boolean = false ) {
     $( "status" ).textContent = certify ? "Proving the seams complete: this can take a few minutes…" : fine ? "Refining…" : "Building…";
     $( "status" ).dataset.state = "busy";
     stepReady = false; renderExport();
-    worker.postMessage( { id : latest, model : current, params : values[current], fine : fine || certify, make : mode == "make", machine, certify } );
+    worker.postMessage( { id : latest, model : current, params : buildParams(), fine : fine || certify, make : mode == "make", machine, certify } );
 }
 
 let fineTimer = 0;
 worker.onmessage = (e : MessageEvent) => {
     const r = e.data;
     if (r.type == "step") { saveStep( r ); return; }
+    if (r.type == "catalog") { catalog = r.entries; if (current == "primitive") renderControls(); return; }
     busy = false;
     if (queued) { const q = queued; queued = null; request( q.fine, q.certify ); }
     if (r.model != current) return; // a build for a model the user has since left
@@ -376,7 +415,11 @@ function renderControls() {
     const m = MODELS[current];
     document.querySelectorAll<HTMLButtonElement>( "#models button" ).forEach( b => b.setAttribute( "aria-pressed", String( b.dataset.m == current ) ) );
     $( "note" ).textContent = m.note;
-    $( "sliders" ).innerHTML = m.sliders.map( s => `
+    const shapes = current == "primitive" && catalog.length > 0
+        ? `<label class="row" for="s-shape"><span class="lab">Shape</span><output></output>
+             <select id="s-shape" data-k="shape">${catalog.map( (c, k) => `<option value="${k}"${k == Math.round( values.primitive.shape ?? 0 ) ? " selected" : ""}>${c.family}: ${c.name}</option>` ).join( "" )}</select></label>`
+        : "";
+    $( "sliders" ).innerHTML = shapes + slidersOf( current ).map( s => `
         <label class="row" for="s-${s.key}">
           <span class="lab">${s.label}</span><output id="o-${s.key}">${fmt( s, values[current][s.key] )}</output>
           <input type="range" id="s-${s.key}" data-k="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${values[current][s.key]}">
@@ -385,7 +428,12 @@ function renderControls() {
 
 $( "sliders" ).addEventListener( "input", (e) => {
     const t = e.target as HTMLInputElement;
-    const s = MODELS[current].sliders.find( x => x.key == t.dataset.k )!;
+    if (t.dataset.k == "shape") {
+        values.primitive.shape = Number( t.value );
+        framed = ""; remember(); renderControls(); request( false );
+        return;
+    }
+    const s = slidersOf( current ).find( x => x.key == t.dataset.k )!;
     values[current][s.key] = Number( t.value );
     $( "o-" + s.key ).textContent = fmt( s, values[current][s.key] );
     remember();
@@ -401,12 +449,12 @@ $( "models" ).addEventListener( "click", (e) => {
 } );
 
 $( "reset" ).addEventListener( "click", () => {
-    for (const s of MODELS[current].sliders) values[current][s.key] = s.value;
+    for (const s of slidersOf( current )) values[current][s.key] = s.value;
     remember(); renderControls(); request( false );
 } );
 
 $( "shuffle" ).addEventListener( "click", () => {
-    for (const s of MODELS[current].sliders) {
+    for (const s of slidersOf( current )) {
         const span = (s.max - s.min) * 0.35;
         const v = s.value + (Math.random() * 2 - 1) * span;
         values[current][s.key] = Math.min( s.max, Math.max( s.min, Math.round( v / s.step ) * s.step ) );

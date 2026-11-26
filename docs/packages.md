@@ -10,7 +10,7 @@ boundaries and how they would map to packages, so new code respects them now.
 | `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`, `Fair`, `THB`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
-| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`) | core, eval |
+| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`), parameterised primitive solids (`solid/primitives/`: `Profile`, `Profiles`, `Polyhedra`, `Primitives`, `Catalog`) | core, eval |
 | `recipes` | parametric objects (vessels, mug, appliance, …) | core, eval, solid |
 | `model` | the feature tree: documents of parameters and features regenerated into named solids (`Model`, `Expr`) | core, eval, solid |
 | `io` | file formats: STEP export of B-rep results (`Step`) | core, eval, solid |
@@ -26,7 +26,7 @@ Dependencies only point down this table: no folder imports from one below it.
    `eval`), as they did upstream, so they belong in one package.
 2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`, `Implicit`, `Growth`. These depend only on `core/Data`, `core/Vec` and each other, so they
    can serve any mesh, not just ours.
-3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `Fillet`, `Shell`. Depends on nurbs and mesh.
+3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `Fillet`, `Shell`, and the primitives (`solid/primitives/`). Depends on nurbs and mesh.
 4. **recipes**: depends on nurbs and brep.
 5. **model**: `model/`. Depends on nurbs and brep. The modelling front end that recipes and apps build on.
 6. **io**: `io/Step.ts`. Depends on nurbs and brep. It could live in brep; on its own it keeps file formats out of the

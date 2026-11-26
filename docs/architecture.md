@@ -100,6 +100,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Display data | `src/view/Inspect.ts` |
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
 | Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |
+| Primitive solids (prisms, cones, spheres, tori, polyhedra, ...) | `src/solid/primitives/`, [primitives.md](primitives.md) |
 
 ## Tests
 

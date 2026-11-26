@@ -71,6 +71,15 @@ import { Fillet } from "./solid/Fillet.js";
 export type { FilletSide, FilletSection, FilletResult, FilletRadius, FilletShape } from "./solid/Fillet.js";
 import { FilletCorner } from "./solid/FilletCorner.js";
 import { BrepEdges } from "./solid/BrepEdges.js";
+import { Primitives } from "./solid/primitives/Primitives.js";
+export type { PrismOptions, Density } from "./solid/primitives/Primitives.js";
+import { Profile } from "./solid/primitives/Profile.js";
+export type { ProfileSegment, CapLoop, ProfileDensity } from "./solid/primitives/Profile.js";
+import { Profiles } from "./solid/primitives/Profiles.js";
+import { Polyhedra } from "./solid/primitives/Polyhedra.js";
+import { Catalog } from "./solid/primitives/Catalog.js";
+export type { CatalogEntry, CatalogParameter } from "./solid/primitives/Catalog.js";
+export type { PolyhedronData } from "./solid/primitives/Polyhedra.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
 import { IntersectionCertificate } from "./solid/IntersectionCertificate.js";
@@ -191,6 +200,11 @@ export {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Primitives,
+    Profile,
+    Profiles,
+    Polyhedra,
+    Catalog,
     Implicit,
     IntersectionCertificate,
     Growth,
@@ -303,6 +317,11 @@ export const solid = {
     Fillet,
     FilletCorner,
     BrepEdges,
+    Primitives,
+    Profile,
+    Profiles,
+    Polyhedra,
+    Catalog,
     Implicit,
     IntersectionCertificate,
     Growth,

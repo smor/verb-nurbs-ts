@@ -7,6 +7,7 @@ import { Sweep } from "../eval/Sweep.js";
 import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
+import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
 import { Machine, Makeable, MakeableReport } from "../solid/Makeable.js";
@@ -26,6 +27,9 @@ export type ModelFeature =
     | { type : "cylinder", from : ModelPoint, to : ModelPoint, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
+    // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
+    // ones take their defaults; angles in degrees)
+    | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
     // rigid or scaling placement of a feature (all of its solids): scale about the origin, then rotate about an axis
     // through `about` (degrees, right-handed), then translate
     | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint }
@@ -218,6 +222,7 @@ export class Model {
         const offset = (id : string, d : number, path : string, open : Array<RegExp>) : Tree => {
             const f = features[id];
             switch (f.type) {
+                case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -258,7 +263,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -369,6 +374,7 @@ export class Model {
             case "cylinder": return { from : point( f.from, "from" ), to : point( f.to, "to" ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
+            case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -397,6 +403,7 @@ export class Model {
             d == null ? def : [Math.max( 2, Math.round( num( d[0], "divs" ) ) ), Math.max( 3, Math.round( num( d[1], "divs" ) ) )];
         const positive = (x : number, what : string) => { if (!(x > 0)) throw new Error( `Model: ${what} must be positive` ); return x; };
         switch (f.type) {
+            case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
@@ -427,6 +434,13 @@ export class Model {
             }
         }
         throw new Error( "Model: not a primitive: " + f.type );
+    }
+
+    // a catalogue primitive's values, resolved, by sorted name (so its hash does not depend on their order)
+    private static primitiveValues( values : { [name : string] : ModelValue } | undefined, num : (v : ModelValue, what : string) => number ) : { [name : string] : number } {
+        const out : { [name : string] : number } = {};
+        for (const k of Object.keys( values ?? {} ).sort()) out[k] = num( (values as { [name : string] : ModelValue })[k], k );
+        return out;
     }
 
     private static rail( pts : Array<Point> ) : NurbsCurveData {
