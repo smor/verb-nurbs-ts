@@ -2,7 +2,8 @@
 
 `BrepBoolean` (in `src/solid/BrepBoolean.ts`) combines closed solids bounded by NURBS faces. It produces two things:
 
-* trimmed faces: each original surface with the loops (in its own `(u, v)` parameters) that bound the part kept
+* trimmed faces: each original surface with the loops (in its own `(u, v)` parameters) that bound the part kept, and
+  each fillet blend and corner patch on its own surface, trimmed the same way
 * a watertight triangle mesh, in which the two faces on either side of every seam share vertices
 
 This note explains how it works, which papers it follows, and what it does not handle yet.
@@ -398,6 +399,12 @@ parts joined), is [exact-booleans.md](exact-booleans.md).
   leaves unresolved, near tangency, are where a missed loop could still hide.
 * **Small loops** are found from collinear normal points. The normal cones that select their candidate cells are
   sampled; the certificate's cones are rigorous, and could replace them.
+* **Every face is trimmed NURBS.** Blends and corner patches are faces like the operands' faces: `cornerUV` gives
+  each of their triangles its corners' parameters, and `loops` bound them. A closed blend is lofted through its
+  sections, which are its isocurves, so its vertices lie on it to rounding; an open blend's trim points lie between
+  its sections and are within 4e-9 of its loft. A ball corner lies on its sphere, placed so that the corner crosses
+  neither its seam nor a pole. A setback corner's six parts are B-splines fitted to its exact transfinite patch to a
+  thousandth of its radius, and its vertices are within that of them (`patchXY` still gives the exact patch).
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
   for export (see [step.md](step.md)); p-curves are left to the reader.
 * **Narrow fillets meeting a sharp edge.** A blend that ends in a mitre at a sharp edge (a rim notch filleted with the

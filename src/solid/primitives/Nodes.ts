@@ -148,7 +148,8 @@ export class Nodes {
             const a = Nodes.fromFrame( local[k], f ), b = Nodes.fromFrame( local[Math.min( k + 1, placed.length - 1 )], f );
             stations.push( new NurbsCurveData( a.degree, a.knots, a.controlPoints.map( (p, j) => Vec.lerp( w, b.controlPoints[j], p ) ) ) );
         }
-        return Make.loftedSurface( stations, 3 );
+        // v is rail 1's parameter: station i at i / (n - 1)
+        return Make.loftedSurface( stations, 3, stations.map( (_, i) => i / (n - 1) ) );
     }
 
     // A circular tube round a curve (Pipe), open at its ends: u follows the curve and v goes round. The radius is a

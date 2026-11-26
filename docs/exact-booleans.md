@@ -1,7 +1,7 @@
 # Plan: Booleans on any solid, rounded ones included
 
-Status: a plan, under review. Nothing here is built yet. When a step lands, its section says so and points to the
-code and the tests.
+Status: A1 built (below); the rest is a plan. When a step lands, its section says so and points to the code and the
+tests.
 
 ## The goal
 
@@ -52,6 +52,16 @@ sphere patch; setback corners on six B-spline pieces. Corners stop being "meshed
 
 Tests: for every triangle of a rounded box and of the filleted mug, the surface evaluated at its corner parameters
 gives the mesh vertex to 1e-9; every face's loops are closed and bound the face's triangles.
+
+Built: `BrepBoolean.evaluate` gives blends and corners their `cornerUV` and `loops` (`FilletResult.uv`,
+`CornerPatch.uv` and `parts[k].uv`, `Transfinite.quadParameters`); test "gives every face of a rounded solid its
+trimmed NURBS surface" in `test/testFillet.cjs`. What it measures: closed blends 1e-14 (the filleted mug), open blends
+4e-9 (their trim points lie between the lofted sections, so 1e-8 is the bound tested), ball corners 3e-9; setback
+corners within 1e-3 of their radius, the tolerance their six B-spline parts are fitted to (`patchXY` keeps the exact
+patch). The loops enclose the triangles' area in `(u, v)` to 1e-9. On the way: a loft gives every column of control
+points the same v (Piegl and Tiller, eq. 9.8; each column had its own and the last one's knots, which made the
+closed blends' surfaces wrong, NaN for some), a sphere keeps its poles when the axis is a rounding error off them, and
+the closest point on a surface is found on its edges.
 
 ### A2. Exact topology: shells with vertices, edges and loops
 

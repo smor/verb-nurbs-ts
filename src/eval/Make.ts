@@ -116,7 +116,12 @@ export class Make {
         return new NurbsCurveData( newSrf.degreeV, newSrf.knotsV, newSrf.controlPoints[span] );
     }
 
-    public static loftedSurface( curves : Array<NurbsCurveData>, degreeV : number | null = null ) : NurbsSurfaceData {
+    // A surface through curves (u along them, v across them): curve k is the isocurve at v = loftParameters(curves)[k].
+    // Every column of control points is interpolated with the same parameters, so the columns share one knot vector
+    // and the surface passes through each curve exactly.
+    // `params`: each curve's v, when the caller has its own (a sweep's stations, at its rail's parameters); by default
+    // `loftParameters`.
+    public static loftedSurface( curves : Array<NurbsCurveData>, degreeV : number | null = null, params : Array<number> | null = null ) : NurbsSurfaceData {
 
         curves = Modify.unifyCurveKnotVectors( curves );
 
@@ -127,25 +132,39 @@ export class Make {
             degreeV = curves.length - 1;
         }
 
-        //knots
+        if (params == null) params = Make.loftParameters( curves );
         const knotsU = curves[0].knots;
-
         let knotsV : number[] = [];
         const controlPoints = [];
         for (let i = 0; i < curves[0].controlPoints.length; i++) {
-
-            //extract the ith control pt of each curve
-            const points = curves.map(function(x){
-                return x.controlPoints[i];
-            });
-
-            //construct an interpolating curve using this list
-            const c = Make.rationalInterpCurve( points, degreeV, true );
+            const c = Make.rationalInterpCurve( curves.map( x => x.controlPoints[i] ), degreeV, true, null, null, params );
             controlPoints.push( c.controlPoints );
-            knotsV = c.knots; //redundant computation
+            knotsV = c.knots;
         }
 
         return new NurbsSurfaceData( degreeU, degreeV, knotsU, knotsV, controlPoints );
+    }
+
+    // The v of each curve in `loftedSurface( curves )`: chord lengths between consecutive curves, averaged over their
+    // control points (Piegl and Tiller, The NURBS Book, 2nd ed., eq. 9.8), normalised to [0, 1]. A column of control
+    // points that does not move is left out of the average.
+    public static loftParameters( curves : Array<NurbsCurveData> ) : Array<number> {
+        curves = Modify.unifyCurveKnotVectors( curves );
+        const n = curves.length, cols = curves[0].controlPoints.length;
+        const pts = curves.map( c => Eval.dehomogenize1d( c.controlPoints ) );
+        const sum = Vec.zeros1d( n );
+        let used = 0;
+        for (let i = 0; i < cols; i++) {
+            const d = [0.0];
+            for (let k = 1; k < n; k++) d.push( d[k - 1] + Vec.dist( pts[k][i], pts[k - 1][i] ) );
+            if (!(d[n - 1] > 0)) continue;
+            for (let k = 0; k < n; k++) sum[k] += d[k] / d[n - 1];
+            used++;
+        }
+        if (used == 0) return curves.map( (_, k) => n > 1 ? k / (n - 1) : 0 );
+        const out = sum.map( x => x / used );
+        out[0] = 0; out[n - 1] = 1;
+        return out;
     }
 
     public static clonedCurve( curve : NurbsCurveData ) : NurbsCurveData {
@@ -515,7 +534,8 @@ export class Make {
             //get the closest point of the generatrix point on the axis
             const O = Trig.rayClosestPoint(prof_controlPoints[j], center, axis); //X is the vector from the axis to generatrix control pt
             let X = Vec.sub( prof_controlPoints[j], O ); //radius at that height
-            const r = Vec.norm(X); //Y is perpendicular to X and axis, and complete the coordinate system
+            //a point on the axis within rounding (a pole) has radius 0: it stays where it is, with no tangent to follow
+            const r0 = Vec.norm(X), r = r0 > Constants.EPSILON ? r0 : 0; //Y is perpendicular to X and axis, and complete the coordinate system
             let Y = Vec.cross(axis,X);
 
             if ( r > Constants.EPSILON ){
@@ -623,7 +643,8 @@ export class Make {
                                                 degree? : number,
                                                 homogeneousPoints? : boolean,
                                                 start_tangent : Point | null = null,
-                                                end_tangent : Point | null = null ) : NurbsCurveData { if (degree == null) degree = 3; if (homogeneousPoints == null) homogeneousPoints = false;
+                                                end_tangent : Point | null = null,
+                                                params : Array<number> | null = null ) : NurbsCurveData { if (degree == null) degree = 3; if (homogeneousPoints == null) homogeneousPoints = false;
 
         // 0) build knot vector for curve by normalized chord length
         // 1) construct effective basis function in square matrix (W)
@@ -638,17 +659,23 @@ export class Make {
             throw "You need to supply at least degree + 1 points! You only supplied " + points.length + " points.";
         }
 
-        const us = [ 0.0 ];
-        for (let i = 1; i < points.length; i++) {
-            const chord = Vec.norm( Vec.sub( points[i], points[i-1] ) );
-            const last = us[us.length - 1];
-            us.push( last + chord );
-        }
+        // the given parameters, or normalized chord length
+        let us = [ 0.0 ];
+        if (params != null) {
+            if (params.length != points.length) throw "rationalInterpCurve: one parameter per point";
+            us = params.slice();
+        } else {
+            for (let i = 1; i < points.length; i++) {
+                const chord = Vec.norm( Vec.sub( points[i], points[i-1] ) );
+                const last = us[us.length - 1];
+                us.push( last + chord );
+            }
 
-        //normalize
-        const max = us[us.length-1];
-        for (let i = 0; i < us.length; i++) {
-            us[i] = us[i] / max;
+            //normalize
+            const max = us[us.length-1];
+            for (let i = 0; i < us.length; i++) {
+                us[i] = us[i] / max;
+            }
         }
 
         const knotsStart = Vec.rep( degree + 1, 0.0 );

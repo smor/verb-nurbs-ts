@@ -1,9 +1,10 @@
 import { triangulate } from "../eval/Cdt.js";
-import { NurbsSurfaceData, Point, UV } from "../core/Data.js";
+import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Mat } from "../core/Mat.js";
 import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
+import { Modify } from "../eval/Modify.js";
 import { Ribbon, Transfinite } from "../eval/Transfinite.js";
 import { BrepBoolean } from "./BrepBoolean.js";
 import { BrepFace, BrepSolid, FaceCut } from "./Brep.js";
@@ -42,7 +43,10 @@ export interface CornerPatch {
     centre : Point;
     radius : number;
     // a patch carried by several surfaces (a setback corner's six four-sided pieces): each with its triangles
-    parts? : Array<{ surface : NurbsSurfaceData, triangles : Array<[number, number, number]> }>;
+    parts? : Array<{ surface : NurbsSurfaceData, triangles : Array<[number, number, number]>, uv : Array<[UV, UV, UV]> }>;
+    // a ball corner's points' parameters on its surface; a setback corner's, per triangle, on each part's surface
+    // (within the parts' fitting tolerance of the exact patch)
+    uv? : Array<UV>;
     // a setback corner's sides, as the transfinite patch's ribbons (`Transfinite.evaluate` gives the exact patch), and
     // each point's position in the patch's polygon
     ribbons? : Array<Ribbon>;
@@ -58,7 +62,8 @@ export interface OpenBlend {
     shape : FilletShape;
     // rows: sections across the blend at s along it, their points at even parameters of the section curve, with the
     // section's derivatives there (`tangents`, along the section, from A to B)
-    rows : Array<{ s : number, points : Array<Point>, tangents : Array<Point>, uvA : UV, uvB : UV, seamA : number, seamB : number, centre : Point }>;
+    // (`curve`: the section curve, whose parameter i / m gives points[i]; past the ends, extrapolated like the points)
+    rows : Array<{ s : number, points : Array<Point>, tangents : Array<Point>, uvA : UV, uvB : UV, seamA : number, seamB : number, centre : Point, curve : NurbsCurveData }>;
     m : number;
     // the trims at the start and at the end, ordered by t from 0 to 1
     trims : [Array<TrimPoint> | null, Array<TrimPoint> | null];
@@ -101,7 +106,7 @@ export class FilletCorner {
             pts.push( x.pb );
             const tangents = pts.map( (_, i) => Eval.rationalCurveDerivatives( arc, i / m, 1 )[1] );
             if (k > 0) s += Vec.dist( pts[m >> 1], rows[k - 1].points[m >> 1] );
-            rows.push( { s : s, points : pts, tangents : tangents, uvA : x.a, uvB : x.b, seamA : x.seamA, seamB : x.seamB, centre : x.centre } );
+            rows.push( { s : s, points : pts, tangents : tangents, uvA : x.a, uvB : x.b, seamA : x.seamA, seamB : x.seamB, centre : x.centre, curve : arc } );
         } );
         // two rows past each end, along the end rows' direction (the edge's ends are no further than a few steps out)
         const extend = (r0 : OpenBlend["rows"][0], r1 : OpenBlend["rows"][0], j : number) : OpenBlend["rows"][0] => {
@@ -124,7 +129,9 @@ export class FilletCorner {
             if (FilletCorner.inside( A.face, uvA )) pts[0] = Eval.rationalSurfacePoint( A.face.surface, uvA[0], uvA[1] );
             if (FilletCorner.inside( B.face, uvB )) pts[m] = Eval.rationalSurfacePoint( B.face.surface, uvB[0], uvB[1] );
             const tangents = r0.tangents.map( (t, i) => move( t, r1.tangents[i] ) );
-            return { s : r0.s + j * (r0.s - r1.s) / d * d, points : pts, tangents : tangents, uvA : uvA, uvB : uvB, seamA : 0, seamB : 0, centre : move( r0.centre, r1.centre ) };
+            const [c0, c1] = Modify.unifyCurveKnotVectors( [r0.curve, r1.curve] );
+            const curve = new NurbsCurveData( c0.degree, c0.knots.slice(), c0.controlPoints.map( (h, i) => move( h, c1.controlPoints[i] ) ) );
+            return { s : r0.s + j * (r0.s - r1.s) / d * d, points : pts, tangents : tangents, uvA : uvA, uvB : uvB, seamA : 0, seamB : 0, centre : move( r0.centre, r1.centre ), curve : curve };
         };
         if (all !== sections) return { A : A, B : B, radius : radius, side : side, sections : sections, shape : shape, rows : rows, m : m, trims : [null, null], extra : [] };
         const n = rows.length;
@@ -807,7 +814,14 @@ export class FilletCorner {
             return Transfinite.quadOf( ribbons, [(x[0] + y[0] + z[0]) / 3, (x[1] + y[1] + z[1]) / 3] );
         } );
         return { kind : "setback", points : m.points, triangles : triangles, reversed : false, surface : surfaces[0], centre : c, radius : rMax,
-                 parts : surfaces.map( (srf, k) => ({ surface : srf, triangles : triangles.filter( (_, j) => part[j] == k ) }) ),
+                 parts : surfaces.map( (srf, k) => {
+                     const mine = triangles.filter( (_, j) => part[j] == k );
+                     return { surface : srf, triangles : mine,
+                              uv : mine.map( t => {
+                                  const q = ( i : number ) : UV => Transfinite.quadParameters( ribbons, k, m.domain[i] );
+                                  return [q( t[0] ), q( t[1] ), q( t[2] )] as [UV, UV, UV];
+                              } ) };
+                 } ),
                  ribbons : ribbons, domain : m.domain };
     }
 
@@ -1009,7 +1023,7 @@ export class FilletCorner {
     // another, in any direction): a constrained triangulation of its gnomonic projection, with points inside.
     // Flat: the plane triangle between the feet (a chamfer's corner).
     private static sphereTriangle( c : Point, r : number, feet : Array<Point>, arcs : Array<Array<Point>>, side : number, bends : Array<Bend> = [], flat : boolean = false )
-        : { points : Array<Point>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData } | null {
+        : { points : Array<Point>, uv : Array<UV>, triangles : Array<[number, number, number]>, reversed : boolean, surface : NurbsSurfaceData } | null {
         // chain the arcs into one loop: foot 0 -> ... -> back to foot 0
         const loop : Array<Point> = [];
         const left = arcs.slice();
@@ -1059,10 +1073,13 @@ export class FilletCorner {
             const out = Vec.dot( nrm, Vec.sub( points[t[0]], c ) ) * -side > 0;
             return (out ? [t[0], t[1], t[2]] : [t[0], t[2], t[1]]) as [number, number, number];
         } );
-        // a chamfer's corner lies on the plane of its feet: a parallelogram round the triangle
+        // a chamfer's corner lies on the plane of its feet: a parallelogram round the triangle. A ball's lies on the
+        // sphere, parameterised with the corner's middle on its equator, half way round from the seam, so that the
+        // patch crosses neither the seam nor a pole (each foot is less than a right angle from the middle)
         const surface = flat ? Make.fourPointSurface( feet[0], feet[1], Vec.add( feet[1], Vec.sub( feet[2], feet[0] ) ), feet[2], 1 )
-                           : Make.sphericalSurface( c, axis, e1, r );
-        return { points : points, triangles : triangles, reversed : false, surface : surface };
+                           : Make.sphericalSurface( c, e2, Vec.mul( -1, axis ), r );
+        const uv = points.map( p => SurfaceIntersect.project( surface, p ) );
+        return { points : points, uv : uv, triangles : triangles, reversed : false, surface : surface };
     }
 
     // The angle between two vectors, robust where they are parallel.
@@ -1150,20 +1167,27 @@ export class FilletCorner {
             uv.push( last.uv as UV ); points.push( last.point ); seam.push( 0 );
             return BrepBoolean.facePieces( face, uv, seam, points, false );
         };
-        const real = F.rows.slice( 2, F.rows.length - 2 );
-        // a section repeated where the edge crosses a face's seam (once as a sample, once as the crossing) would give
-        // the loft a step of zero length, and control points of NaN: keep one
-        const secs = real.map( (_r, k) => F.sections[Math.min( k, F.sections.length - 1 )] );
-        const distinct = secs.filter( (x, k) => k == 0 || Vec.dist( x.pa, secs[k - 1].pa ) > 1e-9 || Vec.dist( x.pb, secs[k - 1].pb ) > 1e-9 );
-        const arcs = distinct.map( x => Fillet.crossSection( F.A, F.B, x, F.shape ) );
-        const surface = Make.loftedSurface( arcs, Math.min( 3, arcs.length - 1 ) );
+        // the surface: lofted through every row's section curve, past the ends too, so that it holds the whole mesh
+        // (a row repeated where the edge crosses a face's seam would give the loft a step of zero length: keep one)
+        const rows = F.rows.filter( (r, k) => k == 0 || r.s - F.rows[k - 1].s > 1e-9 * Math.max( 1, Math.abs( r.s ) ) );
+        const surface = Make.loftedSurface( rows.map( r => r.curve ), Math.min( 3, rows.length - 1 ) );
+        const vs = Make.loftParameters( rows.map( r => r.curve ) );
+        // each vertex's parameters: across, its t; along, the loft's v at its s (between rows, by their s), refined
+        // onto the surface (a trim point lies between the rows)
+        const vAt = (sv : number) => {
+            let k = 0;
+            while (k + 2 < rows.length && rows[k + 1].s < sv) k++;
+            const f = (sv - rows[k].s) / (rows[k + 1].s - rows[k].s);
+            return Math.max( 0, Math.min( 1, vs[k] + f * (vs[k + 1] - vs[k]) ) );
+        };
+        const uv : Array<UV> = pts.map( (p, k) => SurfaceIntersect.project( surface, p, 12, [xy[k][1] / W, vAt( xy[k][0] )] ) );
         const cutA = contact( 0, sideA, F.A.face ), cutB = contact( m, sideB, F.B.face );
         for (const x of F.extra) {
             const face = x.side == 0 ? F.A.face : F.B.face;
             (x.side == 0 ? cutA : cutB).push( ...BrepBoolean.facePieces( face, x.uv, x.uv.map( _ => 0 ), x.points, false ) );
         }
         return { sections : F.sections, side : F.side, cutA : cutA, cutB : cutB,
-                 surface : surface, points : pts, triangles : triangles, reversed : reversed, closed : false };
+                 surface : surface, points : pts, uv : uv, triangles : triangles, reversed : reversed, closed : false };
     }
 
     // Where the polyline p crosses the polyline q, both in a face's parameters: the first crossing, as fractional vertex

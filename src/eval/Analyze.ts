@@ -146,6 +146,7 @@ export class Analyze {
         let e;
         const eps1 = 0.0001;
         const eps2 = 0.0005;
+        const eps3 = 1e-12;
         let dif;
         const minu = surface.knotsU[0];
         const maxu = ArrayExtensions.last(surface.knotsU);
@@ -258,6 +259,7 @@ export class Analyze {
 
             //otherwise, take a step
             let ct = n(cuv, e, dif);
+            const ct0 = ct;
 
             //correct for exceeding bounds
             if ( ct[0] < minu ){
@@ -272,12 +274,28 @@ export class Analyze {
                 ct = closedv ? [ ct[0], minv + ( ct[0] - maxv ) ] : [ ct[0], maxv - Constants.EPSILON ];
             }
 
-            //if |(u* - u) C'(u)| < e1, halt
+            //on an edge the step to the outside is cut off, and the other parameter, solved for jointly with it, is
+            //off too: step it alone, along the edge (the closest point of a point on the edge would never be reached)
+            const heldU = !closedu && ct[0] != ct0[0], heldV = !closedv && ct[1] != ct0[1];
+            if (heldU != heldV) {
+                const k = heldU ? 1 : 0, at : UV = heldU ? [ct[0], cuv[1]] : [cuv[0], ct[1]];
+                const g = Eval.rationalSurfaceDerivatives( surface, at[0], at[1], 2 ), r = Vec.sub( g[0][0], p );
+                const d1 = heldU ? g[0][1] : g[1][0], d2 = heldU ? g[0][2] : g[2][0];
+                const den = Vec.dot( d1, d1 ) + Vec.dot( d2, r );
+                if (den > 0) {
+                    const lo = heldU ? minv : minu, hi = heldU ? maxv : maxu;
+                    at[k] = Math.min( hi, Math.max( lo, at[k] - Vec.dot( d1, r ) / den ) );
+                    ct = at;
+                }
+            }
+
+            //if |(u* - u) C'(u)| < e3, halt: Newton's steps shrink quadratically, so a step that moves the point by
+            //less than e3 is the last one that matters (a looser test, e1, left the point 2e-5 off a surface it lies on)
             const c3v0 =  Vec.norm( Vec.mul(ct[0] - cuv[0], e[1][0] ) );
             const c3v1 =  Vec.norm( Vec.mul(ct[1] - cuv[1], e[0][1] ) );
 
-            if (c3v0 + c3v1 < eps1) {
-                return cuv;
+            if (c3v0 + c3v1 < eps3) {
+                return ct;
             }
 
             cuv = ct;

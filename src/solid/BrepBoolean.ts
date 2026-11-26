@@ -59,8 +59,8 @@ export interface BooleanResult {
     faces : Array<TrimmedFace>;
     // for each triangle of the mesh, the index of its face in `faces`
     faceOf : Array<number>;
-    // for each triangle of a trimmed face, the parameters of its three corners on the face's surface (null for the
-    // triangles of fillets and corners, whose meshes are built in space): what exact normals and curvature need
+    // for each triangle, the parameters of its three corners on its face's surface, blends and corner patches
+    // included (null only where a corner patch could not be given them): what exact normals and curvature need
     cornerUV : Array<[UV, UV, UV] | null>;
     // for each triangle of a setback corner, the positions of its three corners in the corner's transfinite polygon
     // (null for other triangles): with the corner's `ribbons`, the exact patch there (`Transfinite.evaluate`)
@@ -623,21 +623,32 @@ export class BrepBoolean {
         } ) );
         for (const b of blends) {
             const ids = b.points.map( p => welder.id( p ) );
-            for (const tri of b.triangles) { out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null ); patchXY.push( null ); }
-            faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed, loops : [] } );
+            for (const tri of b.triangles) {
+                out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length );
+                cornerUV.push( [b.uv[tri[0]], b.uv[tri[1]], b.uv[tri[2]]] ); patchXY.push( null );
+            }
+            faces.push( { solid : -1, face : -1, name : "fillet", surface : b.surface, reversed : b.reversed,
+                          loops : BrepBoolean.surfaceLoops( b.triangles, b.uv, b.reversed ) } );
         }
         const cornerInfo : BooleanResult["corners"] = [];
         for (const b of ballPatches) {
             const first = faces.length;
             const ids = b.points.map( p => welder.id( p ) );
-            const parts = b.parts != null ? b.parts : [{ surface : b.surface, triangles : b.triangles }];
+            // a ball's parameters are by vertex; a setback patch's by triangle, on the part it lies in
+            const parts = b.parts != null ? b.parts
+                : [{ surface : b.surface, triangles : b.triangles, uv : b.uv != null ? b.triangles.map( t => [b.uv![t[0]], b.uv![t[1]], b.uv![t[2]]] as [UV, UV, UV] ) : [] }];
             for (const part of parts) {
-                for (const tri of part.triangles) {
-                    out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length ); cornerUV.push( null );
+                const uv : Array<UV> = [];
+                part.triangles.forEach( (tri, j) => {
+                    out.addTriangle( ids[tri[0]], ids[tri[1]], ids[tri[2]] ); faceOf.push( faces.length );
+                    const q = part.uv[j];
+                    cornerUV.push( q != null ? q : null );
+                    if (q != null) for (let x = 0; x < 3; x++) uv[tri[x]] = q[x];
                     const D = b.domain;
                     patchXY.push( D != null ? [D[tri[0]], D[tri[1]], D[tri[2]]] : null );
-                }
-                faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed, loops : [] } );
+                } );
+                faces.push( { solid : -1, face : -1, name : "fillet corner", surface : part.surface, reversed : b.reversed,
+                              loops : part.uv.length == part.triangles.length ? BrepBoolean.surfaceLoops( part.triangles, uv, b.reversed ) : [] } );
             }
             cornerInfo.push( { kind : b.kind, centre : b.centre, radius : b.radius, face : first, faces : parts.map( (_, k) => first + k ), ribbons : b.ribbons } );
         }
@@ -1236,7 +1247,14 @@ export class BrepBoolean {
     }
 
     // The boundary loops of a region, in the face's parameters.
-    private static loops( t : FaceTessellation, region : Array<number> ) : Array<Array<UV>> {
+    // The loops of a face made of its own triangles (a blend, a corner patch), with each vertex's parameters; triangles
+    // turned for a reversed face are turned back, so the loops run as those of the operands' faces do
+    private static surfaceLoops( triangles : Array<[number, number, number]>, uv : Array<UV>, reversed : boolean ) : Array<Array<UV>> {
+        const tris = triangles.map( t => (reversed ? [t[0], t[2], t[1]] : [t[0], t[1], t[2]]) as [number, number, number] );
+        return BrepBoolean.loops( { triangles : tris, uv : uv }, tris.map( (_, k) => k ) );
+    }
+
+    private static loops( t : { triangles : Array<Array<number>>, uv : Array<UV> }, region : Array<number> ) : Array<Array<UV>> {
         const next = new Map<number, number>();
         const has = new Set<string>();
         for (const k of region) { const tri = t.triangles[k]; for (let e = 0; e < 3; e++) has.add( tri[e] + "," + tri[(e + 1) % 3] ); }

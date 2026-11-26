@@ -1878,6 +1878,15 @@ describe("verb.eval.Make.sphericalSurface",function(){
 
 	});
 
+	it('keeps its poles where the axis meets it, in any frame (a pole a rounding error off the axis)', function(){
+		// the frame of a ball corner at (2, 2, 2): the profile's ends lie within 1e-15 of the axis, not on it
+		var c = [2, 2, 2], e = [-0.8164965809277261, 0.4082482904638631, 0.4082482904638631], a = [0.5773502691896258, 0.5773502691896258, 0.5773502691896258];
+		var s = verb.eval.Make.sphericalSurface(c, e, a, 2);
+		[[0.3, 0.4], [0.7, 0.1], [0.5, 0.99]].forEach(function(uv){
+			verb.core.Vec.dist(verb.eval.Eval.rationalSurfacePoint(s, uv[0], uv[1]), c).should.be.approximately(2, 1e-12);
+		});
+	});
+
 });
 
 
@@ -3277,6 +3286,20 @@ describe("verb.eval.Modify.unifyCurveKnotVectors",function(){
 });
 
 describe("verb.eval.Make.loftedSurface",function(){
+
+	it('passes through every section, with sections whose control points are unevenly spaced (common v parameters)', function(){
+		// each section is the isocurve at its loft parameter: one parameter for all columns of control points
+		var arc = function(z, r, k){ return verb.eval.Make.arc([0, 0, z], [1, 0, 0], [0, 1, 0], r, 0, Math.PI / 2 * k); };
+		var curves = [arc(0, 1, 1), arc(1, 3, 1), arc(1.2, 3.1, 1), arc(5, 2, 1)];
+		var s = verb.eval.Make.loftedSurface(curves, 3), vs = verb.eval.Make.loftParameters(curves);
+		vs.length.should.be.equal(4);
+		curves.forEach(function(c, k){
+			[0, 0.3, 0.8, 1].forEach(function(u){
+				var d = verb.core.Vec.dist(verb.eval.Eval.rationalSurfacePoint(s, u, vs[k]), verb.eval.Eval.rationalCurvePoint(c, u));
+				d.should.be.below(1e-12);
+			});
+		});
+	});
 
 	var c0 = new verb.core.NurbsCurveData( 2, [0,0,0,1,1,1], [ [0,0,0,1], [1,0,0,1], [2,0,0,1] ] );
 	var c1 = new verb.core.NurbsCurveData( 3, [0,0,0,0,1,1,1,1], [ [0,0,1,1], [1,0,1,1], [2,0,1,1], [3,0,1,1] ] );

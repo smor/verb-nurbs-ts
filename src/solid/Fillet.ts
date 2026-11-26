@@ -49,6 +49,9 @@ export interface FilletResult {
     // the blend surface (u: across the edge, from face A to face B; v: along the edge) and its triangles
     surface : NurbsSurfaceData;
     points : Array<Point>;
+    // each point's parameters on the surface: the surface there is the point, to rounding (a trimmed face, like the
+    // faces of the operands)
+    uv : Array<UV>;
     triangles : Array<[number, number, number]>;
     // true when the blend's outward normal is -(dS/du x dS/dv)
     reversed : boolean;
@@ -87,28 +90,33 @@ export class Fillet {
         // arcs, and the blend's triangles: contact points are shared with the cuts so the meshes weld
         const arcs = sections.map( x => Fillet.crossSection( A, B, x, shape ) );
         const m = Fillet.arcDivisions( sections, true );
-        const points : Array<Point> = [];
-        for (let k = 0; k < sections.length; k++) {
-            points.push( sections[k].pa );
-            for (let i = 1; i < m; i++) points.push( Eval.rationalCurvePoint( arcs[k], i / m ) );
-            points.push( sections[k].pb );
-        }
+        // the loop closed: the first arc again at the end, unless the sections already end where they began (a
+        // repeated section would give the loft a step of zero length, and control points of NaN)
         const N = sections.length, W = m + 1;
+        const last = sections[N - 1], first = sections[0];
+        const repeats = Vec.dist( last.pa, first.pa ) < 1e-9 && Vec.dist( last.pb, first.pb ) < 1e-9;
+        const lofted = repeats ? arcs : arcs.concat( [arcs[0]] );
+        const surface = Make.loftedSurface( lofted, 3 ), vs = Make.loftParameters( lofted );
+        // section k is the isocurve v = vs[k], and the arc's own parameter is u; the first section is repeated at the
+        // end (v = 1), where the loop closes, so that every triangle has its parameters
+        const points : Array<Point> = [], uv : Array<UV> = [];
+        const rows = repeats ? N : N + 1;
+        for (let k = 0; k < rows; k++) {
+            const x = sections[k % N], v = k == N ? 1 : vs[k];
+            points.push( x.pa ); uv.push( [0, v] );
+            for (let i = 1; i < m; i++) { points.push( Eval.rationalCurvePoint( arcs[k % N], i / m ) ); uv.push( [i / m, v] ); }
+            points.push( x.pb ); uv.push( [1, v] );
+        }
         const triangles : Array<[number, number, number]> = [];
-        for (let k = 0; k < N; k++) {
-            const k1 = (k + 1) % N;
+        for (let k = 0; k + 1 < rows; k++) {
+            const k1 = k + 1;
             for (let i = 0; i < m; i++) {
                 const a = k * W + i, b = k * W + i + 1, c = k1 * W + i + 1, e = k1 * W + i;
                 triangles.push( [a, b, c] ); triangles.push( [a, c, e] );
             }
         }
         const reversed = Fillet.orientTriangles( points, triangles, sections[0].centre, s );
-        // the loop closed: the first arc again at the end, unless the sections already end where they began (a
-        // repeated section would give the loft a step of zero length, and control points of NaN)
-        const last = sections[N - 1], first = sections[0];
-        const repeats = Vec.dist( last.pa, first.pa ) < 1e-9 && Vec.dist( last.pb, first.pb ) < 1e-9;
-        const surface = Make.loftedSurface( repeats ? arcs : arcs.concat( [arcs[0]] ), 3 );
-        return { sections : sections, side : s, cutA : cutA, cutB : cutB, surface : surface, points : points, triangles : triangles,
+        return { sections : sections, side : s, cutA : cutA, cutB : cutB, surface : surface, points : points, uv : uv, triangles : triangles,
                  reversed : reversed, closed : true };
     }
 
