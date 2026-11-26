@@ -60,6 +60,33 @@ describe("verb.solid.IntersectionCertificate", function(){
 	});
 });
 
+describe("verb.model.Model: certified intersections", function(){
+
+	function mug(certify) {
+		return { version : 1, certify : certify, features : { cup : { type : "cylinder", from : [0, 0, 0], to : [0, 0, 40], radius : 15 },
+			handle : { type : "pipe", through : [[8, 0, 30], [24, 0, 29], [27, 0, 19], [8, 0, 12]], radius : 3 },
+			body : { type : "union", of : ["cup", "handle"] } }, output : "body" };
+	}
+
+	it('proves every pair of faces of a mug\'s union complete, the handle\'s pole-centred caps included, and notes it', function(){
+		this.timeout(60000);
+		var r = new lib.Model().evaluate(mug(true));
+		var c = r.result.report.certificate;
+		c.pairs.should.be.above(0);
+		c.proven.should.be.equal(c.pairs);
+		c.unproven.length.should.be.equal(0);
+		r.verdict.notes.join(' ').should.containEql('proven complete');
+		r.verdict.kind.should.be.equal('buildable');
+	});
+
+	it('leaves the certificate out unless asked', function(){
+		this.timeout(60000);
+		var r = new lib.Model().evaluate(mug(false));
+		should(r.result.report.certificate).be.undefined();
+		r.verdict.notes.join(' ').should.not.containEql('proven');
+	});
+});
+
 describe("verb.eval.Make.surfaceIsocurve", function(){
 
 	it('matches the surface at an existing knot of full multiplicity', function(){

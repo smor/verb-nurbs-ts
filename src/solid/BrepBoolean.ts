@@ -5,6 +5,7 @@ import { Vec } from "../core/Vec.js";
 import { Eval } from "../eval/Eval.js";
 import { BrepFace, BrepSolid, FaceCut, FaceMesher, FaceTessellation, Welder } from "./Brep.js";
 import { IntersectionCurve, SurfaceIntersect } from "./SurfaceIntersect.js";
+import { IntersectionCertificate } from "./IntersectionCertificate.js";
 import { MeshBVH } from "./MeshBVH.js";
 import { BrepEdges, DomainSide, SolidEdge } from "./BrepEdges.js";
 import { Fillet, FilletRadius, FilletResult, FilletShape, FilletSide } from "./Fillet.js";
@@ -45,6 +46,9 @@ export interface BooleanOptions {
     edges? : Array<{ solid : number, faces : [number, number], radius : FilletRadius }>;
     // look for intersection loops too small for the search grids (see `SurfaceLoops`; default true)
     loops? : boolean;
+    // prove each pair of faces' intersection complete, no branch or loop missed (`IntersectionCertificate`; default
+    // false: it costs a fraction of a second per pair of faces that meet), into `report.certificate`
+    certify? : boolean;
 }
 
 // A position in a transfinite patch's polygon.
@@ -83,6 +87,11 @@ export interface BooleanResult {
         fillets : number;
         filletsFailed : number;
         filletsSkipped : number;
+        // with `certify`: the pairs of faces whose boxes meet, how many of them are proven complete, and the others
+        // (their pairs of cells left undecided, where the faces may be tangent or a loop may hide, and the starts of
+        // branches found on no curve)
+        certificate? : { pairs : number, proven : number,
+                         unproven : Array<{ solids : [number, number], faces : [number, number], unresolved : number, missed : number }> };
     };
 }
 
@@ -133,6 +142,7 @@ export class BrepBoolean {
         const curves : BooleanResult["curves"] = [];
         let maxErr = 0.0;
         let tangentContacts = 0;
+        const certificate = o.certify ? { pairs : 0, proven : 0, unproven : [] as NonNullable<BooleanResult["report"]["certificate"]>["unproven"] } : undefined;
         for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
             solids[i].faces.forEach( (fa, ia) => solids[j].faces.forEach( (fb, ib) => {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
@@ -141,6 +151,12 @@ export class BrepBoolean {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
                 tangentContacts += res.tangent.length;
                 const found = res.curves;
+                if (certificate != null) {
+                    const c = IntersectionCertificate.check( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), found );
+                    certificate.pairs++;
+                    if (c.proven) certificate.proven++;
+                    else certificate.unproven.push( { solids : [i, j], faces : [ia, ib], unresolved : c.unresolved, missed : c.missed.length } );
+                }
                 for (const c of BrepBoolean.dropRetraces( found, 0.02 * step ))
                     curves.push( { solids : [i, j], faces : [ia, ib], curve : BrepBoolean.cleanSeams( c, fa, fb ) } );
             } ) );
@@ -566,7 +582,7 @@ export class BrepBoolean {
         out.compact(); // drops the same degenerate triangles
         return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, patchXY : patchXY, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, tangentContacts : tangentContacts, maxCurveError : maxErr,
-            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped } };
+            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, certificate : certificate } };
     }
 
     // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher

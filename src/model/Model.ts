@@ -5,7 +5,7 @@ import { Divide } from "../eval/Divide.js";
 import { Make } from "../eval/Make.js";
 import { Sweep } from "../eval/Sweep.js";
 import { BrepFace, BrepSolid } from "../solid/Brep.js";
-import { BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
+import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -64,6 +64,9 @@ export interface ModelDocument {
     output : string;
     // a machine to check the model against (`Makeable.MACHINES` key, or a machine), for the verdict
     machine? : string | Machine;
+    // prove every intersection of the Booleans complete (no branch or small loop missed); the verdict notes the pairs
+    // of faces it cannot prove (`IntersectionCertificate`; default false)
+    certify? : boolean;
 }
 
 // What a model regenerates to: the solid, its faces' persistent names, the verdict, and what was rebuilt.
@@ -295,11 +298,11 @@ export class Model {
         const solidId = lat != null ? lat.of : doc.output;
         const out = features[solidId];
         if (out.type == "lattice") throw new Error( `Model: the lattice "${doc.output}" fills "${solidId}", another lattice` );
-        const solid = cached( "solid", solidId, () => {
+        const solid = cached( doc.certify === true ? "solid+certify" : "solid", solidId, () => {
             const round = out.type == "round" ? out : null;
             const t = tree( round != null ? round.of : solidId );
             const leafName = (si : number, fi : number) => t.leaves[si].name + "." + Model.faceName( t.leaves[si].solid.faces[fi], fi );
-            let options = {};
+            let options : BooleanOptions = { certify : doc.certify === true };
             if (round != null) {
                 const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ) }) );
                 const radius = (name : string) => { const r = rules.find( x => x.re.test( name ) ); return r != null ? r.radius : 0; };
@@ -308,7 +311,7 @@ export class Model {
                     const r = radius( Model.edgeName( leafName( si, e.faces[0] ), leafName( si, e.faces[1] ) ) );
                     if (r > 0) edges.push( { solid : si, faces : e.faces, radius : r } );
                 } ) );
-                options = {
+                options = { ...options,
                     fillet : (c : { solids : [number, number], faces : [number, number] }) => radius( Model.edgeName( leafName( c.solids[0], c.faces[0] ), leafName( c.solids[1], c.faces[1] ) ) ),
                     edges : edges, filletShape : round.shape, filletCorner : round.corner,
                 };
@@ -691,6 +694,10 @@ export class Model {
             checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
         }
         const notes : Array<string> = [];
+        const cert = r.report.certificate;
+        if (cert != null) notes.push( cert.unproven.length == 0
+            ? `every intersection is proven complete (${cert.pairs} pairs of faces)`
+            : `${cert.unproven.length} of ${cert.pairs} pairs of faces are not proven free of missed intersections (near tangency, or a small loop could hide there)` );
         if (machine != null && checks[0].passed) {
             const mk = Makeable.check( r.mesh, machine );
             notes.push( ...mk.notes );

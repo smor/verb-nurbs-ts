@@ -322,7 +322,13 @@ surface patch intersections", CAGD 5, 1988), with Sinha's theorem as above:
 4. Any other pair is split, the cell whose normals turn most first, up to `depth` times. A pair still undecided is
    counted in `unresolved`: the surfaces may be tangent there, or a loop smaller than the cells may hide there.
 
-The result is `proven` only when nothing is unresolved and nothing was missed. A plane through a cylinder or a
+The result is `proven` only when nothing is unresolved and nothing was missed. Cells round a pole (a cap's centre)
+have wide cones until they are small, so pairs may be split 8 times by default.
+
+With `certify: true`, `BrepBoolean` runs the check on every pair of faces whose boxes meet, and reports
+`report.certificate`: the pairs, how many are proven, and the others with their counts. A model document with
+`certify: true` passes it on, and its verdict notes either that every intersection is proven complete or how many
+pairs are not. The mug's union, cup and handle, is proven complete in all 3 pairs. A plane through a cylinder or a
 sphere is proven complete in about 0.15 s. Dropping the curve reports start points all around it. A sphere grazing a
 plane (a loop of radius 0.014) is not proven, with or without that loop: the normals there are nearly parallel by
 nature, which is the honest answer.
@@ -350,10 +356,11 @@ nature, which is the honest answer.
   solids then touch along that line: the volume is right, but the result is not a manifold there (it is not, in
   exact arithmetic either), and the Model verdict calls it visual. Near-tangent pairs that do cross are traced as
   usual.
-* **Topology is certified on demand, not by default.** Broken-up branches are detected (an end inside both domains,
+* **Topology is certified on request, not by default.** Broken-up branches are detected (an end inside both domains,
   or a piece lying on another, after Barton, Elber and Hanniel's single-component count) and traced again.
-  `IntersectionCertificate.check` (below) proves that no branch was missed, but the boolean pipeline does not run it
-  on every pair yet. Pairs it leaves unresolved, near tangency, are where a missed loop could still hide.
+  `certify: true` (a Boolean option, or a model document's flag) runs `IntersectionCertificate.check` (below) on
+  every pair of faces that meet. It is off by default because it costs a fraction of a second per pair. Pairs it
+  leaves unresolved, near tangency, are where a missed loop could still hide.
 * **Small loops** are found from collinear normal points. The normal cones that select their candidate cells are
   sampled; the certificate's cones are rigorous, and could replace them.
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
