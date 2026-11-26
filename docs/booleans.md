@@ -327,7 +327,10 @@ What keeps those down:
   only where that is not close enough.
 
 Limits: a ball corner gets about 190 triangles at 0.02 mm, where equilateral triangles at the sag bound would take
-about 120. Building the exact shell is still the longer part, a few seconds on a filleted part.
+about 120. Building the exact shell is still the longer part, a few seconds on a filleted part. Where windows cut a
+disc as sectors from its centre one at a time (507's fixture D, `one-by-one-4` and `one-by-one-6`), a vertex of the
+analysis mesh at the disc's centre lies 0.06 mm off it, and the shell's seam cut starts there: two of its loops do not
+close, and its export mesh has four open edges. The shell's checks do not catch it yet (every edge is used twice).
 
 ## Seams of surfaces of revolution
 

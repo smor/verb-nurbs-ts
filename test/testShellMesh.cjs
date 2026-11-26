@@ -70,7 +70,9 @@ describe("verb.solid.ShellMesher", function(){
 	it('gives Graph.evaluate an export mesh with a face name per triangle, for 507\'s parts', function(){
 		var dir = path.join(__dirname, 'fixtures', '507');
 		var doc = function(prefix){ return JSON.parse(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(function(f){ return f.indexOf(prefix + '-') == 0; })), 'utf8')); };
-		[['B', 'slotted'], ['C', 'tube-flange'], ['E', 'rim-spoke']].forEach(function(p){
+		// (A: windows cut from a disc whose polar parameters meet at its centre, where its seam and the windows' sides
+		// start: a pole)
+		[['A', 'wheel'], ['B', 'slotted'], ['C', 'tube-flange'], ['E', 'rim-spoke']].forEach(function(p){
 			var g = new Graph();
 			var r = g.evaluate(doc(p[0]), { output : p[1], mesh : 'print' });
 			var X = r.export, mf = X.mesh.checkClosedManifold();
