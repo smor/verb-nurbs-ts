@@ -151,6 +151,7 @@
             "primitive/bent-pipe",
             "freeform/revolve",
             "freeform/pipe",
+            "freeform/vessel",
             "transform/move",
             "transform/rotate",
             "transform/scale",
@@ -1254,6 +1255,18 @@
           },
           "then": {
             "$ref": "#/$defs/freeform.pipe"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "freeform/vessel"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freeform.vessel"
           }
         },
         {
@@ -5087,6 +5100,44 @@
               ],
               "description": "samples",
               "default": 24
+            }
+          }
+        }
+      }
+    },
+    "freeform.vessel": {
+      "title": "Vessel",
+      "description": "A pot from its drawn half-section, in millimetres from the base up: the outer profile turned about z, less the cavity (from its floor to above the rim) and the hollow under a foot",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "freeform/vessel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outer": {
+              "type": "string",
+              "description": "outer: points \"r z; r z; ...\", millimetres, from the base up",
+              "default": "30 0; 40 12; 46 30; 40 50; 44 60"
+            },
+            "cavity": {
+              "type": "string",
+              "description": "cavity: points \"r z; r z; ...\", millimetres, from the base up; empty for none",
+              "default": "26 5; 36 14; 42 30; 36 50; 40 63"
+            },
+            "foot": {
+              "type": "string",
+              "description": "foot: points \"r z; r z; ...\", millimetres, from the base up; empty for none",
+              "default": ""
             }
           }
         }

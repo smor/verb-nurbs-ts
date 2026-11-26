@@ -348,12 +348,12 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 99 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 100 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
   `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
-  comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve` and
-  `freeform/pipe`.
+  comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve`,
+  `freeform/pipe` and `freeform/vessel`.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
   `freeform/pipe` runs a round tube along the smooth curve through (x(t), y(t), z(t)) (the model's `pipe`). Both
@@ -361,6 +361,12 @@ Graph.compile( doc );         // the version 1 model document it runs
   parameters of the model: `"a + 2 * sin(pi * t)"` at t = 0.5 is `"(a + 2 * sin(pi * (0.5)))"`. `samples` is a whole
   number written in the document, since it decides how many points the model has. Inside a function, `t` hides a
   number node with the id `t`.
+* **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
+  `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
+  the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its
+  own under the node's id (`v/body`, `v/cavity`, `v/foot`). `scripts/aippd.mjs` makes such vessels from AIPPD, the
+  Ancient Italy Pottery Profiles Dataset (Cardarelli 2024), and wrote the editor's pottery collection
+  (`editor/samples/ceramics`, with its sources).
 * **How it compiles.** Number and math nodes become model parameters named by their ids, so an expression may name
   them (`"h + 10"`) and a wire to one (`"@h"`) is just its name. Solid nodes become features with the same ids, so
   persistent face names are the node ids (`box.+z`, `round(box.-x|box.-y)`, `cone/coneShape.side`).
@@ -372,7 +378,10 @@ Graph.compile( doc );         // the version 1 model document it runs
 * **The editor** opens with the art nouveau vase; **Open a sample** offers the freeform showcases of `editor/samples`
   (the vase, a vine column, a fern sprout, a tulip lamp) and mechanisms from the test fixtures (the crank, three of
   the 507 project's parts). Nodes without a place in `view` are laid out in columns by the longest chain of wires
-  leading to them, and the 3D view frames each document it opens. A palette adds any node type; wires are typed (orange for numbers, grey for
+  leading to them, and the 3D view frames each document it opens. **Shelf** shows every output at once, side by
+  side at their true sizes, in the rows and columns a document gives in `view.shelf` (`editor/shelf.ts`; otherwise
+  a square grid), with each piece's documentation (`meta.items`) on hover; the worker sends each piece as it is
+  built and drops a shelf when an edit arrives. **Large view** widens the 3D view. A palette adds any node type; wires are typed (orange for numbers, grey for
   solids) and a wrong one cannot be drawn; number inputs take a slider, a value or an expression; **Show** picks the
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
@@ -391,7 +400,8 @@ Graph.compile( doc );         // the version 1 model document it runs
 * **Not yet:** components in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), and
   renaming a node on the canvas (edit `label` in the file). Curves are not yet wires: a pipe's curve lives in its own
   node, so two nodes cannot share one. A pipe's radius is constant along it, and `finish/shell` cannot yet offset a
-  revolve (the samples hollow the vase with a second revolve instead).
+  revolve (the samples hollow the vase with a second revolve instead). Vessels have no handles or decoration yet:
+  AIPPD's profiles are drawn without them. On the shelf, the labels of narrow columns can crowd each other.
 
 ## Where it lives
 

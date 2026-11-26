@@ -9,10 +9,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { Graph, Expr } from "../src/index.js";
 import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
 import { SAMPLES } from "./samples.js";
 import { History } from "./history.js";
+import { layout } from "./shelf.js";
+import type { ShelfSpec, Box } from "./shelf.js";
 
 declare const WORKER_SOURCE : string;
 
@@ -61,19 +64,26 @@ function record( key : string | null = null ) {
 
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
 interface Result { seq : number; ok : boolean; pos? : Float32Array; idx? : Uint32Array; ms : number; error? : string; volume? : number; faces? : number;
-    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown }
+    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean }
+// one output of a shelf evaluation, sent as soon as it is built
+interface Part { seq : number; part : string; pos : Float32Array; idx : Uint32Array; verdict : string }
 const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { type : "text/javascript" } ) ) );
 // the camera frames the solid of the first evaluation sent after a document is opened (fitAt), not a stale one
 let fitWanted = true, fitAt = 0;
-let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {};
+// SHELF: every output at once. A shelf request is sent at once, even while one is running: the worker drops a shelf
+// as soon as a newer request arrives, and parts of an older one are ignored here
+let SHELF = false;
+let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {}, partListener : ( p : Part ) => void = () => {};
 function evaluate() {
-    if (busy) { pending = true; return; }
+    if (busy && !SHELF) { pending = true; return; }
     busy = true;
     const shown = shownNode();
-    worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown } );
+    worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown, shelf : SHELF } );
     if (fitWanted) { fitWanted = false; fitAt = seq; }
 }
-worker.onmessage = ( e : MessageEvent<Result> ) => {
+worker.onmessage = ( e : MessageEvent<Result | Part> ) => {
+    if (e.data.seq != seq && (SHELF || "part" in e.data)) return;
+    if ("part" in e.data) { partListener( e.data ); return; }
     busy = false;
     listener( e.data );
     if (pending) { pending = false; evaluate(); }
@@ -106,7 +116,7 @@ function NumberInput( { id, k, port } : { id : string, k : string, port : Extrac
     </div>;
 }
 
-function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" }> } ) {
+function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" | "profile" }> } ) {
     const { changed } = useContext( Ctx );
     const v = String( DOC.nodes[id].in?.[k] ?? port.value );
     const [text, setText] = useState( v );
@@ -180,55 +190,143 @@ const toEdges = () : Edge[] => Object.entries( DOC.nodes ).flatMap( ([id, nd]) =
 } ) );
 
 // ---------------------------------------------------------------- 3D view
-function Viewport( { result } : { result : Result | null } ) {
+// One solid (the shown node), or the shelf: every output at once, laid out by editor/shelf.ts, with the row and
+// column labels of the document's `view.shelf`, and a card for the piece under the pointer.
+const shelfSpec = () : ShelfSpec | null => {
+    const s = DOC.view?.shelf as ShelfSpec | undefined;
+    return s != null && Array.isArray( s.rows ) && Array.isArray( s.columns ) && typeof s.place == "object" ? s : null;
+};
+const toGeometry = ( pos : Float32Array, idx : Uint32Array ) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute( "position", new THREE.BufferAttribute( pos, 3 ) );
+    g.setIndex( new THREE.BufferAttribute( idx, 1 ) );
+    const c = toCreasedNormals( g, Math.PI / 6 );
+    g.dispose();
+    c.computeBoundingBox();
+    return c;
+};
+
+interface Three {
+    mesh : THREE.Mesh, shelf : THREE.Group, labels : THREE.Group, render : () => void,
+    fit : ( o : THREE.Object3D, front : boolean ) => void, material : THREE.Material, pick : ( x : number, y : number ) => string | null,
+}
+function Viewport( { result, parts, shelfMode, onHover } : { result : Result | null, parts : Map<string, Part>, shelfMode : boolean,
+    onHover : ( name : string | null, x : number, y : number ) => void } ) {
     const host = useRef<HTMLDivElement>( null );
-    const three = useRef<{ mesh : THREE.Mesh, render : () => void, fit : ( g : THREE.BufferGeometry ) => void } | null>( null );
+    const three = useRef<Three | null>( null );
+    const hover = useRef( onHover );
+    hover.current = onHover;
     useEffect( () => {
         const el = host.current!;
         const renderer = new THREE.WebGLRenderer( { antialias : true, alpha : true } );
         renderer.setPixelRatio( Math.min( devicePixelRatio, 2 ) );
         el.appendChild( renderer.domElement );
+        const css = new CSS2DRenderer();
+        css.domElement.className = "labels";
+        el.appendChild( css.domElement );
         const scene = new THREE.Scene();
         scene.environment = new THREE.PMREMGenerator( renderer ).fromScene( new RoomEnvironment(), 0.04 ).texture;
         const camera = new THREE.PerspectiveCamera( 35, 1, 1, 5000 );
         camera.up.set( 0, 0, 1 ); camera.position.set( 110, -150, 110 );
         const controls = new OrbitControls( camera, renderer.domElement );
         const colour = getComputedStyle( document.documentElement ).getPropertyValue( "--solid" ).trim() || "#8fa7bf";
-        const mesh = new THREE.Mesh( new THREE.BufferGeometry(), new THREE.MeshStandardMaterial( { color : colour, metalness : 0.15, roughness : 0.45 } ) );
-        scene.add( mesh );
+        const material = new THREE.MeshStandardMaterial( { color : colour, metalness : 0.15, roughness : 0.45 } );
+        const mesh = new THREE.Mesh( new THREE.BufferGeometry(), material );
+        const shelf = new THREE.Group(), labels = new THREE.Group();
+        scene.add( mesh, shelf, labels );
         const grid = new THREE.GridHelper( 200, 20, 0x888888, 0x888888 );
         grid.rotation.x = Math.PI / 2;
         const gm = grid.material as THREE.Material; gm.opacity = 0.18; gm.transparent = true;
         scene.add( grid );
-        const render = () => renderer.render( scene, camera );
-        const resize = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize( w, h ); camera.aspect = w / Math.max( h, 1 ); camera.updateProjectionMatrix(); render(); };
+        const render = () => {
+            grid.visible = mesh.visible;
+            renderer.render( scene, camera );
+            css.render( scene, camera );
+        };
+        const resize = () => {
+            const w = el.clientWidth, h = el.clientHeight;
+            renderer.setSize( w, h ); css.setSize( w, h );
+            camera.aspect = w / Math.max( h, 1 ); camera.updateProjectionMatrix(); render();
+        };
         const ro = new ResizeObserver( resize ); ro.observe( el );
         controls.addEventListener( "change", render );
-        // look at the whole solid from the front right, above, at the distance its bounding sphere fills the view
-        const fit = ( g : THREE.BufferGeometry ) => {
-            g.computeBoundingSphere();
-            const s = g.boundingSphere!, half = THREE.MathUtils.degToRad( camera.fov / 2 );
-            const d = s.radius / Math.sin( Math.min( half, Math.atan( Math.tan( half ) * camera.aspect ) ) ) * 1.08;
+        // frame an object: from the front right and above for one solid, from the front for the shelf
+        const fit = ( o : THREE.Object3D, front : boolean ) => {
+            const s = new THREE.Box3().setFromObject( o ).getBoundingSphere( new THREE.Sphere() );
+            if (!(s.radius > 0)) return;
+            const half = THREE.MathUtils.degToRad( camera.fov / 2 );
+            const d = s.radius / Math.sin( Math.min( half, Math.atan( Math.tan( half ) * camera.aspect ) ) ) * (front ? 0.95 : 1.08);
             controls.target.copy( s.center );
-            camera.position.copy( s.center ).addScaledVector( new THREE.Vector3( 0.55, -0.75, 0.42 ).normalize(), d );
-            camera.near = Math.max( 0.1, d / 100 ); camera.far = d * 20; camera.updateProjectionMatrix();
+            const dir = front ? new THREE.Vector3( 0.08, -1, 0.12 ) : new THREE.Vector3( 0.55, -0.75, 0.42 );
+            camera.position.copy( s.center ).addScaledVector( dir.normalize(), d );
+            camera.near = Math.max( 0.1, d / 200 ); camera.far = d * 20; camera.updateProjectionMatrix();
             controls.update();
         };
-        three.current = { mesh, render, fit };
+        const ray = new THREE.Raycaster();
+        const pick = ( x : number, y : number ) : string | null => {
+            const r = renderer.domElement.getBoundingClientRect();
+            ray.setFromCamera( new THREE.Vector2( (x - r.left) / r.width * 2 - 1, -(y - r.top) / r.height * 2 + 1 ), camera );
+            const hit = ray.intersectObjects( shelf.children, false )[0];
+            return hit ? hit.object.name : null;
+        };
+        const move = ( e : PointerEvent ) => { if (shelf.visible && e.buttons == 0) hover.current( pick( e.clientX, e.clientY ), e.clientX, e.clientY ); };
+        const leave = () => hover.current( null, 0, 0 );
+        renderer.domElement.addEventListener( "pointermove", move );
+        renderer.domElement.addEventListener( "pointerleave", leave );
+        three.current = { mesh, shelf, labels, render, fit, material, pick };
         resize();
         return () => { ro.disconnect(); renderer.dispose(); el.innerHTML = ""; };
     }, [] );
+    // one solid
     useEffect( () => {
         const t = three.current;
-        if (!t || !result?.ok || !result.pos) return;
-        const g = new THREE.BufferGeometry();
-        g.setAttribute( "position", new THREE.BufferAttribute( result.pos, 3 ) );
-        g.setIndex( new THREE.BufferAttribute( result.idx!, 1 ) );
-        t.mesh.geometry.dispose(); t.mesh.geometry = toCreasedNormals( g, Math.PI / 6 );
-        if (fitAt > 0 && result.seq >= fitAt) { fitAt = 0; t.fit( t.mesh.geometry ); }
+        if (!t || shelfMode || !result?.ok || !result.pos) return;
+        t.mesh.geometry.dispose(); t.mesh.geometry = toGeometry( result.pos, result.idx! );
+        if (fitAt > 0 && result.seq >= fitAt) { fitAt = 0; t.fit( t.mesh, false ); }
         t.render();
-    }, [result] );
-    return <div className="viewport" ref={host} role="img" aria-label="3D view of the shown solid" />;
+    }, [result, shelfMode] );
+    // the shelf: one mesh per output, laid out again as pieces arrive
+    useEffect( () => {
+        const t = three.current;
+        if (!t) return;
+        t.mesh.visible = !shelfMode; t.shelf.visible = shelfMode; t.labels.visible = shelfMode;
+        if (!shelfMode) { t.render(); return; }
+        const have = new Map( t.shelf.children.map( c => [c.name, c as THREE.Mesh] ) );
+        for (const [name, p] of parts) {
+            const m = have.get( name );
+            if (m != null && m.userData.part === p) continue;
+            if (m != null) { m.geometry.dispose(); t.shelf.remove( m ); }
+            const mesh = new THREE.Mesh( toGeometry( p.pos, p.idx ), t.material );
+            mesh.name = name; mesh.userData.part = p;
+            t.shelf.add( mesh );
+        }
+        for (const [name, m] of have) if (!parts.has( name )) { m.geometry.dispose(); t.shelf.remove( m ); }
+        const boxes : { [name : string] : Box } = {};
+        for (const c of t.shelf.children) {
+            const b = (c as THREE.Mesh).geometry.boundingBox!;
+            boxes[c.name] = { min : [b.min.x, b.min.y, b.min.z], max : [b.max.x, b.max.y, b.max.z] };
+        }
+        const L = layout( boxes, shelfSpec() );
+        for (const c of t.shelf.children) c.position.set( ...L.move[c.name] );
+        // labels: periods on the left of their rows, forms above their columns
+        for (const c of [...t.labels.children]) { t.labels.remove( c ); (c as CSS2DObject).element.remove(); }
+        const label = ( text : string, note : string | undefined, cls : string, x : number, z : number ) => {
+            const div = document.createElement( "div" );
+            div.className = "shelf-label " + cls;
+            div.textContent = text;
+            if (note) { const s = document.createElement( "small" ); s.textContent = note; div.appendChild( s ); }
+            const o = new CSS2DObject( div );
+            o.position.set( x, 0, z );
+            t.labels.add( o );
+        };
+        const pad = Math.max( 10, 0.04 * L.size[0] );
+        for (const r of L.rows) if (r.label) label( r.label, r.note, "row", -pad, r.z + r.height / 2 );
+        for (const c of L.columns) if (c.label) label( c.label, undefined, "col", c.x + c.width / 2, pad * 0.6 );
+        if (fitAt > 0 && (result?.seq ?? 0) >= fitAt && result?.shelf) { fitAt = 0; t.fit( t.shelf, true ); }
+        else if (t.shelf.children.length == 1 && fitAt > 0) t.fit( t.shelf, true );
+        t.render();
+    }, [parts, shelfMode, result] );
+    return <div className="viewport" ref={host} role="img" aria-label={shelfMode ? "3D view of every output, on a shelf" : "3D view of the shown solid"} />;
 }
 
 // ---------------------------------------------------------------- palette
@@ -248,6 +346,22 @@ function Palette( { add } : { add : ( type : string ) => void } ) {
     </nav>;
 }
 
+// ---------------------------------------------------------------- the card of a piece on the shelf
+// What the document says about an output (`meta.items[name]`): any fields, the known ones first and named
+interface Item { [key : string] : unknown }
+const FIELDS : Array<[string, string]> = [["form", "Form"], ["period", "Period"], ["subperiod", "Sub-period"], ["site", "Site"], ["region", "Region"],
+    ["context_type", "Context"], ["funerary_function", "Use in the grave"], ["grave", "Grave"], ["ware", "Ware"], ["technique", "Made"],
+    ["height_cm", "Height (cm)"], ["max_width_cm", "Width (cm)"], ["rim_diameter_cm", "Rim (cm)"], ["capacity_l", "Capacity (l)"], ["source", "Source"],
+    ["aippd_id", "AIPPD record"]];
+function PieceCard( { name, x, y } : { name : string, x : number, y : number } ) {
+    const items = (DOC.meta as { items? : Record<string, Item> } | undefined)?.items;
+    const it = items?.[name];
+    return <div className="piece-card" style={{ left : x + 14, top : y + 14 }} role="tooltip">
+        <b>{name}</b>
+        {it != null && <dl>{FIELDS.filter( ([k]) => it[k] != null && it[k] !== "" ).map( ([k, label]) => <div key={k}><dt>{label}</dt><dd>{String( it[k] )}</dd></div> )}</dl>}
+    </div>;
+}
+
 // ---------------------------------------------------------------- app
 function App() {
     const [nodes, setNodes, onNodesChange] = useNodesState( toNodes() );
@@ -255,19 +369,32 @@ function App() {
     const [, setTick] = useState( 0 );
     const [result, setResult] = useState<Result | null>( null );
     const [tab, setTab] = useState<"graph" | "model">( "graph" );
+    const [parts, setParts] = useState<Map<string, Part>>( new Map() );
+    const [shelfMode, setShelfMode] = useState( false );
+    const [big, setBig] = useState( false );
+    const [hovered, setHovered] = useState<{ name : string, x : number, y : number } | null>( null );
+    // the shelf is on for a document that lays one out, and can be turned on for any document with outputs
+    const setShelf = ( on : boolean ) => { SHELF = on; busy = false; setShelfMode( on ); if (!on) setHovered( null ); };
     const flow = useReactFlow();
     const file = useRef<HTMLInputElement>( null );
     // every edit of the document goes through changed (or reload, for a whole new document), which records an undo step
     const changed = ( key? : string ) => { setTick( x => x + 1 ); setEdges( toEdges() ); setNodes( ns => ns.map( n => ({ ...n, data : {} }) ) ); record( key ?? null ); evaluate(); };
     const reload = ( fit = true ) => {
-        if (fit) fitWanted = true;
+        if (fit) { fitWanted = true; setParts( new Map() ); setShelf( DOC.view?.shelf != null ); setBig( DOC.view?.shelf != null ); }
         setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate();
         if (fit) setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 );
     };
     const restore = ( d : GraphDocument | null ) => { if (d != null) { DOC = d; reload( false ); } };
     const undo = () => restore( history.undo() ), redo = () => restore( history.redo() );
     useEffect( () => {
-        listener = r => setResult( r ); evaluate();
+        listener = r => {
+            setResult( r );
+            // a finished shelf: drop pieces of outputs that are gone
+            if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => DOC.outputs?.[k] != null ) ) );
+        };
+        partListener = p => setParts( m => new Map( m ).set( p.part, p ) );
+        setShelf( DOC.view?.shelf != null ); setBig( DOC.view?.shelf != null );
+        evaluate();
         historyListener = () => setTick( x => x + 1 );
         // Ctrl+Z / Cmd+Z, and Shift+Ctrl+Z, Cmd+Shift+Z or Ctrl+Y to redo; a text field keeps its own undo while typing
         const keys = ( e : KeyboardEvent ) => {
@@ -331,7 +458,7 @@ function App() {
     const status = result?.nodes ?? {};
     const rebuilt = Object.keys( status ).filter( k => status[k] == "built" ), reused = Object.keys( status ).filter( k => status[k] == "cached" );
     return <Ctx.Provider value={{ status, shown, changed }}>
-        <main className="layout">
+        <main className={"layout" + (big ? " big" : "")}>
             <Palette add={add} />
             <section className="canvas" aria-label="Node graph">
                 <div className="toolbar">
@@ -344,6 +471,9 @@ function App() {
                     </select>
                     <button onClick={() => file.current?.click()}>Open…</button>
                     <button onClick={save}>Save graph.json</button>
+                    <button aria-pressed={shelfMode} onClick={() => { setShelf( !shelfMode ); fitWanted = true; evaluate(); }}
+                        title="Show every output of the graph at once, side by side">Shelf</button>
+                    <button aria-pressed={big} onClick={() => setBig( !big )} title="A larger 3D view">Large view</button>
                     <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void open( f ); e.target.value = ""; }} />
                 </div>
                 <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
@@ -353,14 +483,17 @@ function App() {
                 </ReactFlow>
             </section>
             <aside className="side">
-                <Viewport result={result} />
+                <div className="view3d">
+                    <Viewport result={result} parts={parts} shelfMode={shelfMode} onHover={( name, x, y ) => setHovered( name == null ? null : { name, x, y } )} />
+                    {hovered && <PieceCard name={hovered.name} x={hovered.x} y={hovered.y} />}
+                </div>
                 <div className="readout" aria-live="polite">
                     {result == null ? <p className="muted">Building…</p> : result.ok ? <>
                         <div className="verdict-line">
                             <span className={"pill big " + (result.verdict!.kind == "buildable" ? "ok" : "warn")}>{result.verdict!.kind}</span>
                             <span className="num">{result.ms.toFixed( 0 )} ms</span>
                             <span className="num">{(result.volume! / 1000).toFixed( 2 )} cm³</span>
-                            <span className="num">{result.faces} faces</span>
+                            {result.shelf ? <span className="num">{parts.size} pieces</span> : <span className="num">{result.faces} faces</span>}
                         </div>
                         <p className="muted small">{result.verdict!.reasons.join( "; " )}</p>
                         <p className="small"><b>Rebuilt:</b> {rebuilt.join( ", " ) || "nothing"}{reused.length > 0 && <> · <b>From cache:</b> {reused.join( ", " )}</>}</p>
