@@ -33,6 +33,12 @@ and explain why.
 
 ## Code conventions
 
+- **Exact geometry first.** NURBS are to meshes what vector graphics are to bitmaps: keep working on the exact
+  surfaces and curves for as long as possible. A mesh is an output (display, printing, an analysis that needs
+  one) or a search aid (seeds, bounding volumes, ray tests), never the model's truth. Do not build an operation
+  on a mesh when it can be built on the surfaces, and never turn a mesh back into the model's geometry. When an
+  operation has to fall back to a mesh for now, say so in its documentation as a limit, with the exact way it
+  should be done.
 - **Layers.** Imports point down: core → eval → geom / solid → recipes → view. `npm run layers` enforces the
   table in `scripts/check-layers.mjs`. The mesh files (`TriMesh`, `MeshBVH`, `Makeable`) stay independent of
   NURBS so they can become their own package.
