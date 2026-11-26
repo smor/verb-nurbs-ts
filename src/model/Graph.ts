@@ -188,10 +188,15 @@ export class Graph {
      * Booleans work on, and stays as it is. The exact shell is built once per result, and each tolerance meshed once.
      */
     public exportMesh( r : ModelResult, given : "print" | "view" | "analysis" | MeshTolerance ) : GraphMesh {
+        // a lattice is a mesh already (of the field, at its own grid step), with no exact shell behind it: that mesh is
+        // what it exports, whatever the tolerance
+        if (r.lattice != null) {
+            const m = r.lattice.mesh;
+            return { mesh : m, faceNames : m.triangles.map( () => "lattice" ), tolerance : null, deviation : null };
+        }
         if (given == "analysis") {
             return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), tolerance : null, deviation : null };
         }
-        if (r.lattice != null) throw new Error( "Graph: a lattice output has no exact shell to mesh; ask for the \"analysis\" mesh" );
         const T = ShellMesher.tolerance( given );
         let known = this.shells.get( r.result );
         if (known == null) {

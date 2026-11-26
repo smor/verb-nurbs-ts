@@ -300,19 +300,34 @@ within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher
   their tolerances of their faces: up to 4e-3 mm at fitted setback corners). The vertices lie on the faces, so the volume
   is biased low on convex parts, by at most the deviation times the area.
 
-Triangles, at `print` against the analysis mesh (the lone cylinder gets 98 at `view`):
+Triangles at `print`, against the analysis mesh, and the time to build the shell and mesh it (the lone cylinder gets
+98 at `view`):
 
-| Part | `print` | analysis mesh |
-|---|---|---|
-| Lone cylinder, r 3.125, h 6 | 190 | 9,024 |
-| 507 slotted block (B) | 154 | 3,622 |
-| 507 tube and flange (C) | 672 | 15,358 |
-| 507 rim and spoke (E) | 1,112 | 2,376 |
-| Mug, rounded handle | 25,082 | 33,276 |
+| Part | `print` | analysis mesh | shell | mesh |
+|---|---|---|---|---|
+| Lone cylinder, r 3.125, h 6 | 190 | 9,024 | | |
+| Box 40 × 28 × 20, edges rounded at 4 (ball corners) | 1,796 | 3,848 | | 0.3 s |
+| The same, radii 3, 4 and 5 (setback corners) | 4,376 | 4,164 | 3.2 s | 0.7 s |
+| 507 slotted block (B) | 154 | 3,622 | 0.8 s | |
+| 507 tube and flange (C) | 672 | 15,358 | 0.6 s | |
+| 507 rim and spoke (E) | 1,112 | 2,376 | 1.1 s | |
+| Mug, rounded handle | 23,304 | 33,276 | 4.4 s | 3.0 s |
 
-Limits: building the exact shell takes 2 to 18 s on these parts, longer than the mesh itself; the mug's print mesh takes
-14 s. Ball and setback corners get about 280 triangles each at 0.02 mm, two or three times what their curvature needs:
-their parameters squeeze to a point at the poles, which the refinement makes up for with extra points.
+What keeps those down:
+
+* **Density by normal curvature.** A direction's lines are spaced by the curvature of the surface along it (the normal
+  curvature), not by its iso-curve's: on a sphere's parallels near a pole the iso-curve turns ever faster within the
+  surface, while a chord across the surface sags only by the sphere's radius.
+* **Thinning.** The lines of a direction are spaced for the iso-curve that needs most of them; where the others are
+  shorter (towards a pole) a grid point within 0.7 of the length a step should have there of one already kept is left
+  out. Refinement adds the worst points first, none within half a step of another added in the same round.
+* **Projection.** `ShellBuilder.projector` finds its starting sample on a grid of cells, not by a scan of all of them,
+  and Newton's method stops once the offset is normal to both tangents to round-off. Alternating projections onto two
+  faces, and the mesh's checks, start from the parameters they already have (`hint`), and fall back to the whole face
+  only where that is not close enough.
+
+Limits: a ball corner gets about 190 triangles at 0.02 mm, where equilateral triangles at the sag bound would take
+about 120. Building the exact shell is still the longer part, a few seconds on a filleted part.
 
 ## Seams of surfaces of revolution
 

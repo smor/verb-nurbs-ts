@@ -23,7 +23,7 @@ export interface SeamEdge {
 export interface SeamFace {
     surface : NurbsSurfaceData;
     sameSense : boolean;
-    project : (p : Point) => { uv : UV, p : Point };
+    project : (p : Point, hint? : UV) => { uv : UV, p : Point };
 }
 
 export interface SeamLoop {
