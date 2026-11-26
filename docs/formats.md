@@ -130,6 +130,7 @@ g.evaluate( doc );                                        // the first output
 g.evaluate( doc, { output : "connecting-rod" } );         // another
 g.evaluate( doc, { output : "connecting-rod", set : { rod : 90 } } );  // a number node set from outside
 g.evaluate( doc, { output : "@bar" } );                   // any solid node, to preview it
+g.evaluate( doc, { mesh : "print" } );                    // with an export mesh within 0.02 mm (r.export)
 Graph.compile( doc, { output : "flywheel" } );            // the model document, without building it
 ```
 
@@ -137,6 +138,39 @@ Graph.compile( doc, { output : "flywheel" } );            // the model document,
 a project passes its own parameters (a 507 movement's `crank`, `rod`) into a part. Because evaluation is cached by
 content, a part that does not read the parameter that changed is not rebuilt, and evaluating several outputs of one
 document shares every feature they have in common.
+
+`mesh` asks for an export mesh besides the result, tessellated from the result's exact shell within a tolerance
+([booleans.md, Export mesh](booleans.md#export-mesh)): `"print"` (0.02 mm), `"view"` (0.1 mm, normals within 20°),
+`{ chordal, angle?, maxEdge? }`, or `"analysis"` for the Boolean's own dense mesh as it is. It is an evaluation option,
+not part of the document, so one document gives a print mesh and a viewer mesh. `r.export` holds the `mesh` (a closed
+2-manifold), `faceNames` (the persistent name of each triangle's face), the `tolerance` and the `deviation` measured.
+The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
+A lattice output has no exact shell: its export is the lattice mesh itself (`r.lattice.mesh`, at the lattice's own
+grid step), with every triangle named `lattice` and no deviation, whatever `mesh` asks for.
+
+#### A face name per triangle
+
+Every triangle a graph evaluation returns has the persistent name of the face it lies on. This is a contract: 507
+colours, selects and reports parts by these names, so they are tested on every fixture (`test/testFaceNames.cjs`).
+
+* **Where.** For the export mesh, `r.export.faceNames[t]` is the name of triangle `t` of `r.export.mesh`. For the
+  analysis mesh, it is `r.faceNames[r.result.faceOf[t]]`. `r.faceIndex[name]` is the face a name stands for. No two
+  faces of a result share a name.
+* **What.** The grammar is [docs/model.md, "Persistent names"](model.md): `<feature>.<face>` for a primitive's face,
+  behind transforms `<transform>/.../<feature>.<face>`, `round(<face>|<face>)` for a fillet,
+  `corner(<face>|<face>|<face>)` for a corner, and `#1`, `#2`, ... for the pieces of one face a Boolean split.
+* **Through components.** Every feature id of an instance carries the instance's id first ([Components](#components)):
+  the connecting rod's bar in `crank2`, moved by `rod2`, is `rod2/crank2/bar/crank2/barShape.+x`. Two instances of one
+  component never share a name.
+* **Stable.** A name comes from the feature history, not from indices: changing a parameter keeps every name that still
+  stands for a face. A lattice output's triangles are all named `lattice`.
+
+Evaluation is deterministic: the same document, `set` and `mesh` give the same bytes (every vertex to the last bit,
+the triangles and the face names) in every run, whatever the graph evaluated before, on every machine and Node version
+CI covers. Nothing in the library draws random numbers: where an algorithm only needs to avoid a symmetric split, it
+takes a value hashed from its inputs (`src/core/Jitter.ts`). `test/testDeterminism.cjs` builds ~92's crank and rod and
+507's slotted block in two processes and compares them with hashes checked in (`test/fixtures/mesh-hashes.json`); a
+change that moves a mesh on purpose regenerates them with `node test/support/meshHash.cjs`.
 
 ### Components
 
