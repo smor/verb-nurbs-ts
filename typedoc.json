@@ -4,7 +4,7 @@
   "out": "docs/api",
   "name": "verb-nurbs-ts",
   "readme": "README.md",
-  "projectDocuments": ["docs/architecture.md", "docs/booleans.md", "docs/packages.md", "CONTRIBUTING.md"],
+  "projectDocuments": ["docs/architecture.md", "docs/booleans.md", "docs/fairing.md", "docs/packages.md", "CONTRIBUTING.md"],
   "excludePrivate": true,
   "excludeInternal": true,
   "sort": ["kind", "alphabetical"],

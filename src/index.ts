@@ -29,6 +29,8 @@ import { Analyze, KnotMultiplicity } from "./eval/Analyze.js";
 import { Check } from "./eval/Check.js";
 import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
+import { Fair } from "./eval/Fair.js";
+export type { FairCurveOptions, FairSurfaceOptions } from "./eval/Fair.js";
 import { Fit } from "./eval/Fit.js";
 import { Transfinite } from "./eval/Transfinite.js";
 export type { Ribbon } from "./eval/Transfinite.js";
@@ -147,6 +149,7 @@ export {
     Divide,
     CurveLengthSample,
     Eval,
+    Fair,
     Fit,
     Transfinite,
     EvalIntersect,
@@ -249,6 +252,7 @@ export const eval_ = {
     Divide,
     CurveLengthSample,
     Eval,
+    Fair,
     Fit,
     Transfinite,
     Intersect: EvalIntersect,
