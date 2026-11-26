@@ -75,8 +75,9 @@ describe("Transfinite n-sided patches", function(){
 		var dS = function(x, y){ return [[1, 0, 0.6 * x + 0.2 * y + 0.3 * x * x], [0, 1, -0.6 * y + 0.2 * x]]; };
 		var hess = function(x){ return [[0.6 + 0.6 * x, 0.2], [0.2, -0.6]]; };
 		// the second derivative of the patch along a side's inward normal, against the source's normal curvature there
-		function worstCurvatureGap(n, g2) {
+		function worstCurvatureGap(n, g2, reach) {
 			var R = ribbonsOf(S, dS, n, 256), P = Transfinite.polygon(n), worst = 0, h = 1e-3;
+			if (reach != null) R.forEach(function(r){ r.reach = reach; });
 			P.forEach(function(a, i){
 				var b = P[(i + 1) % n];
 				var nx = a[1] - b[1], ny = b[0] - a[0], l = Math.sqrt(nx * nx + ny * ny); nx /= l; ny /= l;
@@ -103,7 +104,24 @@ describe("Transfinite n-sided patches", function(){
 			// normal curvatures here are about 0.6: G1 ribbons miss them by as much, G2 ribbons to about 1%
 			worstCurvatureGap(n, false).should.be.above(0.3);
 			worstCurvatureGap(n, true).should.be.below(0.02);
+			// a reach leaves the ribbons unchanged to second order at their sides: still G2
+			worstCurvatureGap(n, true, 0.3).should.be.below(0.02);
 		});
+	});
+
+	it('bends each ribbon over within its reach: the patch stays within reach of its sides, its sides unchanged', function(){
+		// a flat boundary whose cross derivatives all lean up (by 5 per unit): the ribbons run up out of the plane
+		var n = 6, R = ribbonsOf(function(x, y){ return [x, y, 0]; }, function(){ return [[1, 0, 0], [0, 1, 0]]; }, n, 64);
+		R.forEach(function(r){ r.cross = r.cross.map(function(v){ return [v[0], v[1], 5]; }); });
+		var top = function(){ var z = 0; Transfinite.mesh(R, 10).points.forEach(function(p){ z = Math.max(z, p[2]); }); return z; };
+		var free = top();
+		R.forEach(function(r){ r.reach = 0.1; });
+		var held = top();
+		free.should.be.above(1.5);
+		held.should.be.below(5 * 0.1 + 1e-9);
+		// the boundary is the same
+		var P = Transfinite.polygon(n), mid = [(P[0][0] + P[1][0]) / 2, (P[0][1] + P[1][1]) / 2];
+		Vec.dist(Transfinite.evaluate(R, mid), [mid[0], mid[1], 0]).should.be.below(1e-9);
 	});
 
 	it('fits n four-sided B-spline surfaces that meet along their shared sides and trace the patch', function(){

@@ -584,6 +584,7 @@ export class FilletCorner {
 
     // How far a setback corner stops each blend short of where its contact curves meet the others', in radii.
     public static setbackFactor = 0.6;
+    public static perSide = false;
 
     // A setback vertex blend: three blends of any radii and kinds (convex, concave or mixed), between three faces that
     // meet at a point. Each blend stops a setback short of where its contact curves cross its neighbours' (on the face they
@@ -729,7 +730,8 @@ export class FilletCorner {
             const sign = Vec.dot( cross[0], leave ) >= 0 ? 1 : -1;
             return { points : pts, tangents : along[j], cross : cross.map( v => Vec.mul( sign * lambda, v ) ) };
         } );
-        if (ends.every( x => x.F.shape == "curvature" )) {
+        const g2 = ends.every( x => x.F.shape == "curvature" );
+        if (g2) {
             // curvature-continuous blends get a curvature-continuous corner (G2): each ribbon also carries the second
             // derivative across its side, along the blend (from its rows) or of the face along the cross direction
             ribbons.forEach( (rb, j) => {
@@ -742,6 +744,20 @@ export class FilletCorner {
                 const c = curves[o.f];
                 const uvs = o.reverse ? c.uv.slice().reverse() : c.uv;
                 (rb as Ribbon).second = rb.cross.map( (w, k) => FilletCorner.faceSecond( c.side.face.surface, uvs[k], w ) );
+            } );
+        }
+        if (FilletCorner.perSide) {
+            // each side's cross derivative sized to reach the patch's middle: the world distance from the side's
+            // midpoint to the centroid of the boundary, over the hexagon's inradius
+            const all = ([] as Array<Point>).concat( ...sides );
+            const g = Vec.mul( 1 / all.length, all.reduce( (a, p) => Vec.add( a, p ), [0, 0, 0] as Point ) );
+            const inr = 0.5 / Math.tan( Math.PI / sides.length );
+            ribbons.forEach( (rb, j) => {
+                const pts = sides[j], mid = pts[pts.length >> 1];
+                const f = Vec.dist( mid, g ) / inr / lambda;
+                rb.cross = rb.cross.map( v => Vec.mul( f, v ) );
+                const r2 = rb as Ribbon;
+                if (r2.second != null) r2.second = r2.second.map( v => Vec.mul( f * f, v ) );
             } );
         }
         if (ends[0].F.shape == "chamfer") {
@@ -762,7 +778,7 @@ export class FilletCorner {
         }
         FilletCorner.contain( ribbons, touch.map( t => faceOf( t[0].i, t[0].b ) ), curves.map( c => c.uv[0] ),
                               Vec.mul( 1 / 3, rows.reduce( (a, r) => Vec.add( a, r.centre ), [0, 0, 0] as Point ) ), rMax,
-                              Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
+                              Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ), g2 ? [] : rows.map( (r, i) => FilletCorner.envelope( r, ends[i].F.side ) ), !g2 );
         const m = Transfinite.mesh( ribbons, Math.max( 2, Math.round( ends[0].F.m / 1.5 ) ) );
         // outward, with the faces: the triangles turned one way in the polygon, then all flipped if the one at the
         // patch's first boundary point (on the first face curve, where the patch is tangent to that face) faces against
@@ -795,21 +811,19 @@ export class FilletCorner {
                  ribbons : ribbons, domain : m.domain };
     }
 
-    // Keep a setback corner on the blends' side of the three faces it rounds. The patch takes its boundary and its
-    // cross derivatives' directions from the blends and the faces, but their length is free: it sets how full the
-    // patch is (the "fullness" of Salvi, Várady and Rockwood's ribbon-based patches), and the transfinite blend
-    // carries each ribbon on, straight, well into the patch. One length for all six sides, the sides' mean, overshoots
-    // where they are uneven: a corner of a box then bulges past the box's faces (by 0.17 for radii 3, 4 and 5 on
-    // a 40 x 28 x 20 box). So the lengths are scaled down, by bisection, to the fullest patch that crosses none of the
-    // faces: at no sample of the polygon is a point on the other side of a face from the blends' centres. Second
-    // derivatives scale with the square, which keeps a G2 patch G2. Deterministic, and a no-op where nothing crosses.
-    private static contain( ribbons : Array<Ribbon>, faces : Array<FilletSide>, uv0 : Array<UV>, centre : Point, size : number, density : number ) : void {
-        const base = ribbons.map( r => ({ cross : r.cross, second : r.second }) );
-        const scale = (f : number) => ribbons.forEach( (r, j) => {
-            r.cross = base[j].cross.map( v => Vec.mul( f, v ) );
-            if (base[j].second != null) r.second = (base[j].second as Array<Point>).map( v => Vec.mul( f * f, v ) );
-        } );
-        // samples of the polygon: the inner vertices of the patch's mesh (they do not depend on the lengths)
+    // Keep a setback corner on the blends' side of the three faces it rounds. The patch is a convex combination of its
+    // six ribbons, each carried on into the patch from its side; carried on without limit, a ribbon runs past the
+    // faces round the corner (by 0.17 for radii 3, 4 and 5 on a 40 x 28 x 20 box), and the patch, which takes a share
+    // of it, bulges past them. So each ribbon is given a reach (`Ribbon.reach`): it bends over smoothly, unchanged to
+    // second order at its own side, so the patch keeps its fullness there and every continuity it has (G1, or G2 for
+    // curvature-continuous blends). The reach is the longest, by a scan and bisection, at which no sample of the
+    // patch lies on the other side of a face from the blends' centres. Deterministic, and a no-op where nothing
+    // crosses. (An earlier version shortened the cross derivatives instead, which flattens the patch at its sides
+    // and, for a G2 patch, makes the second-order terms dominate: its curvature across the sides drifted.)
+    private static contain( ribbons : Array<Ribbon>, faces : Array<FilletSide>, uv0 : Array<UV>, centre : Point, size : number, density : number,
+                            envelopes : Array<(p : Point) => number> = [], bendFirst = true ) : void {
+        const reach = (D : number | undefined) => ribbons.forEach( r => { r.reach = D; } );
+        // samples of the polygon: the inner vertices of the patch's mesh (they do not depend on the reach)
         const m = Transfinite.mesh( ribbons, density );
         const samples = m.domain.slice( m.boundary );
         const tol = 1e-6 * size;
@@ -820,30 +834,98 @@ export class FilletCorner {
             for (const x of samples) {
                 const p = Transfinite.evaluate( ribbons, x );
                 faces.forEach( (F, k) => { worst = Math.max( worst, -sideOf[k] * FilletCorner.signedDistance( F, p, uv0[k] ).d ); } );
+                for (const e of envelopes) worst = Math.max( worst, e( p ) );
             }
             return worst > tol ? worst : 0;
         };
         if (crossing() == 0) return;
-        // the fullest length that does not cross (bisection between the steps of a coarse scan); where every length
-        // crosses (the boundary itself curves out, which no length undoes), the one that crosses least
-        let best = 1.0, least = Infinity, lo = -1;
-        // (a curvature-continuous patch keeps its fullness above 0.6: below, the second-order terms that make it G2
-        // dominate the shrinking first-order ones, and its curvature across the sides drifts)
-        const floor = base.every( b => b.second != null ) ? 0.55 : 0.05;
-        for (let f = 0.9; f > floor; f -= 0.1) {
-            scale( f );
-            const c = crossing();
-            if (c == 0) { lo = f; break; }
-            if (c < least) { least = c; best = f; }
+        // first, bend the ribbons in: a third derivative across each side, towards the blends' centres, square to the
+        // side and to its cross derivative. It leaves every continuity at the sides alone and rounds the patch's
+        // middle the way a ball corner is round; the least bend that keeps the patch inside is taken
+        const inward = ribbons.map( rb => rb.points.map( (p, k) => {
+            const t = rb.tangents != null ? rb.tangents[k] : Vec.sub( rb.points[Math.min( k + 1, rb.points.length - 1 )], rb.points[Math.max( k - 1, 0 )] );
+            let n = Vec.cross( t, rb.cross[k] );
+            const l = Vec.norm( n );
+            if (l < 1e-300) return [0, 0, 0] as Point;
+            n = Vec.mul( 1 / l, n );
+            return Vec.dot( n, Vec.sub( centre, p ) ) < 0 ? Vec.mul( -1, n ) : n;
+        } ) );
+        const bend = (b : number) => ribbons.forEach( (rb, j) => { rb.third = b == 0 ? undefined : inward[j].map( (n, k) => Vec.mul( b * Vec.norm( rb.cross[k] ), n ) ); } );
+        let bent = -1;
+        if (bendFirst) for (const b of [0.5, 1, 1.5, 2, 3, 4, 6, 8]) {
+            bend( b );
+            if (crossing() == 0) { bent = b; break; }
         }
-        if (lo < 0) { scale( best ); return; }
-        let hi = lo + 0.1;
+        if (bent > 0) {
+            let lo2 = bent == 0.5 ? 0 : [0.5, 1, 1.5, 2, 3, 4, 6, 8][[0.5, 1, 1.5, 2, 3, 4, 6, 8].indexOf( bent ) - 1], hi2 = bent;
+            for (let it = 0; it < 6; it++) {
+                const mid = 0.5 * (lo2 + hi2);
+                bend( mid );
+                if (crossing() > 0) lo2 = mid; else hi2 = mid;
+            }
+            bend( hi2 );
+            return;
+        }
+        bend( 0 );
+        // where no bend keeps the patch within the blends' envelopes, keeping it within them would dent it: it is
+        // held within the faces only, which a full patch always manages
+        if (envelopes.length > 0) {
+            FilletCorner.contain( ribbons, faces, uv0, centre, size, density, [], bendFirst );
+            return;
+        }
+        // the longest reach that does not cross (bisection between the steps of a coarse scan, in the polygon's units:
+        // its side is 1); where every reach crosses (the boundary itself curves out, which no reach undoes), the one
+        // that crosses least
+        let best = 1.0, least = Infinity, lo = -1;
+        for (const D of [1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1]) {
+            reach( D );
+            const c = crossing();
+            if (c == 0) { lo = D; break; }
+            if (c < least) { least = c; best = D; }
+        }
+        if (lo < 0) { reach( best ); return; }
+        // the step above the one found
+        const steps = [2.0, 1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1];
+        let hi = steps[steps.indexOf( lo ) - 1];
         for (let it = 0; it < 7; it++) {
             const mid = 0.5 * (lo + hi);
-            scale( mid );
+            reach( mid );
             if (crossing() > 0) hi = mid; else lo = mid;
         }
-        scale( lo );
+        reach( lo );
+    }
+
+    // How far a point lies past a blend carried on straight beyond its end section (0 where it does not): the blend's
+    // envelope, which a corner must stay within to look flush with it (a rounded box's corner inside the cylinders of
+    // its fillets). The section is swept along the blend's direction at its end; the point is compared, round the
+    // section's centre, with the section's point in the same direction. Only points beyond the end and within the
+    // section's wedge count (the faces bound the rest). For a convex blend (side -1) past means further from the
+    // centre; for a concave one, nearer.
+    private static envelope( row : { points : Array<Point>, dP : Array<Point>, centre : Point }, side : number ) : (p : Point) => number {
+        const m = row.points.length - 1;
+        const D = Vec.normalized( row.dP[m >> 1] );
+        const c = row.centre;
+        const flat = (v : Point) => Vec.sub( v, Vec.mul( Vec.dot( v, D ), D ) );
+        const spokes = row.points.map( q => flat( Vec.sub( q, c ) ) );
+        const dirs = spokes.map( v => Vec.normalized( v ) );
+        return (p : Point) => {
+            const v = Vec.sub( p, c );
+            if (Vec.dot( v, D ) <= 0) return 0;
+            const u = flat( v ), len = Vec.norm( u );
+            if (len < 1e-12) return 0;
+            const un = Vec.mul( 1 / len, u );
+            // the two spokes either side of the point's direction, and the section's distance between them
+            const ang = (a : Point, b : Point) => Math.atan2( Vec.norm( Vec.cross( a, b ) ), Vec.dot( a, b ) );
+            for (let k = 0; k < m; k++) {
+                const a = ang( dirs[k], dirs[k + 1] ), x = ang( dirs[k], un ), y = ang( un, dirs[k + 1] );
+                if (Math.abs( x + y - a ) > 1e-9 * Math.max( 1, a )) continue;
+                // the section's distance at that angle, on the chord between the spokes' ends
+                const sd = Vec.norm( spokes[k] ) * Vec.norm( spokes[k + 1] ) * Math.sin( a ) /
+                           Math.max( 1e-300, Vec.norm( spokes[k] ) * Math.sin( x ) + Vec.norm( spokes[k + 1] ) * Math.sin( y ) );
+                return Math.max( 0, -side * (len - sd) );
+            }
+            return 0;
+        };
     }
 
     // The signed distance from a point to a face, along the face's normal (as Fillet orients it), at the point's

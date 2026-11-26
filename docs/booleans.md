@@ -186,6 +186,24 @@ setback vertex blending", Computer-Aided Design 29(6):413–425, 1997):
   midpoints of its two sides, the centre), each mapped bilinearly from the unit square and fitted to the patch, so
   neighbours meet along their shared sides to within the fit's tolerance. (A single square mapped radially onto the
   hexagon was tried first: the map's kinks along the diagonals showed up as creases in the fit.)
+* the corner stays **flush**: never past the faces it rounds. The patch is a convex combination of its ribbons, each
+  carried on from its side into the patch; carried on without limit (to the far side of the hexagon) a ribbon runs
+  out past the faces round the corner, and the patch takes a share of it: on a 40 x 28 x 20 box with radii 3, 4 and 5
+  the corners stuck out by 0.11 (circular) and 0.17 (G2). Each ribbon gets a **reach** (`Ribbon.reach`): it is
+  followed at `reach tanh(d / reach)` in place of the distance `d` from its side, the same to second order at the side
+  (so every continuity there stays, G2 included) and never further than `reach`. The longest reach that keeps every
+  sample of the patch behind all three faces is found by a scan and bisection; corners that already fit are left
+  alone. Both kinds of corner now stay inside exactly. (Shortening the cross derivatives instead, the first fix,
+  flattened the patch at its sides and, for G2 corners, let the second-order terms take over: it left 0.04 of bulge
+  and tripled the curvature jump across the sides.)
+* a circular corner also stays within its **blends' envelopes**: each blend carried on straight past its end section
+  (a quarter cylinder, on a box). Behind the faces alone it still stuck out of them by up to 0.22, a visible blob past
+  the fillets. The ribbons are first bent in (`Ribbon.third`, a third derivative across each side towards the blends'
+  centres, which leaves G1 and G2 at the sides alone), by the least bend, found by scan and bisection, that keeps the
+  patch behind the faces and within the envelopes. Where no bend does it without a dent, the corner is held within the
+  faces only, with a reach as above. On the box, 7 of 12 edges meet flush corners and the rest stick out by 0.064 at
+  most. G2 corners keep the faces-only rule: held within the envelopes as well, their reach had to shrink so far
+  that it dented them.
 
 The setback makes the corner a smooth "pillow" in place of the crease a ball corner would need between unequal
 blends.
