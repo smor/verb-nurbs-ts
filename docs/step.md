@@ -43,7 +43,11 @@ and AP242. Units are millimetres. The context carries the tolerance as its uncer
    parameter jumps from the end of the domain back to the start. Where a loop crosses the seam a vertex goes on its
    edge; the stretches of the seam inside the face (bounded by those crossings, or by a pole) become seam edges, which
    the face uses twice, once on each side of the cut. Every face is then a region of its parameter rectangle, which
-   is what kernels expect: without the cut, OpenCascade read the mug as four shells.
+   is what kernels expect: without the cut, OpenCascade read the mug as four shells. A cut can split a face in two:
+   a ring round a hole that the seam passes through is cut above and below the hole into two halves. Each region
+   (an outer loop that turns the way the largest loop does, with the holes inside it) is then written as a face of its
+   own, and the seam stretches between them become ordinary edges between two faces on one surface. Without that,
+   OpenCascade found the shelled mug's two rings round its handle's bore not closed.
 
 The faces' own surfaces do not quite meet everywhere: a setback corner's parts are B-spline fits of a transfinite
 patch, within 1e-3 of the largest radius. Its sides follow the neighbouring fillets' section curves (their exact

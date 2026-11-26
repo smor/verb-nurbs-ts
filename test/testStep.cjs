@@ -52,6 +52,16 @@ function nearestUV(s, p) {
 	return best;
 }
 
+// a capped tube cut with a ring round a rod on its seam: the wall keeps a disc inside the ring, which the seam
+// splits into two regions
+function ringOnSeam() {
+	function line(a, b) { return Make.rationalBezierCurve([a, b]); }
+	var cyl = lib.BrepSolid.cappedTube(lib.Sweep.pipe(line([0,0,0], [0,0,40]), 15).surface, [24, 96]);
+	var big = lib.BrepSolid.cappedTube(lib.Sweep.pipe(line([8,0,20], [20,0,20]), 4).surface, [24, 48]);
+	var small = lib.BrepSolid.cappedTube(lib.Sweep.pipe(line([6,0,20], [22,0,20]), 1.5).surface, [24, 48]);
+	return lib.BrepBoolean.evaluate([cyl, big, small], function(f){ return f[0] && !(f[1] && !f[2]); });
+}
+
 function mug() {
 	return lib.BooleanObjectsRecipe.mug({ divsU : 32, divsV : 128 }).result;
 }
@@ -59,7 +69,7 @@ function mug() {
 describe("verb.io.Step", function(){
 	this.timeout(budget(120000));
 
-	[['a box rounded with G2 fillets and setback corners', roundedBox], ['a rod on a disc, its foot filleted', boss], ['a mug: walls of revolution with a handle across their seam (genus 1)', mug]].forEach(function(c){
+	[['a box rounded with G2 fillets and setback corners', roundedBox], ['a rod on a disc, its foot filleted', boss], ['a mug: walls of revolution with a handle across their seam (genus 1)', mug], ['a ring cut round a rod on a seam: faces the seam splits in two', ringOnSeam]].forEach(function(c){
 		describe(c[0], function(){
 			var r, M, text, ents;
 			before(function(){
@@ -74,7 +84,8 @@ describe("verb.io.Step", function(){
 				var F = M.faces.length, L = 0;
 				var uses = M.edges.map(function(){ return [0, 0]; });
 				M.faces.forEach(function(face, fi){
-					face.loops.filter(function(l){ return l.outer; }).length.should.be.belowOrEqual(1);
+					// one outer loop: a region of the parameter rectangle (none on a surface closed both ways)
+					face.loops.filter(function(l){ return l.outer; }).length.should.be.equal(face.closed[0] && face.closed[1] ? 0 : 1);
 					face.loops.forEach(function(loop){
 						L++;
 						loop.edges.forEach(function(x){
@@ -113,6 +124,9 @@ describe("verb.io.Step", function(){
 							seams++;
 							// on the seam: the closed parameter at the domain's start (or end)
 							xs.forEach(function(t){ Math.abs(t - Math.round(t)).should.be.below(1e-4, 'face ' + fi); });
+						} else if (xs.every(function(t){ return Math.abs(t - Math.round(t)) < 1e-4; })) {
+							// an edge between two faces of one surface, along its seam (a face the seam split in two)
+							e.left.should.not.be.equal(e.right);
 						} else {
 							// inside the rectangle: never past the seam between its ends
 							var lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
@@ -145,7 +159,7 @@ describe("verb.io.Step", function(){
 					(ents[id].match(/#\d+/g) || []).forEach(function(ref){ should.exist(ents[ref.slice(1)], ref + ' in #' + id); });
 				});
 				var count = function(name){ return Object.keys(ents).filter(function(id){ return ents[id].indexOf(name + '(') == 0; }).length; };
-				count('ADVANCED_FACE').should.be.equal(r.faces.length);
+				count('ADVANCED_FACE').should.be.equal(M.faces.length);
 				count('EDGE_CURVE').should.be.equal(M.edges.length);
 				count('VERTEX_POINT').should.be.equal(M.vertices.length);
 				count('FACE_OUTER_BOUND').should.be.equal(M.faces.filter(function(f){ return f.loops.some(function(l){ return l.outer; }); }).length);
@@ -161,6 +175,15 @@ describe("verb.io.Step", function(){
 				(text.match(/[(,]-?\d+E/g) || []).length.should.be.equal(0);
 			});
 		});
+	});
+
+	it('writes each region of a face the seam cuts in two as a face of its own', function(){
+		var r = ringOnSeam(), M = Step.model(r);
+		r.report.manifold.closedManifold.should.be.true();
+		// the disc of wall left inside the ring falls apart into two halves at the seam
+		M.faces.length.should.be.above(r.faces.length);
+		var halves = M.edges.filter(function(e){ return e.left != e.right && M.faces[e.left].surface === M.faces[e.right].surface; });
+		halves.length.should.be.above(0);
 	});
 
 	it('writes reals the way STEP wants them', function(){

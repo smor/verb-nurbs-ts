@@ -26,6 +26,10 @@ export interface SeamFace {
 export interface SeamLoop {
     outer : boolean;
     edges : Array<[number, boolean]>;
+    // the region of the face the loop bounds: a face cut at its seam can fall apart into several regions (a ring
+    // round a hole that the seam passes through, cut above and below the hole), each a face of its own, with one
+    // outer loop and the holes inside it
+    region : number;
 }
 
 // Seams: faces on closed surfaces, cut where their surfaces close.
@@ -219,8 +223,8 @@ export class Seams {
                           cut : { d : number, c0 : number, per : number, seamUse : Map<number, number> } | null ) : Array<SeamLoop> {
         const s = F.surface;
         const cu = Analyze.isRationalSurfaceClosed( s, true ), cv = Analyze.isRationalSurfaceClosed( s, false );
-        if (cu && cv) return ls.map( l => ({ outer : false, edges : l }) );
-        const areas = ls.map( loop => {
+        if (cu && cv) return ls.map( l => ({ outer : false, edges : l, region : 0 }) );
+        const polys = ls.map( loop => {
             const uv : Array<UV> = [];
             for (const [e, fwd] of loop) {
                 const E = edges[e];
@@ -250,13 +254,52 @@ export class Seams {
                     uv.forEach( (q, k) => { q[c] = x[k] * per; } );
                 }
             }
+            return uv;
+        } );
+        // signed areas: outer loops turn the way the largest does, holes the other way
+        const areas = polys.map( uv => {
             let a = 0;
             uv.forEach( (p, k) => { const q = uv[(k + 1) % uv.length]; a += p[0] * q[1] - q[0] * p[1]; } );
-            return Math.abs( a );
+            return 0.5 * a;
         } );
         let best = 0;
-        areas.forEach( (a, k) => { if (a > areas[best]) best = k; } );
-        return ls.map( (l, k) => ({ outer : k == best, edges : l }) );
+        areas.forEach( (a, k) => { if (Math.abs( a ) > Math.abs( areas[best] )) best = k; } );
+        const sign = Math.sign( areas[best] ) || 1;
+        const outers = ls.map( (_, k) => k ).filter( k => k == best || Math.sign( areas[k] ) == sign );
+        const region = new Map<number, number>( outers.map( (k, r) => [k, r] ) );
+        // each hole in the smallest outer loop round it
+        ls.forEach( (_, k) => {
+            if (region.has( k )) return;
+            const p = Seams.inside( polys[k] );
+            let home = region.get( best ) as number, size = Infinity;
+            for (const o of outers) if (Math.abs( areas[o] ) < size && Seams.contains( polys[o], p )) { home = region.get( o ) as number; size = Math.abs( areas[o] ); }
+            region.set( k, home );
+        } );
+        return ls.map( (l, k) => ({ outer : outers.includes( k ), edges : l, region : region.get( k ) as number }) );
+    }
+
+    // A point just inside a loop of the parameter plane: beside the middle of its longest segment, on the side the
+    // loop's area lies (left of a loop that turns counter-clockwise).
+    private static inside( uv : Array<UV> ) : UV {
+        let a = 0, k0 = 0, l0 = -1;
+        uv.forEach( (p, k) => {
+            const q = uv[(k + 1) % uv.length];
+            a += p[0] * q[1] - q[0] * p[1];
+            const l = Math.hypot( q[0] - p[0], q[1] - p[1] );
+            if (l > l0) { l0 = l; k0 = k; }
+        } );
+        const p = uv[k0], q = uv[(k0 + 1) % uv.length], s = (a >= 0 ? 1 : -1) * 1e-3;
+        return [0.5 * (p[0] + q[0]) - s * (q[1] - p[1]), 0.5 * (p[1] + q[1]) + s * (q[0] - p[0])];
+    }
+
+    // Whether a polygon of the parameter plane contains a point (crossings of a ray along +u).
+    private static contains( uv : Array<UV>, p : UV ) : boolean {
+        let inside = false;
+        for (let k = 0, j = uv.length - 1; k < uv.length; j = k++) {
+            const a = uv[k], b = uv[j];
+            if ((a[1] > p[1]) != (b[1] > p[1]) && p[0] < a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])) inside = !inside;
+        }
+        return inside;
     }
 
     // Values of a periodic coordinate (period 1) along a closed polyline, unwrapped: each within half a period of the

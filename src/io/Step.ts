@@ -75,7 +75,7 @@ export class Step {
         // only the vertices that edges use, renumbered in order
         const used = new Map<number, number>(), vs : Array<Point> = [];
         const keep = (v : number) => { let k = used.get( v ); if (k == null) { k = vs.length; vs.push( vertices[v] ); used.set( v, k ); } return k; };
-        return {
+        const model : StepModel = {
             vertices : vs,
             edges : cut.edges.map( e => {
                 const curve = e.curve != null ? e.curve : Step.fitChain( e.pts, 0.25 * tol );
@@ -86,12 +86,20 @@ export class Step {
                 cp[cp.length - 1] = at( b, cp[0].length == 4 ? cp[cp.length - 1][3] : 1 );
                 return { curve : curve, start : keep( e.start ), end : keep( e.end ), left : e.left, right : e.right };
             } ),
-            faces : faces.map( (F, fi) => ({
-                surface : F.surface, sameSense : F.sameSense,
-                closed : [Analyze.isRationalSurfaceClosed( F.surface, true ), Analyze.isRationalSurfaceClosed( F.surface, false )] as [boolean, boolean],
-                loops : cut.loops[fi],
-            }) ),
+            faces : [],
         };
+        // a face that its seam cut into several regions becomes a face per region; its edges' sides follow
+        faces.forEach( (F, fi) => {
+            const closed = [Analyze.isRationalSurfaceClosed( F.surface, true ), Analyze.isRationalSurfaceClosed( F.surface, false )] as [boolean, boolean];
+            const regions = Math.max( 0, ...cut.loops[fi].map( l => l.region ) ) + 1;
+            for (let g = 0; g < regions; g++) {
+                const loops = cut.loops[fi].filter( l => l.region == g );
+                const nf = model.faces.length;
+                for (const l of loops) for (const [e, fwd] of l.edges) { if (fwd) model.edges[e].left = nf; else model.edges[e].right = nf; }
+                model.faces.push( { surface : F.surface, sameSense : F.sameSense, closed : closed, loops : loops } );
+            }
+        } );
+        return model;
     }
 
     public static write( r : BooleanResult, options? : StepOptions ) : string {
