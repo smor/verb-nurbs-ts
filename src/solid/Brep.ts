@@ -227,6 +227,24 @@ export class FaceMesher {
         // between it and the edge, bridging the cut (across a seam, the regions on both sides would merge)
         const onEdge = (x : number, lo : number, hi : number) => Math.abs( x - lo ) < 1e-12 ? lo : Math.abs( x - hi ) < 1e-12 ? hi : x;
         cuts = cuts.map( c => ({ ...c, uv : c.uv.map( p => [onEdge( p[0], d[0], d[1] ), onEdge( p[1], d[2], d[3] )] as UV ) }) );
+        // the ends of an open cut lie on the domain's edge (or on another cut): one refined to a hair inside it (a point
+        // where three faces meet, found on each face to its own accuracy) is on it
+        const nearEdge = (x : number, lo : number, hi : number) => Math.abs( x - lo ) < 1e-7 * (hi - lo) ? lo : Math.abs( x - hi ) < 1e-7 * (hi - lo) ? hi : x;
+        cuts = cuts.map( c => c.closed || c.uv.length < 2 ? c : { ...c, uv : c.uv.map( (p, k) => k == 0 || k == c.uv.length - 1
+            ? [nearEdge( p[0], d[0], d[1] ), nearEdge( p[1], d[2], d[3] )] as UV : p ) } );
+        // a cut ending on a side that collapses to a point (a pole, the centre of a cap) could have any parameter along
+        // that side; it takes its neighbour's, so that its last segment runs straight into the pole: a slanted one
+        // leaves triangles on both sides of it that are the same, flat, triangle in space
+        const collapsed = FaceMesher.collapsed( s, d );
+        cuts = cuts.map( c => {
+            if (c.closed || c.uv.length < 2) return c;
+            const uv = c.uv.map( p => [p[0], p[1]] as UV );
+            for (const [e, n] of [[0, 1], [uv.length - 1, uv.length - 2]]) for (let axis = 0; axis < 2; axis++) for (let sd = 0; sd < 2; sd++) {
+                if (!collapsed[axis][sd] || uv[e][axis] != d[2 * axis + sd] || uv[n][axis] == uv[e][axis]) continue;
+                uv[e][1 - axis] = uv[n][1 - axis];
+            }
+            return { ...c, uv : uv };
+        } );
         const X = (uv : UV) : Array<number> => [(uv[0] - d[0]) / (d[1] - d[0]) * L[0], (uv[1] - d[2]) / (d[3] - d[2]) * L[1]];
         const hx = L[0] / nu, hy = L[1] / nv;
 
@@ -414,7 +432,40 @@ export class FaceMesher {
                 triangles.push( area > 0 ? [a, b, c] : [a, c, b] );
             }
         }
-        return { uv : uv, points : pts, ids : pts.map( p => welder.id( p ) ), triangles : triangles, cutEdges : cutEdges, cutTags : cutTags };
+        const ids = pts.map( p => welder.id( p ) );
+        // next to a pole, two triangles of the parameter plane can be the same triangle in space, facing opposite ways
+        // (a pole node on each side of a cut running into the pole): together they cover nothing, and are dropped
+        const seen = new Map<string, number>(), drop = new Set<number>();
+        triangles.forEach( (t, k) => {
+            const w = t.map( i => ids[i] );
+            if (w[0] == w[1] || w[1] == w[2] || w[2] == w[0]) return;
+            const key = w.slice().sort( (x, y) => x - y ).join( ":" );
+            const j = seen.get( key );
+            if (j == null) { seen.set( key, k ); return; }
+            const o = triangles[j].map( i => ids[i] );
+            const same = [0, 1, 2].some( r => o[r] == w[0] && o[(r + 1) % 3] == w[1] );
+            if (!same) { drop.add( j ); drop.add( k ); seen.delete( key ); }
+        } );
+        const kept = drop.size > 0 ? triangles.filter( (_, k) => !drop.has( k ) ) : triangles;
+        return { uv : uv, points : pts, ids : ids, triangles : kept, cutEdges : cutEdges, cutTags : cutTags };
+    }
+
+    // [axis][side]: whether the side of the domain where that parameter is at its start (0) or end (1) is a single
+    // point in space
+    private static collapsed( s : NurbsSurfaceData, d : Array<number> ) : [[boolean, boolean], [boolean, boolean]] {
+        const out : [[boolean, boolean], [boolean, boolean]] = [[false, false], [false, false]];
+        let size = 0.0;
+        const c0 = s.controlPoints[0][0], w0 = c0[3];
+        for (const row of s.controlPoints) for (const h of row) size = Math.max( size, Vec.dist( [h[0] / h[3], h[1] / h[3], h[2] / h[3]], [c0[0] / w0, c0[1] / w0, c0[2] / w0] ) );
+        for (let axis = 0; axis < 2; axis++) for (let sd = 0; sd < 2; sd++) {
+            const at = (t : number) => {
+                const x = d[2 * (1 - axis)] + (d[2 * (1 - axis) + 1] - d[2 * (1 - axis)]) * t, fixed = d[2 * axis + sd];
+                return axis == 0 ? Eval.rationalSurfacePoint( s, fixed, x ) : Eval.rationalSurfacePoint( s, x, fixed );
+            };
+            const p0 = at( 0 );
+            out[axis][sd] = [0.25, 0.5, 0.75, 1].every( t => Vec.dist( at( t ), p0 ) < 1e-12 * size );
+        }
+        return out;
     }
 
     // mean length of the u and v isocurves

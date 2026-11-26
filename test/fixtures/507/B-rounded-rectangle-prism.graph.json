@@ -1,0 +1,115 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "B: rounded-rectangle prism in Booleans",
+    "expect": {
+      "block-pin": {
+        "volume": "24·14·6 − 4(1−π/4)·2.1²·6 + π·3²·5.5 ≈ 1993.3 + 155.5 = 2148.8"
+      },
+      "pin-block": {
+        "volume": "same, 2148.8"
+      },
+      "slotted": {
+        "volume": "70·30.3·6 − 4(1−π/4)·9·6 − 66·14.3·6 = 12726 − 46.4 − 5662.8 = 7016.8"
+      },
+      "box-slotted": {
+        "volume": "7063.2"
+      }
+    }
+  },
+  "nodes": {
+    "block": {
+      "type": "primitive/rounded-rectangle-prism",
+      "in": {
+        "width": 24,
+        "depth": 14,
+        "corner": 2.1,
+        "height": 6
+      }
+    },
+    "pinS": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 3,
+        "height": 6.5
+      }
+    },
+    "pin": {
+      "type": "transform/move",
+      "in": {
+        "of": "@pinS",
+        "x": 0,
+        "y": 0,
+        "z": 5
+      }
+    },
+    "blockPin": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@block",
+        "b": "@pin"
+      }
+    },
+    "pinBlock": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@pin",
+        "b": "@block"
+      }
+    },
+    "plate": {
+      "type": "primitive/rounded-rectangle-prism",
+      "in": {
+        "width": 70,
+        "depth": 30.3,
+        "corner": 3,
+        "height": 6
+      }
+    },
+    "slotS": {
+      "type": "primitive/box",
+      "in": {
+        "width": 66,
+        "depth": 14.3,
+        "height": 8
+      }
+    },
+    "slot": {
+      "type": "transform/move",
+      "in": {
+        "of": "@slotS",
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    "slotted": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@plate",
+        "minus": "@slot"
+      }
+    },
+    "box": {
+      "type": "primitive/box",
+      "in": {
+        "width": 70,
+        "depth": 30.3,
+        "height": 6
+      }
+    },
+    "boxSlotted": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@box",
+        "minus": "@slot"
+      }
+    }
+  },
+  "outputs": {
+    "block-pin": "@blockPin",
+    "pin-block": "@pinBlock",
+    "slotted": "@slotted",
+    "box-slotted": "@boxSlotted"
+  }
+}

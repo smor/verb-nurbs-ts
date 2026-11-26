@@ -526,7 +526,7 @@ export class BrepBoolean {
         // ball corners whose three blends were built
         const ballPatches = balls.filter( b => b.g.every( g => built.has( g ) ) ).map( b => b.patch );
 
-        // the runs as cuts of their faces; a branch that another one, found earlier on the same face, already traces
+        // the runs as cuts of their faces; a branch that another one on the same face already traces
         // (two coincident faces crossing a third) cuts that face once
         const traced = BrepBoolean.traced( curves, snap );
         runs.forEach( (r, g) => {
@@ -664,7 +664,11 @@ export class BrepBoolean {
             }
             return q.length == 1 && Vec.dist( p, q[0] ) < tol;
         };
-        return found.filter( c => !(c.closed && found.some( o => o !== c && o.points.length >= c.points.length && c.points.every( p => near( p, o ) ) )) );
+        // a branch that lies along another one, as long or longer, is the same branch found twice (a closed loop traced
+        // again, or the piece of an open branch on one side of a face's seam besides the whole branch across it); of
+        // two copies of one length, the first is kept
+        return found.filter( (c, i) => !found.some( (o, j) => j != i && (o.points.length > c.points.length || (o.points.length == c.points.length && j < i))
+            && c.points.every( p => near( p, o ) ) ) );
     }
 
     // The rolling-ball blend of one edge, if both its faces are kept on exactly one side of it.
@@ -843,8 +847,8 @@ export class BrepBoolean {
         return out;
     }
 
-    // The sides ("curve:k") of branches that an earlier branch on the same face of the same solid already traces:
-    // every point of one lies on the other's polyline, and the other way round.
+    // The sides ("curve:k") of branches that another branch on the same face of the same solid already traces: every
+    // point of one lies on the other's polyline (when each lies on the other, the earlier one is kept).
     private static traced( curves : BooleanResult["curves"], eps : number ) : Set<string> {
         const out = new Set<string>();
         const near = (p : Point, c : IntersectionCurve) => {
@@ -857,11 +861,15 @@ export class BrepBoolean {
             return false;
         };
         curves.forEach( (e, ci) => { for (let k = 0; k < 2; k++) {
-            for (let cj = 0; cj < ci; cj++) {
+            for (let cj = 0; cj < curves.length; cj++) {
                 const f = curves[cj];
+                if (cj == ci) continue;
                 const shared = [0, 1].some( m => f.solids[m] == e.solids[k] && f.faces[m] == e.faces[k] );
-                if (!shared || f.curve.closed != e.curve.closed) continue;
-                if (e.curve.points.every( p => near( p, f.curve ) ) && f.curve.points.every( p => near( p, e.curve ) )) { out.add( ci + ":" + k ); break; }
+                if (!shared || (e.curve.closed && !f.curve.closed)) continue;
+                // all of it along the other (a stretch of it: a face covering only part of a third face's edge)
+                if (!e.curve.points.every( p => near( p, f.curve ) )) continue;
+                if (cj > ci && f.curve.closed == e.curve.closed && f.curve.points.every( p => near( p, e.curve ) )) continue;
+                out.add( ci + ":" + k ); break;
             }
         } } );
         return out;
@@ -902,6 +910,18 @@ export class BrepBoolean {
         // all on that side exactly
         const axis = side![0] == "u" ? 0 : 1, value = Number( side!.slice( 1 ) );
         for (const p of out) p[axis] = value;
+        // a point on the seam of a closed direction takes the end of the domain its neighbour is nearer, so that the
+        // piece runs the short way round (pieces are split at seams, so only their ends can be on one)
+        for (let k = 0; k < 2; k++) {
+            if (!g.periodic[k] || out.length < 2) continue;
+            const lo = d[2 * k], hi = d[2 * k + 1], w = hi - lo;
+            const seam = (x : number) => Math.abs( x - lo ) < 1e-9 * w || Math.abs( x - hi ) < 1e-9 * w;
+            const n = out.length;
+            for (const [i, j] of [[0, 1], [n - 1, n - 2]]) {
+                if (!seam( out[i][k] ) || seam( out[j][k] )) continue;
+                out[i][k] = out[j][k] - lo < hi - out[j][k] ? lo : hi;
+            }
+        }
         return out;
     }
 
@@ -1161,21 +1181,28 @@ export class BrepBoolean {
         }
     }
 
-    // Triangles of a face tessellation grouped into connected regions that do not cross a cut. Adjacency uses the
-    // welded vertex ids, so regions continue across periodic seams.
+    // Triangles of a face tessellation grouped into connected regions that do not cross a cut. Adjacency is by the
+    // tessellation's own vertices, a planar triangulation of the domain in which every cut is a run of edges; on the
+    // domain's sides it is by the welded vertex ids, so that regions continue across periodic seams. (Welded ids
+    // everywhere would join the two sides of a cut wherever two of its points are close enough to weld into one.)
     public static regions( t : FaceTessellation ) : Array<Array<number>> {
         const parent = t.triangles.map( (_, k) => k );
         const find = (x : number) : number => { while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
         const key = (a : number, b : number) => a < b ? a + "," + b : b + "," + a;
-        const cut = new Set<string>();
-        for (const e of t.cutEdges) cut.add( key( t.ids[e[0]], t.ids[e[1]] ) );
+        const lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+        for (const p of t.uv) for (let k = 0; k < 2; k++) { lo[k] = Math.min( lo[k], p[k] ); hi[k] = Math.max( hi[k], p[k] ); }
+        const onSide = (a : number, b : number) => [0, 1].some( k => [lo[k], hi[k]].some( x => t.uv[a][k] == x && t.uv[b][k] == x ) );
+        const cutLocal = new Set<string>(), cutWelded = new Set<string>();
+        for (const e of t.cutEdges) { cutLocal.add( key( e[0], e[1] ) ); cutWelded.add( key( t.ids[e[0]], t.ids[e[1]] ) ); }
         const byEdge = new Map<string, number>();
         t.triangles.forEach( (tri, k) => {
             for (let e = 0; e < 3; e++) {
-                const a = t.ids[tri[e]], b = t.ids[tri[(e + 1) % 3]];
+                const i = tri[e], j = tri[(e + 1) % 3];
+                const a = t.ids[i], b = t.ids[j];
                 if (a == b) continue;
-                const kk = key( a, b );
-                if (cut.has( kk )) continue;
+                const side = onSide( i, j );
+                const kk = side ? "w" + key( a, b ) : key( i, j );
+                if (side ? cutWelded.has( key( a, b ) ) : cutLocal.has( kk )) continue;
                 const other = byEdge.get( kk );
                 if (other == null) byEdge.set( kk, k ); else parent[find( k )] = find( other );
             }
