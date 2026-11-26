@@ -31,6 +31,8 @@ import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
 import { Fair } from "./eval/Fair.js";
 import { THB } from "./eval/THB.js";
+import { IGA } from "./eval/IGA.js";
+export type { PoissonProblem, PoissonSolution, IGACell, IGAAdaptiveOptions } from "./eval/IGA.js";
 export type { THBSpace, THBFunction, THBBasis, THBSample, THBFitOptions } from "./eval/THB.js";
 export type { FairCurveOptions, FairSurfaceOptions } from "./eval/Fair.js";
 import { Fit } from "./eval/Fit.js";
@@ -155,6 +157,7 @@ export {
     Eval,
     Fair,
     THB,
+    IGA,
     Fit,
     Transfinite,
     EvalIntersect,
@@ -260,6 +263,7 @@ export const eval_ = {
     Eval,
     Fair,
     THB,
+    IGA,
     Fit,
     Transfinite,
     Intersect: EvalIntersect,

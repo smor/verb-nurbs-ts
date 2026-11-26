@@ -197,8 +197,8 @@ export class Fair {
         return G;
     }
 
-    // Gauss-Legendre nodes and weights on [-1, 1], by Newton's method on the Legendre polynomial.
-    private static legendre( m : number ) : [Array<number>, Array<number>] {
+    /** Gauss-Legendre nodes and weights on [-1, 1] (m of each), by Newton's method on the Legendre polynomial. */
+    public static legendre( m : number ) : [Array<number>, Array<number>] {
         const xs : Array<number> = [], ws : Array<number> = [];
         for (let i = 1; i <= m; i++) {
             let x = Math.cos( Math.PI * (i - 0.25) / (m + 0.5) ), dp = 0;
