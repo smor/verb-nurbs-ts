@@ -5,6 +5,7 @@ import { NurbsSurfaceData, Pair } from "./Data.js";
 import { Divide } from "../eval/Divide.js";
 import { Eval } from "../eval/Eval.js";
 import { IBoundingBoxTree } from "../eval/Intersect.js";
+import { jitter } from "./Jitter.js";
 
 export class SurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData> {
 
@@ -45,7 +46,7 @@ export class SurfaceBoundingBoxTree implements IBoundingBoxTree<NurbsSurfaceData
         }
 
         const dom = max - min;
-        const pivot = (min + max) / 2.0 + dom * 0.1 * Math.random();
+        const pivot = (min + max) / 2.0 + dom * 0.1 * jitter( min, max, splitV ? 1 : 0 );
 
         const srfs = Divide.surfaceSplit( this._surface, pivot, splitV );
 

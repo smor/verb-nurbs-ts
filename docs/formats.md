@@ -147,6 +147,13 @@ not part of the document, so one document gives a print mesh and a viewer mesh. 
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
 A lattice output has no exact shell: only `"analysis"` is accepted there.
 
+Evaluation is deterministic: the same document, `set` and `mesh` give the same bytes (every vertex to the last bit,
+the triangles and the face names) in every run, whatever the graph evaluated before, on every machine and Node version
+CI covers. Nothing in the library draws random numbers: where an algorithm only needs to avoid a symmetric split, it
+takes a value hashed from its inputs (`src/core/Jitter.ts`). `test/testDeterminism.cjs` builds ~92's crank and rod and
+507's slotted block in two processes and compares them with hashes checked in (`test/fixtures/mesh-hashes.json`); a
+change that moves a mesh on purpose regenerates them with `node test/support/meshHash.cjs`.
+
 ### Components
 
 Any graph document is a component: another document uses it through a node of type `component`, one instance per

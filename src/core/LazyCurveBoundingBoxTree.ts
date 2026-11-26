@@ -5,6 +5,7 @@ import { NurbsCurveData, Pair } from "./Data.js";
 import { Divide } from "../eval/Divide.js";
 import { Eval } from "../eval/Eval.js";
 import { IBoundingBoxTree } from "../eval/Intersect.js";
+import { jitter } from "./Jitter.js";
 
 export class LazyCurveBoundingBoxTree implements IBoundingBoxTree<NurbsCurveData> {
 
@@ -25,7 +26,7 @@ export class LazyCurveBoundingBoxTree implements IBoundingBoxTree<NurbsCurveData
         const max = ArrayExtensions.last(this._curve.knots);
         const dom = max - min;
 
-        const crvs = Divide.curveSplit( this._curve, (max + min) / 2.0 + dom * 0.1 * Math.random());
+        const crvs = Divide.curveSplit( this._curve, (max + min) / 2.0 + dom * 0.1 * jitter( min, max ));
 
         return new Pair<IBoundingBoxTree<NurbsCurveData>, IBoundingBoxTree<NurbsCurveData>>(
             new LazyCurveBoundingBoxTree( crvs[0], this._knotTol ),
