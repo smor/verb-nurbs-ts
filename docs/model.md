@@ -200,7 +200,13 @@ would stick or could not leave a two-part mould.
 
 ## Limits
 
-* A `round` is the last feature on its branch: a rounded solid is not yet an operand of a further Boolean.
+* A `round` is the last feature on its branch: a rounded solid is not yet an operand of a further Boolean. This
+  comes from how the kernel works, not from a rule of modelling: the whole tree is one Boolean over primitives whose
+  faces are whole NURBS surfaces, the fillets are made inside it, and a rounded solid (trimmed faces, blends) cannot
+  be such a primitive. Lifting it means Booleans on trimmed B-reps. Meanwhile, do the Booleans first and round last,
+  selecting edges by name ([exact-booleans.md](exact-booleans.md) is the plan to lift it). A rounded solid can be moved, rotated and uniformly scaled: transforms over a round are
+  rewritten as the round of the transformed solid (`Model.liftRound`), its patterns and fillet names prefixed with
+  the transforms' path (`round(placed/block.+z|placed/peg.tube)`), its radii scaled with it.
 * Shells offset boxes, cylinders, pipes (a curved pipe's ends can only move in, so not an open end or a pipe taken
   away), Booleans and rigid or uniformly scaled transforms. Revolves, and a shell of a shell, are refused with a
   message. An open face's offset goes `thickness` past it: a feature standing over an open face is cut there (the

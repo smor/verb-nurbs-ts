@@ -1,0 +1,944 @@
+{
+  "flywheel-1": {
+    "version": 1,
+    "parameters": {
+      "throw": 25,
+      "crank1__crank": 20,
+      "crank1__rod": 72,
+      "crank1__flywheelRadius": 35,
+      "crank1__thick": 6,
+      "crank1__pinR": 2.5,
+      "crank1__clearance": 0.2,
+      "crank2__crank": "throw",
+      "crank2__rod": "(throw * 3)",
+      "crank2__flywheelRadius": 35,
+      "crank2__thick": 6,
+      "crank2__pinR": 2.5,
+      "crank2__clearance": 0.2
+    },
+    "features": {
+      "crank1/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank1__thick"
+        ],
+        "radius": "crank1__flywheelRadius"
+      },
+      "crank1/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank1__thick + 2)"
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/bore": {
+        "type": "transform",
+        "of": "crank1/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/wheel": {
+        "type": "difference",
+        "from": "crank1/disc",
+        "minus": [
+          "crank1/bore"
+        ]
+      },
+      "crank1/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank1__pinR"
+      },
+      "crank1/pin": {
+        "type": "transform",
+        "of": "crank1/pinShape",
+        "translate": [
+          "crank1__crank",
+          0,
+          "(crank1__thick - 1)"
+        ]
+      },
+      "crank1/flywheel": {
+        "type": "union",
+        "of": [
+          "crank1/wheel",
+          "crank1/pin"
+        ]
+      },
+      "crank1/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank1__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank1__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank1/bar": {
+        "type": "transform",
+        "of": "crank1/barShape",
+        "translate": [
+          "(crank1__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank1/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/eyeA": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/eyeB": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          "crank1__rod",
+          0,
+          -1
+        ]
+      },
+      "crank1/eyes": {
+        "type": "union",
+        "of": [
+          "crank1/eyeA",
+          "crank1/eyeB"
+        ]
+      },
+      "crank1/connectingRod": {
+        "type": "difference",
+        "from": "crank1/bar",
+        "minus": [
+          "crank1/eyes"
+        ]
+      },
+      "crank2/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank2__thick"
+        ],
+        "radius": "crank2__flywheelRadius"
+      },
+      "crank2/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank2__thick + 2)"
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/bore": {
+        "type": "transform",
+        "of": "crank2/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/wheel": {
+        "type": "difference",
+        "from": "crank2/disc",
+        "minus": [
+          "crank2/bore"
+        ]
+      },
+      "crank2/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank2__pinR"
+      },
+      "crank2/pin": {
+        "type": "transform",
+        "of": "crank2/pinShape",
+        "translate": [
+          "crank2__crank",
+          0,
+          "(crank2__thick - 1)"
+        ]
+      },
+      "crank2/flywheel": {
+        "type": "union",
+        "of": [
+          "crank2/wheel",
+          "crank2/pin"
+        ]
+      },
+      "crank2/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank2__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank2__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank2/bar": {
+        "type": "transform",
+        "of": "crank2/barShape",
+        "translate": [
+          "(crank2__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank2/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/eyeA": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/eyeB": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          "crank2__rod",
+          0,
+          -1
+        ]
+      },
+      "crank2/eyes": {
+        "type": "union",
+        "of": [
+          "crank2/eyeA",
+          "crank2/eyeB"
+        ]
+      },
+      "crank2/connectingRod": {
+        "type": "difference",
+        "from": "crank2/bar",
+        "minus": [
+          "crank2/eyes"
+        ]
+      },
+      "rod2": {
+        "type": "transform",
+        "of": "crank2/connectingRod",
+        "translate": [
+          0,
+          60,
+          0
+        ]
+      }
+    },
+    "output": "crank1/flywheel"
+  },
+  "flywheel-2": {
+    "version": 1,
+    "parameters": {
+      "throw": 25,
+      "crank1__crank": 20,
+      "crank1__rod": 72,
+      "crank1__flywheelRadius": 35,
+      "crank1__thick": 6,
+      "crank1__pinR": 2.5,
+      "crank1__clearance": 0.2,
+      "crank2__crank": "throw",
+      "crank2__rod": "(throw * 3)",
+      "crank2__flywheelRadius": 35,
+      "crank2__thick": 6,
+      "crank2__pinR": 2.5,
+      "crank2__clearance": 0.2
+    },
+    "features": {
+      "crank1/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank1__thick"
+        ],
+        "radius": "crank1__flywheelRadius"
+      },
+      "crank1/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank1__thick + 2)"
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/bore": {
+        "type": "transform",
+        "of": "crank1/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/wheel": {
+        "type": "difference",
+        "from": "crank1/disc",
+        "minus": [
+          "crank1/bore"
+        ]
+      },
+      "crank1/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank1__pinR"
+      },
+      "crank1/pin": {
+        "type": "transform",
+        "of": "crank1/pinShape",
+        "translate": [
+          "crank1__crank",
+          0,
+          "(crank1__thick - 1)"
+        ]
+      },
+      "crank1/flywheel": {
+        "type": "union",
+        "of": [
+          "crank1/wheel",
+          "crank1/pin"
+        ]
+      },
+      "crank1/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank1__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank1__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank1/bar": {
+        "type": "transform",
+        "of": "crank1/barShape",
+        "translate": [
+          "(crank1__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank1/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/eyeA": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/eyeB": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          "crank1__rod",
+          0,
+          -1
+        ]
+      },
+      "crank1/eyes": {
+        "type": "union",
+        "of": [
+          "crank1/eyeA",
+          "crank1/eyeB"
+        ]
+      },
+      "crank1/connectingRod": {
+        "type": "difference",
+        "from": "crank1/bar",
+        "minus": [
+          "crank1/eyes"
+        ]
+      },
+      "crank2/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank2__thick"
+        ],
+        "radius": "crank2__flywheelRadius"
+      },
+      "crank2/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank2__thick + 2)"
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/bore": {
+        "type": "transform",
+        "of": "crank2/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/wheel": {
+        "type": "difference",
+        "from": "crank2/disc",
+        "minus": [
+          "crank2/bore"
+        ]
+      },
+      "crank2/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank2__pinR"
+      },
+      "crank2/pin": {
+        "type": "transform",
+        "of": "crank2/pinShape",
+        "translate": [
+          "crank2__crank",
+          0,
+          "(crank2__thick - 1)"
+        ]
+      },
+      "crank2/flywheel": {
+        "type": "union",
+        "of": [
+          "crank2/wheel",
+          "crank2/pin"
+        ]
+      },
+      "crank2/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank2__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank2__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank2/bar": {
+        "type": "transform",
+        "of": "crank2/barShape",
+        "translate": [
+          "(crank2__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank2/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/eyeA": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/eyeB": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          "crank2__rod",
+          0,
+          -1
+        ]
+      },
+      "crank2/eyes": {
+        "type": "union",
+        "of": [
+          "crank2/eyeA",
+          "crank2/eyeB"
+        ]
+      },
+      "crank2/connectingRod": {
+        "type": "difference",
+        "from": "crank2/bar",
+        "minus": [
+          "crank2/eyes"
+        ]
+      },
+      "rod2": {
+        "type": "transform",
+        "of": "crank2/connectingRod",
+        "translate": [
+          0,
+          60,
+          0
+        ]
+      }
+    },
+    "output": "crank2/flywheel"
+  },
+  "rod-2": {
+    "version": 1,
+    "parameters": {
+      "throw": 25,
+      "crank1__crank": 20,
+      "crank1__rod": 72,
+      "crank1__flywheelRadius": 35,
+      "crank1__thick": 6,
+      "crank1__pinR": 2.5,
+      "crank1__clearance": 0.2,
+      "crank2__crank": "throw",
+      "crank2__rod": "(throw * 3)",
+      "crank2__flywheelRadius": 35,
+      "crank2__thick": 6,
+      "crank2__pinR": 2.5,
+      "crank2__clearance": 0.2
+    },
+    "features": {
+      "crank1/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank1__thick"
+        ],
+        "radius": "crank1__flywheelRadius"
+      },
+      "crank1/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank1__thick + 2)"
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/bore": {
+        "type": "transform",
+        "of": "crank1/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/wheel": {
+        "type": "difference",
+        "from": "crank1/disc",
+        "minus": [
+          "crank1/bore"
+        ]
+      },
+      "crank1/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank1__pinR"
+      },
+      "crank1/pin": {
+        "type": "transform",
+        "of": "crank1/pinShape",
+        "translate": [
+          "crank1__crank",
+          0,
+          "(crank1__thick - 1)"
+        ]
+      },
+      "crank1/flywheel": {
+        "type": "union",
+        "of": [
+          "crank1/wheel",
+          "crank1/pin"
+        ]
+      },
+      "crank1/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank1__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank1__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank1/bar": {
+        "type": "transform",
+        "of": "crank1/barShape",
+        "translate": [
+          "(crank1__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank1/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank1__pinR + crank1__clearance)"
+      },
+      "crank1/eyeA": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank1/eyeB": {
+        "type": "transform",
+        "of": "crank1/eyeShape",
+        "translate": [
+          "crank1__rod",
+          0,
+          -1
+        ]
+      },
+      "crank1/eyes": {
+        "type": "union",
+        "of": [
+          "crank1/eyeA",
+          "crank1/eyeB"
+        ]
+      },
+      "crank1/connectingRod": {
+        "type": "difference",
+        "from": "crank1/bar",
+        "minus": [
+          "crank1/eyes"
+        ]
+      },
+      "crank2/disc": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "crank2__thick"
+        ],
+        "radius": "crank2__flywheelRadius"
+      },
+      "crank2/boreShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          "(crank2__thick + 2)"
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/bore": {
+        "type": "transform",
+        "of": "crank2/boreShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/wheel": {
+        "type": "difference",
+        "from": "crank2/disc",
+        "minus": [
+          "crank2/bore"
+        ]
+      },
+      "crank2/pinShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          9
+        ],
+        "radius": "crank2__pinR"
+      },
+      "crank2/pin": {
+        "type": "transform",
+        "of": "crank2/pinShape",
+        "translate": [
+          "crank2__crank",
+          0,
+          "(crank2__thick - 1)"
+        ]
+      },
+      "crank2/flywheel": {
+        "type": "union",
+        "of": [
+          "crank2/wheel",
+          "crank2/pin"
+        ]
+      },
+      "crank2/barShape": {
+        "type": "box",
+        "min": [
+          "-(((crank2__rod + 12)) / 2)",
+          -5,
+          0
+        ],
+        "max": [
+          "((crank2__rod + 12)) / 2",
+          5,
+          4
+        ]
+      },
+      "crank2/bar": {
+        "type": "transform",
+        "of": "crank2/barShape",
+        "translate": [
+          "(crank2__rod / 2)",
+          0,
+          0
+        ]
+      },
+      "crank2/eyeShape": {
+        "type": "cylinder",
+        "from": [
+          0,
+          0,
+          0
+        ],
+        "to": [
+          0,
+          0,
+          6
+        ],
+        "radius": "(crank2__pinR + crank2__clearance)"
+      },
+      "crank2/eyeA": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          0,
+          0,
+          -1
+        ]
+      },
+      "crank2/eyeB": {
+        "type": "transform",
+        "of": "crank2/eyeShape",
+        "translate": [
+          "crank2__rod",
+          0,
+          -1
+        ]
+      },
+      "crank2/eyes": {
+        "type": "union",
+        "of": [
+          "crank2/eyeA",
+          "crank2/eyeB"
+        ]
+      },
+      "crank2/connectingRod": {
+        "type": "difference",
+        "from": "crank2/bar",
+        "minus": [
+          "crank2/eyes"
+        ]
+      },
+      "rod2": {
+        "type": "transform",
+        "of": "crank2/connectingRod",
+        "translate": [
+          0,
+          60,
+          0
+        ]
+      }
+    },
+    "output": "rod2"
+  }
+}

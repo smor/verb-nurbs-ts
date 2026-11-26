@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Two cranks of different throw",
+    "description": "Two instances of crank.graph.json, one with its own crank radius, one placed beside it. Fixture for docs/formats.md, Components."
+  },
+  "nodes": {
+    "throw": { "type": "number", "in": { "value": 25 }, "label": "Second crank radius" },
+    "crank1": { "type": "component", "use": "crank.graph.json", "hash": "ab48366aa4f650ee" },
+    "crank2": { "type": "component", "use": "crank.graph.json", "hash": "ab48366aa4f650ee", "in": { "crank": "@throw", "rod": "throw * 3" } },
+    "rod2": { "type": "transform/move", "in": { "of": "@crank2.connecting-rod", "y": 60 } }
+  },
+  "outputs": {
+    "flywheel-1": "@crank1.flywheel",
+    "flywheel-2": "@crank2.flywheel",
+    "rod-2": "@rod2"
+  }
+}

@@ -11,6 +11,8 @@ var Graph = lib.Graph;
 var root = path.join(__dirname, '..');
 var read = function (p) { return JSON.parse(fs.readFileSync(path.join(root, p), 'utf8')); };
 var fixtures = path.join('test', 'fixtures', 'formats');
+// what component nodes in the fixtures use: other fixtures, by file name
+var resolveFixture = function (use) { return JSON.parse(fs.readFileSync(path.join(root, fixtures, use), 'utf8')); };
 var graphs = fs.readdirSync(path.join(root, fixtures)).filter(function (f) { return f.endsWith('.graph.json'); });
 
 var ajv = new Ajv2020({ allErrors : true, strict : true, allowUnionTypes : true });
@@ -40,7 +42,7 @@ describe("Document formats (docs/formats.md)", function () {
 		var released = graphSchema.$defs;
 		Object.keys(released).forEach(function (k) {
 			should.exist(now[k], 'node type ' + k + ' was removed');
-			if (k == 'node') return;
+			if (k == 'node' || k == 'component') return;
 			var was = released[k].properties.in.properties, is = now[k].properties.in.properties;
 			Object.keys(was).forEach(function (p) {
 				should.exist(is[p], k + '.' + p + ' was removed');
@@ -59,7 +61,7 @@ describe("Document formats (docs/formats.md)", function () {
 			ok(validGraph, g);
 			Object.keys(models).should.eql(Object.keys(g.outputs));
 			Object.keys(g.outputs).forEach(function (o) {
-				var m = Graph.compile(g, { output : o });
+				var m = Graph.compile(g, { output : o, resolve : resolveFixture });
 				ok(validModel, m);
 				// the compiled form is part of the format: a change here changes what a saved file builds
 				JSON.parse(JSON.stringify(m)).should.eql(models[o]);
@@ -173,5 +175,91 @@ describe("Document formats (docs/formats.md)", function () {
 		bad = JSON.parse(JSON.stringify(doc));
 		bad.features['a.b'] = bad.features.b;
 		validModel(bad).should.equal(false);
+	});
+});
+
+describe("Components (docs/formats.md)", function () {
+
+	var dir = path.join(root, fixtures);
+	var resolve = function (use) { return JSON.parse(fs.readFileSync(path.join(dir, use), 'utf8')); };
+	function pair() { return read(path.join(fixtures, 'crank-pair.graph.json')); }
+
+	it('an instance builds what its component builds, with its own parameters, under names prefixed with its id', function () {
+		this.timeout(budget(90000));
+		var graph = new Graph(), g = pair();
+		var direct = new Graph().evaluate(crank(), { output : 'flywheel' });
+		var one = graph.evaluate(g, { resolve : resolve });
+		one.output.should.equal('flywheel-1');
+		// the same solid as the component on its own: same volume to rounding, every face name prefixed
+		one.result.report.volume.should.be.approximately(direct.result.report.volume, 1e-6 * direct.result.report.volume);
+		one.faceNames.length.should.equal(direct.faceNames.length);
+		one.faceNames.forEach(function (n) { n.should.startWith('crank1/'); });
+		one.parameters.crank1__crank.should.equal(20);
+		// the second instance sets its crank radius by a wire and its rod length by an expression
+		var two = graph.evaluate(g, { output : 'rod-2', resolve : resolve });
+		two.parameters.crank2__rod.should.equal(75);
+		var exact = (75 + 12) * 10 * 4 - 2 * Math.PI * 2.7 * 2.7 * 4;
+		two.result.report.volume.should.be.approximately(exact, exact * 0.005);
+		// moved 60 mm along y: the rod's bounding box is centred there
+		var lo = Infinity, hi = -Infinity;
+		two.result.mesh.vertices.forEach(function (v) { lo = Math.min(lo, v[1]); hi = Math.max(hi, v[1]); });
+		((lo + hi) / 2).should.be.approximately(60, 1e-9);
+		two.nodes.crank2.should.equal('built');
+		two.nodes.crank1.should.equal('unused');
+		// the second flywheel's pin is at 25 mm: its pin hole sits 5 mm further out, its volume is the first one's
+		var fly2 = graph.evaluate(g, { output : 'flywheel-2', resolve : resolve });
+		fly2.result.report.volume.should.be.approximately(one.result.report.volume, 1e-3 * one.result.report.volume);
+		var xmax = -Infinity;
+		fly2.result.mesh.vertices.forEach(function (v) { if (v[2] > 7) xmax = Math.max(xmax, v[0]); });
+		xmax.should.be.approximately(25 + 2.5, 0.05);
+	});
+
+	it('edge and face patterns inside a component select the same edges in every instance', function () {
+		this.timeout(budget(60000));
+		// the editor's sample, whose round names "box.*|box.*", used as a component, then placed
+		var resolveSample = function () { return read(path.join(fixtures, 'cone-cut.graph.json')); };
+		var direct = new Graph().evaluate(resolveSample());
+		// its output is a round: moving the instance moves the rounded solid
+		var doc = { version : 2, nodes : {
+			h : { type : 'number', in : { value : 24 } },
+			part : { type : 'component', use : 'cone-cut.graph.json', in : { h : '@h' } },
+			moved : { type : 'transform/move', in : { of : '@part.solid', x : 100 } },
+		}, outputs : { solid : '@moved' } };
+		var r = new Graph().evaluate(doc, { resolve : resolveSample });
+		r.result.report.volume.should.be.approximately(direct.result.report.volume, 1e-6 * direct.result.report.volume);
+		var fillets = function (names) { return names.filter(function (n) { return n.indexOf('round(') >= 0; }).length; };
+		fillets(r.faceNames).should.equal(fillets(direct.faceNames)).and.above(0);
+		r.verdict.kind.should.equal('buildable');
+		r.faceNames.should.containEql('round(moved/part/box.+z|moved/part/box.-x)');
+		var xs = r.result.mesh.vertices.map(function (v) { return v[0]; });
+		((Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2).should.be.approximately(100, 1e-9);
+		Graph.compile(doc, { resolve : resolveSample }).features['part/round'].rules[0].edges.should.equal('part/box.*|part/box.*');
+	});
+
+	it('refuses a changed component, a component that uses itself, a missing resolver and a wrong port', function () {
+		var g = pair();
+		ok(validGraph, g);
+		var changed = function (use) { var d = resolve(use); d.nodes.thick.in.value = 7; return d; };
+		(function () { Graph.compile(g, { resolve : changed }); }).should.throw(/pins "crank.graph.json" at ab48366aa4f650ee, but it is now [0-9a-f]{16}/);
+		(function () { Graph.compile(g); }).should.throw(/nothing was given to resolve components/);
+		var self = { version : 2, nodes : { me : { type : 'component', use : 'self.json' } }, outputs : { s : '@me.s' } };
+		(function () { Graph.compile(self, { resolve : function () { return self; } }); }).should.throw(/uses itself \(self.json → self.json\)/);
+		g = pair(); g.nodes.crank2.in.crank_ = 3;
+		(function () { Graph.compile(g, { resolve : resolve }); }).should.throw(/node "crank2" \(component\) has no input "crank_"/);
+		g = pair(); g.outputs['rod-2'] = '@crank2.crankshaft';
+		(function () { Graph.compile(g, { resolve : resolve }); }).should.throw(/output "rod-2"/);
+		g = pair(); g.nodes.rod2.use = 'x';
+		(function () { Graph.compile(g, { resolve : resolve }); }).should.throw(/only a component has/);
+		// a number node named like an instance's parameter would clash
+		g = pair(); g.nodes.crank1__rod = { type : 'number', in : { value : 1 } };
+		(function () { Graph.compile(g, { resolve : resolve }); }).should.throw(/would be named "crank1__rod", which is already a number node/);
+	});
+
+	it('the hash ignores meta and view', function () {
+		var a = crank(), b = crank();
+		b.meta = { name : 'x' }; b.view = { nodes : { disc : { x : 3, y : 4 } } };
+		Graph.hash(a).should.equal(Graph.hash(b));
+		b.nodes.thick.in.value = 6.5;
+		Graph.hash(a).should.not.equal(Graph.hash(b));
 	});
 });

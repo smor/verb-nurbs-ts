@@ -40,9 +40,9 @@ and USD. The key distinction is between a **definition** (what a thing is) and a
 | **Make check** | a part checked for manufacture: closed, oriented, walls, machine (the verdict) | |
 | **Fit check** | (later) an assembly checked for clearance and interference between its instances | interference detection |
 
-Today a document has nodes, parameters (its `number` nodes, set from outside with `set`) and parts (its outputs).
-Components, instances, placements, assemblies, variants, regions and imported parts are the planned additions,
-named here first so that they keep these names.
+Today a document has nodes, parameters (its `number` nodes, set from outside with `set`), parts (its outputs), and
+instances of components (below). Placements on outputs, assemblies, variants, regions, imported parts and joints are
+the planned additions, named here first so that they keep these names.
 
 ## Units
 
@@ -138,6 +138,47 @@ a project passes its own parameters (a 507 movement's `crank`, `rod`) into a par
 content, a part that does not read the parameter that changed is not rebuilt, and evaluating several outputs of one
 document shares every feature they have in common.
 
+### Components
+
+Any graph document is a component: another document uses it through a node of type `component`, one instance per
+node.
+
+```json
+"nodes": {
+  "throw":  { "type": "number", "in": { "value": 25 } },
+  "crank1": { "type": "component", "use": "crank.graph.json", "hash": "ab48366aa4f650ee" },
+  "crank2": { "type": "component", "use": "crank.graph.json", "hash": "ab48366aa4f650ee",
+              "in": { "crank": "@throw", "rod": "throw * 3" } },
+  "rod2":   { "type": "transform/move", "in": { "of": "@crank2.connecting-rod", "y": 60 } }
+},
+"outputs": { "flywheel-1": "@crank1.flywheel", "rod-2": "@rod2" }
+```
+
+(`test/fixtures/formats/crank-pair.graph.json`.)
+
+* **`use`** names the component's document. The library never reads files itself: the caller passes
+  `resolve( use, from )` in the options, which returns the document (`from` is the `use` of the document the node is
+  in, `null` at the top, so relative paths can be resolved). The same document may be used by any number of instances.
+* **`hash`** (optional, recommended for anything shared) pins the component's content: `Graph.hash( doc )`, which
+  leaves out `meta` and `view`. If the component changed since, the instance is refused with both hashes in the
+  message, so a change is noticed and accepted on purpose (update the hash), never picked up silently.
+* **Inputs are the component's parameters**: its `number` nodes, by id. An instance sets them in `in` like any number
+  input (a literal, an expression over its own document's number nodes, or a wire); those it leaves out keep the
+  component's values.
+* **Outputs are the component's outputs**, by name: `"@crank2.connecting-rod"` is a solid wire like any other, and can
+  be an output of the using document (`"flywheel-1": "@crank1.flywheel"`).
+* **Names nest.** Each feature of an instance is named after the instance first: `crank1/disc`, so its faces are
+  `crank1/disc.top`, and through a transform every feature id on the path carries it (`part/cone/part/coneShape.side`).
+  Edge and face patterns inside the component are renamed the same way, so a component's own fillets select the same
+  edges in every instance. The instance's parameters become `crank1__crank` in the compiled model document.
+* **What is refused:** a component that uses itself (directly or not), a `use` with nothing to resolve it, a pinned
+  hash that does not match, an input or an output the component does not have, `use` or `hash` on another node, and
+  a number node whose id is already an instance's compiled parameter name (`crank1__rod`).
+* **Limits.** A component whose output is a round can be moved, rotated and uniformly scaled, but not yet combined
+  in a further Boolean, since a round is the last feature of a model (docs/model.md, "Limits", says why and what
+  it would take); a lattice cannot be moved either. The node editor shows
+  components' outputs in files it opens but cannot open their documents yet.
+
 ## Model document, version 1
 
 The compiled form, and the format of `docs/model.md`, which explains each feature type. In short:
@@ -193,7 +234,9 @@ These rules let another project depend on the formats by path or by version and 
 
 These will be added without breaking version 2 documents:
 
-* groups (a document used as a node, with its inputs and outputs, names nested `<group>/<name>`);
+* placements on outputs, and assemblies of placed instances, with a fit check;
+* variants (named sets of a component's parameter values);
+* imported parts (meshes pinned by hash);
 * coloured or multi-material regions of a part (likely face-name patterns per output);
 * 2D profiles, extrusion and patterns (gears, cams, slots), and curve and surface nodes;
 * lists and lacing.

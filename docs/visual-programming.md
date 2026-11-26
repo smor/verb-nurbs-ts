@@ -369,7 +369,10 @@ Graph.compile( doc );         // the version 1 model document it runs
 * **Several outputs**, by name, each a part (`{ "flywheel": "@flywheel", "connecting-rod": "@rod" }`); `evaluate`
   and `compile` take `{ output, set }` to pick one and to set number nodes from outside. The editor's **Make output**
   adds or removes a solid node from them, and **Show** displays any solid node without changing the outputs.
-* **Not yet:** groups, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
+* **Components**: any graph document can be used as a node of type `component` (`use`, an optional pinning `hash`,
+  its number nodes as inputs, its outputs as outputs, names nested under the instance's id); this is the design's
+  group, specified in docs/formats.md.
+* **Not yet:** components in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
   renaming a node on the canvas (edit `label` in the file).
 
 ## Where it lives

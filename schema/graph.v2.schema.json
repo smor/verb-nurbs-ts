@@ -31,7 +31,7 @@
       },
       "additionalProperties": {
         "type": "string",
-        "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$"
+        "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$"
       }
     },
     "view": {
@@ -156,7 +156,8 @@
             "boolean/intersection",
             "boolean/difference",
             "finish/round",
-            "finish/shell"
+            "finish/shell",
+            "component"
           ]
         }
       },
@@ -1323,6 +1324,18 @@
           },
           "then": {
             "$ref": "#/$defs/finish.shell"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "component"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/component"
           }
         }
       ]
@@ -4976,7 +4989,7 @@
           "properties": {
             "of": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "solid: a solid, \"@node\""
             },
             "x": {
@@ -5028,7 +5041,7 @@
           "properties": {
             "of": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "solid: a solid, \"@node\""
             },
             "axis": {
@@ -5073,7 +5086,7 @@
           "properties": {
             "of": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "solid: a solid, \"@node\""
             },
             "factor": {
@@ -5109,12 +5122,12 @@
           "properties": {
             "a": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "a: a solid, \"@node\""
             },
             "b": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "b: a solid, \"@node\""
             }
           }
@@ -5142,12 +5155,12 @@
           "properties": {
             "a": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "a: a solid, \"@node\""
             },
             "b": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "b: a solid, \"@node\""
             }
           }
@@ -5175,12 +5188,12 @@
           "properties": {
             "from": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "from: a solid, \"@node\""
             },
             "minus": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "minus: a solid, \"@node\""
             }
           }
@@ -5208,7 +5221,7 @@
           "properties": {
             "of": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "solid: a solid, \"@node\""
             },
             "radius": {
@@ -5258,7 +5271,7 @@
           "properties": {
             "of": {
               "type": "string",
-              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "solid: a solid, \"@node\""
             },
             "thickness": {
@@ -5274,6 +5287,44 @@
               "description": "open faces",
               "default": ""
             }
+          }
+        }
+      }
+    },
+    "component": {
+      "title": "Component",
+      "description": "An instance of another graph document (docs/formats.md, Components)",
+      "type": "object",
+      "required": [
+        "type",
+        "use"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "component"
+        },
+        "use": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": [
+              "number",
+              "string"
+            ]
           }
         }
       }

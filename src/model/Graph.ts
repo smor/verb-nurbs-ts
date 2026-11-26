@@ -28,7 +28,7 @@ export type GraphPort =
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
     title : string;
-    category : "parameter" | "math" | "primitive" | "transform" | "boolean" | "finish";
+    category : "parameter" | "math" | "primitive" | "transform" | "boolean" | "finish" | "component";
     help : string;
     inputs : { [port : string] : GraphPort };
     outputs : { [port : string] : GraphWire };
@@ -36,7 +36,12 @@ export interface GraphNodeType {
 
 /** A node of a graph document. */
 export interface GraphNode {
+    // a type of `Graph.REGISTRY`, or "component": an instance of another document (docs/formats.md, "Components")
     type : string;
+    // for a component: the document it is an instance of, as the caller's `resolve` understands it (a path)
+    use? : string;
+    // for a component: the content hash the document must have (`Graph.hash`), so a changed component is noticed
+    hash? : string;
     in? : { [port : string] : ModelValue };
     // shown on the canvas; never used in names, so renaming a node keeps its faces' names
     label? : string;
@@ -65,7 +70,13 @@ export interface GraphOptions {
     output? : string;
     // values for `number` nodes, by id, replacing their own
     set? : { [id : string] : ModelValue };
+    // finds the document a component node uses: `use` as written, and the `use` of the document it is written in
+    // (null at the top), so that relative paths can be resolved
+    resolve? : ( use : string, from : string | null ) => GraphDocument;
 }
+
+// A document compiled whole: every parameter and feature, and the feature each output names.
+interface Compiled { parameters : { [name : string] : ModelValue }, features : { [id : string] : ModelFeature }, outputs : { [name : string] : string } }
 
 /** A graph evaluated: the model's result, the model document it compiled into, and each node's state. */
 export interface GraphResult extends ModelResult {
@@ -82,7 +93,9 @@ const TOP = ["version", "nodes", "outputs", "view", "meta", "machine"];
 const ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // an output's name: an id that may also hold "-" (a part's name, "axle-washer"); never used in expressions
 const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
-const REF = /^@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_ ]*))?$/;
+const REF = /^@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_ -]*))?$/;
+// a name inside an expression (not part of a number like 1e5, nor after a ".")
+const WORD = /(?<![A-Za-z0-9_.])[A-Za-z_][A-Za-z0-9_]*/g;
 
 const num = ( label : string, value : number, min : number, max : number, step = 1, unit? : string ) : GraphPort =>
     ({ kind : "number", label : label, value : value, min : min, max : max, step : step, unit : unit });
@@ -136,6 +149,12 @@ export class Graph {
         for (const id of Object.keys( doc.nodes )) {
             const t = Graph.REGISTRY[doc.nodes[id].type];
             const f = r.features[id];
+            if (doc.nodes[id].type == "component") {
+                // an instance: built if any of its features was, unused if none is upstream of the output
+                const mine = Object.keys( r.features ).filter( k => k.startsWith( id + "/" ) );
+                nodes[id] = mine.length == 0 ? "unused" : mine.some( k => r.features[k].built ) ? "built" : "cached";
+                continue;
+            }
             nodes[id] = Graph.isNumber( t ) ? "parameter" : f == null ? "unused" : f.built ? "built" : "cached";
         }
         return { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes };
@@ -150,6 +169,36 @@ export class Graph {
      * for something other than a `number` node. Every output is checked, whichever one is compiled.
      */
     public static compile( doc : GraphDocument, options : GraphOptions = {} ) : ModelDocument {
+        const c = Graph.compileAll( doc, options, [] );
+        const names = Object.keys( doc.outputs );
+        const want = options.output ?? names[0];
+        let output : string;
+        if (want.startsWith( "@" )) {
+            const m = REF.exec( want.trim() );
+            const f = m == null ? null : m[2] == null ? m[1] : c.features[m[1] + "/" + (c.outputs[`${m[1]}.${m[2]}`] ?? "")] != null ? m[1] + "/" + c.outputs[`${m[1]}.${m[2]}`] : null;
+            if (f == null || c.features[f] == null) throw new Error( `Graph: the output "${want}" is ${JSON.stringify( want )}, not a reference to a solid node` );
+            output = f;
+        } else {
+            if (c.outputs[want] == null) throw new Error( `Graph: the document has no output "${want}" (${names.join( ", " )})` );
+            output = c.outputs[want];
+        }
+        const model : ModelDocument = { version : 1, parameters : c.parameters, features : c.features, output : output };
+        if (doc.machine != null) model.machine = doc.machine;
+        return model;
+    }
+
+    /**
+     * The content hash of a graph document: what a component node's `hash` pins. `meta` and `view` are left out, so
+     * moving a node or renaming the document does not change it.
+     */
+    public static hash( doc : GraphDocument ) : string {
+        return Model.hash( Model.canonical( { version : doc.version, nodes : doc.nodes, outputs : doc.outputs, machine : doc.machine } ) );
+    }
+
+    // Compiles a whole document: every parameter, every feature, and the feature of each output (plus, for each
+    // instance's output, "instance.output" to the feature inside it, without the instance's prefix). `stack`: the
+    // components being compiled, outermost first, to refuse a component that uses itself.
+    private static compileAll( doc : GraphDocument, options : GraphOptions, stack : Array<string> ) : Compiled {
         if (doc.version !== 2) throw new Error( `Graph: unknown document version ${String( ( doc as { version? : unknown } ).version )}` );
         for (const k of Object.keys( doc )) if (!TOP.includes( k )) throw new Error( `Graph: "${k}" is not a key of a graph document (${TOP.join( ", " )})` );
         let nodes = doc.nodes ?? {};
@@ -161,10 +210,26 @@ export class Graph {
             }
         }
         const numbers = new Set<string>();
+        // each node's type; a component's is made from the document it uses
+        const types : { [id : string] : GraphNodeType } = {};
+        const inner : { [id : string] : { doc : GraphDocument, compiled : Compiled } } = {};
+        const from = stack.length == 0 ? null : stack[stack.length - 1];
         for (const [id, n] of Object.entries( nodes )) {
             if (!ID.test( id )) throw new Error( `Graph: "${id}" is not a valid node id (letters, digits and _, not starting with a digit)` );
-            const t = Graph.REGISTRY[n.type];
+            if (n.type == "component") {
+                if (typeof n.use != "string" || n.use == "") throw new Error( `Graph: component "${id}" has no "use"` );
+                if (options.resolve == null) throw new Error( `Graph: component "${id}" uses "${n.use}", but nothing was given to resolve components` );
+                if (stack.includes( n.use )) throw new Error( `Graph: component "${id}" uses "${n.use}", which uses itself (${[...stack, n.use].join( " → " )})` );
+                const used = options.resolve( n.use, from );
+                if (n.hash != null && Graph.hash( used ) != n.hash)
+                    throw new Error( `Graph: component "${id}" pins "${n.use}" at ${n.hash}, but it is now ${Graph.hash( used )}` );
+                const compiled = Graph.compileAll( used, { resolve : options.resolve }, [...stack, n.use] );
+                inner[id] = { doc : used, compiled : compiled };
+                types[id] = Graph.componentType( n.use, used );
+            } else if (n.use != null || n.hash != null) throw new Error( `Graph: node "${id}" has "use" or "hash", which only a component has` );
+            const t = types[id] ?? Graph.REGISTRY[n.type];
             if (t == null) throw new Error( `Graph: node "${id}" has an unknown type "${n.type}"` );
+            types[id] = t;
             for (const k of Object.keys( n.in ?? {} )) if (t.inputs[k] == null) throw new Error( `Graph: node "${id}" (${n.type}) has no input "${k}"` );
             if (Graph.isNumber( t )) {
                 // a number node is a parameter, named by its id in expressions
@@ -178,15 +243,16 @@ export class Graph {
             if (m == null) throw new Error( `Graph: "${id}.${k}" must be a reference like "@node", not "${v}"` );
             const src = nodes[m[1]];
             if (src == null) throw new Error( `Graph: "${id}.${k}" refers to "${m[1]}", which is not a node` );
-            const outs = Graph.REGISTRY[src.type].outputs;
+            const outs = types[m[1]].outputs;
             const port = m[2] ?? Object.keys( outs )[0];
             if (outs[port] == null) throw new Error( `Graph: "${id}.${k}" refers to "${m[1]}.${port}", which is not an output` );
             if (outs[port] != want) throw new Error( `Graph: "${id}.${k}" takes a ${want}, but "${m[1]}.${port}" is a ${outs[port]}` );
-            return m[1];
+            // an instance's output is a feature inside it
+            return inner[m[1]] != null ? m[1] + "/" + inner[m[1]].compiled.outputs[port] : m[1];
         };
         // a number input: literal, expression over number nodes ("@h" may stand for "h"), or a wire
         const number = ( id : string, k : string ) : ModelValue => {
-            const p = Graph.REGISTRY[nodes[id].type].inputs[k] as Extract<GraphPort, { kind : "number" }>;
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "number" }>;
             const v = nodes[id].in?.[k] ?? p.value;
             if (typeof v == "number") return v;
             if (typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be a number or an expression` );
@@ -197,7 +263,7 @@ export class Graph {
             return `(${text})`;
         };
         const input = ( id : string, k : string ) : ModelValue => {
-            const p = Graph.REGISTRY[nodes[id].type].inputs[k];
+            const p = types[id].inputs[k];
             const v = nodes[id].in?.[k];
             switch (p.kind) {
                 case "number": return number( id, k );
@@ -218,8 +284,21 @@ export class Graph {
         const parameters : { [name : string] : ModelValue } = {};
         const features : { [id : string] : ModelFeature } = {};
         for (const [id, n] of Object.entries( nodes )) {
-            const t = Graph.REGISTRY[n.type];
+            const t = types[id];
             const at = ( k : string ) => input( id, k );
+            if (n.type == "component") {
+                // the instance: the component's parameters and features under names prefixed with the instance's id,
+                // its parameters set from the instance's inputs
+                const c = inner[id].compiled;
+                const own = ( name : string ) => `${id}__${name}`;
+                const rename = Graph.renamer( id + "/", name => c.parameters[name] != null ? own( name ) : name );
+                for (const [name, v] of Object.entries( c.parameters )) {
+                    if (numbers.has( own( name ) )) throw new Error( `Graph: the parameter "${name}" of component "${id}" would be named "${own( name )}", which is already a number node` );
+                    parameters[own( name )] = n.in?.[name] != null ? number( id, name ) : rename.value( v );
+                }
+                for (const [fid, f] of Object.entries( c.features )) features[id + "/" + fid] = rename.feature( f );
+                continue;
+            }
             const asNum = at;
             if (n.type == "number") { parameters[id] = asNum( "value" ); continue; }
             if (n.type == "expression") {
@@ -277,25 +356,78 @@ export class Graph {
                 default: throw new Error( `Graph: node type "${n.type}" has no compiler` );
             }
         }
-        // every output names a solid node; the one asked for (by name, or "@id") is the model's output
+        // every output names a solid node, or an instance's output
         const solidOf = ( name : string, ref : unknown ) : string => {
             const m = typeof ref == "string" ? REF.exec( ref.trim() ) : null;
-            if (m == null || features[m[1]] == null) throw new Error( `Graph: the output "${name}" is ${JSON.stringify( ref )}, not a reference to a solid node` );
-            return m[1];
+            const sub = m == null ? null : inner[m[1]];
+            const f = m == null ? null : sub != null ? (m[2] != null && sub.compiled.outputs[m[2]] != null ? m[1] + "/" + sub.compiled.outputs[m[2]] : null)
+                : m[2] == null || types[m[1]]?.outputs[m[2]] == "solid" ? m[1] : null;
+            if (f == null || features[f] == null) throw new Error( `Graph: the output "${name}" is ${JSON.stringify( ref )}, not a reference to a solid node` );
+            return f;
         };
         const outputs = doc.outputs ?? {};
         const names = Object.keys( outputs );
         if (names.length == 0) throw new Error( `Graph: the document has no outputs` );
+        const resolved : { [name : string] : string } = {};
         for (const name of names) {
             if (!NAME.test( name )) throw new Error( `Graph: "${name}" is not a valid output name (letters, digits, _ and -, starting with a letter or _)` );
-            solidOf( name, outputs[name] );
+            resolved[name] = solidOf( name, outputs[name] );
         }
-        const want = options.output ?? names[0];
-        if (!want.startsWith( "@" ) && outputs[want] == null) throw new Error( `Graph: the document has no output "${want}" (${names.join( ", " )})` );
-        const output = solidOf( want, want.startsWith( "@" ) ? want : outputs[want] );
-        const model : ModelDocument = { version : 1, parameters : parameters, features : features, output : output };
-        if (doc.machine != null) model.machine = doc.machine;
-        return model;
+        // for "@instance.output" references from `compile`
+        for (const [id, sub] of Object.entries( inner ))
+            for (const [name, f] of Object.entries( sub.compiled.outputs )) resolved[`${id}.${name}`] = f;
+        return { parameters : parameters, features : features, outputs : resolved };
+    }
+
+    // The node type of a component: its `number` nodes are its inputs (with their values, when numbers, as defaults),
+    // its outputs its solid outputs.
+    private static componentType( use : string, doc : GraphDocument ) : GraphNodeType {
+        const inputs : { [port : string] : GraphPort } = {};
+        for (const [id, n] of Object.entries( doc.nodes ?? {} )) {
+            if (n.type != "number") continue;
+            const v = n.in?.value;
+            const value = typeof v == "number" ? v : Number.NaN;
+            inputs[id] = { kind : "number", label : n.label ?? id, value : value, min : Math.min( 0, value || 0 ), max : Math.max( 4 * (value || 0), 50 ), step : 0.5 };
+        }
+        const outputs : { [port : string] : GraphWire } = {};
+        for (const name of Object.keys( doc.outputs ?? {} )) outputs[name] = "solid";
+        return { title : doc.meta?.name ?? use, category : "component", help : doc.meta?.description ?? `An instance of ${use}`, inputs : inputs, outputs : outputs };
+    }
+
+    // Renames what a compiled component holds into an instance of it: features get `prefix` before every feature id
+    // (references, and each feature id of a face or edge pattern), parameters `param(name)` in every expression.
+    private static renamer( prefix : string, param : ( name : string ) => string ) {
+        const value = ( v : ModelValue ) : ModelValue => typeof v == "number" ? v : v.replace( WORD, w => param( w ) );
+        const point = ( p : [ModelValue, ModelValue, ModelValue] ) : [ModelValue, ModelValue, ModelValue] => [value( p[0] ), value( p[1] ), value( p[2] )];
+        const pair = ( p : [ModelValue, ModelValue] ) : [ModelValue, ModelValue] => [value( p[0] ), value( p[1] )];
+        const ref = ( id : string ) => prefix + id;
+        // "a/b.face|c.*" -> "p/a/p/b.face|p/c.*": every segment of a name's path is a feature id
+        const pattern = ( g : string ) => g.split( "|" ).map( term => {
+            const dot = term.indexOf( "." );
+            const path = dot < 0 ? term : term.slice( 0, dot ), rest = dot < 0 ? "" : term.slice( dot );
+            return path.split( "/" ).map( seg => prefix + seg ).join( "/" ) + rest;
+        } ).join( "|" );
+        const feature = ( f : ModelFeature ) : ModelFeature => {
+            switch (f.type) {
+                case "box": return { ...f, min : point( f.min ), max : point( f.max ), ...(f.divs != null ? { divs : value( f.divs ) } : {}) };
+                case "cylinder": return { ...f, from : point( f.from ), to : point( f.to ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
+                case "pipe": return { ...f, through : f.through.map( point ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
+                case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
+                case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
+                case "transform": return { ...f, of : ref( f.of ),
+                    ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
+                    ...(f.rotate != null ? { rotate : { axis : point( f.rotate.axis ), degrees : value( f.rotate.degrees ), ...(f.rotate.about != null ? { about : point( f.rotate.about ) } : {}) } } : {}),
+                    ...(f.translate != null ? { translate : point( f.translate ) } : {}) };
+                case "union": case "intersection": return { ...f, of : f.of.map( ref ) };
+                case "difference": return { ...f, from : ref( f.from ), minus : f.minus.map( ref ) };
+                case "round": return { ...f, of : ref( f.of ), rules : f.rules.map( r => ({ edges : pattern( r.edges ), radius : value( r.radius ) }) ) };
+                case "shell": return { ...f, of : ref( f.of ), thickness : value( f.thickness ), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
+                case "lattice": return { ...f, of : ref( f.of ), cell : value( f.cell ), wall : value( f.wall ),
+                    ...(f.skin != null ? { skin : value( f.skin ) } : {}), ...(f.blend != null ? { blend : value( f.blend ) } : {}), ...(f.size != null ? { size : value( f.size ) } : {}),
+                    ...(f.grade != null ? { grade : { axis : f.grade.axis, to : value( f.grade.to ) } } : {}), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
+            }
+        };
+        return { value : value, feature : feature };
     }
 
     /**
@@ -320,6 +452,12 @@ export class Graph {
             defs[type.replace( /\//g, "." )] = { title : t.title, description : t.help, type : "object", required : ["type"], additionalProperties : false,
                 properties : { type : { const : type }, label : { type : "string" }, in : { type : "object", additionalProperties : false, properties : ports } } };
         }
+        // an instance of another document: its inputs are that document's number nodes, so any name
+        defs["component"] = { title : "Component", description : "An instance of another graph document (docs/formats.md, Components)", type : "object",
+            required : ["type", "use"], additionalProperties : false,
+            properties : { type : { const : "component" }, use : { type : "string", minLength : 1 }, hash : { type : "string", pattern : "^[0-9a-f]{16}$" },
+                label : { type : "string" }, in : { type : "object", propertyNames : { pattern : ID.source }, additionalProperties : value } } };
+        types.push( "component" );
         return {
             $schema : "https://json-schema.org/draft/2020-12/schema",
             $id : "https://github.com/smor/verb-nurbs-ts/schema/graph.v2.schema.json",
