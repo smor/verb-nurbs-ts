@@ -14,6 +14,10 @@ import { Graph, Expr } from "../src/index.js";
 import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
 import { SAMPLES } from "./samples.js";
 import { History } from "./history.js";
+import { NumberField, ToggleField, ChoiceField } from "./controls/NumberField.js";
+import { ParamMenu } from "./controls/ParamMenu.js";
+import type { ParamMeta } from "./controls/ParamMenu.js";
+import { resolve as resolveRange } from "./controls/math.js";
 import { layout } from "./shelf.js";
 import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY, inViewer, zip } from "./storage.js";
 import type { ShelfSpec, Box } from "./shelf.js";
@@ -76,7 +80,7 @@ function record( key : string | null = null ) {
 // The analysis mesh comes first; the view mesh (from the exact shell, within 0.1 mm) replaces it when ready (refine).
 interface Mesh { pos? : Float32Array; idx? : Uint32Array; face? : Uint32Array; names? : Array<string>; normal? : Float32Array; refine? : boolean; deviation? : number | null }
 interface Result extends Mesh { seq : number; ok : boolean; ms : number; error? : string; volume? : number; faces? : number;
-    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean }
+    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean; params? : Record<string, number> }
 // one output of a shelf evaluation, sent as soon as it is built, and again with its view mesh
 interface Part extends Mesh { seq : number; part : string; pos : Float32Array; idx : Uint32Array; verdict : string }
 const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { type : "text/javascript" } ) ) );
@@ -87,11 +91,45 @@ let fitWanted = true, fitAt = 0;
 let SHELF = false;
 let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {}, partListener : ( p : Part ) => void = () => {},
     refineListener : ( m : Mesh ) => void = () => {};
+// ---------------------------------------------------------------- parameters
+// How a number node shows lives in view.params[id] (it never changes what is built). Its range is fixed for the session
+// once seen (a range recomputed from the current value would move under the thumb), and soft: typing beyond is allowed.
+const metaOf = ( id : string ) : ParamMeta => ((DOC.view as { params? : Record<string, ParamMeta> } | undefined)?.params ?? {})[id] ?? {};
+const setMeta = ( id : string, m : ParamMeta ) => {
+    DOC.view = DOC.view ?? {};
+    const v = DOC.view as { params? : Record<string, ParamMeta> };
+    v.params = { ...(v.params ?? {}), [id] : m };
+};
+const sessionRange = new Map<string, { min : number, max : number, step : number }>(), openValue = new Map<string, number>();
+const forgetSession = () => { sessionRange.clear(); openValue.clear(); };
+function rangeOf( key : string, value : number, given : { min? : number, max? : number, step? : number }, whole : boolean, tame : boolean ) {
+    const k = `${key}|${given.min}|${given.max}|${given.step}`;
+    if (!sessionRange.has( k )) sessionRange.set( k, resolveRange( isFinite( value ) ? value : 0, given, whole, tame ) );
+    if (!openValue.has( key ) && isFinite( value )) openValue.set( key, value );
+    return sessionRange.get( k )!;
+}
+// Live or on release: decided at the start of each gesture from the median of the last three rebuilds, with
+// hysteresis (live below 120 ms, on release above 250 ms)
+const times : Array<number> = [];
+let liveMode = true;
+function noteTime( ms : number ) {
+    times.push( ms );
+    if (times.length > 3) times.shift();
+    const m = [...times].sort( (a, b) => a - b )[Math.floor( times.length / 2 )];
+    if (liveMode && m > 250) liveMode = false; else if (!liveMode && m < 120) liveMode = true;
+}
+const typicalMs = () => times.length ? [...times].sort( (a, b) => a - b )[Math.floor( times.length / 2 )] : 0;
+// what each evaluation was of, to offer the last buildable state back
+const sent = new Map<number, string>();
+let lastGood : string | null = null;
+
 function evaluate() {
     if (busy && !SHELF) { pending = true; return; }
     busy = true;
     const shown = shownNode();
     worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown, shelf : SHELF } );
+    sent.set( seq, JSON.stringify( DOC ) );
+    for (const k of sent.keys()) if (k < seq - 20) sent.delete( k );
     if (fitWanted) { fitWanted = false; fitAt = seq; }
 }
 worker.onmessage = ( e : MessageEvent<Result | Part | StlReply> ) => {
@@ -117,29 +155,46 @@ function requestStl( output : string, name : string ) : Promise<StlReply> {
 const fileName = ( s : string ) => s.normalize( "NFD" ).replace( /[\u0300-\u036f]/g, "" ).replace( /[^A-Za-z0-9_-]+/g, "-" ).replace( /^-|-$/g, "" ) || "graph";
 
 // ---------------------------------------------------------------- nodes
-const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void }>( { status : {}, shown : "", changed : () => {} } );
+interface Edit {
+    // a value while a gesture lasts (rebuilt live when rebuilds are quick), and the gesture's end (an undo step)
+    preview( id : string, k : string, v : number ) : void;
+    commit( id : string, k : string, v : number | string, key : string ) : void;
+    holding( on : boolean ) : void;
+    menu( id : string, at : { x : number, y : number } ) : void;
+    locate( id : string ) : void;
+    params : Record<string, number>;
+}
+const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void, edit : Edit | null }>( { status : {}, shown : "", changed : () => {}, edit : null } );
+
+// A number input of a node, or a parameter of the panel: a number node shows as its kind (number, switch, choice);
+// another node's number port as a compact number with a range tamed to its value
+function ParamControl( { id, k, port, full } : { id : string, k : string, port : Extract<GraphPort, { kind : "number" }>, full? : boolean } ) {
+    const { edit } = useContext( Ctx );
+    if (edit == null) return null;
+    const isParam = DOC.nodes[id].type == "number";
+    const meta = isParam ? metaOf( id ) : {};
+    const raw = DOC.nodes[id].in?.[k];
+    const value : number | string = typeof raw == "number" || typeof raw == "string" ? raw : port.value;
+    const computed = typeof value == "string" ? (isParam ? edit.params[id] ?? null : null) : null;
+    const label = full ? (DOC.nodes[id].label ?? id) : port.label;
+    const fid = `p-${id}-${k}${full ? "-panel" : ""}`;
+    if (meta.kind == "toggle") return <ToggleField label={label} id={fid} value={Number( value ) || 0} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
+    if (meta.kind == "choice" && meta.presets && meta.presets.length > 1)
+        return <ChoiceField label={label} id={fid} value={Number( value )} options={meta.presets} segments={full ? 5 : 3} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
+    const n = typeof value == "number" ? value : computed ?? port.value;
+    const range = rangeOf( `${id}.${k}`, n, isParam ? { min : meta.min, max : meta.max, step : meta.step } : { min : port.min, max : port.max, step : port.step }, !!port.integer, !isParam );
+    return <NumberField label={label} id={fid} value={value} computed={computed} range={range} compact={!full} unit={meta.unit ?? port.unit}
+        hard={port.integer ? { integer : true } : undefined} defaultValue={meta.default ?? openValue.get( `${id}.${k}` )}
+        presets={meta.kind == "choice" ? undefined : meta.presets} live={() => liveMode}
+        onPreview={v => edit.preview( id, k, v )} onCommit={( v, key ) => edit.commit( id, k, v, key )} onHolding={edit.holding}
+        onMenu={isParam ? at => edit.menu( id, at ) : undefined} onLocate={full ? () => edit.locate( id ) : undefined} />;
+}
 
 function NumberInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "number" }> } ) {
-    const { changed } = useContext( Ctx );
-    const v = DOC.nodes[id].in?.[k];
-    const shown = String( v ?? port.value );
-    const [text, setText] = useState( shown );
-    useEffect( () => setText( shown ), [shown] );
-    const set = ( x : ModelValue, key? : string ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : x }; changed( key ); };
-    const commit = () => set( text.trim() != "" && !isNaN( +text ) ? +text : text.trim() );
-    const r = ref( v );
+    const r = ref( DOC.nodes[id].in?.[k] );
     return <div className="row">
         <Handle type="target" position={Position.Left} id={k} className="h-number" />
-        <span className="lbl">{port.label}</span>
-        {r ? <span className="wired">← {DOC.nodes[r[0]]?.label ?? r[0]}</span> : <>
-            {typeof v == "string"
-                ? <span className="expr-tag" title="An expression over number nodes">ƒ</span>
-                : <input className="nodrag" type="range" aria-label={port.label} min={port.min} max={port.max} step={port.step} value={Number( v ?? port.value )}
-                    onChange={e => { setText( e.target.value ); set( +e.target.value, id + "." + k ); }} />}
-            <input className="nodrag val" aria-label={port.label + " value or expression"} value={text} onChange={e => setText( e.target.value )}
-                onBlur={commit} onKeyDown={e => { if (e.key == "Enter") (e.target as HTMLInputElement).blur(); }} />
-            {port.unit && <span className="unit">{port.unit}</span>}
-        </>}
+        {r ? <><span className="lbl">{port.label}</span><span className="wired">← {DOC.nodes[r[0]]?.label ?? r[0]}</span></> : <ParamControl id={id} k={k} port={port} />}
     </div>;
 }
 
@@ -439,13 +494,38 @@ function PieceCard( { name, x, y } : { name : string, x : number, y : number } )
     </div>;
 }
 
+// ---------------------------------------------------------------- the parameters panel
+// Every number node, grouped (view.params[id].group, else "Parameters"), with full controls. Hovering a row lights its
+// node on the canvas; a click on the label shows it.
+function ParamPanel() {
+    const [closed, setClosed] = useState<Record<string, boolean>>( {} );
+    const ids = Object.keys( DOC.nodes ).filter( id => DOC.nodes[id].type == "number" );
+    if (ids.length == 0) return <p className="muted small pp-empty">This graph has no number nodes. Add one from the palette (Parameters) and wire it or name it in expressions.</p>;
+    const order = ((DOC.view as { groups? : Array<string> } | undefined)?.groups) ?? [];
+    const groups = new Map<string, Array<string>>();
+    for (const g of order) groups.set( g, [] );
+    for (const id of ids) { const g = metaOf( id ).group ?? "Parameters"; if (!groups.has( g )) groups.set( g, [] ); groups.get( g )!.push( id ); }
+    const light = ( id : string, on : boolean ) => document.querySelector( `.react-flow__node[data-id="${CSS.escape( id )}"]` )?.classList.toggle( "lit", on );
+    const port = REGISTRY["number"].inputs.value as Extract<GraphPort, { kind : "number" }>;
+    return <div className="param-panel">
+        {[...groups].filter( ([, list]) => list.length > 0 ).map( ([g, list]) => <section key={g}>
+            <h3><button type="button" aria-expanded={!closed[g]} onClick={() => setClosed( c => ({ ...c, [g] : !c[g] }) )}>{g}<span className="pp-count">{list.length}</span></button></h3>
+            {!closed[g] && list.map( id => <div key={id} className="pp-row" onMouseEnter={() => light( id, true )} onMouseLeave={() => light( id, false )}>
+                {ref( DOC.nodes[id].in?.value ) ? <span className="muted small">{DOC.nodes[id].label ?? id}: wired</span> : <ParamControl id={id} k="value" port={port} full />}
+            </div> )}
+        </section> )}
+    </div>;
+}
+
 // ---------------------------------------------------------------- app
 function App() {
     const [nodes, setNodes, onNodesChange] = useNodesState( toNodes() );
     const [edges, setEdges, onEdgesChange] = useEdgesState( toEdges() );
     const [, setTick] = useState( 0 );
     const [result, setResult] = useState<Result | null>( null );
-    const [tab, setTab] = useState<"graph" | "model">( "graph" );
+    const [tab, setTab] = useState<"params" | "graph" | "model">( Object.values( DOC.nodes ).some( n => n.type == "number" ) ? "params" : "graph" );
+    const [holding, setHolding] = useState( false );
+    const [menuAt, setMenuAt] = useState<{ id : string, x : number, y : number } | null>( null );
     const [parts, setParts] = useState<Map<string, Part>>( new Map() );
     const [shelfMode, setShelfMode] = useState( false );
     const [big, setBig] = useState( false );
@@ -457,6 +537,7 @@ function App() {
     // every edit of the document goes through changed (or reload, for a whole new document), which records an undo step
     const changed = ( key? : string ) => { setTick( x => x + 1 ); setEdges( toEdges() ); setNodes( ns => ns.map( n => ({ ...n, data : {} }) ) ); record( key ?? null ); evaluate(); };
     const reload = ( fit = true ) => {
+        if (fit) forgetSession();
         if (fit) { fitWanted = true; setParts( new Map() ); setShelf( DOC.view?.shelf != null ); setBig( DOC.view?.shelf != null ); }
         setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate();
         if (fit) setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 );
@@ -466,6 +547,8 @@ function App() {
     useEffect( () => {
         listener = r => {
             setResult( r );
+            if (r.ok) noteTime( r.ms );
+            if (r.ok && r.verdict?.kind == "buildable" && sent.has( r.seq )) lastGood = sent.get( r.seq )!;
             // a finished shelf: drop pieces of outputs that are gone
             if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => DOC.outputs?.[k] != null ) ) );
         };
@@ -579,10 +662,23 @@ function App() {
             .catch( () => tell( "The link's graph could not be read" ) );
     }, [] );
 
+    // parameter edits: previews move the value (and rebuild live when rebuilds are quick); a commit is an undo step
+    const setValue = ( id : string, k : string, v : ModelValue ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : v }; };
+    const edit : Edit = {
+        preview : ( id, k, v ) => { setValue( id, k, v ); if (liveMode) evaluate(); },
+        commit : ( id, k, v, key ) => { setValue( id, k, v ); changed( key ); },
+        holding : on => setHolding( on ),
+        menu : ( id, at ) => setMenuAt( { id, ...at } ),
+        locate : id => { void flow.fitView( { nodes : [{ id }], duration : 300, maxZoom : 1.2 } ); },
+        params : result?.params ?? {},
+    };
+    const backToGood = () => { if (lastGood == null) return; DOC = JSON.parse( lastGood ) as GraphDocument; forgetSession(); reload( false ); record(); tell( "Back to the last buildable values" ); };
+    const unbuildable = result != null && (!result.ok || (result.verdict != null && result.verdict.kind != "buildable"));
+
     const shown = shownNode();
     const status = result?.nodes ?? {};
     const rebuilt = Object.keys( status ).filter( k => status[k] == "built" ), reused = Object.keys( status ).filter( k => status[k] == "cached" );
-    return <Ctx.Provider value={{ status, shown, changed }}>
+    return <Ctx.Provider value={{ status, shown, changed, edit }}>
         <main className={"layout" + (big ? " big" : "")}>
             <Palette add={add} />
             <section className="canvas" aria-label="Node graph">
@@ -611,13 +707,16 @@ function App() {
                     <Background gap={24} size={1} /><Controls showInteractive={false} /><MiniMap pannable zoomable />
                 </ReactFlow>
             </section>
-            <aside className="side">
+            <aside className={"side" + (tab == "params" ? " customizing" : "")}>
                 <div className="view3d">
                     <Viewport result={result} parts={parts} shelfMode={shelfMode} onHover={( name, x, y, kind ) => setHovered( name == null ? null : { name, x, y, kind } )} />
                     {hovered && (hovered.kind == "piece" ? <PieceCard name={hovered.name} x={hovered.x} y={hovered.y} />
                         : <div className="piece-card face" style={{ left : hovered.x + 14, top : hovered.y + 14 }} role="tooltip">face <b>{hovered.name}</b></div>)}
                 </div>
                 <div className="readout" aria-live="polite">
+                    {holding && <p className="hold-hint">Release to rebuild{typicalMs() > 0 ? ` (about ${typicalMs() < 1000 ? Math.round( typicalMs() / 100 ) / 10 : Math.round( typicalMs() / 1000 )} s)` : ""}</p>}
+                    {unbuildable && lastGood != null && lastGood != JSON.stringify( DOC ) &&
+                        <p className="back-good"><button type="button" onClick={backToGood}>Back to the last buildable values</button></p>}
                     {result == null ? <p className="muted">Building…</p> : result.ok ? <>
                         <div className="verdict-line">
                             <span className={"pill big " + (result.verdict!.kind == "buildable" ? "ok" : "warn")}>{result.verdict!.kind}</span>
@@ -629,17 +728,26 @@ function App() {
                         {!result.shelf && result.idx && <p className="muted small">{result.refine
                             ? `View mesh: ${(result.idx.length / 3).toLocaleString()} triangles from the exact faces, within ${result.deviation != null ? result.deviation.toFixed( 2 ) : "0.1"} mm`
                             : `Analysis mesh: ${(result.idx.length / 3).toLocaleString()} triangles; meshing the exact faces…`}</p>}
-                        <p className="small"><b>Rebuilt:</b> {rebuilt.join( ", " ) || "nothing"}{reused.length > 0 && <> · <b>From cache:</b> {reused.join( ", " )}</>}</p>
+                        <p className="small" title={(rebuilt.length ? "Rebuilt: " + rebuilt.join( ", " ) : "") + (reused.length ? "\nFrom cache: " + reused.join( ", " ) : "")}>
+                            <b>Rebuilt</b> {rebuilt.length <= 6 ? rebuilt.join( ", " ) || "nothing" : `${rebuilt.length} nodes`}
+                            {reused.length > 0 && <> · <b>from cache</b> {reused.length <= 6 ? reused.join( ", " ) : `${reused.length} nodes`}</>}</p>
                     </> : <p className="err" role="alert">{result.error}</p>}
                 </div>
                 <div className="json">
                     <div className="tabs" role="tablist">
+                        <button role="tab" aria-selected={tab == "params"} onClick={() => setTab( "params" )}>Customize</button>
                         <button role="tab" aria-selected={tab == "graph"} onClick={() => setTab( "graph" )}>Graph file</button>
                         <button role="tab" aria-selected={tab == "model"} onClick={() => setTab( "model" )}>Model document</button>
                     </div>
-                    <pre>{JSON.stringify( tab == "graph" ? DOC : result?.model ?? null, null, 2 )}</pre>
+                    {tab == "params" ? <ParamPanel /> : <pre>{JSON.stringify( tab == "graph" ? DOC : result?.model ?? null, null, 2 )}</pre>}
                 </div>
             </aside>
+            {menuAt && DOC.nodes[menuAt.id] && (() => {
+                const v = DOC.nodes[menuAt.id].in?.value, n = typeof v == "number" ? v : (result?.params?.[menuAt.id] ?? 0);
+                const r = rangeOf( `${menuAt.id}.value`, n, metaOf( menuAt.id ), false, false );
+                return <ParamMenu label={DOC.nodes[menuAt.id].label ?? menuAt.id} at={menuAt} meta={metaOf( menuAt.id )} effective={r} current={n}
+                    onClose={() => setMenuAt( null )} onSave={m => { setMeta( menuAt.id, m ); setMenuAt( null ); changed(); }} />;
+            })()}
         </main>
     </Ctx.Provider>;
 }

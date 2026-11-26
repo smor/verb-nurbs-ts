@@ -394,6 +394,14 @@ Graph.compile( doc );         // the version 1 model document it runs
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
   Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
+* **Parameters** (`editor/controls/`, see its README). Number nodes show as numbers, switches or choices, following
+  `view.params[id]` (`min`, `max`, `step`, `unit`, `default`, `kind`, `presets`, `group`; `view` never changes what is
+  built). In a node, a number is a compact row: drag the label to scrub, with a bar behind the value showing where it
+  sits in its range. The **Customize** tab lists every number node by group with full controls (−, slider, +,
+  presets), and opens first when the graph has any. Without a range, a value gets one at its own scale (a 3 mm wall
+  0–10 by 0.1). Ranges are soft and fixed for the session. Every gesture is one undo step. Previews rebuild live
+  while rebuilds take under 120 ms (the median of the last three) and only on release above 250 ms. A commit that
+  leaves the part unbuildable offers "Back to the last buildable values".
 * **Keeping and sharing** (`editor/storage.ts`). The document is autosaved in the browser (localStorage) with each
   undo step and reopened on the next visit. **Share link** copies a link holding the whole document, deflated, in its
   fragment (`#g=...`, never sent to a server): whoever opens it gets this graph with its parameters. **Save** and
