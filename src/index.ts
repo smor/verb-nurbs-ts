@@ -30,6 +30,8 @@ import { Check } from "./eval/Check.js";
 import { Divide, CurveLengthSample } from "./eval/Divide.js";
 import { Eval } from "./eval/Eval.js";
 import { Fair } from "./eval/Fair.js";
+import { THB } from "./eval/THB.js";
+export type { THBSpace, THBFunction, THBBasis, THBSample, THBFitOptions } from "./eval/THB.js";
 export type { FairCurveOptions, FairSurfaceOptions } from "./eval/Fair.js";
 import { Fit } from "./eval/Fit.js";
 import { Transfinite } from "./eval/Transfinite.js";
@@ -152,6 +154,7 @@ export {
     CurveLengthSample,
     Eval,
     Fair,
+    THB,
     Fit,
     Transfinite,
     EvalIntersect,
@@ -256,6 +259,7 @@ export const eval_ = {
     CurveLengthSample,
     Eval,
     Fair,
+    THB,
     Fit,
     Transfinite,
     Intersect: EvalIntersect,
