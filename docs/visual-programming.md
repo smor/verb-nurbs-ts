@@ -8,17 +8,17 @@ ours. It is a decision record: nothing here is built yet.
 ## Recommendation in short
 
 1. **The document and the evaluator stay ours.** The graph is a JSON document that extends the `Model` document
-   (`docs/model.md`): parameters, nodes keyed by id, inputs that name the node they come from, an output. A version 1
-   model document stays a valid graph. Evaluation extends `Model`'s content-hash cache, so an edit rebuilds only what
+   (`docs/model.md`): parameters, nodes keyed by id, inputs that reference the node they come from (`@rail`),
+   outputs. A version 1 model document is still read, rewritten into version 2 on load. Evaluation extends `Model`'s content-hash cache, so an edit rebuilds only what
    is downstream of it, the same document always gives the same result bit for bit, and persistent face names
    survive. No library offers this, and every library's engine would have to be bypassed to get it.
-2. **The editor canvas comes from a library: React Flow (`@xyflow/react`, MIT).** It is the most used and most
-   actively maintained of the candidates, it is TypeScript, its nodes are DOM elements (sliders, previews and
-   verdict badges are plain components), and its `{ nodes, edges }` state maps one to one onto our document. It is a
-   view: the document is the truth, the editor's nodes and edges are derived from it and written back to it.
-   Rete.js v2 is the runner-up (see the comparison).
-3. **Hierarchy is the document calling itself.** A graph document with parameters and an output is a node: a
-   `group` node that runs another document, with its parameters as the node's inputs. This is Houdini's digital
+2. **The editor canvas comes from a library: Rete.js v2 (`rete`, MIT), drawn by its React renderer.** Its core is
+   small and typed (a `NodeEditor` of nodes, sockets and connections), and everything else is a plugin we pick:
+   area, connections, history, context menu, minimap, auto-arrange. We use its editor and none of its engine. It is
+   a view: the document is the truth, and two functions (`toEditor`, `fromEditor`) map it onto the editor and back.
+   React Flow (`@xyflow/react`) was the other strong candidate (see the comparison and "Choosing Rete").
+3. **Hierarchy is the document calling itself.** A graph document with an interface (inputs, outputs) is a node: a
+   `group` node that runs another document, with its inputs as the node's ports. This is Houdini's digital
    asset, Blender's node group, Dynamo's custom node and Grasshopper's cluster, and it is what the design tree of
    features already is, one level deeper. Persistent names nest under the group's id, as they already nest under a
    `transform`'s.
@@ -128,53 +128,88 @@ How they fall out:
 * **Baklava** is the only one with format, engine, editor and real subgraphs in one package, which makes it tempting.
   Its engine recomputes rather than caches by content, its saved state names every interface by a fresh uuid (not
   hand-writable, and every save diffs), and it ties the editor to Vue. We would keep its core's ideas and replace its
-  engine and format, which leaves only the Vue editor: React Flow does that part better.
+  engine and format, which leaves only the Vue editor: Rete does that part with less tied to it.
 * **Rete.js v2** is clean, typed, modular and framework-agnostic in its core, with a dataflow engine that caches per
   node. It has no saved format (by design), its engine's cache is keyed by node id and cleared by hand (not by
-  content), and its renderer plugins still need React, Vue, Angular or Svelte. It is a good second choice, and the
-  one to pick if the editor must not depend on React.
+  content), and its renderer plugins still need React, Vue, Angular or Svelte. We take the editor and leave the
+  engine: then it has nothing to bypass either. Chosen; see "Choosing Rete".
 * **React Flow** does one thing, the canvas, and does it best: it is the most used node canvas in JavaScript, released
   three days before this was written, MIT, TypeScript, with DOM nodes that can hold anything. It has no engine and no
-  format, and here that is an advantage: ours are better suited to geometry, and nothing has to be bypassed.
+  format, and here that is an advantage: ours are better suited to geometry, and nothing has to be bypassed. The
+  close second.
+
+## Choosing Rete
+
+React Flow and Rete score almost the same here (table below); Rete was chosen for its simpler model. How to use it
+well:
+
+* **Editor only.** Install `rete`, `rete-area-plugin`, `rete-connection-plugin`, `rete-react-plugin` (React 18 or
+  later), `rete-history-plugin`, `rete-context-menu-plugin`, `rete-minimap-plugin`, `rete-auto-arrange-plugin`
+  (ELK layout). Do not use `rete-engine`: evaluation is the worker's, by content hash.
+* **Renderer.** The official renderers are React, Vue, Angular and Svelte (all released 2026-07). The Lit renderer is
+  a third-party one, not released since 2023: avoid it. React is the simplest with our build, since esbuild compiles
+  TSX with no plugin. Svelte is smaller but needs `esbuild-svelte`.
+* **The document is the truth.** On every user edit (add a node, connect, change a control) the editor is read back
+  into the document (`fromEditor`), the document goes to the worker, and statuses come back as node badges. Rete
+  has no saved format, so nothing competes with ours. Undo is a stack of documents, or `rete-history-plugin` with a
+  document write after each step.
+* **Sockets are typed from the registry.** One `ClassicPreset.Socket` per port type (`number`, `curve`, `solid`, ...);
+  the connection plugin refuses a wire between types that do not convert. Controls (`ClassicPreset.InputControl`,
+  or our own React slider) edit literals and expressions.
+* **Groups: drill down, not nest.** `rete-scopes-plugin` draws nodes inside a parent node on one canvas, which gets
+  crowded fast and has not been released since 2024. Open a group in its own editor instead (double click, with a
+  breadcrumb back), as Houdini does with subnets. One `NodeEditor` per open group.
+* **Scale.** Nodes are DOM elements, as in React Flow: a few hundred per canvas stay smooth. Groups keep canvases
+  small.
 
 ## Comparison for this project
 
 Scored 0 (none) to 3 (good) against what this project needs.
 
-| Need | React Flow | Rete v2 | Baklava | LiteGraph | behave-graph |
+| Need | React Flow | Rete v2 (chosen) | Baklava | LiteGraph | behave-graph |
 |---|---|---|---|---|---|
 | Our JSON stays the source of truth | 3 (pure view) | 3 (no format) | 1 (its own state) | 1 (its own, positional) | 2 (similar, but its own) |
-| Content-hash caching, determinism, worker | 3 (ours, nothing to bypass) | 2 (bypass its engine) | 1 (replace its engine) | 1 (replace its loop) | 1 (replace its engine) |
+| Content-hash caching, determinism, worker | 3 (ours, nothing to bypass) | 3 (its engine left out) | 1 (replace its engine) | 1 (replace its loop) | 1 (replace its engine) |
 | Rich node bodies: sliders, previews, verdicts | 3 (DOM components) | 3 (DOM components) | 2 (Vue components) | 2 (drawn on canvas) | 0 (no editor) |
-| Hierarchy (groups) | 2 (visual; semantics ours) | 2 (scopes plugin) | 3 (graph templates) | 2 (subgraphs) | 0 |
+| Simplicity of the model | 2 (nodes, edges, hooks) | 3 (nodes, sockets, connections, plugins) |
+| Hierarchy (groups) | 2 (visual; semantics ours) | 2 (scopes plugin; drill-down ours) | 3 (graph templates) | 2 (subgraphs) | 0 |
 | Ready-made math nodes usable as is | 0 | 0 | 0 | 1 (only in its loop) | 1 (only in its engine) |
 | Maintenance, 2026 | 3 | 2 | 2 | 1 | 0 |
 | License fit with this MIT library | 3 | 3 | 3 | 2 (fork under GPL) | 3 |
-| Fits the build (esbuild, no framework today) | 2 (esbuild compiles TSX; adds React) | 2 (adds a framework) | 2 (adds Vue) | 3 (one file) | 3 |
+| Fits the build (esbuild, no framework today) | 2 (esbuild compiles TSX; adds React) | 2 (adds React or Svelte) | 2 (adds Vue) | 3 (one file) | 3 |
 
 ## The document
 
-Version 2 extends version 1; every version 1 document is a version 2 document. The node types below are
+Version 2 extends version 1: `Model` reads a version 1 document by rewriting it into version 2 on load (its `of`,
+`from` and `minus` become references), so every document in `docs/model.md` keeps working. The node types below are
 illustrative.
 
 ```json
 {
   "version": 2,
+  "units": "mm",
   "parameters": {
     "turns": { "value": 3, "min": 1, "max": 8, "step": 1 },
     "r": 4
   },
   "nodes": {
-    "pts":    { "type": "curve/helix-points", "turns": "turns", "radius": 30, "pitch": 12 },
-    "rail":   { "type": "curve/interpolate", "points": "pts", "degree": 3 },
-    "spring": { "type": "nodes/pipe-solid", "curve": "rail", "radius": "r", "caps": "round" },
-    "base":   { "type": "primitive", "shape": "cylinder", "values": { "radius": 35, "height": 4 } },
-    "join":   { "type": "union", "of": ["base", "spring"] },
-    "foot":   { "type": "group", "use": "rounded-foot", "inputs": { "of": "join", "radius": "r / 2" } }
+    "pts":    { "type": "curve/helix-points", "in": { "turns": "turns", "radius": 30, "pitch": 12 } },
+    "rail":   { "type": "curve/interpolate", "in": { "points": "@pts", "degree": 3 } },
+    "spring": { "type": "nodes/pipe-solid", "in": { "curve": "@rail", "radius": "r", "caps": "round" },
+                "label": "Spring" },
+    "base":   { "type": "primitive/cylinder", "in": { "radius": 35, "height": 4 } },
+    "join":   { "type": "csg/union", "in": { "of": ["@base", "@spring"] } },
+    "foot":   { "type": "group", "use": "rounded-foot", "in": { "solid": "@join", "radius": "r / 2" } }
   },
-  "output": "foot",
+  "outputs": { "solid": "@foot.solid" },
   "groups": {
-    "rounded-foot": { "version": 2, "parameters": { "radius": 1 }, "inputs": { "of": "solid" }, "nodes": { }, "output": "..." }
+    "rounded-foot": {
+      "interface": {
+        "inputs":  { "solid": { "type": "solid" }, "radius": { "type": "number", "value": 1, "min": 0.1, "max": 10 } },
+        "outputs": { "solid": "@round" }
+      },
+      "nodes": { "round": { "type": "round", "in": { "of": "@solid", "rules": [ { "edges": "*.start cap|*", "radius": "radius" } ] } } }
+    }
   },
   "view": {
     "nodes": { "pts": { "x": 0, "y": 0 }, "rail": { "x": 220, "y": 0 } },
@@ -183,19 +218,36 @@ illustrative.
 }
 ```
 
-* **Nodes keyed by id**, as features are now (`features` stays accepted as a synonym). Ids are what persistent names
-  are built from, so they are chosen by the author, not uuids.
-* **Inputs live on the consumer.** A port's value is a literal, an expression over the parameters, or a reference to
-  another node: `"rail"` (its only output) or `"rail.out"` (a named output). Which it is follows from the port's type
-  in the registry, as `of` and `radius` are told apart today. Edges are not stored; the editor derives them. One
-  fact, stored once.
-* **Parameters** are a number, an expression, or `{ value, min, max, step }` (a slider). They are the document's
-  inputs when it is used as a group.
-* **Groups** are documents. A `group` node names one (`use`), gives its parameters and solid inputs, and returns its
-  output. Its faces are named `<group node>/<inner name>`, the same rule as `transform`. Groups may sit in the file or
-  be referenced by path, and may nest; recursion is refused, like parameter cycles.
+What changes from version 1, and why none of it gets in the way of hierarchy:
+
+* **References say they are references.** `"@rail"` is the node `rail` (its only output), `"@rail.points"` a named
+  output; a plain string is an expression over the parameters, and inside an expression `@count.n` reads a numeric
+  output (`"@count.n * 2"`). In version 1 the field's name told the two apart (`of` is a reference, `radius` an
+  expression), so a tool had to know every feature type to draw the wires. With the `@`, the validator, the editor
+  and a diff can find every wire from the JSON alone. Inside a group, `@` names the group's own nodes and inputs:
+  names are local, so a group can be copied into any document unchanged.
+* **Values sit under `in`.** Ports are kept apart from the node's own keys (`type`, `label`, `lacing`, `use`), so a
+  port can never clash with a reserved word, and the registry can check `in` against the type's ports.
+* **Ids and labels are separate.** The id (`spring`) is what persistent names are built from and never changes once
+  set; `label` is free text for the canvas. Renaming a box on screen does not rename a face, so rules that select
+  edges by name keep working.
+* **A group has an explicit interface.** `inputs` with types, defaults and ranges (the sliders a group node shows),
+  and `outputs`, several if need be, each a reference. This is Blender's group interface and Houdini's promoted
+  parameters. The top-level document follows the same rule: its `parameters` are its numeric inputs and `outputs` its
+  results (`output` stays accepted as a shorthand for one). So any document can be used as a group as it is: the
+  hierarchy is the format applied recursively, with nothing special at the top.
+* **Groups by value or by reference.** In the file (`groups`), or from a library: `"use": "lib/rounded-foot.json#3f9c..."`,
+  where the suffix is the group's content hash. A changed library group is then noticed, not silently picked up, and
+  the cache stays exact. Recursion is refused, like parameter cycles.
+* **Names nest.** A face made inside the group node `foot` is named `foot/round(...)`, the rule `transform` already
+  follows. Rules outside a group can select inside it by that prefix, and rules inside it never see outside names.
+* **Units and lacing are declared.** `units` at the top (millimetres by default, as now); `lacing` on a node that maps
+  over lists (`shortest`, `longest`, `cross`).
 * **`view` is ignored by the hash.** Moving a node or writing a note does not rebuild anything, and a review diff
-  shows layout and meaning apart (Dynamo's split).
+  shows layout and meaning apart (Dynamo's split). Positions are kept per document, so each group has its own
+  layout.
+* **A schema from the registry.** The registry writes a JSON Schema of the format (each type's ports and their
+  types), for validation in tests and autocompletion in an editor.
 
 ## The evaluator
 
@@ -238,7 +290,7 @@ Each is a line or two over `Expr` and `Vec`, so owning them costs less than adap
 * The registry, the version 2 document and the evaluator: `src/model/` (the `model` layer, beside `Model`), with no
   new runtime dependency.
 * The editor: a new app beside `playground/` and `viewer/` (`editor/`), built with esbuild into one HTML file like
-  them. React and `@xyflow/react` are its dev dependencies only; the published library still depends on `cdt2d`
+  them. React, `rete` and its plugins are its dev dependencies only; the published library still depends on `cdt2d`
   alone.
 
 ## Plan
@@ -249,15 +301,18 @@ Each is a line or two over `Expr` and `Vec`, so owning them costs less than adap
    faces keep their names.
 2. Groups, with recursion refused and names nested.
 3. Lists and lacing.
-4. The editor: React Flow canvas, the registry as the palette, the viewport and verdict from the worker, the document
+4. The editor: Rete canvas with the React renderer, the registry as the palette, the viewport and verdict from the worker, the document
    as the file (open, save, undo by document snapshots).
 5. Data trees, fields (per-vertex functions in Blender's sense, for growth and lattices), and loops (zones), as the
    models ask for them.
 
 ## Known limits of this choice
 
-* React Flow draws nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas
-  scales further. Groups keep each canvas small, which is the answer here.
-* React Flow's sub-flows group nodes on screen only; the meaning of a group is ours to implement.
-* Choosing React for the editor is a choice of framework for every editor panel. Rete.js with its Lit or Svelte
-  renderer is the way out if that matters more than React Flow's maturity.
+* Rete draws nodes as DOM elements: a few hundred nodes stay smooth, thousands do not. LiteGraph's canvas scales
+  further. Groups keep each canvas small, which is the answer here.
+* Rete's core was last released in June 2025 (its renderers and area plugin in July 2026); several plugins (scopes,
+  auto-arrange, connection) date from 2024. It is stable rather than fast-moving. Since the document is ours and Rete
+  is only the view, moving to React Flow later would mean rewriting `toEditor`, `fromEditor` and the node bodies,
+  not the format or the evaluator.
+* Choosing React for the editor's renderer is a choice of framework for every editor panel; Svelte is the
+  alternative.
