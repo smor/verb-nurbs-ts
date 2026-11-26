@@ -149,7 +149,7 @@ describe("verb.model.Graph", function(){
 		(function(){ Graph.compile(doc({ type : "finish/round", in : { of : "@b", edges : " , " } })); }).should.throw(/"r.edges" names no edges/);
 		(function(){ Graph.compile(doc({ type : "transform/move", in : { of : "@b", x : true } })); }).should.throw(/"r.x" must be a number or an expression/);
 		(function(){ Graph.compile(doc({ type : "expression", in : { expr : "q + 1" } })); }).should.throw(/"r.expr" uses "q"/);
-		(function(){ Graph.compile({ version : 2, nodes : { b : { type : "primitive/box" } }, outputs : {} }); }).should.throw(/no "solid" output/);
+		(function(){ Graph.compile({ version : 2, nodes : { b : { type : "primitive/box" } }, outputs : {} }); }).should.throw(/the document has no outputs/);
 	});
 
 	it('refuses a wrong document with a message that names the node and the port', function(){
@@ -165,7 +165,7 @@ describe("verb.model.Graph", function(){
 		bad(function(d){ d.nodes.pi = { type : "number", in : { value : 3 } }; }).should.throw(/"pi" is a function or constant/);
 		bad(function(d){ d.nodes["2box"] = d.nodes.box; }).should.throw(/not a valid node id/);
 		bad(function(d){ d.nodes.round.in.shape = "wavy"; }).should.throw(/"round.shape" must be one of circular, curvature, chamfer/);
-		bad(function(d){ d.outputs.solid = "@h"; }).should.throw(/the output "@h" is not a solid node/);
+		bad(function(d){ d.outputs.solid = "@h"; }).should.throw(/the output "solid" is "@h", not a reference to a solid node/);
 		(function(){ new Graph().evaluate({ version : 3, nodes : {}, outputs : {} }); }).should.throw(/unknown document version 3/);
 	});
 

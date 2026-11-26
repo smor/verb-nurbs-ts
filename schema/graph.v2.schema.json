@@ -1,0 +1,5282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/smor/verb-nurbs-ts/schema/graph.v2.schema.json",
+  "title": "verb-nurbs-ts graph document, version 2",
+  "description": "A node graph (docs/formats.md). Lengths in millimetres, angles in degrees.",
+  "type": "object",
+  "required": [
+    "version",
+    "nodes",
+    "outputs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "nodes": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$"
+      }
+    },
+    "view": {
+      "type": "object"
+    },
+    "meta": {
+      "type": "object"
+    },
+    "machine": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "number",
+            "expression",
+            "math/add",
+            "math/sub",
+            "math/mul",
+            "math/div",
+            "math/min",
+            "math/max",
+            "math/pow",
+            "math/sqrt",
+            "math/abs",
+            "math/sin",
+            "math/cos",
+            "math/rad",
+            "math/mix",
+            "math/clamp",
+            "primitive/box",
+            "primitive/cube",
+            "primitive/wedge",
+            "primitive/polygon-prism",
+            "primitive/star-prism",
+            "primitive/rounded-rectangle-prism",
+            "primitive/rounded-polygon-prism",
+            "primitive/stadium-prism",
+            "primitive/heart-prism",
+            "primitive/cross-prism",
+            "primitive/arrow-prism",
+            "primitive/reuleaux-prism",
+            "primitive/elliptic-cylinder",
+            "primitive/cylinder-sector",
+            "primitive/angle-section",
+            "primitive/t-section",
+            "primitive/i-section",
+            "primitive/u-section",
+            "primitive/pyramid",
+            "primitive/star-pyramid",
+            "primitive/frustum",
+            "primitive/antiprism",
+            "primitive/bipyramid",
+            "primitive/cylinder",
+            "primitive/cone",
+            "primitive/rounded-cone",
+            "primitive/ogive",
+            "primitive/sphere",
+            "primitive/hemisphere",
+            "primitive/spherical-cap",
+            "primitive/spherical-zone",
+            "primitive/spherical-sector",
+            "primitive/spheroid",
+            "primitive/ellipsoid",
+            "primitive/capsule",
+            "primitive/paraboloid",
+            "primitive/lens",
+            "primitive/torus",
+            "primitive/tube",
+            "primitive/conical-tube",
+            "primitive/egg",
+            "primitive/moss-egg",
+            "primitive/tetrahedron",
+            "primitive/octahedron",
+            "primitive/dodecahedron",
+            "primitive/icosahedron",
+            "primitive/truncated-tetrahedron",
+            "primitive/cuboctahedron",
+            "primitive/truncated-cube",
+            "primitive/truncated-octahedron",
+            "primitive/rhombicuboctahedron",
+            "primitive/truncated-cuboctahedron",
+            "primitive/snub-cube",
+            "primitive/icosidodecahedron",
+            "primitive/truncated-dodecahedron",
+            "primitive/truncated-icosahedron",
+            "primitive/rhombicosidodecahedron",
+            "primitive/truncated-icosidodecahedron",
+            "primitive/triakis-tetrahedron",
+            "primitive/rhombic-dodecahedron",
+            "primitive/triakis-octahedron",
+            "primitive/tetrakis-hexahedron",
+            "primitive/deltoidal-icositetrahedron",
+            "primitive/disdyakis-dodecahedron",
+            "primitive/pentagonal-icositetrahedron",
+            "primitive/rhombic-triacontahedron",
+            "primitive/triakis-icosahedron",
+            "primitive/pentakis-dodecahedron",
+            "primitive/deltoidal-hexecontahedron",
+            "primitive/disdyakis-triacontahedron",
+            "primitive/trapezohedron",
+            "primitive/lofted-vase",
+            "primitive/bent-pipe",
+            "transform/move",
+            "transform/rotate",
+            "transform/scale",
+            "boolean/union",
+            "boolean/intersection",
+            "boolean/difference",
+            "finish/round",
+            "finish/shell"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/number"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "expression"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/expression"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/add"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.add"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/sub"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.sub"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/mul"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.mul"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/div"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.div"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/min"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.min"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/max"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.max"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/pow"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.pow"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/sqrt"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.sqrt"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/abs"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.abs"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/sin"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.sin"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/cos"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.cos"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/rad"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.rad"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/mix"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.mix"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "math/clamp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/math.clamp"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/box"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.box"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cube"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cube"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/wedge"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.wedge"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/polygon-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.polygon-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/star-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.star-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rounded-rectangle-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rounded-rectangle-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rounded-polygon-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rounded-polygon-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/stadium-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.stadium-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/heart-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.heart-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cross-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cross-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/arrow-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.arrow-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/reuleaux-prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.reuleaux-prism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/elliptic-cylinder"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.elliptic-cylinder"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cylinder-sector"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cylinder-sector"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/angle-section"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.angle-section"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/t-section"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.t-section"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/i-section"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.i-section"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/u-section"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.u-section"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/pyramid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.pyramid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/star-pyramid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.star-pyramid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/frustum"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.frustum"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/antiprism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.antiprism"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/bipyramid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.bipyramid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cylinder"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cylinder"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cone"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cone"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rounded-cone"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rounded-cone"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/ogive"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.ogive"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/sphere"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.sphere"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/hemisphere"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.hemisphere"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/spherical-cap"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.spherical-cap"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/spherical-zone"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.spherical-zone"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/spherical-sector"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.spherical-sector"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/spheroid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.spheroid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/ellipsoid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.ellipsoid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/capsule"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.capsule"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/paraboloid"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.paraboloid"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/lens"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.lens"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/torus"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.torus"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/tube"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.tube"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/conical-tube"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.conical-tube"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/egg"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.egg"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/moss-egg"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.moss-egg"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/tetrahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.tetrahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/octahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.octahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/dodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.dodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/icosahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.icosahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-tetrahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-tetrahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/cuboctahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.cuboctahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-cube"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-cube"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-octahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-octahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rhombicuboctahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rhombicuboctahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-cuboctahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-cuboctahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/snub-cube"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.snub-cube"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/icosidodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.icosidodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-dodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-dodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-icosahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-icosahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rhombicosidodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rhombicosidodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/truncated-icosidodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.truncated-icosidodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/triakis-tetrahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.triakis-tetrahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rhombic-dodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rhombic-dodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/triakis-octahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.triakis-octahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/tetrakis-hexahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.tetrakis-hexahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/deltoidal-icositetrahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.deltoidal-icositetrahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/disdyakis-dodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.disdyakis-dodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/pentagonal-icositetrahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.pentagonal-icositetrahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/rhombic-triacontahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.rhombic-triacontahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/triakis-icosahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.triakis-icosahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/pentakis-dodecahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.pentakis-dodecahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/deltoidal-hexecontahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.deltoidal-hexecontahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/disdyakis-triacontahedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.disdyakis-triacontahedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/trapezohedron"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.trapezohedron"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/lofted-vase"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.lofted-vase"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "primitive/bent-pipe"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/primitive.bent-pipe"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transform/move"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/transform.move"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transform/rotate"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/transform.rotate"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transform/scale"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/transform.scale"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean/union"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/boolean.union"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean/intersection"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/boolean.intersection"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean/difference"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/boolean.difference"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "finish/round"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/finish.round"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "finish/shell"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/finish.shell"
+          }
+        }
+      ]
+    },
+    "number": {
+      "title": "Number",
+      "description": "A parameter: other nodes read it by a wire or by its id in an expression",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "value",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "expression": {
+      "title": "Expression",
+      "description": "Any expression over number nodes, by their ids: h / 2 + wall",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "expression"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "expr": {
+              "type": "string",
+              "description": "expression",
+              "default": "1"
+            }
+          }
+        }
+      }
+    },
+    "math.add": {
+      "title": "Add",
+      "description": "a + b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/add"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.sub": {
+      "title": "Subtract",
+      "description": "a - b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/sub"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.mul": {
+      "title": "Multiply",
+      "description": "a × b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/mul"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.div": {
+      "title": "Divide",
+      "description": "a / b; dividing by zero is an error",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/div"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.min": {
+      "title": "Minimum",
+      "description": "the smaller of a and b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/min"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.max": {
+      "title": "Maximum",
+      "description": "the larger of a and b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/max"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.pow": {
+      "title": "Power",
+      "description": "a to the power b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/pow"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.sqrt": {
+      "title": "Square root",
+      "description": "√a",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/sqrt"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.abs": {
+      "title": "Absolute value",
+      "description": "|a|",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/abs"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.sin": {
+      "title": "Sine",
+      "description": "sin a, a in radians",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/sin"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.cos": {
+      "title": "Cosine",
+      "description": "cos a, a in radians",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/cos"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.rad": {
+      "title": "Degrees to radians",
+      "description": "a × π / 180",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/rad"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.mix": {
+      "title": "Mix",
+      "description": "a + (b - a) t",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/mix"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "b": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "b",
+              "default": 0
+            },
+            "t": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "t",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "math.clamp": {
+      "title": "Clamp",
+      "description": "a held between min and max",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "math/clamp"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "a",
+              "default": 0
+            },
+            "min": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "min",
+              "default": 0
+            },
+            "max": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "max",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "primitive.box": {
+      "title": "Box",
+      "description": "Catalogue: boxes",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/box"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 40
+            },
+            "depth": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "depth (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.cube": {
+      "title": "Cube",
+      "description": "Catalogue: boxes",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cube"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "edge": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "edge (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.wedge": {
+      "title": "Wedge",
+      "description": "Catalogue: boxes",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/wedge"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dx": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "dx (mm)",
+              "default": 40
+            },
+            "dy": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "dy (mm)",
+              "default": 30
+            },
+            "dz": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "dz (mm)",
+              "default": 20
+            },
+            "xmin": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "xmin (mm)",
+              "default": 10
+            },
+            "xmax": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "xmax (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.polygon-prism": {
+      "title": "Polygon prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/polygon-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 6
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "twist": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "twist (°)",
+              "default": 0
+            },
+            "top_scale": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top scale (mm)",
+              "default": 1
+            }
+          }
+        }
+      }
+    },
+    "primitive.star-prism": {
+      "title": "Star prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/star-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "points": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "points",
+              "default": 5
+            },
+            "outer": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "outer (mm)",
+              "default": 20
+            },
+            "inner": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "inner (mm)",
+              "default": 9
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 10
+            },
+            "twist": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "twist (°)",
+              "default": 0
+            },
+            "top_scale": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top scale (mm)",
+              "default": 1
+            }
+          }
+        }
+      }
+    },
+    "primitive.rounded-rectangle-prism": {
+      "title": "Rounded rectangle prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rounded-rectangle-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 40
+            },
+            "depth": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "depth (mm)",
+              "default": 25
+            },
+            "corner": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "corner (mm)",
+              "default": 5
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "primitive.rounded-polygon-prism": {
+      "title": "Rounded polygon prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rounded-polygon-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 6
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "corner": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "corner (mm)",
+              "default": 3
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "primitive.stadium-prism": {
+      "title": "Stadium prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/stadium-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 30
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 8
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "primitive.heart-prism": {
+      "title": "Heart prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/heart-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 40
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 8
+            }
+          }
+        }
+      }
+    },
+    "primitive.cross-prism": {
+      "title": "Cross prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cross-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "size (mm)",
+              "default": 30
+            },
+            "arm": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "arm (mm)",
+              "default": 10
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 8
+            }
+          }
+        }
+      }
+    },
+    "primitive.arrow-prism": {
+      "title": "Arrow prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/arrow-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 40
+            },
+            "shaft": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "shaft (mm)",
+              "default": 6
+            },
+            "head": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "head (mm)",
+              "default": 16
+            },
+            "head_length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "head length (mm)",
+              "default": 12
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 5
+            }
+          }
+        }
+      }
+    },
+    "primitive.reuleaux-prism": {
+      "title": "Reuleaux prism",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/reuleaux-prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 3
+            },
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 8
+            }
+          }
+        }
+      }
+    },
+    "primitive.elliptic-cylinder": {
+      "title": "Elliptic cylinder",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/elliptic-cylinder"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rx": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "rx (mm)",
+              "default": 20
+            },
+            "ry": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "ry (mm)",
+              "default": 10
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.cylinder-sector": {
+      "title": "Cylinder sector",
+      "description": "Catalogue: prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cylinder-sector"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            },
+            "angle": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "angle (°)",
+              "default": 270
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "primitive.angle-section": {
+      "title": "Angle section",
+      "description": "Catalogue: sections",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/angle-section"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "thickness": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "thickness (mm)",
+              "default": 4
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 60
+            }
+          }
+        }
+      }
+    },
+    "primitive.t-section": {
+      "title": "T section",
+      "description": "Catalogue: sections",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/t-section"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "flange": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "flange (mm)",
+              "default": 4
+            },
+            "web": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "web (mm)",
+              "default": 4
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 60
+            }
+          }
+        }
+      }
+    },
+    "primitive.i-section": {
+      "title": "I section",
+      "description": "Catalogue: sections",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/i-section"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 40
+            },
+            "flange": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "flange (mm)",
+              "default": 4
+            },
+            "web": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "web (mm)",
+              "default": 3
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 60
+            }
+          }
+        }
+      }
+    },
+    "primitive.u-section": {
+      "title": "U section",
+      "description": "Catalogue: sections",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/u-section"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "width (mm)",
+              "default": 30
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 25
+            },
+            "thickness": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "thickness (mm)",
+              "default": 3
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 60
+            }
+          }
+        }
+      }
+    },
+    "primitive.pyramid": {
+      "title": "Pyramid",
+      "description": "Catalogue: pyramids",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/pyramid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 4
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "apex_x": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "apex x (mm)",
+              "default": 0
+            },
+            "apex_y": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "apex y (mm)",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "primitive.star-pyramid": {
+      "title": "Star pyramid",
+      "description": "Catalogue: pyramids",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/star-pyramid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "points": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "points",
+              "default": 5
+            },
+            "outer": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "outer (mm)",
+              "default": 20
+            },
+            "inner": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "inner (mm)",
+              "default": 9
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.frustum": {
+      "title": "Frustum",
+      "description": "Catalogue: pyramids",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/frustum"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 4
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 15
+            },
+            "top_scale": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top scale (mm)",
+              "default": 0.5
+            }
+          }
+        }
+      }
+    },
+    "primitive.antiprism": {
+      "title": "Antiprism",
+      "description": "Catalogue: pyramids",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/antiprism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 5
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.bipyramid": {
+      "title": "Bipyramid",
+      "description": "Catalogue: pyramids",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/bipyramid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 5
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "up": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "up (mm)",
+              "default": 20
+            },
+            "down": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "down (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.cylinder": {
+      "title": "Cylinder",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cylinder"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.cone": {
+      "title": "Cone",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cone"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "top_radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top radius (mm)",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "primitive.rounded-cone": {
+      "title": "Rounded cone",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rounded-cone"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            },
+            "tip": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "tip (mm)",
+              "default": 3
+            }
+          }
+        }
+      }
+    },
+    "primitive.ogive": {
+      "title": "Ogive",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/ogive"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 10
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.sphere": {
+      "title": "Sphere",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/sphere"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.hemisphere": {
+      "title": "Hemisphere",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/hemisphere"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.spherical-cap": {
+      "title": "Spherical cap",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/spherical-cap"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 8
+            }
+          }
+        }
+      }
+    },
+    "primitive.spherical-zone": {
+      "title": "Spherical zone",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/spherical-zone"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "z0": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "z0 (mm)",
+              "default": -5
+            },
+            "z1": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "z1 (mm)",
+              "default": 10
+            }
+          }
+        }
+      }
+    },
+    "primitive.spherical-sector": {
+      "title": "Spherical sector",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/spherical-sector"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "half_angle": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "half angle (°)",
+              "default": 40
+            }
+          }
+        }
+      }
+    },
+    "primitive.spheroid": {
+      "title": "Spheroid",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/spheroid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.ellipsoid": {
+      "title": "Ellipsoid",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/ellipsoid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rx": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "rx (mm)",
+              "default": 20
+            },
+            "ry": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "ry (mm)",
+              "default": 12
+            },
+            "rz": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "rz (mm)",
+              "default": 8
+            }
+          }
+        }
+      }
+    },
+    "primitive.capsule": {
+      "title": "Capsule",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/capsule"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 8
+            },
+            "length": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "length (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.paraboloid": {
+      "title": "Paraboloid",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/paraboloid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.lens": {
+      "title": "Lens",
+      "description": "Catalogue: round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/lens"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "r1": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "r1 (mm)",
+              "default": 25
+            },
+            "r2": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "r2 (mm)",
+              "default": 40
+            },
+            "diameter": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "diameter (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.torus": {
+      "title": "Torus",
+      "description": "Catalogue: rings",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/torus"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "major": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "major (mm)",
+              "default": 20
+            },
+            "minor": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "minor (mm)",
+              "default": 6
+            },
+            "minor_z": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "minor z (mm)",
+              "default": 6
+            }
+          }
+        }
+      }
+    },
+    "primitive.tube": {
+      "title": "Tube",
+      "description": "Catalogue: rings",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/tube"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outer": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "outer (mm)",
+              "default": 15
+            },
+            "inner": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "inner (mm)",
+              "default": 12
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.conical-tube": {
+      "title": "Conical tube",
+      "description": "Catalogue: rings",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/conical-tube"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outer_bottom": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "outer bottom (mm)",
+              "default": 15
+            },
+            "inner_bottom": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "inner bottom (mm)",
+              "default": 12
+            },
+            "outer_top": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "outer top (mm)",
+              "default": 9
+            },
+            "inner_top": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "inner top (mm)",
+              "default": 6
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.egg": {
+      "title": "Egg",
+      "description": "Catalogue: eggs",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/egg"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            },
+            "top": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top (mm)",
+              "default": 22
+            },
+            "bottom": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "bottom (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.moss-egg": {
+      "title": "Moss egg",
+      "description": "Catalogue: eggs",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/moss-egg"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 15
+            }
+          }
+        }
+      }
+    },
+    "primitive.tetrahedron": {
+      "title": "Tetrahedron",
+      "description": "Catalogue: Platonic",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/tetrahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.octahedron": {
+      "title": "Octahedron",
+      "description": "Catalogue: Platonic",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/octahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.dodecahedron": {
+      "title": "Dodecahedron",
+      "description": "Catalogue: Platonic",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/dodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.icosahedron": {
+      "title": "Icosahedron",
+      "description": "Catalogue: Platonic",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/icosahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-tetrahedron": {
+      "title": "TruncatedTetrahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-tetrahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.cuboctahedron": {
+      "title": "Cuboctahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/cuboctahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-cube": {
+      "title": "TruncatedCube",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-cube"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-octahedron": {
+      "title": "TruncatedOctahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-octahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.rhombicuboctahedron": {
+      "title": "Rhombicuboctahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rhombicuboctahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-cuboctahedron": {
+      "title": "TruncatedCuboctahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-cuboctahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.snub-cube": {
+      "title": "SnubCube",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/snub-cube"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.icosidodecahedron": {
+      "title": "Icosidodecahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/icosidodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-dodecahedron": {
+      "title": "TruncatedDodecahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-dodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-icosahedron": {
+      "title": "TruncatedIcosahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-icosahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.rhombicosidodecahedron": {
+      "title": "Rhombicosidodecahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rhombicosidodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.truncated-icosidodecahedron": {
+      "title": "TruncatedIcosidodecahedron",
+      "description": "Catalogue: Archimedean",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/truncated-icosidodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.triakis-tetrahedron": {
+      "title": "TriakisTetrahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/triakis-tetrahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.rhombic-dodecahedron": {
+      "title": "RhombicDodecahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rhombic-dodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.triakis-octahedron": {
+      "title": "TriakisOctahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/triakis-octahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.tetrakis-hexahedron": {
+      "title": "TetrakisHexahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/tetrakis-hexahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.deltoidal-icositetrahedron": {
+      "title": "DeltoidalIcositetrahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/deltoidal-icositetrahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.disdyakis-dodecahedron": {
+      "title": "DisdyakisDodecahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/disdyakis-dodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.pentagonal-icositetrahedron": {
+      "title": "PentagonalIcositetrahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/pentagonal-icositetrahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.rhombic-triacontahedron": {
+      "title": "RhombicTriacontahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/rhombic-triacontahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.triakis-icosahedron": {
+      "title": "TriakisIcosahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/triakis-icosahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.pentakis-dodecahedron": {
+      "title": "PentakisDodecahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/pentakis-dodecahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.deltoidal-hexecontahedron": {
+      "title": "DeltoidalHexecontahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/deltoidal-hexecontahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.disdyakis-triacontahedron": {
+      "title": "DisdyakisTriacontahedron",
+      "description": "Catalogue: Catalan",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/disdyakis-triacontahedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.trapezohedron": {
+      "title": "Trapezohedron",
+      "description": "Catalogue: polyhedra",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/trapezohedron"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sides": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "sides",
+              "default": 5
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 20
+            }
+          }
+        }
+      }
+    },
+    "primitive.lofted-vase": {
+      "title": "Lofted vase",
+      "description": "Catalogue: nodes",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/lofted-vase"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bottom": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "bottom (mm)",
+              "default": 12
+            },
+            "waist": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "waist (mm)",
+              "default": 6
+            },
+            "top": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "top (mm)",
+              "default": 10
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 30
+            }
+          }
+        }
+      }
+    },
+    "primitive.bent-pipe": {
+      "title": "Bent pipe",
+      "description": "Catalogue: nodes",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "primitive/bent-pipe"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bend_radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "bend radius (mm)",
+              "default": 30
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 5
+            },
+            "angle": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "angle (°)",
+              "default": 90
+            },
+            "round_caps": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "round caps",
+              "default": 1
+            }
+          }
+        }
+      }
+    },
+    "transform.move": {
+      "title": "Move",
+      "description": "Translate by (x, y, z)",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "transform/move"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "x": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "x (mm)",
+              "default": 0
+            },
+            "y": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "y (mm)",
+              "default": 0
+            },
+            "z": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "z (mm)",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "transform.rotate": {
+      "title": "Rotate",
+      "description": "Rotate about an axis through the origin",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "transform/rotate"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "axis": {
+              "enum": [
+                "x",
+                "y",
+                "z"
+              ],
+              "description": "axis",
+              "default": "z"
+            },
+            "degrees": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "degrees (°)",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "transform.scale": {
+      "title": "Scale",
+      "description": "Scale about the origin; negative mirrors",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "transform/scale"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "factor": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "factor",
+              "default": 1
+            }
+          }
+        }
+      }
+    },
+    "boolean.union": {
+      "title": "Union",
+      "description": "a ∪ b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "boolean/union"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "a: a solid, \"@node\""
+            },
+            "b": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "b: a solid, \"@node\""
+            }
+          }
+        }
+      }
+    },
+    "boolean.intersection": {
+      "title": "Intersection",
+      "description": "a ∩ b",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "boolean/intersection"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "a: a solid, \"@node\""
+            },
+            "b": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "b: a solid, \"@node\""
+            }
+          }
+        }
+      }
+    },
+    "boolean.difference": {
+      "title": "Difference",
+      "description": "from − minus",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "boolean/difference"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "from: a solid, \"@node\""
+            },
+            "minus": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "minus: a solid, \"@node\""
+            }
+          }
+        }
+      }
+    },
+    "finish.round": {
+      "title": "Round edges",
+      "description": "Fillets or chamfers on the edges named by patterns, comma separated: box.*|box.*",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "finish/round"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "radius": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "radius (mm)",
+              "default": 2
+            },
+            "edges": {
+              "type": "string",
+              "description": "edges",
+              "default": "*"
+            },
+            "shape": {
+              "enum": [
+                "circular",
+                "curvature",
+                "chamfer"
+              ],
+              "description": "shape",
+              "default": "circular"
+            }
+          }
+        }
+      }
+    },
+    "finish.shell": {
+      "title": "Shell",
+      "description": "Hollow the solid; faces named by patterns are left open",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "finish/shell"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ ]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "thickness": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "thickness (mm)",
+              "default": 2
+            },
+            "open": {
+              "type": "string",
+              "description": "open faces",
+              "default": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

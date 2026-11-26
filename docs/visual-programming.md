@@ -215,6 +215,10 @@ Scored 0 (none) to 3 (good) against what this project needs.
 
 ## The document
 
+> This section is the design that led to the format. The format as built and settled, with its stability rules, is
+> [docs/formats.md](formats.md); where the two differ, formats.md is right. In particular there is no `units` key
+> (millimetres always), parameters are `number` nodes rather than a `parameters` block, and groups are not built yet.
+
 Version 2 extends version 1: `Model` reads a version 1 document by rewriting it into version 2 on load (its `of`,
 `from` and `minus` become references), so every document in `docs/model.md` keeps working. The node types below are
 illustrative.
@@ -362,7 +366,10 @@ Graph.compile( doc );         // the version 1 model document it runs
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
   Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
-* **Not yet:** groups, several outputs, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
+* **Several outputs**, by name, each a part (`{ "flywheel": "@flywheel", "connecting-rod": "@rod" }`); `evaluate`
+  and `compile` take `{ output, set }` to pick one and to set number nodes from outside. The editor's **Make output**
+  adds or removes a solid node from them, and **Show** displays any solid node without changing the outputs.
+* **Not yet:** groups, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
   renaming a node on the canvas (edit `label` in the file).
 
 ## Where it lives

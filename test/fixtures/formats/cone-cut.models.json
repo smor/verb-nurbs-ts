@@ -1,0 +1,61 @@
+{
+  "solid": {
+    "version": 1,
+    "parameters": {
+      "h": 24,
+      "coneH": "h + 10"
+    },
+    "features": {
+      "box": {
+        "type": "box",
+        "min": [
+          -30,
+          -20,
+          0
+        ],
+        "max": [
+          30,
+          20,
+          "h"
+        ]
+      },
+      "coneShape": {
+        "type": "primitive",
+        "shape": "cone",
+        "values": {
+          "radius": 13,
+          "height": "coneH",
+          "top radius": 6
+        }
+      },
+      "cone": {
+        "type": "transform",
+        "of": "coneShape",
+        "translate": [
+          0,
+          0,
+          -5
+        ]
+      },
+      "cut": {
+        "type": "difference",
+        "from": "box",
+        "minus": [
+          "cone"
+        ]
+      },
+      "round": {
+        "type": "round",
+        "of": "cut",
+        "rules": [
+          {
+            "edges": "box.*|box.*",
+            "radius": 3
+          }
+        ],
+        "shape": "circular"
+      }
+    },
+    "output": "round"
+  }
+}

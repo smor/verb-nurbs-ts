@@ -101,6 +101,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
 | Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |
 | Node graphs and the node editor | `src/model/Graph.ts`, `editor/`, [visual-programming.md](visual-programming.md) |
+| Graph and model file formats, schemas, stability | `schema/`, `test/testFormats.cjs`, [formats.md](formats.md) |
 | Primitive solids (prisms, cones, spheres, tori, polyhedra, ...) | `src/solid/primitives/`, [primitives.md](primitives.md) |
 | Grasshopper-style builders (loft, sweep1/2, pipe, boundary, plane, 4-point) | `src/solid/primitives/Nodes.ts`, [primitives.md](primitives.md#grasshopper-style-builders) |
 

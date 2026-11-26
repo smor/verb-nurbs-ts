@@ -1,0 +1,158 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Crank and connecting rod, two printed parts",
+    "description": "A flywheel with its crank pin, and the rod; after Brown's movement 92. Fixture for docs/formats.md."
+  },
+  "nodes": {
+    "crank": {
+      "type": "number",
+      "in": {
+        "value": 20
+      },
+      "label": "Crank radius"
+    },
+    "rod": {
+      "type": "number",
+      "in": {
+        "value": 72
+      },
+      "label": "Rod length, centre to centre"
+    },
+    "flywheelRadius": {
+      "type": "number",
+      "in": {
+        "value": 35
+      }
+    },
+    "thick": {
+      "type": "number",
+      "in": {
+        "value": 6
+      },
+      "label": "Flywheel thickness"
+    },
+    "pinR": {
+      "type": "number",
+      "in": {
+        "value": 2.5
+      },
+      "label": "Pin radius"
+    },
+    "clearance": {
+      "type": "number",
+      "in": {
+        "value": 0.2
+      },
+      "label": "Radial clearance of a pin in its hole"
+    },
+    "disc": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": "@flywheelRadius",
+        "height": "@thick"
+      }
+    },
+    "boreShape": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": "pinR + clearance",
+        "height": "thick + 2"
+      }
+    },
+    "bore": {
+      "type": "transform/move",
+      "in": {
+        "of": "@boreShape",
+        "z": -1
+      }
+    },
+    "wheel": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@disc",
+        "minus": "@bore"
+      }
+    },
+    "pinShape": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": "@pinR",
+        "height": 9
+      }
+    },
+    "pin": {
+      "type": "transform/move",
+      "in": {
+        "of": "@pinShape",
+        "x": "@crank",
+        "z": "thick - 1"
+      }
+    },
+    "flywheel": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@wheel",
+        "b": "@pin"
+      },
+      "label": "Flywheel"
+    },
+    "barShape": {
+      "type": "primitive/box",
+      "in": {
+        "width": "rod + 12",
+        "depth": 10,
+        "height": 4
+      }
+    },
+    "bar": {
+      "type": "transform/move",
+      "in": {
+        "of": "@barShape",
+        "x": "rod / 2"
+      }
+    },
+    "eyeShape": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": "pinR + clearance",
+        "height": 6
+      }
+    },
+    "eyeA": {
+      "type": "transform/move",
+      "in": {
+        "of": "@eyeShape",
+        "z": -1
+      }
+    },
+    "eyeB": {
+      "type": "transform/move",
+      "in": {
+        "of": "@eyeShape",
+        "x": "@rod",
+        "z": -1
+      }
+    },
+    "eyes": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@eyeA",
+        "b": "@eyeB"
+      }
+    },
+    "connectingRod": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@bar",
+        "minus": "@eyes"
+      },
+      "label": "Connecting rod"
+    }
+  },
+  "outputs": {
+    "flywheel": "@flywheel",
+    "connecting-rod": "@connectingRod"
+  },
+  "machine": "fdm"
+}

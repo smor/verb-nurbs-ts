@@ -34,7 +34,7 @@ doc.parameters.rim = 0.8;
 model.evaluate(doc).features;  // only "rounded" is rebuilt; the rest comes from the cache
 ```
 
-A node graph (`Graph`, [visual-programming.md](visual-programming.md)) compiles into this kind of document and runs on
+The format is specified, with its JSON Schema and stability rules, in [formats.md](formats.md). A node graph (`Graph`, [visual-programming.md](visual-programming.md)) compiles into this kind of document and runs on
 the same cache.
 
 ## Features
