@@ -7,7 +7,7 @@ boundaries and how they would map to packages, so new code respects them now.
 
 | Folder | What it holds | Depends on |
 |---|---|---|
-| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`, `Fair`, `THB`, `IGA`) | each other |
+| `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`, `Fair`, `THB`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
 | `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`) | core, eval |
@@ -16,6 +16,7 @@ boundaries and how they would map to packages, so new code respects them now.
 | `io` | file formats: STEP export of B-rep results (`Step`) | core, eval, solid |
 | `view` | `Inspect`, display data for curves, surfaces, B-reps and meshes | core, eval, solid |
 | `playground/`, `viewer/` | single-file web apps (three.js) | the library |
+| `experimental` | parked work that no model, recipe or app uses yet: `IGA` (isogeometric analysis). Not in `src/index.ts`; import it by path (`dist/experimental/IGA.js`) | core, eval |
 
 Dependencies only point down this table: no folder imports from one below it.
 

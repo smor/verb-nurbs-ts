@@ -20,6 +20,7 @@ const ALLOWED = {
     view : ["core", "eval", "solid"],
     io : ["core", "eval", "solid"],    // file formats (STEP); a package of its own, "io"
     model : ["core", "eval", "solid"], // the feature tree: documents regenerated into solids; package "model"
+    experimental : ["core", "eval"],   // parked work, not in the entry point or any package: imported by path (docs/packages.md)
 
     types : [],
 };
