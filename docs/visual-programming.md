@@ -361,6 +361,14 @@ Graph.compile( doc );         // the version 1 model document it runs
   parameters of the model: `"a + 2 * sin(pi * t)"` at t = 0.5 is `"(a + 2 * sin(pi * (0.5)))"`. `samples` is a whole
   number written in the document, since it decides how many points the model has. Inside a function, `t` hides a
   number node with the id `t`.
+* **Prisms** (`freeform/prism`) extrude an *outline*: points `"x, y; x, y, r; ..."` whose values may be expressions
+  over number nodes (`"w - 2 * wall, h"`), each kept as a model parameter, so a part drawn this way stays
+  parametric; an optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`
+  (`Primitives.prism` over `Profiles.polygon` or `Profiles.rounded`). Limits: the caps are fans from a centre, so the
+  outline must be star-shaped about its centroid or about the `center` port's point; concave parts are built from
+  several prisms and Booleans. Booleans on such prisms are also less robust than on boxes where an operand comes
+  near the cap's centre (#94). #85 asks for a general profile extrusion (holes, arcs, Bézier curves); this node would
+  then extrude through it.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
   the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its
@@ -386,6 +394,13 @@ Graph.compile( doc );         // the version 1 model document it runs
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
   Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
+* **Keeping and sharing** (`editor/storage.ts`). The document is autosaved in the browser (localStorage) with each
+  undo step and reopened on the next visit. **Share link** copies a link holding the whole document, deflated, in its
+  fragment (`#g=...`, never sent to a server): whoever opens it gets this graph with its parameters. **Save** and
+  **Open** use the File System Access API where the browser has it (Save writes back to the file opened), downloads
+  otherwise. **STL** saves the shown part (on the shelf, every output) meshed from the exact faces within 0.02 mm, for
+  printing. A build can open on a document of its own: `EDITOR_START=part.graph.json npm run editor`, for a page made
+  for one project's team; a link or an autosave still comes first.
 * **The 3D view draws the exact faces** (`editor/meshes.ts`). Each solid comes twice: the Booleans' analysis mesh at
   once, then the "view" export mesh (within 0.1 mm of the exact shell, about a tenth of the triangles), unless an edit
   came in between. Every triangle carries its face's persistent name, and every corner the exact normal of its face's

@@ -91,3 +91,31 @@ export const view = ( graph : Graph, r : GraphResult ) => {
         return n;
     } ), deviation : e.deviation };
 };
+
+/**
+ * A mesh as a binary STL file (little-endian: an 80-byte header, the triangle count, then per triangle its unit normal
+ * from its corners, its three corners as 32-bit floats and a zero attribute word), in millimetres as slicers assume.
+ */
+export const stl = ( m : TriMesh, header = "verb-nurbs-ts" ) : ArrayBuffer => {
+    const n = m.triangles.length, buf = new ArrayBuffer( 84 + 50 * n ), v = new DataView( buf );
+    const h = new TextEncoder().encode( header.slice( 0, 80 ) );
+    new Uint8Array( buf, 0, h.length ).set( h );
+    v.setUint32( 80, n, true );
+    m.triangles.forEach( ( q, i ) => {
+        const a = m.vertices[q[0]], b = m.vertices[q[1]], c = m.vertices[q[2]];
+        const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        const nn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        const l = Math.hypot( nn[0], nn[1], nn[2] ) || 1;
+        let o = 84 + 50 * i;
+        for (const x of [nn[0] / l, nn[1] / l, nn[2] / l, ...a, ...b, ...c]) { v.setFloat32( o, x, true ); o += 4; }
+        v.setUint16( o, 0, true );
+    } );
+    return buf;
+};
+
+/** The print mesh of a result as STL: the export mesh within 0.02 mm of the exact faces, the analysis mesh failing that. */
+export const printStl = ( graph : Graph, r : GraphResult, name : string ) : { data : ArrayBuffer, triangles : number, deviation : number | null } => {
+    let m : TriMesh = r.result.mesh, deviation : number | null = null;
+    try { const e = graph.exportMesh( r, "print" ); m = e.mesh; deviation = e.deviation; } catch { /* the analysis mesh, closed too */ }
+    return { data : stl( m, `${name}, from verb-nurbs-ts` ), triangles : m.triangles.length, deviation };
+};

@@ -45,6 +45,50 @@ describe('freeform/vessel', function () {
 	});
 });
 
+describe('freeform/prism', function () {
+	this.timeout(budget(60000));
+	var prism = function (inputs, extra) {
+		var nodes = Object.assign({ p : { type : 'freeform/prism', in : inputs } }, extra || {});
+		return { version : 2, nodes : nodes, outputs : { p : '@p' } };
+	};
+
+	it('extrudes its outline: a rectangle with two rounded corners has area w h - 2 (1 - pi / 4) r^2', function () {
+		var r = new Graph().evaluate(prism({ outline : '0, 0; 40, 0, 4; 40, 20, 4; 0, 20', height : 5 }));
+		r.verdict.kind.should.equal('buildable');
+		r.result.report.manifold.closedManifold.should.be.true();
+		var area = 40 * 20 - 2 * (1 - PI / 4) * 16;
+		r.result.report.volume.should.be.approximately(area * 5, 1e-3 * area * 5);
+		r.faceNames.should.containEql('p.top');
+	});
+
+	it('keeps expressions over number nodes as model parameters, so an edit rebuilds it', function () {
+		var d = prism({ outline : '0, 0; w, 0; w, w / 2; 0, w / 2', height : '@h' },
+			{ w : { type : 'number', in : { value : 30 } }, h : { type : 'number', in : { value : 2 } } });
+		Graph.compile(d).features.p.outline[2].should.eql(['(w)', '(w / 2)']);
+		var g = new Graph(), one = g.evaluate(d);
+		one.result.report.volume.should.be.approximately(30 * 15 * 2, 0.5);
+		d.nodes.w.in.value = 40;
+		var two = g.evaluate(d);
+		two.nodes.p.should.equal('built');
+		two.result.report.volume.should.be.approximately(40 * 20 * 2, 0.5);
+	});
+
+	it('a T, star-shaped only about a point in its bar, builds with that point as its cap centre', function () {
+		var T = '0, 0; 24, 0; 24, 1.5; 22.5, 1.5; 22.5, 4; 1.5, 4; 1.5, 1.5; 0, 1.5';
+		(function () { new Graph().evaluate(prism({ outline : T, height : 10 })); }).should.throw(/star-shaped/);
+		var r = new Graph().evaluate(prism({ outline : T, height : 10, center : '12, 0.75' }));
+		r.result.report.manifold.closedManifold.should.be.true();
+		r.result.report.volume.should.be.approximately((24 * 1.5 + 21 * 2.5) * 10, 0.5);
+	});
+
+	it('refuses an outline that is not points, a name that is not a number node, and fewer than three points', function () {
+		var f = function (outline) { return function () { Graph.compile(prism({ outline : outline, height : 1 })); }; };
+		f('0, 0; 1').should.throw(/point 2 is "1", not "x, y" or "x, y, r"/);
+		f('0, 0; 1, 0; q, 1').should.throw(/point 3 uses "q", which is not a number node/);
+		f('0, 0; 1, 0').should.throw(/has 2 points; an outline needs three or more/);
+	});
+});
+
 describe('AIPPD profile reader (scripts/aippd-profile.mjs)', function () {
 	var profile;
 	before(async function () { profile = (await import('../scripts/aippd-profile.mjs')).profile; });

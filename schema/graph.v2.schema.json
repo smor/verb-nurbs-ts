@@ -151,6 +151,7 @@
             "primitive/bent-pipe",
             "freeform/revolve",
             "freeform/pipe",
+            "freeform/prism",
             "freeform/vessel",
             "transform/move",
             "transform/rotate",
@@ -1255,6 +1256,18 @@
           },
           "then": {
             "$ref": "#/$defs/freeform.pipe"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "freeform/prism"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/freeform.prism"
           }
         },
         {
@@ -5100,6 +5113,47 @@
               ],
               "description": "samples",
               "default": 24
+            }
+          }
+        }
+      }
+    },
+    "freeform.prism": {
+      "title": "Prism",
+      "description": "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. The outline must be star-shaped about its centroid, or about the cap centre 'x, y' when given: build other concave shapes from several prisms",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "freeform/prism"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outline": {
+              "type": "string",
+              "description": "outline: points \"x, y; x, y, r; ...\", millimetres; each value a number or an expression over number nodes; r rounds that corner",
+              "default": "0, 0; 40, 0, 4; 40, 20, 4; 0, 20"
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 5
+            },
+            "center": {
+              "type": "string",
+              "description": "cap centre: points \"x, y; x, y, r; ...\", millimetres; each value a number or an expression over number nodes; r rounds that corner",
+              "default": ""
             }
           }
         }

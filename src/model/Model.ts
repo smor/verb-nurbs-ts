@@ -9,6 +9,8 @@ import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
+import { Primitives } from "../solid/primitives/Primitives.js";
+import { Profiles } from "../solid/primitives/Profiles.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
 import { Machine, Makeable, MakeableReport } from "../solid/Makeable.js";
@@ -28,6 +30,10 @@ export type ModelFeature =
     | { type : "cylinder", from : ModelPoint, to : ModelPoint, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
+    // a straight prism over an outline in the plane z = 0, from z = 0 to `height`: points [x, y] or [x, y, r] (r rounds
+    // that corner by a tangent arc), counter-clockwise or clockwise. The outline must be star-shaped about `center`
+    // (its centroid by default): the caps are fans from it. Faces: side.k (one per smooth piece), bottom, top
+    | { type : "prism", outline : Array<Array<ModelValue>>, height : ModelValue, center? : [ModelValue, ModelValue] }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -281,7 +287,7 @@ export class Model {
         const offset = (id : string, d : number, path : string, open : Array<RegExp>) : Tree => {
             const f = features[id];
             switch (f.type) {
-                case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
+                case "primitive": case "prism": throw new Error( `Model: a shell cannot yet offset the ${f.type} "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -322,7 +328,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve": case "primitive":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "prism":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -492,6 +498,7 @@ export class Model {
             case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
+            case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ), center : pair( f.center, "center" ) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -521,6 +528,14 @@ export class Model {
         const positive = (x : number, what : string) => { if (!(x > 0)) throw new Error( `Model: ${what} must be positive` ); return x; };
         switch (f.type) {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
+            case "prism": {
+                const pts = Model.outline( f, num ), h = positive( num( f.height, "height" ), "a prism's height" );
+                const c = f.center == null ? undefined : [num( f.center[0], "center" ), num( f.center[1], "center" ), 0];
+                const radii = pts.map( p => p[2] );
+                const flat = pts.map( p => [p[0], p[1], 0] );
+                const profile = radii.some( r => r > 0 ) ? Profiles.rounded( flat, radii, c ) : Profiles.polygon( flat, c );
+                return Primitives.prism( profile, h );
+            }
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
@@ -558,6 +573,17 @@ export class Model {
             }
         }
         throw new Error( "Model: not a primitive: " + f.type );
+    }
+
+    // a prism's outline, resolved: [x, y, r] per point (r 0 for a sharp corner)
+    private static outline( f : Extract<ModelFeature, { type : "prism" }>, num : (v : ModelValue, what : string) => number ) : Array<[number, number, number]> {
+        if (f.outline.length < 3) throw new Error( "Model: a prism's outline has three points or more" );
+        return f.outline.map( (p, k) => {
+            if (p.length != 2 && p.length != 3) throw new Error( `Model: outline[${k}] is [x, y] or [x, y, r]` );
+            const r = p.length == 3 ? num( p[2], `outline[${k}]` ) : 0;
+            if (!(r >= 0)) throw new Error( `Model: outline[${k}]'s corner radius must be 0 or more` );
+            return [num( p[0], `outline[${k}]` ), num( p[1], `outline[${k}]` ), r];
+        } );
     }
 
     // a catalogue primitive's values, resolved, by sorted name (so its hash does not depend on their order)

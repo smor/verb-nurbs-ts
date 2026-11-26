@@ -5,7 +5,7 @@
 // face name per triangle. The work stops early when a newer request arrives.
 import { Graph } from "../src/index.js";
 import type { GraphDocument, GraphResult } from "../src/index.js";
-import { analysis, view as viewOf } from "./meshes.js";
+import { analysis, view as viewOf, printStl } from "./meshes.js";
 
 const graph = new Graph();
 let latest = 0;
@@ -14,8 +14,16 @@ const post = ( msg : object, transfer : Array<ArrayBuffer> = [] ) => (self as un
 // let a newer request in; true when one came, and this work is stale
 const superseded = async ( seq : number ) => { await new Promise( res => setTimeout( res, 0 ) ); return latest != seq; };
 
-self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, output? : string, shelf? : boolean }> ) => {
-    const { seq, doc, output, shelf } = e.data;
+self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, output? : string, shelf? : boolean, stl? : string }> ) => {
+    const { seq, doc, output, shelf, stl } = e.data;
+    // a print file: the output's STL, apart from the evaluations (it neither starts nor stops one)
+    if (stl != null) {
+        try {
+            const r = graph.evaluate( doc, { output } ), f = printStl( graph, r, stl );
+            post( { stl, ok : true, data : f.data, triangles : f.triangles, deviation : f.deviation, verdict : r.verdict.kind }, [f.data] );
+        } catch (err) { post( { stl, ok : false, error : (err as Error).message } ); }
+        return;
+    }
     latest = seq;
     const t = performance.now();
     if (!shelf) {

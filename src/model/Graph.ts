@@ -35,7 +35,10 @@ export type GraphPort =
     | { kind : "function", label : string, value : string, variable : string }
     // a half-section as drawn, from the base up: points "r z; r z; ..." in millimetres, radius from the axis and
     // height, the heights increasing; empty for none where the node allows it
-    | { kind : "profile", label : string, value : string, optional : boolean };
+    | { kind : "profile", label : string, value : string, optional : boolean }
+    // a closed outline in a plane: points "x, y; x, y, r; ..." where each coordinate is a number or an expression over
+    // number nodes, and an optional third value rounds that corner
+    | { kind : "outline", label : string, value : string };
 
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
@@ -415,7 +418,7 @@ export class Graph {
                     if (typeof c != "string" || !p.options.includes( c )) throw new Error( `Graph: "${id}.${k}" must be one of ${p.options.join( ", " )}` );
                     return c;
                 }
-                case "text": case "function": case "profile":
+                case "text": case "function": case "profile": case "outline":
                     if (v != null && typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be text` );
                     return v ?? p.value;
             }
@@ -456,6 +459,35 @@ export class Graph {
             } );
             if (pts.length < 2) throw new Error( `Graph: "${id}.${k}" has ${pts.length} point; a profile needs two or more` );
             return pts;
+        };
+        // an outline input: its points, each coordinate a number or an expression over number nodes (in parentheses),
+        // split at the semicolons and commas outside parentheses
+        const outline = ( id : string, k : string ) : Array<Array<ModelValue>> => {
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "outline" }>;
+            const v = nodes[id].in?.[k] ?? p.value;
+            if (typeof v != "string" || v.trim() == "") throw new Error( `Graph: "${id}.${k}" needs points "x, y; x, y; ..."` );
+            const parts = ( text : string, sep : string ) => {
+                const out : Array<string> = [];
+                let depth = 0, cur = "";
+                for (const c of text) {
+                    if (c == "(") depth++;
+                    if (c == ")") depth--;
+                    if (c == sep && depth == 0) { out.push( cur ); cur = ""; } else cur += c;
+                }
+                out.push( cur );
+                return out.map( x => x.trim() ).filter( x => x != "" );
+            };
+            return parts( v, ";" ).map( ( pt, i ) => {
+                const xy = parts( pt, "," );
+                if (xy.length != 2 && xy.length != 3) throw new Error( `Graph: "${id}.${k}" point ${i + 1} is "${pt}", not "x, y" or "x, y, r"` );
+                return xy.map( c => {
+                    if (c != "" && !isNaN( +c )) return +c;
+                    const text = c.replace( /@([A-Za-z_][A-Za-z0-9_]*)(\.value)?/g, "$1" );
+                    for (const name of Expr.names( text ))
+                        if (!numbers.has( name )) throw new Error( `Graph: "${id}.${k}" point ${i + 1} uses "${name}", which is not a number node` );
+                    return `(${text})`;
+                } );
+            } );
         };
         // the variable's values at n samples, 0 to 1, evenly spaced
         const samples = ( n : number ) => Array.from( { length : n }, ( _, i ) => i / (n - 1) );
@@ -549,6 +581,15 @@ export class Graph {
                     else { features[`${id}/body`] = body; features[id] = { type : "difference", from : `${id}/body`, minus : minus }; }
                     break;
                 }
+                case "freeform/prism": {
+                    const pts = outline( id, "outline" );
+                    if (pts.length < 3) throw new Error( `Graph: "${id}.outline" has ${pts.length} points; an outline needs three or more` );
+                    // the point the caps fan from: the centroid, unless the outline is star-shaped only about another
+                    const c = typeof (nodes[id].in?.center ?? "") == "string" && String( nodes[id].in?.center ?? "" ).trim() != "" ? outline( id, "center" ) : null;
+                    if (c != null && (c.length != 1 || c[0].length != 2)) throw new Error( `Graph: "${id}.center" is one point "x, y"` );
+                    features[id] = { type : "prism", outline : pts, height : asNum( "height" ), ...(c != null ? { center : [c[0][0], c[0][1]] as [ModelValue, ModelValue] } : {}) };
+                    break;
+                }
                 case "freeform/pipe": {
                     const x = sampler( id, "x" ), y = sampler( id, "y" ), z = sampler( id, "z" );
                     features[id] = { type : "pipe", through : samples( count( id, "samples" ) ).map( t => [x( t ), y( t ), z( t )] as [ModelValue, ModelValue, ModelValue] ),
@@ -630,6 +671,7 @@ export class Graph {
                 case "cylinder": return { ...f, from : point( f.from ), to : point( f.to ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "pipe": return { ...f, through : f.through.map( point ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
+                case "prism": return { ...f, outline : f.outline.map( p => p.map( value ) ), height : value( f.height ), ...(f.center != null ? { center : pair( f.center ) } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
@@ -665,6 +707,7 @@ export class Graph {
                 ports[k] = p.kind == "number" ? { ...value, description : p.unit == null ? p.label : `${p.label} (${p.unit})`, default : p.value }
                     : p.kind == "solid" ? { ...wire, description : `${p.label}: a solid, "@node"` }
                     : p.kind == "choice" ? { enum : p.options, description : p.label, default : p.value }
+                    : p.kind == "outline" ? { type : "string", description : `${p.label}: points "x, y; x, y, r; ...", millimetres; each value a number or an expression over number nodes; r rounds that corner`, default : p.value }
                     : p.kind == "profile" ? { type : "string", description : `${p.label}: points "r z; r z; ...", millimetres, from the base up${p.optional ? "; empty for none" : ""}`, default : p.value }
                     : p.kind == "function" ? { type : "string", description : `${p.label}, an expression of ${p.variable} (0 to 1) and number nodes`, default : p.value }
                     : { type : "string", description : p.label, default : p.value };
@@ -742,6 +785,12 @@ export class Graph {
             help : "A round tube along the smooth curve through (x, y, z) at the samples of t from 0 to 1, capped at both ends: a tendril, a stem, a whiplash",
             inputs : { x : fn( "x", "25 * cos(3 * pi * t)" ), y : fn( "y", "25 * sin(3 * pi * t)" ), z : fn( "z", "70 * t" ),
                 radius : num( "radius", 3, 0.2, 50, 0.1, "mm" ), samples : many( 24 ) },
+            outputs : { solid : "solid" } };
+        // a straight prism over an outline whose coordinates may be expressions: plates, ribs, tabs
+        r["freeform/prism"] = { title : "Prism", category : "freeform",
+            help : "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. The outline must be star-shaped about its centroid, or about the cap centre 'x, y' when given: build other concave shapes from several prisms",
+            inputs : { outline : { kind : "outline", label : "outline", value : "0, 0; 40, 0, 4; 40, 20, 4; 0, 20" }, height : num( "height", 5, 0.1, 400, 0.1, "mm" ),
+                center : { kind : "outline", label : "cap centre", value : "" } },
             outputs : { solid : "solid" } };
         // a vessel from its drawn section: the archaeologist's half-profile, outside, inside and under the foot
         const prof = ( label : string, v : string, optional : boolean ) : GraphPort => ({ kind : "profile", label : label, value : v, optional : optional });
