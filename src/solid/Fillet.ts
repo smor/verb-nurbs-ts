@@ -95,8 +95,15 @@ export class Fillet {
         const N = sections.length, W = m + 1;
         const last = sections[N - 1], first = sections[0];
         const repeats = Vec.dist( last.pa, first.pa ) < 1e-9 && Vec.dist( last.pb, first.pb ) < 1e-9;
-        const lofted = repeats ? arcs : arcs.concat( [arcs[0]] );
-        const surface = Make.loftedSurface( lofted, 3 ), vs = Make.loftParameters( lofted );
+        // a section repeated where the edge crosses a face's seam (once on each side of it) would give the loft a step
+        // of zero length too, and the interpolation a ripple round it (0.015 mm on a rim fillet of radius 1 round a
+        // bore's seam): it is lofted once, and its rows share their parameter
+        const same = (x : FilletSection, y : FilletSection) => Vec.dist( x.pa, y.pa ) < 1e-9 && Vec.dist( x.pb, y.pb ) < 1e-9;
+        const keep : Array<number> = [], at : Array<number> = [];
+        sections.forEach( (x, k) => { if (k == 0 || !same( x, sections[k - 1] )) keep.push( k ); at.push( keep.length - 1 ); } );
+        const kept = keep.map( k => arcs[k] );
+        const lofted = repeats ? kept : kept.concat( [arcs[0]] );
+        const surface = Make.loftedSurface( lofted, 3 ), lv = Make.loftParameters( lofted ), vs = at.map( j => lv[j] );
         // section k is the isocurve v = vs[k], and the arc's own parameter is u; the first section is repeated at the
         // end (v = 1), where the loop closes, so that every triangle has its parameters
         const points : Array<Point> = [], uv : Array<UV> = [];

@@ -73,6 +73,17 @@ describe("verb.solid.ShellBuilder", function(){
 		valid(box([3, 4, 5], 'curvature'), 5e-3);
 	});
 
+	it('makes a closed shell of a bracket whose rim fillet crosses its bore\'s seam: the blend meets the top within the tolerance', function(){
+		// (the fillet's sections repeat at the seam, once on each side; lofting both rippled the blend by 0.015 mm)
+		var block = BrepSolid.box([0, 0, 0], [40, 28, 20], 12);
+		var peg = BrepSolid.cappedTube(Sweep.pipe(line([20, 14, 15], [20, 14, 32]), 28 / 6).surface, [24, 96]);
+		var bore = BrepSolid.cappedTube(Sweep.pipe(line([8, 14, -5], [8, 14, 25]), 4).surface, [24, 96]);
+		var radius = function(c){ return c.solids[0] == 0 && c.faces[0] == 5 ? (c.solids[1] == 1 ? 2 : 1) : 0; };
+		var r = BrepBoolean.evaluate([block, peg, bore], function(f){ return (f[0] || f[1]) && !f[2]; }, { fillet : radius });
+		r.report.fillets.should.equal(2);
+		valid(r, 0).worst.should.be.below(0.005);
+	});
+
 	it('cuts faces on closed surfaces along their seams, with each seam edge\'s two p-curves on the seam\'s two sides', function(){
 		var cyl = BrepSolid.cappedTube(Sweep.pipe(line([0, 0, 0], [0, 0, 40]), 15).surface, [24, 96]);
 		var big = BrepSolid.cappedTube(Sweep.pipe(line([8, 0, 20], [20, 0, 20]), 4).surface, [24, 48]);
