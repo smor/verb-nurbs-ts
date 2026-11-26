@@ -108,6 +108,7 @@ An input value is one of:
 | solid | a wire from a solid node, `"@cut"`; required |
 | choice | one of the type's options (`"circular"`) |
 | text | text that is not an expression: edge or face patterns, comma separated (`"box.*\|box.*"`) |
+| function | an expression of the variable `t` (0 to 1) and of number nodes, sampled by the node (`"a + 2 * sin(pi * t)"`); the freeform nodes' radius and coordinates |
 
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is

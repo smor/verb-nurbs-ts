@@ -1,0 +1,126 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Tulip lamp",
+    "description": "A whiplash stem on a round foot carrying a tulip bud; the bud sits at the stem's end because both read the same parameters"
+  },
+  "nodes": {
+    "h": {
+      "type": "number",
+      "in": {
+        "value": 130
+      },
+      "label": "Stem height"
+    },
+    "lean": {
+      "type": "number",
+      "in": {
+        "value": 18
+      },
+      "label": "Lean"
+    },
+    "bud": {
+      "type": "number",
+      "in": {
+        "value": 16
+      },
+      "label": "Bud radius"
+    },
+    "foot": {
+      "type": "freeform/revolve",
+      "label": "Foot",
+      "in": {
+        "radius": "8 + 22 * (1 - t) * (1 - t)",
+        "height": 8,
+        "samples": 10
+      }
+    },
+    "stem": {
+      "type": "freeform/pipe",
+      "label": "Whiplash stem",
+      "in": {
+        "x": "0.35 * h * sin(pi * t) * (1 - 0.6 * t) + lean * pow(t, 2)",
+        "y": "6 * sin(2 * pi * t)",
+        "z": "3 + (h - 3) * t",
+        "radius": 3,
+        "samples": 20
+      }
+    },
+    "budShape": {
+      "type": "freeform/revolve",
+      "label": "Tulip bud",
+      "in": {
+        "radius": "bud * (0.22 + pow(sin(pi * (0.08 + 0.84 * t)), 1.5) * (1 - 0.25 * t))",
+        "height": "bud * 2.6",
+        "samples": 16
+      }
+    },
+    "budAt": {
+      "type": "transform/move",
+      "in": {
+        "of": "@budShape",
+        "x": "lean",
+        "y": "0",
+        "z": "h - 4"
+      },
+      "label": "At the stem's end"
+    },
+    "a": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@foot",
+        "b": "@stem"
+      }
+    },
+    "lamp": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@a",
+        "b": "@budAt"
+      }
+    }
+  },
+  "outputs": {
+    "lamp": "@lamp"
+  },
+  "view": {
+    "nodes": {
+      "h": {
+        "x": 0,
+        "y": 0
+      },
+      "lean": {
+        "x": 0,
+        "y": 230
+      },
+      "bud": {
+        "x": 0,
+        "y": 460
+      },
+      "foot": {
+        "x": 300,
+        "y": 0
+      },
+      "stem": {
+        "x": 300,
+        "y": 230
+      },
+      "budShape": {
+        "x": 300,
+        "y": 460
+      },
+      "a": {
+        "x": 600,
+        "y": 0
+      },
+      "budAt": {
+        "x": 600,
+        "y": 230
+      },
+      "lamp": {
+        "x": 900,
+        "y": 0
+      }
+    }
+  }
+}

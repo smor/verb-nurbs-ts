@@ -11,7 +11,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Graph, Expr } from "../src/index.js";
 import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
-import { SAMPLE } from "./sample.js";
+import { SAMPLES } from "./samples.js";
 import { History } from "./history.js";
 
 declare const WORKER_SOURCE : string;
@@ -25,7 +25,7 @@ const ref = ( v : ModelValue | undefined ) : [string, string] | null => {
 };
 const clone = <T,>( x : T ) : T => JSON.parse( JSON.stringify( x ) ) as T;
 
-let DOC : GraphDocument = clone( SAMPLE );
+let DOC : GraphDocument = clone( SAMPLES[0].doc );
 // the solid node the 3D view shows: the one asked for with Show, else the document's first output
 const shownNode = () : string => {
     const s = DOC.view?.show;
@@ -60,15 +60,18 @@ function record( key : string | null = null ) {
 }
 
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
-interface Result { ok : boolean; pos? : Float32Array; idx? : Uint32Array; ms : number; error? : string; volume? : number; faces? : number;
+interface Result { seq : number; ok : boolean; pos? : Float32Array; idx? : Uint32Array; ms : number; error? : string; volume? : number; faces? : number;
     verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown }
 const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { type : "text/javascript" } ) ) );
+// the camera frames the solid of the first evaluation sent after a document is opened (fitAt), not a stale one
+let fitWanted = true, fitAt = 0;
 let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {};
 function evaluate() {
     if (busy) { pending = true; return; }
     busy = true;
     const shown = shownNode();
     worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown } );
+    if (fitWanted) { fitWanted = false; fitAt = seq; }
 }
 worker.onmessage = ( e : MessageEvent<Result> ) => {
     busy = false;
@@ -103,7 +106,7 @@ function NumberInput( { id, k, port } : { id : string, k : string, port : Extrac
     </div>;
 }
 
-function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" }> } ) {
+function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" }> } ) {
     const { changed } = useContext( Ctx );
     const v = String( DOC.nodes[id].in?.[k] ?? port.value );
     const [text, setText] = useState( v );
@@ -111,6 +114,7 @@ function TextInput( { id, k, port } : { id : string, k : string, port : Extract<
     const set = ( x : string ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : x }; changed(); };
     return <div className="row">
         <span className="lbl">{port.label}</span>
+        {port.kind == "function" && <span className="expr-tag" title={`An expression of ${port.variable}, from 0 to 1, and number nodes`}>ƒ({port.variable})</span>}
         {port.kind == "choice"
             ? <select className="nodrag" aria-label={port.label} value={v} onChange={e => set( e.target.value )}>
                 {port.options.map( o => <option key={o}>{o}</option> )}</select>
@@ -148,7 +152,26 @@ function GraphNodeView( { id } : NodeProps ) {
 }
 const nodeTypes = { g : GraphNodeView };
 
-const toNodes = () : Node[] => Object.keys( DOC.nodes ).map( id => ({ id, type : "g", position : view()[id] ?? { x : 0, y : 0 }, data : {}, dragHandle : ".gn-head" }) );
+// a node without a place on the canvas (a document written by hand or by a program) gets one: a column per step of
+// the longest chain of wires leading to it, so wires run left to right
+function placeUnplaced() {
+    const v = view(), depth : Record<string, number> = {}, rows : Record<number, number> = {};
+    const at = ( id : string, seen : Set<string> ) : number => {
+        if (depth[id] != null) return depth[id];
+        if (seen.has( id )) return 0;
+        seen.add( id );
+        let d = 0;
+        for (const x of Object.values( DOC.nodes[id]?.in ?? {} )) { const r = ref( x ); if (r && DOC.nodes[r[0]] != null) d = Math.max( d, at( r[0], seen ) + 1 ); }
+        return depth[id] = d;
+    };
+    for (const id of Object.keys( DOC.nodes )) {
+        if (v[id] != null) continue;
+        const c = at( id, new Set() ), r = rows[c] ?? 0;
+        rows[c] = r + 1;
+        v[id] = { x : c * 300, y : r * 230 };
+    }
+}
+const toNodes = () : Node[] => (placeUnplaced(), Object.keys( DOC.nodes )).map( id => ({ id, type : "g", position : view()[id] ?? { x : 0, y : 0 }, data : {}, dragHandle : ".gn-head" }) );
 const toEdges = () : Edge[] => Object.entries( DOC.nodes ).flatMap( ([id, nd]) => Object.entries( nd.in ?? {} ).flatMap( ([k, v]) => {
     const r = ref( v );
     if (!r || !DOC.nodes[r[0]] || !REGISTRY[DOC.nodes[r[0]].type]) return [];
@@ -159,7 +182,7 @@ const toEdges = () : Edge[] => Object.entries( DOC.nodes ).flatMap( ([id, nd]) =
 // ---------------------------------------------------------------- 3D view
 function Viewport( { result } : { result : Result | null } ) {
     const host = useRef<HTMLDivElement>( null );
-    const three = useRef<{ mesh : THREE.Mesh, render : () => void } | null>( null );
+    const three = useRef<{ mesh : THREE.Mesh, render : () => void, fit : ( g : THREE.BufferGeometry ) => void } | null>( null );
     useEffect( () => {
         const el = host.current!;
         const renderer = new THREE.WebGLRenderer( { antialias : true, alpha : true } );
@@ -181,7 +204,17 @@ function Viewport( { result } : { result : Result | null } ) {
         const resize = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize( w, h ); camera.aspect = w / Math.max( h, 1 ); camera.updateProjectionMatrix(); render(); };
         const ro = new ResizeObserver( resize ); ro.observe( el );
         controls.addEventListener( "change", render );
-        three.current = { mesh, render };
+        // look at the whole solid from the front right, above, at the distance its bounding sphere fills the view
+        const fit = ( g : THREE.BufferGeometry ) => {
+            g.computeBoundingSphere();
+            const s = g.boundingSphere!, half = THREE.MathUtils.degToRad( camera.fov / 2 );
+            const d = s.radius / Math.sin( Math.min( half, Math.atan( Math.tan( half ) * camera.aspect ) ) ) * 1.08;
+            controls.target.copy( s.center );
+            camera.position.copy( s.center ).addScaledVector( new THREE.Vector3( 0.55, -0.75, 0.42 ).normalize(), d );
+            camera.near = Math.max( 0.1, d / 100 ); camera.far = d * 20; camera.updateProjectionMatrix();
+            controls.update();
+        };
+        three.current = { mesh, render, fit };
         resize();
         return () => { ro.disconnect(); renderer.dispose(); el.innerHTML = ""; };
     }, [] );
@@ -192,13 +225,14 @@ function Viewport( { result } : { result : Result | null } ) {
         g.setAttribute( "position", new THREE.BufferAttribute( result.pos, 3 ) );
         g.setIndex( new THREE.BufferAttribute( result.idx!, 1 ) );
         t.mesh.geometry.dispose(); t.mesh.geometry = toCreasedNormals( g, Math.PI / 6 );
+        if (fitAt > 0 && result.seq >= fitAt) { fitAt = 0; t.fit( t.mesh.geometry ); }
         t.render();
     }, [result] );
     return <div className="viewport" ref={host} role="img" aria-label="3D view of the shown solid" />;
 }
 
 // ---------------------------------------------------------------- palette
-const CATEGORIES : Array<[string, string]> = [["parameter", "Parameters"], ["math", "Math"], ["primitive", "Primitives"], ["transform", "Transforms"],
+const CATEGORIES : Array<[string, string]> = [["parameter", "Parameters"], ["math", "Math"], ["freeform", "Freeform"], ["primitive", "Primitives"], ["transform", "Transforms"],
     ["boolean", "Booleans"], ["finish", "Finishing"]];
 
 function Palette( { add } : { add : ( type : string ) => void } ) {
@@ -226,6 +260,7 @@ function App() {
     // every edit of the document goes through changed (or reload, for a whole new document), which records an undo step
     const changed = ( key? : string ) => { setTick( x => x + 1 ); setEdges( toEdges() ); setNodes( ns => ns.map( n => ({ ...n, data : {} }) ) ); record( key ?? null ); evaluate(); };
     const reload = ( fit = true ) => {
+        if (fit) fitWanted = true;
         setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate();
         if (fit) setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 );
     };
@@ -289,7 +324,7 @@ function App() {
             const d = JSON.parse( await f.text() ) as GraphDocument;
             if (d.version !== 2 || typeof d.nodes != "object") throw new Error( "not a version 2 graph document" );
             DOC = d; reload(); record();
-        } catch (e) { setResult( { ok : false, ms : 0, error : `Could not open ${f.name}: ${(e as Error).message}` } ); }
+        } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${f.name}: ${(e as Error).message}` } ); }
     };
 
     const shown = shownNode();
@@ -302,7 +337,11 @@ function App() {
                 <div className="toolbar">
                     <button onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z or ⌘Z)">Undo</button>
                     <button onClick={redo} disabled={!history.canRedo} title="Redo (Shift+Ctrl+Z, ⌘⇧Z or Ctrl+Y)">Redo</button>
-                    <button onClick={() => { DOC = clone( SAMPLE ); reload(); record(); }}>New from sample</button>
+                    <select aria-label="Open a sample" value="" onChange={e => { const s = SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); reload(); record(); } }}>
+                        <option value="" disabled>Open a sample…</option>
+                        {[...new Set( SAMPLES.map( s => s.group ) )].map( grp => <optgroup key={grp} label={grp}>
+                            {SAMPLES.map( ( s, i ) => s.group == grp && <option key={i} value={i}>{s.title}</option> )}</optgroup> )}
+                    </select>
                     <button onClick={() => file.current?.click()}>Open…</button>
                     <button onClick={save}>Save graph.json</button>
                     <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void open( f ); e.target.value = ""; }} />

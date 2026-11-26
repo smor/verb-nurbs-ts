@@ -35,7 +35,7 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 .palette button:focus-visible,.toolbar button:focus-visible,.palette input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .canvas{position:relative}
 .toolbar{position:absolute;z-index:5;top:10px;left:10px;display:flex;gap:6px;flex-wrap:wrap}
-.toolbar button{font:500 12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 10px;cursor:pointer}
+.toolbar button,.toolbar select{font:500 12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 10px;cursor:pointer}
 .unit{font:11px var(--mono);color:var(--muted)}
 .row select{font:12px var(--sans);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:3px}
 .row .val.wide{width:150px}
@@ -51,11 +51,11 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
 .muted{color:var(--muted)} .small{font-size:12.5px}
 .err{color:var(--warn);background:var(--warn-bg);padding:6px 8px;border-radius:4px;margin:0}
-.json{display:flex;flex-direction:column;min-height:0}
+.json{display:flex;flex-direction:column;min-height:0;min-width:0}
 .tabs{display:flex;gap:4px;padding:8px 16px 0}
 .tabs button{font:500 12.5px var(--sans);color:var(--muted);background:none;border:0;border-bottom:2px solid transparent;padding:6px 8px;cursor:pointer}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
-.json pre{margin:0;padding:10px 16px 16px;overflow:auto;font:12px/1.5 var(--mono);flex:1;min-height:0}
+.json pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:10px 16px 16px;overflow:auto;font:12px/1.5 var(--mono);flex:1;min-height:0}
 /* React Flow, in our tokens */
 .react-flow{--xy-background-color:var(--bg);--xy-edge-stroke:var(--solid);--xy-controls-button-background-color:var(--panel);
   --xy-controls-button-color:var(--ink);--xy-controls-button-border-color:var(--line);--xy-background-pattern-dots-color:var(--line);--xy-attribution-background-color:transparent}
