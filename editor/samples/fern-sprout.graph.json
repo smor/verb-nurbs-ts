@@ -1,0 +1,136 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Fern sprout",
+    "description": "Three fiddleheads, curling spirals of three sizes, rising from a domed base: the art nouveau crozier"
+  },
+  "nodes": {
+    "a": {
+      "type": "number",
+      "in": {
+        "value": 40
+      },
+      "label": "Size"
+    },
+    "base": {
+      "type": "freeform/revolve",
+      "label": "Domed base",
+      "in": {
+        "radius": "22 * sqrt(1 - 0.85 * t * t) + 0.5",
+        "height": 10,
+        "samples": 10
+      }
+    },
+    "frond": {
+      "type": "freeform/pipe",
+      "label": "Fiddlehead",
+      "in": {
+        "x": "6 + (0.5 * a) + (0.5 * a) * exp(-0.25 * 5.3 * max(0, t - 0.3) / 0.7) * cos(pi - 5.3 * max(0, t - 0.3) / 0.7)",
+        "y": "0",
+        "z": "4 + a * min(1, t / 0.3) + (0.5 * a) * exp(-0.25 * 5.3 * max(0, t - 0.3) / 0.7) * sin(pi - 5.3 * max(0, t - 0.3) / 0.7)",
+        "radius": 1.8,
+        "samples": 40
+      }
+    },
+    "frondSmall": {
+      "type": "transform/scale",
+      "in": {
+        "of": "@frond",
+        "factor": 0.72
+      },
+      "label": "Smaller"
+    },
+    "f2": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@frondSmall",
+        "axis": "z",
+        "degrees": 125
+      }
+    },
+    "frondTiny": {
+      "type": "transform/scale",
+      "in": {
+        "of": "@frond",
+        "factor": 0.5
+      },
+      "label": "Smallest"
+    },
+    "f3": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@frondTiny",
+        "axis": "z",
+        "degrees": -115
+      }
+    },
+    "u1": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@base",
+        "b": "@frond"
+      }
+    },
+    "u2": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@u1",
+        "b": "@f2"
+      }
+    },
+    "sprout": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@u2",
+        "b": "@f3"
+      }
+    }
+  },
+  "outputs": {
+    "sprout": "@sprout"
+  },
+  "view": {
+    "nodes": {
+      "a": {
+        "x": 0,
+        "y": 0
+      },
+      "base": {
+        "x": 300,
+        "y": 0
+      },
+      "frond": {
+        "x": 300,
+        "y": 230
+      },
+      "frondSmall": {
+        "x": 300,
+        "y": 460
+      },
+      "frondTiny": {
+        "x": 300,
+        "y": 690
+      },
+      "f2": {
+        "x": 600,
+        "y": 0
+      },
+      "f3": {
+        "x": 600,
+        "y": 230
+      },
+      "u1": {
+        "x": 600,
+        "y": 460
+      },
+      "u2": {
+        "x": 900,
+        "y": 0
+      },
+      "sprout": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  }
+}
