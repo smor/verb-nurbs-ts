@@ -14,7 +14,8 @@
     ],
     "strictPropertyInitialization": false,
     "useDefineForClassFields": false,
-    "noImplicitAny": true
+    "noImplicitAny": true,
+    "resolveJsonModule": true
   },
   "include": [
     "*.ts",

@@ -1,0 +1,181 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Art nouveau vase",
+    "description": "A revolved body with a full belly and a flared lip, hollowed by a revolve that follows it at the wall thickness, and two whiplash handles"
+  },
+  "nodes": {
+    "h": {
+      "type": "number",
+      "in": {
+        "value": 120
+      },
+      "label": "Height"
+    },
+    "belly": {
+      "type": "number",
+      "in": {
+        "value": 26
+      },
+      "label": "Belly"
+    },
+    "neck": {
+      "type": "number",
+      "in": {
+        "value": 9
+      },
+      "label": "Neck radius"
+    },
+    "flare": {
+      "type": "number",
+      "in": {
+        "value": 12
+      },
+      "label": "Lip flare"
+    },
+    "wall": {
+      "type": "number",
+      "in": {
+        "value": 2.4
+      },
+      "label": "Wall"
+    },
+    "base": {
+      "type": "number",
+      "in": {
+        "value": 5
+      },
+      "label": "Floor"
+    },
+    "body": {
+      "type": "freeform/revolve",
+      "in": {
+        "radius": "(belly * sin(pi * (0.85 * t + 0.08)) + neck + flare * pow(t, 6) - 0.35 * belly * t)",
+        "height": "@h",
+        "samples": 18
+      },
+      "label": "Body"
+    },
+    "cavityShape": {
+      "type": "freeform/revolve",
+      "in": {
+        "radius": "(belly * sin(pi * (0.85 * (base + t * (h - base + 2)) / h + 0.08)) + neck + flare * pow((base + t * (h - base + 2)) / h, 6) - 0.35 * belly * (base + t * (h - base + 2)) / h) - wall",
+        "height": "h - base + 2",
+        "samples": 18
+      },
+      "label": "Cavity"
+    },
+    "cavity": {
+      "type": "transform/move",
+      "in": {
+        "of": "@cavityShape",
+        "z": "@base"
+      },
+      "label": "Lift the cavity"
+    },
+    "vessel": {
+      "type": "boolean/difference",
+      "in": {
+        "from": "@body",
+        "minus": "@cavity"
+      }
+    },
+    "handle": {
+      "type": "freeform/pipe",
+      "label": "Whiplash handle",
+      "in": {
+        "x": "(neck + 0.4 * belly) + 0.55 * belly * sin(pi * t) + 4 * sin(3 * pi * t)",
+        "y": "0",
+        "z": "h * (0.82 - 0.42 * t) + 6 * sin(2 * pi * t)",
+        "radius": 2.2,
+        "samples": 16
+      }
+    },
+    "handle2": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@handle",
+        "axis": "z",
+        "degrees": 180
+      },
+      "label": "Other handle"
+    },
+    "handles": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@handle",
+        "b": "@handle2"
+      }
+    },
+    "vase": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@vessel",
+        "b": "@handles"
+      }
+    }
+  },
+  "outputs": {
+    "vase": "@vase"
+  },
+  "view": {
+    "nodes": {
+      "h": {
+        "x": 0,
+        "y": 0
+      },
+      "belly": {
+        "x": 0,
+        "y": 230
+      },
+      "neck": {
+        "x": 0,
+        "y": 460
+      },
+      "flare": {
+        "x": 0,
+        "y": 690
+      },
+      "wall": {
+        "x": 0,
+        "y": 920
+      },
+      "base": {
+        "x": 0,
+        "y": 1150
+      },
+      "body": {
+        "x": 300,
+        "y": 0
+      },
+      "cavityShape": {
+        "x": 300,
+        "y": 230
+      },
+      "cavity": {
+        "x": 300,
+        "y": 460
+      },
+      "handle": {
+        "x": 300,
+        "y": 690
+      },
+      "vessel": {
+        "x": 600,
+        "y": 0
+      },
+      "handle2": {
+        "x": 600,
+        "y": 230
+      },
+      "handles": {
+        "x": 600,
+        "y": 460
+      },
+      "vase": {
+        "x": 900,
+        "y": 0
+      }
+    }
+  }
+}
