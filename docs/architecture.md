@@ -7,7 +7,7 @@ through it, which invariants hold everywhere, and where to start reading for eac
 
 ```
                  ┌───────────────────────────────────────────────┐
-   apps          │ viewer/ playground/ editor/ (three.js, workers)│
+   apps          │ viewer/ playground/ editor/ (three.js)         │
                  └───────────────────────▲───────────────────────┘
                  ┌───────────────────────┴───────────────────────┐
    view, io,     │ Inspect: objects → plain display layers       │
