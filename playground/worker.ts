@@ -85,12 +85,23 @@ function narrowedNote( n? : { scale : number } ) : Array<string> {
         : [];
 }
 
+// what the knot recipes changed in the knot itself: a tube wider than allowed, a common factor in (p, q)
+function knotNotes( p : Record<string, number> ) : Array<string> {
+    const out : Array<string> = [];
+    const max = SweptObjectsRecipe.MAX_TUBE * p.radius;
+    if (p.tube > max) out.push( "The torus tube is held to " + max.toFixed( 1 ) + " mm (0.8 of the knot radius), so the knot does not pass through its own axis." );
+    const gcd = (a : number, b : number) : number => b == 0 ? a : gcd( b, a % b );
+    const g = gcd( p.p, p.q );
+    if (g > 1) out.push( "(" + p.p + ", " + p.q + ") runs " + g + " times round the (" + p.p / g + ", " + p.q / g + ") knot; it is drawn once." );
+    return out;
+}
+
 function ribbon( p : Record<string, number>, fine : boolean ) : Built {
     const o = SweptObjectsRecipe.ribbonKnot( {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, width : p.width, thickness : p.thickness, turns : p.turns,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 720 : 300, divsV : fine ? 40 : 20
     } );
-    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : narrowedNote( o.sweep.narrowed ) };
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : knotNotes( p ).concat( narrowedNote( o.sweep.narrowed ) ) };
 }
 
 function knot( p : Record<string, number>, fine : boolean ) : Built {
@@ -98,7 +109,7 @@ function knot( p : Record<string, number>, fine : boolean ) : Built {
         p : p.p, q : p.q, radius : p.radius, tubeRadius : p.tube, pipeRadius : p.pipe, pipeSwell : p.swell,
         tolerance : fine ? 0.02 : 0.1, divsU : fine ? 480 : 200, divsV : fine ? 40 : 20
     } );
-    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : narrowedNote( o.sweep.narrowed ) };
+    return { mesh : o.mesh, report : o.report, error : o.report.sweepMaxError, ok : true, notes : knotNotes( p ).concat( narrowedNote( o.sweep.narrowed ) ) };
 }
 
 function ring( p : Record<string, number>, fine : boolean ) : Built {
