@@ -189,10 +189,26 @@ export class Model {
         hashOf( doc.output );
 
         const built = new Set<string>();
+        // A failure is cached too (the same content fails the same way), and one from inside the kernel is reported
+        // as the failure of the feature being built, with the kernel's error as its cause.
         const cached = <T>( stage : string, id : string, make : () => T ) : T => {
             const key = stage + ":" + id + ":" + (hashes.get( id ) as string);
-            if (this.cache.has( key )) return this.cache.get( key ) as T;
-            const v = make();
+            if (this.cache.has( key )) {
+                const v = this.cache.get( key );
+                if (v instanceof ModelFailure) throw v.error;
+                return v as T;
+            }
+            let v : T;
+            try {
+                v = make();
+            } catch (e) {
+                const message = e instanceof Error ? e.message : String( e );
+                const error = message.startsWith( "Model:" ) ? (e instanceof Error ? e : new Error( message ))
+                    : Object.assign( new Error( `Model: building "${id}" failed: ${message}` ), { cause : e } );
+                this.cache.set( key, new ModelFailure( error ) );
+                built.add( id );
+                throw error;
+            }
             this.cache.set( key, v );
             built.add( id );
             return v;
@@ -455,7 +471,14 @@ export class Model {
             case "cylinder": {
                 const a = point( f.from, "from" ), b = point( f.to, "to" );
                 if (Vec.dist( a, b ) == 0) throw new Error( "Model: a cylinder's ends must differ" );
-                return BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), positive( num( f.radius, "radius" ), "a cylinder's radius" ) ).surface, divs( f.divs, [24, 96] ) );
+                // exact: a rational circle (at `to`) moved along the axis (to `from` at u = 0), not a swept approximation,
+                // so that copies of one cylinder, moved or turned, are the same surface
+                const r = positive( num( f.radius, "radius" ), "a cylinder's radius" ), axis = Vec.normalized( Vec.sub( b, a ) );
+                const k = [0, 1, 2].reduce( (m, i) => Math.abs( axis[i] ) < Math.abs( axis[m] ) - 1e-12 ? i : m, 0 );
+                const e = [0, 0, 0]; e[k] = 1;
+                const x = Vec.normalized( Vec.sub( e, Vec.mul( Vec.dot( e, axis ), axis ) ) ), y = Vec.cross( axis, x );
+                const tube = Make.extrudedSurface( Vec.mul( -1, axis ), Vec.dist( a, b ), Make.arc( b, x, y, r, 0, 2 * Math.PI ) );
+                return BrepSolid.cappedTube( tube, divs( f.divs, [24, 96] ) );
             }
             case "pipe": {
                 if (f.through.length < 2) throw new Error( "Model: a pipe runs through two points or more" );
@@ -830,4 +853,9 @@ export class Model {
         }
         return h1.toString( 16 ).padStart( 8, "0" ) + h2.toString( 16 ).padStart( 8, "0" );
     }
+}
+
+// a feature that failed to build, as the cache keeps it
+class ModelFailure {
+    constructor( public readonly error : Error ) {}
 }

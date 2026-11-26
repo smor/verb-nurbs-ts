@@ -116,6 +116,19 @@ describe("verb.model.Model", function(){
 		wider.result.report.fillets.should.be.equal(2);
 	});
 
+	it('names the feature a failure comes from, and keeps the failure in the cache', function(){
+		var m = new Model();
+		var doc = { version : 1, features : { t : { type : 'primitive', shape : 'tube', values : { outer : 5, inner : 6, height : 2 } } }, output : 't' };
+		var first = null, second = null;
+		try { m.evaluate(doc); } catch (e) { first = e; }
+		should.exist(first);
+		first.message.should.match(/^Model: building "t" failed: Primitives: a tube's inner radii/);
+		should.exist(first.cause);
+		// the same content fails the same way: not built again
+		try { m.evaluate(doc); } catch (e) { second = e; }
+		second.should.be.equal(first);
+	});
+
 	it('places copies with transforms, named by their path, and checks against a machine', function(){
 		var doc = {
 			version : 1,
