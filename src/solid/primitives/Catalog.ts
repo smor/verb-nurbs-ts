@@ -1,4 +1,6 @@
 import { BrepSolid } from "../Brep.js";
+import { Make } from "../../eval/Make.js";
+import { Nodes } from "./Nodes.js";
 import { Primitives } from "./Primitives.js";
 import { Polyhedra } from "./Polyhedra.js";
 import { Profiles } from "./Profiles.js";
@@ -145,6 +147,13 @@ export class Catalog {
             const R = Math.max( ...t.vertices.map( p => Math.hypot( p[0], p[1], p[2] ) ) );
             return Primitives.polyhedron( { vertices : t.vertices.map( p => p.map( x => x * v.radius / R ) ), faces : t.faces } );
         } );
+
+        // Grasshopper-style builders (Nodes) on simple curves
+        const circle = (r : number, z : number) => Make.arc( [0, 0, z], [1, 0, 0], [0, 1, 0], r, 0, 2 * Math.PI );
+        add( "lofted vase", "nodes", [P( "bottom", 12, 0.01, L ), P( "waist", 6, 0.01, L ), P( "top", 10, 0.01, L ), P( "height", 30, 0.01, L )],
+            v => Nodes.loftSolid( [circle( v.bottom, 0 ), circle( v.waist, v.height / 2 ), circle( v.top, v.height )] ) );
+        add( "bent pipe", "nodes", [P( "bend radius", 30, 0.01, L ), P( "radius", 5, 0.01, L ), P( "angle", 90, 1, 359, { degrees : true } ), P( "round caps", 1, 0, 1, { integer : true } )],
+            v => Nodes.pipeSolid( Make.arc( [0, 0, 0], [1, 0, 0], [0, 0, 1], v["bend radius"], 0, v.angle ), v.radius, v["round caps"] ? "round" : "flat" ) );
         return out;
     }
 }

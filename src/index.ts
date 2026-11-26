@@ -79,6 +79,8 @@ import { Profiles } from "./solid/primitives/Profiles.js";
 import { Polyhedra } from "./solid/primitives/Polyhedra.js";
 import { Catalog } from "./solid/primitives/Catalog.js";
 export type { CatalogEntry, CatalogParameter } from "./solid/primitives/Catalog.js";
+import { Nodes } from "./solid/primitives/Nodes.js";
+export type { LoftOptions, LoftType, NodeDensity, PipeCaps, Sweep2Options } from "./solid/primitives/Nodes.js";
 export type { PolyhedronData } from "./solid/primitives/Polyhedra.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
@@ -205,6 +207,7 @@ export {
     Profiles,
     Polyhedra,
     Catalog,
+    Nodes,
     Implicit,
     IntersectionCertificate,
     Growth,
@@ -322,6 +325,7 @@ export const solid = {
     Profiles,
     Polyhedra,
     Catalog,
+    Nodes,
     Implicit,
     IntersectionCertificate,
     Growth,

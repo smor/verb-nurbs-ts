@@ -10,7 +10,7 @@ boundaries and how they would map to packages, so new code respects them now.
 | `core`, `eval` | NURBS data, evaluation, fitting, intersection, tessellation (upstream verb, plus `Fit`, `Sweep`, `Offset`, `Transfinite`, `Fair`, `THB`) | each other |
 | `geom` | object wrappers (`NurbsCurve`, `NurbsSurface`, …) | core, eval, exe |
 | `exe` | the worker dispatcher | nothing |
-| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`), parameterised primitive solids (`solid/primitives/`: `Profile`, `Profiles`, `Polyhedra`, `Primitives`, `Catalog`) | core, eval |
+| `solid` | B-reps, surface/surface intersection, Booleans, fillets (new edges and own edges, `BrepEdges`), triangle meshes, makeability checks, implicit solids and lattices (`Implicit`), differential growth (`Growth`), parameterised primitive solids (`solid/primitives/`: `Profile`, `Profiles`, `Polyhedra`, `Primitives`, `Catalog`, and the Grasshopper-style builders `Nodes`) | core, eval |
 | `recipes` | parametric objects (vessels, mug, appliance, …) | core, eval, solid |
 | `model` | the feature tree: documents of parameters and features regenerated into named solids (`Model`, `Expr`) | core, eval, solid |
 | `io` | file formats: STEP export of B-rep results (`Step`) | core, eval, solid |

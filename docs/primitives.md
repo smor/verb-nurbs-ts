@@ -256,19 +256,48 @@ Conway operators on a polyhedron: `dual`, `truncate(t)`, `ambo` (rectify), `kis(
 
 ## Grasshopper-style builders
 
-Rhino and Grasshopper's surface nodes are a goal too. Two are built (`extrude`, `extrudePoint`); the others are next,
-on top of the same builders and of `Sweep`, `Make.loftedSurface` and `Make.fourPointSurface`.
+Rhino and Grasshopper's surface nodes, in `Nodes` (`src/solid/primitives/Nodes.ts`), on NURBS curves in world
+coordinates. Each returns the surface Grasshopper returns; the `...Solid` variants cap it into a closed `BrepSolid`
+(Grasshopper's Cap Holes) that rounds, Booleans and STEP take.
 
-| Node | Inputs | Output here | Status |
-|---|---|---|---|
-| Boundary Surfaces | closed coplanar curves | a planar face per curve (a cap from a star point, or split) | 🔜 |
-| Loft | ordered sections; normal, straight (ruled) or developable | a surface, or a solid when the sections are closed and capped | 🔜 |
-| Sweep1 / Sweep2 | one or two rails, sections, miter | a swept surface; capped into a solid when the sections are closed | 🔜 |
-| Extrude | base curve or profile, direction vector | `Primitives.extrude` (a closed base gives a capped solid) | ✅ |
-| Extrude Point | base curve or profile, apex | `Primitives.extrudePoint` | ✅ |
-| Pipe | curve, radius, caps (none, flat, round) | the `pipe` feature has flat caps; open and round caps next | 🔜 |
-| 4Point Surface | three or four corner points | a bilinear patch (`Make.fourPointSurface`, degree 1) | 🔜 |
-| Plane Surface | plane, x and y sizes | a planar rectangle | 🔜 |
+| Node | Inputs | Here | Exact? | Status |
+|---|---|---|---|---|
+| Plane Surface | plane (origin, x, y), x and y sizes or domains | `Nodes.plane(origin, x, y, xSize, ySize)` | yes | ✅ |
+| 4Point Surface | three or four corners | `Nodes.fourPoint(a, b, c, d?)`: a bilinear patch, a triangle without `d` | yes | ✅ |
+| Boundary Surfaces | closed coplanar curves | `Nodes.boundary(curves)`: one planar face per curve, a cone from the region's centroid | yes | ✅ |
+| Loft | ordered sections; normal, loose, straight | `Nodes.loft(curves, {type})`; `Nodes.loftSolid` caps closed planar sections | through the sections | ✅ |
+| Sweep1 | rail, section, (miter none) | `Nodes.sweep1(rail, section)`; `Nodes.sweep1Solid` caps a closed section, or closes into a ring | within 1e-3 | ✅ |
+| Sweep2 | two rails, sections | `Nodes.sweep2(rail1, rail2, sections, {stations})` | at the stations | ✅ |
+| Pipe | curve, radius (or start and end radii), caps none, flat, round | `Nodes.pipe(curve, r)`; `Nodes.pipeSolid(curve, r, "flat" \| "round")` | within 1e-3 | ✅ |
+| Extrude | base profile, direction vector | `Primitives.extrude` (a closed base gives a capped solid) | yes | ✅ |
+| Extrude Point | base profile, apex | `Primitives.extrudePoint` | yes | ✅ |
+| Loft, developable | two sections | rulings matched along equal tangent planes | | ○ |
+| Sweep1 with miters | a rail with corners | one sweep per smooth piece, mitred at the corners | | ○ |
+
+```ts
+import { Make, Nodes } from "verb-nurbs-ts";
+
+const circle = (r, z) => Make.arc( [0, 0, z], [1, 0, 0], [0, 1, 0], r, 0, 2 * Math.PI );
+const vase = Nodes.loftSolid( [circle( 10, 0 ), circle( 5, 10 ), circle( 10, 20 )] );   // a closed, capped loft
+const handle = Nodes.pipeSolid( Make.arc( [0, 0, 0], [1, 0, 0], [0, 0, 1], 30, 0, Math.PI / 2 ), 5, "round" );
+```
+
+How each is built:
+
+- **Boundary Surfaces** fill a curve with the cone from its region's centroid: planar and exact, but the region must be
+  star-shaped about that point (convex ones, stars, hearts are). A curve inside another (a hole) is refused, since the
+  faces are untrimmed.
+- **Loft**: the sections are given the same degree and knots; *normal* interpolates them with a cubic across (fewer
+  sections, lower degree), *loose* takes them as the control net across (through the first and last only), *straight*
+  rules between consecutive ones. A loft of polygons is one face whose creases are not edges: to round a polygonal
+  loft, use `Primitives.loft` on profiles instead.
+- **Sweep1** expresses the section in the rotation-minimising frame at the start of the rail and sweeps it with
+  `Sweep.surface`, so the section is drawn where it meets the rail, as in Grasshopper.
+- **Sweep2** sets a section between the two rails at each station (24 by default): turned to keep its angle to the
+  chord and the rails' tangents, scaled to the chord, and blended between the given sections either side; then lofts
+  through them. A straight-railed sweep of an arc is the cylinder exactly.
+- **Pipe** sweeps a circle (`Sweep.pipe`). Round caps are half-spheres built on the end ring's own control points, so
+  they share the ring exactly and are within the pipe's tolerance of the sphere; a closed curve gives a ring.
 
 ## Truncation and modification variants
 
