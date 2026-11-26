@@ -123,6 +123,10 @@ describe("verb.solid.Implicit", function(){
 			if (d > 0.2) bvh.contains(p).should.be.false();
 		}
 		n.should.be.above(100);
+		// the joints are rounded inside, and nothing comes out past the solid's surface
+		var out = 0;
+		m.vertices.forEach(function(p, i){ if (i % 20 == 0) out = Math.max(out, s.value(p)); });
+		out.should.be.below(1e-4);
 	});
 
 	it("opens the skin on chosen faces: the lattice runs out to them, and no void is sealed", function(){

@@ -379,13 +379,27 @@ export class Implicit {
         const band = Math.max( skin, 0 ) + 3 * size + blend;
         const s = Implicit.meshDistance( solid, band );
         const lattice = Implicit.lattice( options.pattern, options.cell, options.wall );
-        const open = options.open;
+        // the opening: the points within the skin's thickness (and a step) of the open faces, by the distance to
+        // them alone, so the skin's edge round an opening is a smooth offset of the faces' boundary, not a grid step
+        let opening : ((p : Point) => number) | null = null;
+        if (options.open != null) {
+            const sub = new TriMesh();
+            sub.vertices = solid.vertices;
+            sub.triangles = solid.triangles.filter( (_, k) => (options.open as ArrayLike<boolean>)[k] );
+            if (sub.triangles.length > 0) {
+                const o = Implicit.meshDistance( sub, band );
+                opening = p => o.unsigned( p ) - (skin + size);
+            }
+        }
         const field : Field = skin > 0 ? { value : p => {
-            const v = s.value( p ), t = s.triangle();
-            const isOpen = open != null && t >= 0 && open[t];
-            const sk = isOpen ? band : Math.max( v, -v - skin );
-            const core = Math.max( v + (isOpen ? 0 : 0.5 * skin), lattice.value( p ) );
-            return Implicit.smin( sk, core, blend );
+            const v = s.value( p );
+            const op = opening == null ? band : opening( p );
+            // the skin, less the opening; the lattice deeper than half the skin, or within the opening
+            const sk = Math.max( v, -v - skin, -op );
+            const L = lattice.value( p );
+            const core = Math.min( Math.max( v + 0.5 * skin, L ), Math.max( v, L, op ) );
+            // the blend rounds the joints inside; nothing comes out past the solid's surface
+            return Math.max( Implicit.smin( sk, core, blend ), v );
         } } : Implicit.intersection( [s, lattice] );
         const bb = solid.boundingBox(), m = 2 * size;
         return Implicit.mesh( field, Vec.sub( bb.min, [m, m, m] ), Vec.add( bb.max, [m, m, m] ), size );
