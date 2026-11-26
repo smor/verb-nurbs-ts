@@ -130,6 +130,7 @@ g.evaluate( doc );                                        // the first output
 g.evaluate( doc, { output : "connecting-rod" } );         // another
 g.evaluate( doc, { output : "connecting-rod", set : { rod : 90 } } );  // a number node set from outside
 g.evaluate( doc, { output : "@bar" } );                   // any solid node, to preview it
+g.evaluate( doc, { mesh : "print" } );                    // with an export mesh within 0.02 mm (r.export)
 Graph.compile( doc, { output : "flywheel" } );            // the model document, without building it
 ```
 
@@ -137,6 +138,14 @@ Graph.compile( doc, { output : "flywheel" } );            // the model document,
 a project passes its own parameters (a 507 movement's `crank`, `rod`) into a part. Because evaluation is cached by
 content, a part that does not read the parameter that changed is not rebuilt, and evaluating several outputs of one
 document shares every feature they have in common.
+
+`mesh` asks for an export mesh besides the result, tessellated from the result's exact shell within a tolerance
+([booleans.md, Export mesh](booleans.md#export-mesh)): `"print"` (0.02 mm), `"view"` (0.1 mm, normals within 20°),
+`{ chordal, angle?, maxEdge? }`, or `"analysis"` for the Boolean's own dense mesh as it is. It is an evaluation option,
+not part of the document, so one document gives a print mesh and a viewer mesh. `r.export` holds the `mesh` (a closed
+2-manifold), `faceNames` (the persistent name of each triangle's face), the `tolerance` and the `deviation` measured.
+The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
+A lattice output has no exact shell: only `"analysis"` is accepted there.
 
 ### Components
 

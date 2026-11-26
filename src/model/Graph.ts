@@ -1,7 +1,13 @@
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { Expr } from "./Expr.js";
 import { Model } from "./Model.js";
+import { ShellBuilder } from "../solid/BrepShell.js";
+import { ShellMesher } from "../solid/ShellMesher.js";
+import type { BrepShell } from "../solid/BrepShell.js";
+import type { BooleanResult } from "../solid/BrepBoolean.js";
 import type { Machine } from "../solid/Makeable.js";
+import type { MeshTolerance } from "../solid/ShellMesher.js";
+import type { TriMesh } from "../solid/TriMesh.js";
 import type { ModelDocument, ModelFeature, ModelResult, ModelValue } from "./Model.js";
 
 // Node graphs for visual programming (docs/visual-programming.md). A graph document is plain JSON: nodes keyed by
@@ -73,6 +79,19 @@ export interface GraphOptions {
     // finds the document a component node uses: `use` as written, and the `use` of the document it is written in
     // (null at the top), so that relative paths can be resolved
     resolve? : ( use : string, from : string | null ) => GraphDocument;
+    // an export mesh besides the result (`GraphResult.export`): "print" (within 0.02 mm), "view" (0.1 mm, normals
+    // within 20 degrees), a tolerance of one's own, or "analysis" (the Boolean's own mesh, as it is)
+    mesh? : "print" | "view" | "analysis" | MeshTolerance;
+}
+
+/** An export mesh: tessellated from the result's exact shell within a tolerance, with a face name per triangle. */
+export interface GraphMesh {
+    mesh : TriMesh;
+    // for each triangle, the persistent name of the face it stands for
+    faceNames : Array<string>;
+    // the tolerance asked ("analysis": none), and the largest deviation from the exact faces measured (null: not measured)
+    tolerance : MeshTolerance | null;
+    deviation : number | null;
 }
 
 // A document compiled whole: every parameter and feature, and the feature each output names.
@@ -86,6 +105,8 @@ export interface GraphResult extends ModelResult {
     // "built": computed by this evaluation; "cached": taken from an earlier one; "parameter": a number node;
     // "unused": not upstream of the output
     nodes : { [id : string] : "built" | "cached" | "parameter" | "unused" };
+    // the export mesh, when `mesh` was asked for
+    export? : GraphMesh;
 }
 
 // the top-level keys of a graph document
@@ -131,6 +152,8 @@ export class Graph {
     public static REGISTRY : { [type : string] : GraphNodeType } = Graph.registry();
 
     private model = new Model();
+    // the exact shells of results already meshed (a shell is slow to build), and their meshes by tolerance
+    private shells = new WeakMap<BooleanResult, { shell : BrepShell, meshes : Map<string, GraphMesh> }>();
 
     /**
      * Evaluates a graph document (or a version 1 model document, as it is). The graph keeps what it built, so
@@ -141,7 +164,7 @@ export class Graph {
             const r = this.model.evaluate( doc );
             const nodes : GraphResult["nodes"] = {};
             for (const [id, f] of Object.entries( r.features )) nodes[id] = f.built ? "built" : "cached";
-            return { ...r, model : doc, output : doc.output, nodes : nodes };
+            return this.withMesh( { ...r, model : doc, output : doc.output, nodes : nodes }, options );
         }
         const model = Graph.compile( doc, options );
         const r = this.model.evaluate( model );
@@ -157,7 +180,36 @@ export class Graph {
             }
             nodes[id] = Graph.isNumber( t ) ? "parameter" : f == null ? "unused" : f.built ? "built" : "cached";
         }
-        return { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes };
+        return this.withMesh( { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes }, options );
+    }
+
+    /**
+     * The export mesh of a result (`GraphOptions.mesh`). It is a separate output: the result's own mesh is the one the
+     * Booleans work on, and stays as it is. The exact shell is built once per result, and each tolerance meshed once.
+     */
+    public exportMesh( r : ModelResult, given : "print" | "view" | "analysis" | MeshTolerance ) : GraphMesh {
+        if (given == "analysis") {
+            return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), tolerance : null, deviation : null };
+        }
+        if (r.lattice != null) throw new Error( "Graph: a lattice output has no exact shell to mesh; ask for the \"analysis\" mesh" );
+        const T = ShellMesher.tolerance( given );
+        let known = this.shells.get( r.result );
+        if (known == null) {
+            known = { shell : ShellBuilder.fromResult( r.result ), meshes : new Map() };
+            this.shells.set( r.result, known );
+        }
+        const key = JSON.stringify( [T.chordal, T.angle ?? null, T.maxEdge ?? null] );
+        let m = known.meshes.get( key );
+        if (m == null) {
+            const shell = known.shell, sm = ShellMesher.mesh( shell, T );
+            m = { mesh : sm.mesh, faceNames : sm.faceOf.map( k => r.faceNames[shell.faces[k].source] ), tolerance : T, deviation : sm.deviation };
+            known.meshes.set( key, m );
+        }
+        return m;
+    }
+
+    private withMesh( r : GraphResult, options : GraphOptions ) : GraphResult {
+        return options.mesh == null ? r : { ...r, export : this.exportMesh( r, options.mesh ) };
     }
 
     /**

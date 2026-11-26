@@ -1,0 +1,95 @@
+var should = require('should');
+var fs = require('fs'), path = require('path');
+var lib = require('../dist/index.js');
+var budget = require('./support/budget.cjs');
+var verb = lib.default, Make = verb.eval.Make;
+var BrepSolid = lib.BrepSolid, BrepBoolean = lib.BrepBoolean, ShellBuilder = lib.ShellBuilder, ShellMesher = lib.ShellMesher;
+var Sweep = lib.Sweep, Vec = verb.core.Vec, Graph = lib.Graph;
+
+// The export mesh (#72 section 1, #68 A1): an exact shell tessellated within a tolerance, apart from the Booleans' own mesh.
+
+function area(m) {
+	var s = 0;
+	m.triangles.forEach(function(t){ s += Vec.norm(Vec.cross(Vec.sub(m.vertices[t[1]], m.vertices[t[0]]), Vec.sub(m.vertices[t[2]], m.vertices[t[0]]))) / 2; });
+	return s;
+}
+// The mesh is a closed 2-manifold with the shell's genus, within the tolerance of the exact faces (plus the edges' own
+// tolerances: a triangle on an edge is as far from the face as the edge is), and its volume is the exact one to within the deviation over the area.
+function check(shell, tol, genus) {
+	var m = ShellMesher.mesh(shell, tol), T = ShellMesher.tolerance(tol);
+	var mf = m.mesh.checkClosedManifold();
+	mf.closedManifold.should.be.true();
+	mf.genus.should.equal(genus);
+	m.faceOf.length.should.equal(m.mesh.triangles.length);
+	m.faceOf.forEach(function(f){ f.should.be.within(0, shell.faces.length - 1); });
+	// every face has triangles
+	new Set(m.faceOf).size.should.equal(shell.faces.length);
+	var slack = Math.max.apply(null, shell.edges.map(function(e){ return e.tolerance; }));
+	m.deviation.should.be.below(T.chordal + slack + 1e-9);
+	var V = ShellBuilder.volume(shell), A = area(m.mesh);
+	Math.abs(m.mesh.signedVolume() - V).should.be.below(m.deviation * A);
+	return m;
+}
+function line(a, b) { return Make.rationalBezierCurve([a, b]); }
+
+describe("verb.solid.ShellMesher", function(){
+	this.timeout(budget(120000));
+
+	it('meshes a lone cylinder in tens of triangles, not thousands', function(){
+		var cyl = BrepSolid.cappedTube(Sweep.pipe(line([0, 0, 0], [0, 0, 6]), 3.125).surface, [24, 96]);
+		var r = BrepBoolean.evaluate([cyl], function(f){ return f[0]; });
+		r.mesh.triangles.length.should.be.above(5000);
+		var shell = ShellBuilder.fromResult(r);
+		var at05 = check(shell, { chordal : 0.05 }, 0), at02 = check(shell, { chordal : 0.02 }, 0);
+		// round the rim, the chord's sag r (1 - cos(pi / n)) within the tolerance needs n >= pi / acos(1 - tol / r):
+		// 18 at 0.05 mm, 28 at 0.02 mm
+		at05.mesh.triangles.length.should.be.within(68, 200);
+		at02.mesh.triangles.length.should.be.within(108, 300);
+		// the volume is biased low: the vertices lie on the faces, and the faces are convex
+		at02.mesh.signedVolume().should.be.below(ShellBuilder.volume(shell));
+		// the view preset bounds the normals' turn: 18 segments at least
+		check(shell, 'view', 0).mesh.triangles.length.should.be.within(68, 200);
+		// the same shell gives the same mesh, byte for byte
+		JSON.stringify(ShellMesher.mesh(shell, 'print')).should.equal(JSON.stringify(ShellMesher.mesh(shell, 'print')));
+	});
+
+	it('meshes a rounded box and a box with setback corners closed, within the tolerance', function(){
+		var b = BrepSolid.box([0, 0, 0], [40, 28, 20], 12);
+		var E = lib.BrepEdges.all(b).map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; });
+		var round = ShellBuilder.fromResult(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : 4 }; }) }));
+		var m = check(round, 'print', 0);
+		// the flat parts of the six sides get no inner points: each is its boundary triangulated
+		check(round, { chordal : 0.1 }, 0).mesh.triangles.length.should.be.below(m.mesh.triangles.length);
+		check(ShellBuilder.fromResult(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E, filletShape : 'curvature' })), 'print', 0);
+	});
+
+	it('gives Graph.evaluate an export mesh with a face name per triangle, for 507\'s parts', function(){
+		var dir = path.join(__dirname, 'fixtures', '507');
+		var doc = function(prefix){ return JSON.parse(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(function(f){ return f.indexOf(prefix + '-') == 0; })), 'utf8')); };
+		[['B', 'slotted'], ['C', 'tube-flange'], ['E', 'rim-spoke']].forEach(function(p){
+			var g = new Graph();
+			var r = g.evaluate(doc(p[0]), { output : p[1], mesh : 'print' });
+			var X = r.export, mf = X.mesh.checkClosedManifold();
+			mf.closedManifold.should.be.true();
+			X.mesh.triangles.length.should.be.below(r.result.mesh.triangles.length);
+			X.faceNames.length.should.equal(X.mesh.triangles.length);
+			// the names are the result's: every face named, and nothing else
+			var names = new Set(r.faceNames);
+			X.faceNames.forEach(function(n){ names.has(n).should.be.true(); });
+			new Set(X.faceNames).size.should.equal(names.size);
+			X.deviation.should.be.below(0.02 + 1e-3);
+			X.tolerance.chordal.should.equal(0.02);
+			// another tolerance on the same result reuses its shell; the analysis mesh is the result's own
+			var again = g.evaluate(doc(p[0]), { output : p[1], mesh : 'print' });
+			again.export.should.equal(X);
+			var A = g.evaluate(doc(p[0]), { output : p[1], mesh : 'analysis' }).export;
+			A.mesh.should.equal(r.result.mesh);
+			should(A.deviation).be.null();
+		});
+	});
+
+	it('refuses an unknown preset and a tolerance that is not positive', function(){
+		(function(){ ShellMesher.tolerance('fine'); }).should.throw(/unknown preset/);
+		(function(){ ShellMesher.tolerance({ chordal : 0 }); }).should.throw(/positive/);
+	});
+});

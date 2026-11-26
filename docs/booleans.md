@@ -280,6 +280,40 @@ branches as cuts. A branch is clipped where it crosses an edge, at the point whe
 surface, and the faces keep only what lies inside their trims. So a rounded part can be drilled or united without
 rounding it again. See [exact-booleans.md](exact-booleans.md), step A3.
 
+## Export mesh
+
+The result's mesh is the one the Booleans work on: a dense grid per face (`BrepFace.divs`), which the intersection
+search and the ray classification rely on. What leaves the library is a second mesh, tessellated from the exact shell
+within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher.ts`; #72, section 1).
+
+* **Tolerances.** `chordal` (mm), the largest distance from a triangle to its face; `angle` (degrees), the largest turn
+  of the normal across a span; `maxEdge`. The presets: `print` (0.02 mm) and `view` (0.1 mm, 20°).
+* **Edges first.** Each edge is sampled once, adaptively, and both of its faces use those points: the mesh is closed and
+  manifold by construction, without welding.
+* **Faces.** A planar face is its loops triangulated in its plane, with no inner points. Other faces are triangulated
+  (constrained Delaunay) in their parameters, stretched to the surface's lengths: a straight direction (the rulings of a
+  cylinder) gets one span, a curved one lines at steps of the sag bound L ≤ √(8 r tol). Then every triangle is measured
+  at its centroid and its inner edges' midpoints, against the true distance to the surface, and gets a point where it
+  strays further than the tolerance.
+* **What it guarantees.** A closed 2-manifold, a shell face (so a persistent name) per triangle, and a deviation
+  measured and returned. That deviation is within the tolerance plus the face's edges' own tolerance (edges lie within
+  their tolerances of their faces: up to 4e-3 mm at fitted setback corners). The vertices lie on the faces, so the volume
+  is biased low on convex parts, by at most the deviation times the area.
+
+Triangles, at `print` against the analysis mesh (the lone cylinder gets 98 at `view`):
+
+| Part | `print` | analysis mesh |
+|---|---|---|
+| Lone cylinder, r 3.125, h 6 | 190 | 9,024 |
+| 507 slotted block (B) | 154 | 3,622 |
+| 507 tube and flange (C) | 672 | 15,358 |
+| 507 rim and spoke (E) | 1,112 | 2,376 |
+| Mug, rounded handle | 25,082 | 33,276 |
+
+Limits: building the exact shell takes 2 to 18 s on these parts, longer than the mesh itself; the mug's print mesh takes
+14 s. Ball and setback corners get about 280 triangles each at 0.02 mm, two or three times what their curvature needs:
+their parameters squeeze to a point at the poles, which the refinement makes up for with extra points.
+
 ## Seams of surfaces of revolution
 
 When both faces are perfectly round about the same axis, their seams can cross a branch at the very same point. The
