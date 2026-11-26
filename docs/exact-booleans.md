@@ -134,10 +134,18 @@ In `BrepBoolean.evaluate` (`src/solid/BrepBoolean.ts`), an operand's edges join 
 * They take no part in fillets or seam sides.
 
 Tests in `test/testShellBoolean.cjs`:
-* A rounded box rebuilt from its shell, drilled through a face (genus 1) and notched through a blend. Volumes are
-  within 0.5% of the exact integral; the mesh is chordal.
-* The union and intersection of two overlapping rounded boxes: closed, genus 0, with V(A∪B) + V(A∩B) = V(A) + V(B).
-* A box with setback corners rebuilt, and drilled through a corner: closed, genus 1, with V(C − D) + V(C ∩ D) = V(C).
+* A rounded box rebuilt from its shell (genus 0), drilled through a face (genus 1) and notched through a blend
+  (genus 0). Volumes are within 2e-5 of the exact ones: Steiner's formula, less the cylinder or a 1D integral.
+* The union and intersection of two overlapping rounded boxes: closed, genus 0, with V(A∪B) + V(A∩B) = V(A) + V(B)
+  within 2e-5.
+* A box with setback corners rebuilt, and drilled through a corner: closed, genus 1, with V(C − D) + V(C ∩ D) = V(C)
+  within 2e-5.
+
+Volumes are measured on the shells' exact faces, not on the mesh (`ShellBuilder.volume`). It integrates the flux of
+the position over each trimmed face, turned into an integral round its loops by Green's theorem, with Gauss–Legendre
+sums over knot spans. The mesh's chords cut inside every curved face, which puts its volume 0.3% under on these
+fillets. The shells' volumes are 3e-7 off on the rounded box and 7e-6 after a drill; the edges' 1e-3 tolerance
+accounts for that.
 
 Not yet:
 * Comparison with the same solid built in one pass, and face names through the cut. These come with A4, which

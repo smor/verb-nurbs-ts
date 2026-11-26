@@ -212,6 +212,84 @@ export class ShellBuilder {
         return solid;
     }
 
+    /**
+     * The volume a shell bounds, on its exact faces: (1/3) of the flux of the position through them (the divergence
+     * theorem), each face's integral over its trimmed parameter region turned into one round its loops by Green's
+     * theorem: the integral of f(u, v) du dv over the region is that of F dv round its boundary, F(u, v) the integral
+     * of f from the domain's start to u. Both are Gauss–Legendre sums over the knot spans (of the p-curves and of the
+     * surface in u), so on these piecewise-smooth integrands the result is good to about the edges' tolerances rather
+     * than to a mesh's chords. (Methods of this kind: S. Gonzalez-Ochoa, S. McCammon, J. Peters, "Computing moments of
+     * objects enclosed by piecewise polynomial surfaces", ACM Transactions on Graphics 17(3), 1998.)
+     */
+    public static volume( shell : BrepShell, order : number = 8 ) : number {
+        const [xs, ws] = ShellBuilder.gauss( order );
+        // the spans of a knot vector, between distinct knots
+        const spans = (ks : Array<number>) => {
+            const out : Array<[number, number]> = [];
+            for (let i = 0; i + 1 < ks.length; i++) if (ks[i + 1] > ks[i]) out.push( [ks[i], ks[i + 1]] );
+            return out;
+        };
+        let total = 0.0;
+        for (const F of shell.faces) {
+            const s = F.surface, u0 = s.knotsU[0], uSpans = spans( s.knotsU );
+            // f = S . (Su x Sv) / 3
+            const f = (u : number, v : number) => {
+                const D = Eval.rationalSurfaceDerivatives( s, u, v, 1 );
+                return Vec.dot( D[0][0], Vec.cross( D[1][0], D[0][1] ) ) / 3;
+            };
+            const Fu = (u : number, v : number) => {
+                let sum = 0.0;
+                for (const [a, b0] of uSpans) {
+                    if (a >= u) break;
+                    const b = Math.min( b0, u ), h = 0.5 * (b - a), m = 0.5 * (a + b);
+                    for (let k = 0; k < xs.length; k++) sum += ws[k] * h * f( m + h * xs[k], v );
+                }
+                return sum;
+            };
+            // round the loops: the flux, and the signed area of the region (positive when the loops turn
+            // counter-clockwise in the parameters)
+            let flux = 0.0, area = 0.0;
+            for (const loop of F.loops) for (const [ei, fwd] of loop.edges) {
+                const e = shell.edges[ei], pc = e.pcurves[fwd ? 0 : 1];
+                const ts = Array.from( new Set( pc.knots.concat( e.curve.knots ) ) ).sort( (x, y) => x - y );
+                for (let i = 0; i + 1 < ts.length; i++) {
+                    const a = ts[i], b = ts[i + 1], h = 0.5 * (b - a), m = 0.5 * (a + b);
+                    if (!(b > a)) continue;
+                    for (let k = 0; k < xs.length; k++) {
+                        const D = Eval.rationalCurveDerivatives( pc, m + h * xs[k], 1 );
+                        const w = ws[k] * h * D[1][1] * (fwd ? 1 : -1);
+                        flux += w * Fu( D[0][0], D[0][1] );
+                        area += w * (D[0][0] - u0);
+                    }
+                }
+            }
+            // the loops leave the face on their left as seen from the solid's outside: in the parameters they turn
+            // counter-clockwise when the surface's normal points out, clockwise when it points in, and either way
+            // the region's own orientation is the sign of its area
+            const region = area >= 0 ? flux : -flux;
+            total += F.sameSense ? region : -region;
+        }
+        return total;
+    }
+
+    // Gauss–Legendre abscissae and weights on [-1, 1], by Newton's method on the Legendre polynomial.
+    private static gauss( n : number ) : [Array<number>, Array<number>] {
+        const xs : Array<number> = [], ws : Array<number> = [];
+        for (let i = 0; i < n; i++) {
+            let x = Math.cos( Math.PI * (i + 0.75) / (n + 0.5) ), dp = 1;
+            for (let it = 0; it < 100; it++) {
+                let p0 = 1, p1 = x;
+                for (let k = 2; k <= n; k++) { const p2 = ((2 * k - 1) * x * p1 - (k - 1) * p0) / k; p0 = p1; p1 = p2; }
+                dp = n * (x * p1 - p0) / (x * x - 1);
+                const dx = p1 / dp;
+                x -= dx;
+                if (Math.abs( dx ) < 1e-16) break;
+            }
+            xs.push( x ); ws.push( 2 / ((1 - x * x) * dp * dp) );
+        }
+        return [xs, ws];
+    }
+
     // The largest distance between a curve and a surface at the curve's p-curve on it, at the same parameter: sampled
     // uniformly and eight times in each knot span of either curve, then the largest sample's neighbourhood searched by
     // golden sections (the distance between samples can rise above the samples).
