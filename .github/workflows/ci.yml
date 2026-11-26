@@ -39,22 +39,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # pull requests on Node 22; main, release tags and manual runs on every supported version
-        node: ${{ fromJSON(github.event_name == 'pull_request' && '[22]' || '[20, 22, 24]') }}
+        node: [20, 22, 24]
+    # pull requests test on Node 22; main, release tags and manual runs on every supported version. On a pull request
+    # the Node 20 and 24 jobs still start, so the checks the branch rules require are reported, but skip every step
+    # and finish in seconds.
+    env:
+      RUN: ${{ matrix.node == 22 || github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+        if: env.RUN == 'true'
       - uses: actions/setup-node@v4
+        if: env.RUN == 'true'
         with:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+        if: env.RUN == 'true'
       # coverage (five times slower than the plain run) on main, release tags and manual runs, on Node 22; a drop
       # shows on main right after the merge
       - name: test with coverage (fails below the thresholds)
         if: matrix.node == 22 && github.event_name != 'pull_request'
         run: npm run coverage
       - name: test
-        if: matrix.node != 22 || github.event_name == 'pull_request'
+        if: env.RUN == 'true' && (matrix.node != 22 || github.event_name == 'pull_request')
         run: npm test
       - name: upload coverage report
         if: matrix.node == 22 && github.event_name != 'pull_request'

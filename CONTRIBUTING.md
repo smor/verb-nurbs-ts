@@ -78,6 +78,7 @@ rule, or a ruleset):
   and an author cannot approve their own pull request. With a second reviewer, require one approval and review
   from Code Owners (`.github/CODEOWNERS`).
 - Require status checks to pass: `typecheck, layers, lint, ratchets`, `test (node 20)`, `test (node 22)`,
-  `test (node 24)` and `demos, apps and API docs`. Require branches to be up to date before merging.
+  `test (node 24)` and `demos, apps and API docs`. Require branches to be up to date before merging. (On a pull
+  request the Node 20 and 24 jobs report success after skipping their steps; they test on main and releases.)
 - Require conversation resolution, and block force pushes and deletions.
 - Apply the rules to administrators too.
