@@ -7,6 +7,7 @@ import { Sweep } from "../eval/Sweep.js";
 import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
+import { ShellBuilder } from "../solid/BrepShell.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -100,6 +101,9 @@ export interface ModelLattice { mesh : TriMesh, pattern : LatticePattern, cell :
 // outside faces (open ones left out), fillets counted with the faces they join.
 export interface ModelWall { shell : string, thickness : number, thinnest : number }
 
+// What the rounds of a model's rounded operands left undone, summed (see `ModelVerdict`'s fillets check).
+export interface Fillets { failed : number, skipped : number, reduced : number }
+
 // A shell within a tree: the leaves of its solid and of its inside, and its open faces' names.
 interface Shelled { id : string, thickness : number, outside : [number, number], inside : [number, number], open : Array<string> }
 
@@ -143,10 +147,16 @@ export interface ModelVerdict {
 //   primitives offset (mitred when grown), Booleans of the offsets, each no larger than the exact erosion, so walls
 //   are never thinner than asked. The result's walls are then measured for the verdict (docs/model.md, "Shells").
 //
-// Limits: rounding applies to the output's Boolean as a whole (a round is the last feature on its branch), and a
-// rounded solid cannot yet be an operand of a further Boolean: the Boolean takes primitives whose faces are whole
-// NURBS surfaces, and a rounded solid has trimmed faces and blends. It can be moved, rotated and uniformly scaled
-// (`Model.liftRound`), since those commute with rounding.
+// * A round that is an operand of a further feature is a stage of its own (route A, step A4 of
+//   docs/exact-booleans.md): it is evaluated first (one Boolean of its tree, rounded), its result made an exact shell
+//   (`ShellBuilder.fromResult`) and the shell an operand of the next Boolean (`ShellBuilder.solid`), with its faces
+//   named as the round named them ("round(box.+x|box.+y)", behind any transforms "T/round(box.+x|box.+y)"). Each
+//   stage is cached by its hash like any feature, so moving a hole through a rounded part rebuilds the hole and the
+//   cut, not the round.
+//
+// Limits: a round over a rounded operand is refused (rounding the edges a Boolean makes on a shell is step A5), and
+// so is a shell of one (its offset is not built). A round as the output, moved by transforms, is still rewritten as
+// the round of the moved part (`Model.liftRound`), so its single Boolean builds it.
 export class Model {
 
     private cache = new Map<string, unknown>();
@@ -216,7 +226,11 @@ export class Model {
 
         // a feature's solids: its primitives (each with its path of transforms) and the Boolean expression over them
         // (`shells`: each shell in it, by the leaves of its outside and of its inside, for the wall check)
-        type Tree = { leaves : Array<{ name : string, solid : BrepSolid }>, expr : (inside : Array<boolean>) => boolean, shells : Array<Shelled> };
+        // (a leaf with a `path` is a rounded operand made a shell: its faces carry their persistent names, which the
+        // path of transforms it went through goes before; `fillets`: what the rounds inside the tree left undone)
+        type Leaf = { name : string, solid : BrepSolid, path? : string };
+        type Tree = { leaves : Array<Leaf>, expr : (inside : Array<boolean>) => boolean, shells : Array<Shelled>, fillets? : Fillets };
+        const nameOf = (l : Leaf, fi : number) => (l.path != null ? l.path : l.name + ".") + Model.faceName( l.solid.faces[fi], fi );
         const combine = (id : string, type : "union" | "intersection" | "difference", parts : Array<Tree>) : Tree => {
             const leaves = ([] as Tree["leaves"]).concat( ...parts.map( p => p.leaves ) );
             const offsets : Array<number> = [];
@@ -232,7 +246,7 @@ export class Model {
                 names.add( l.name );
             }
             const shells = ([] as Array<Shelled>).concat( ...parts.map( (p, k) => p.shells.map( s => Model.shift( s, offsets[k] ) ) ) );
-            return { leaves : leaves, expr : expr, shells : shells };
+            return { leaves : leaves, expr : expr, shells : shells, fillets : Model.addFillets( parts.map( p => p.fillets ) ) };
         };
         const EMPTY : Tree = { leaves : [], expr : () => false, shells : [] };
 
@@ -275,7 +289,7 @@ export class Model {
                     return combine( id, "difference", [from].concat( minus ) );
                 }
                 case "shell": throw new Error( `Model: a shell cannot be shelled again ("${id}")` );
-                case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
+                case "round": throw new Error( `Model: a shell cannot yet offset the rounded "${id}"` );
                 case "lattice": throw new Error( `Model: the lattice "${id}" can only be the last feature (an operand of nothing)` );
             }
             throw new Error( `Model: unknown feature type "${(f as { type : string }).type}" in "${id}"` );
@@ -288,8 +302,8 @@ export class Model {
                 case "transform": {
                     const t = tree( f.of );
                     const M = Model.matrix( f, num, point );
-                    return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ) }) ), expr : t.expr,
-                             shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ) };
+                    return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ), path : l.path != null ? id + "/" + l.path : undefined }) ),
+                             expr : t.expr, shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ), fillets : t.fillets };
                 }
                 case "union": case "intersection": case "difference": {
                     const ids = f.type == "difference" ? [f.from].concat( f.minus ) : f.of;
@@ -302,7 +316,7 @@ export class Model {
                     const th = num( f.thickness, `"${id}" thickness` );
                     if (!(th > 0)) throw new Error( `Model: the shell "${id}" needs a positive thickness` );
                     const open = (f.open ?? []).map( Model.pattern );
-                    const faces = t.leaves.flatMap( l => l.solid.faces.map( (fc, k) => l.name + "." + Model.faceName( fc, k ) ) );
+                    const faces = t.leaves.flatMap( l => l.solid.faces.map( (_, k) => nameOf( l, k ) ) );
                     (f.open ?? []).forEach( (g, k) => {
                         if (!faces.some( n => open[k].test( n ) )) throw new Error( `Model: the shell "${id}" opens "${g}", which names no face of "${f.of}"` );
                     } );
@@ -313,27 +327,39 @@ export class Model {
                         leaves : leaves,
                         expr : (x : Array<boolean>) => t.expr( x.slice( 0, n ) ) && !inside.expr( x.slice( n ) ),
                         shells : t.shells.concat( [{ id : id, thickness : th, outside : [0, n], inside : [n, leaves.length], open : faces.filter( nm => open.some( re => re.test( nm ) ) ) }] ),
+                        fillets : t.fillets,
                     };
                 }
-                case "round": throw new Error( `Model: the round "${id}" can only be the last feature (an operand of nothing)` );
+                case "round": {
+                    // a rounded operand is evaluated first, as a stage of its own (cached like any), and its exact shell
+                    // is the operand: its faces trimmed by their loops, named as the round named them
+                    const b = build( id );
+                    const shell = ShellBuilder.fromResult( b.result );
+                    const s = ShellBuilder.solid( shell, b.result.mesh );
+                    s.faces.forEach( (fc, k) => { fc.name = b.names[shell.faces[k].source]; } );
+                    const rep = b.result.report;
+                    const own : Fillets = { failed : rep.filletsFailed, skipped : rep.filletsSkipped, reduced : rep.filletsReduced ?? 0 };
+                    return { leaves : [{ name : id, solid : s, path : "" }], expr : (x : Array<boolean>) => x[0], shells : [], fillets : Model.addFillets( [b.fillets, own] ) };
+                }
                 case "lattice": throw new Error( `Model: the lattice "${id}" can only be the last feature (an operand of nothing)` );
             }
             throw new Error( `Model: unknown feature type "${(f as { type : string }).type}" in "${id}"` );
         } );
 
-        // the output: a Boolean of its tree, rounded if it is a round
-        const lat = features[doc.output].type == "lattice" ? features[doc.output] as Extract<ModelFeature, { type : "lattice" }> : null;
-        const solidId = lat != null ? lat.of : doc.output;
-        const out = features[solidId];
-        if (out.type == "lattice") throw new Error( `Model: the lattice "${doc.output}" fills "${solidId}", another lattice` );
-        const solid = cached( doc.certify === true ? "solid+certify" : "solid", solidId, () => {
+        // a feature's solid: one Boolean of its tree, rounded if it is a round
+        const build = (solidId : string) : { result : BooleanResult, names : Array<string>, walls : Array<ModelWall>, fillets? : Fillets } =>
+            cached( doc.certify === true ? "solid+certify" : "solid", solidId, () => {
+            const out = features[solidId];
             const round = out.type == "round" ? out : null;
             const t = tree( round != null ? round.of : solidId );
-            const leafName = (si : number, fi : number) => t.leaves[si].name + "." + Model.faceName( t.leaves[si].solid.faces[fi], fi );
+            const leafName = (si : number, fi : number) => nameOf( t.leaves[si], fi );
+
             let options : BooleanOptions = { certify : doc.certify === true };
             if (round != null) {
                 const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ) }) );
                 const radius = (name : string) => { const r = rules.find( x => x.re.test( name ) ); return r != null ? r.radius : 0; };
+                // (rounding the edges of a rounded operand, or the new edges on it, is step A5 of docs/exact-booleans.md)
+                if (t.leaves.some( l => l.solid.edges != null )) throw new Error( `Model: the round "${solidId}" is over a rounded operand, which cannot be rounded again yet` );
                 const edges : Array<{ solid : number, faces : [number, number], radius : number }> = [];
                 t.leaves.forEach( (l, si) => BrepEdges.all( l.solid ).forEach( e => {
                     const r = radius( Model.edgeName( leafName( si, e.faces[0] ), leafName( si, e.faces[1] ) ) );
@@ -345,11 +371,18 @@ export class Model {
                 };
             }
             const r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
-            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ) };
+            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : t.fillets };
         } );
 
+        // the output: a Boolean of its tree, rounded if it is a round
+        const lat = features[doc.output].type == "lattice" ? features[doc.output] as Extract<ModelFeature, { type : "lattice" }> : null;
+        const solidId = lat != null ? lat.of : doc.output;
+        const out = features[solidId];
+        if (out.type == "lattice") throw new Error( `Model: the lattice "${doc.output}" fills "${solidId}", another lattice` );
+        const solid = build( solidId );
+
         const lattice = lat == null ? undefined : cached( "lattice", doc.output, () => Model.lattice( doc.output, lat, solid.result, solid.names, num ) );
-        const verdict = Model.verdict( solid.result, doc.machine, solid.walls, lattice );
+        const verdict = Model.verdict( solid.result, doc.machine, solid.walls, lattice, solid.fillets );
         const faceIndex : { [name : string] : number } = {};
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
@@ -613,7 +646,21 @@ export class Model {
             surface : new NurbsSurfaceData( f.surface.degreeU, f.surface.degreeV, f.surface.knotsU.slice(), f.surface.knotsV.slice(), f.surface.controlPoints.map( row => row.map( move ) ) ),
             periodic : [f.periodic[0], f.periodic[1]], divs : [f.divs[0], f.divs[1]], reversed : false, name : f.name,
         }) );
-        return new BrepSolid( faces ).orient();
+        if (s.edges == null || s.boundary == null) return new BrepSolid( faces ).orient();
+        // a solid of trimmed faces (a rounded operand): its trims and its edges' parameters stay, its edges' points and
+        // its boundary move, and a mirror turns every face and triangle over
+        const det = M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+        faces.forEach( (f, k) => { f.reversed = det < 0 ? !s.faces[k].reversed : s.faces[k].reversed; f.trims = s.faces[k].trims; } );
+        const out = new BrepSolid( faces );
+        // (edges share their end points, as one object each: they stay shared)
+        const moved = new Map<Point, Point>();
+        const once = (p : Point) => { let q = moved.get( p ); if (q == null) moved.set( p, q = move( p ) as Point ); return q; };
+        out.edges = s.edges.map( e => ({ ...e, points : e.points.map( once ) }) );
+        const mesh = new TriMesh();
+        for (const v of s.boundary.vertices) mesh.addVertex( move( v ) as Point );
+        for (const t of s.boundary.triangles) if (det < 0) mesh.addTriangle( t[0], t[2], t[1] ); else mesh.addTriangle( t[0], t[1], t[2] );
+        out.boundary = mesh;
+        return out;
     }
 
     private static transpose( s : NurbsSurfaceData ) : NurbsSurfaceData {
@@ -622,6 +669,13 @@ export class Model {
     }
 
     // ---------- names ----------
+
+    // The sum of what several rounds left undone (null when none of them is a round).
+    private static addFillets( xs : Array<Fillets | undefined> ) : Fillets | undefined {
+        const ys = xs.filter( (x) : x is Fillets => x != null );
+        if (ys.length == 0) return undefined;
+        return { failed : ys.reduce( (a, x) => a + x.failed, 0 ), skipped : ys.reduce( (a, x) => a + x.skipped, 0 ), reduced : ys.reduce( (a, x) => a + x.reduced, 0 ) };
+    }
 
     private static faceName( f : BrepFace, index : number ) : string {
         return f.name != null && f.name != "" ? f.name : "face" + index;
@@ -768,14 +822,16 @@ export class Model {
      * result can be judged, a recipe's as well as a document's; `walls` and `lattice` come from a document's shells
      * and lattice output.
      */
-    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice ) : ModelVerdict {
+    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice, inner? : Fillets ) : ModelVerdict {
         if (lattice != null) return Model.latticeVerdict( lattice, machine );
         const m = r.report.manifold;
+        // the fillets of the rounded operands count with the result's own
+        const fFailed = r.report.filletsFailed + (inner?.failed ?? 0), fSkipped = r.report.filletsSkipped + (inner?.skipped ?? 0);
         const checks : ModelVerdict["checks"] = [
             { name : "closed", passed : m.closedManifold, detail : m.closedManifold ? "every edge joins exactly two faces" : "the surface has open or non-manifold edges" },
             { name : "outward", passed : r.report.volume > 0, detail : r.report.volume > 0 ? "the faces face out (volume " + Model.round( r.report.volume ) + ")" : "the volume is not positive: the faces face in, or there is no solid" },
-            { name : "fillets", passed : r.report.filletsFailed == 0 && r.report.filletsSkipped == 0,
-              detail : r.report.filletsFailed + r.report.filletsSkipped == 0 ? "every requested fillet is in place" : `${r.report.filletsFailed} fillet(s) too large and ${r.report.filletsSkipped} left sharp at corners` },
+            { name : "fillets", passed : fFailed == 0 && fSkipped == 0,
+              detail : fFailed + fSkipped == 0 ? "every requested fillet is in place" : `${fFailed} fillet(s) too large and ${fSkipped} left sharp at corners` },
         ];
         for (const w of walls) {
             const ok = w.thinnest >= w.thickness * (1 - Model.WALL_TOLERANCE);
@@ -783,7 +839,7 @@ export class Model {
         }
         const notes : Array<string> = [];
         // fillets made smaller to keep clear of each other are in place, so the model stays buildable; it is said
-        const reduced = r.report.filletsReduced ?? 0;
+        const reduced = (r.report.filletsReduced ?? 0) + (inner?.reduced ?? 0);
         if (reduced > 0) notes.push( `${reduced} fillet(s) made smaller than asked, so that they keep clear of each other on a face they share` );
         const cert = r.report.certificate;
         if (cert != null) notes.push( cert.unproven.length == 0
