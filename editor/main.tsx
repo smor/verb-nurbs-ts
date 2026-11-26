@@ -12,6 +12,7 @@ import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.j
 import { Graph, Expr } from "../src/index.js";
 import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
 import { SAMPLE } from "./sample.js";
+import { History } from "./history.js";
 
 declare const WORKER_SOURCE : string;
 
@@ -40,6 +41,24 @@ const toggleOutput = ( id : string ) => {
 };
 const view = () => { DOC.view = DOC.view ?? {}; DOC.view.nodes = DOC.view.nodes ?? {}; return DOC.view.nodes; };
 
+// ---------------------------------------------------------------- undo: a snapshot of the document after each edit
+// One user action can reach the document through several callbacks (deleting a node also deletes its wires), so the
+// snapshot is taken once, after the current event, from everything recorded during it. A key names a stream of edits
+// that merge into one step (one slider); edits with different keys in the same event do not merge.
+const history = new History<GraphDocument>();
+history.reset( DOC );
+let recordQueued = false, recordKey : string | null = null, historyListener = () => {};
+function record( key : string | null = null ) {
+    recordKey = recordQueued && recordKey != key ? null : key;
+    if (recordQueued) return;
+    recordQueued = true;
+    queueMicrotask( () => {
+        recordQueued = false;
+        if (history.commit( DOC, recordKey, performance.now() )) historyListener();
+        recordKey = null;
+    } );
+}
+
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
 interface Result { ok : boolean; pos? : Float32Array; idx? : Uint32Array; ms : number; error? : string; volume? : number; faces? : number;
     verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown }
@@ -58,7 +77,7 @@ worker.onmessage = ( e : MessageEvent<Result> ) => {
 };
 
 // ---------------------------------------------------------------- nodes
-const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : () => void }>( { status : {}, shown : "", changed : () => {} } );
+const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void }>( { status : {}, shown : "", changed : () => {} } );
 
 function NumberInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "number" }> } ) {
     const { changed } = useContext( Ctx );
@@ -66,7 +85,7 @@ function NumberInput( { id, k, port } : { id : string, k : string, port : Extrac
     const shown = String( v ?? port.value );
     const [text, setText] = useState( shown );
     useEffect( () => setText( shown ), [shown] );
-    const set = ( x : ModelValue ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : x }; changed(); };
+    const set = ( x : ModelValue, key? : string ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : x }; changed( key ); };
     const commit = () => set( text.trim() != "" && !isNaN( +text ) ? +text : text.trim() );
     const r = ref( v );
     return <div className="row">
@@ -76,7 +95,7 @@ function NumberInput( { id, k, port } : { id : string, k : string, port : Extrac
             {typeof v == "string"
                 ? <span className="expr-tag" title="An expression over number nodes">ƒ</span>
                 : <input className="nodrag" type="range" aria-label={port.label} min={port.min} max={port.max} step={port.step} value={Number( v ?? port.value )}
-                    onChange={e => { setText( e.target.value ); set( +e.target.value ); }} />}
+                    onChange={e => { setText( e.target.value ); set( +e.target.value, id + "." + k ); }} />}
             <input className="nodrag val" aria-label={port.label + " value or expression"} value={text} onChange={e => setText( e.target.value )}
                 onBlur={commit} onKeyDown={e => { if (e.key == "Enter") (e.target as HTMLInputElement).blur(); }} />
             {port.unit && <span className="unit">{port.unit}</span>}
@@ -204,9 +223,30 @@ function App() {
     const [tab, setTab] = useState<"graph" | "model">( "graph" );
     const flow = useReactFlow();
     const file = useRef<HTMLInputElement>( null );
-    const changed = () => { setTick( x => x + 1 ); setEdges( toEdges() ); setNodes( ns => ns.map( n => ({ ...n, data : {} }) ) ); evaluate(); };
-    const reload = () => { setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate(); setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 ); };
-    useEffect( () => { listener = r => setResult( r ); evaluate(); }, [] );
+    // every edit of the document goes through changed (or reload, for a whole new document), which records an undo step
+    const changed = ( key? : string ) => { setTick( x => x + 1 ); setEdges( toEdges() ); setNodes( ns => ns.map( n => ({ ...n, data : {} }) ) ); record( key ?? null ); evaluate(); };
+    const reload = ( fit = true ) => {
+        setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate();
+        if (fit) setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 );
+    };
+    const restore = ( d : GraphDocument | null ) => { if (d != null) { DOC = d; reload( false ); } };
+    const undo = () => restore( history.undo() ), redo = () => restore( history.redo() );
+    useEffect( () => {
+        listener = r => setResult( r ); evaluate();
+        historyListener = () => setTick( x => x + 1 );
+        // Ctrl+Z / Cmd+Z, and Shift+Ctrl+Z, Cmd+Shift+Z or Ctrl+Y to redo; a text field keeps its own undo while typing
+        const keys = ( e : KeyboardEvent ) => {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+            const k = e.key.toLowerCase();
+            if (k != "z" && k != "y") return;
+            const t = e.target as HTMLElement;
+            if (t.isContentEditable || t instanceof HTMLTextAreaElement || (t instanceof HTMLInputElement && t.type != "range")) return;
+            e.preventDefault();
+            if (k == "y" || e.shiftKey) redo(); else undo();
+        };
+        window.addEventListener( "keydown", keys );
+        return () => window.removeEventListener( "keydown", keys );
+    }, [] );
 
     const add = ( type : string ) => {
         const base = type.split( "/" ).pop()!.replace( /[^A-Za-z0-9]+/g, "_" ).replace( /^(\d)/, "n$1" );
@@ -235,7 +275,10 @@ function App() {
         const out = REGISTRY[DOC.nodes[c.source].type].outputs[c.sourceHandle ?? ""], inp = REGISTRY[DOC.nodes[c.target].type].inputs[c.targetHandle ?? ""];
         return inp != null && inp.kind == out;
     };
-    const onNodeDragStop = ( _e : unknown, n : Node ) => { view()[n.id] = { x : Math.round( n.position.x ), y : Math.round( n.position.y ) }; setTick( x => x + 1 ); };
+    const onNodeDragStop = ( _e : unknown, _n : Node, moved : Node[] ) => {
+        for (const n of moved) view()[n.id] = { x : Math.round( n.position.x ), y : Math.round( n.position.y ) };
+        setTick( x => x + 1 ); record();
+    };
     const save = () => {
         const a = document.createElement( "a" );
         a.href = URL.createObjectURL( new Blob( [JSON.stringify( DOC, null, 2 )], { type : "application/json" } ) );
@@ -245,7 +288,7 @@ function App() {
         try {
             const d = JSON.parse( await f.text() ) as GraphDocument;
             if (d.version !== 2 || typeof d.nodes != "object") throw new Error( "not a version 2 graph document" );
-            DOC = d; reload();
+            DOC = d; reload(); record();
         } catch (e) { setResult( { ok : false, ms : 0, error : `Could not open ${f.name}: ${(e as Error).message}` } ); }
     };
 
@@ -257,7 +300,9 @@ function App() {
             <Palette add={add} />
             <section className="canvas" aria-label="Node graph">
                 <div className="toolbar">
-                    <button onClick={() => { DOC = clone( SAMPLE ); reload(); }}>New from sample</button>
+                    <button onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z or ⌘Z)">Undo</button>
+                    <button onClick={redo} disabled={!history.canRedo} title="Redo (Shift+Ctrl+Z, ⌘⇧Z or Ctrl+Y)">Redo</button>
+                    <button onClick={() => { DOC = clone( SAMPLE ); reload(); record(); }}>New from sample</button>
                     <button onClick={() => file.current?.click()}>Open…</button>
                     <button onClick={save}>Save graph.json</button>
                     <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void open( f ); e.target.value = ""; }} />

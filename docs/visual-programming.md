@@ -372,7 +372,12 @@ Graph.compile( doc );         // the version 1 model document it runs
 * **Components**: any graph document can be used as a node of type `component` (`use`, an optional pinning `hash`,
   its number nodes as inputs, its outputs as outputs, names nested under the instance's id); this is the design's
   group, specified in docs/formats.md.
-* **Not yet:** components in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), undo, and
+* **Undo and redo** (`editor/history.ts`): a snapshot of the graph document after each edit, so an undone document is
+  byte for byte the earlier one, and the evaluator's cache rebuilds nothing for it. Everything one action does (a
+  node deleted with its wires) is one step, a slider drag is one step while it keeps moving (`COALESCE_MS`), moving
+  nodes and Open and New are steps too, and the last 200 are kept. Ctrl+Z or Cmd+Z, and Shift+Ctrl+Z, Cmd+Shift+Z or
+  Ctrl+Y, or the toolbar's buttons; a text field keeps its own undo while it has the focus.
+* **Not yet:** components in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), and
   renaming a node on the canvas (edit `label` in the file).
 
 ## Where it lives
@@ -391,7 +396,7 @@ Graph.compile( doc );         // the version 1 model document it runs
    faces keep their names.
 2. Groups, with recursion refused and names nested.
 3. Lists and lacing.
-4. (Built, without undo.) The editor: React Flow, the registry as the palette, the viewport and verdict from the
+4. (Built.) The editor: React Flow, the registry as the palette, the viewport and verdict from the
    worker, the document as the file (open, save, undo by document snapshots).
 5. Data trees, fields (per-vertex functions in Blender's sense, for growth and lattices), and loops (zones), as the
    models ask for them.
