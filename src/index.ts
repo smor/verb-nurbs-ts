@@ -71,6 +71,8 @@ import { FilletCorner } from "./solid/FilletCorner.js";
 import { BrepEdges } from "./solid/BrepEdges.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
+import { IntersectionCertificate } from "./solid/IntersectionCertificate.js";
+export type { IntersectionCertificateResult, IntersectionCertificateOptions } from "./solid/IntersectionCertificate.js";
 import { Implicit } from "./solid/Implicit.js";
 export type { Field, Grade, LatticePattern } from "./solid/Implicit.js";
 import { Makeable } from "./solid/Makeable.js";
@@ -185,6 +187,7 @@ export {
     FilletCorner,
     BrepEdges,
     Implicit,
+    IntersectionCertificate,
     Makeable,
     MeshBVH,
     Shell,
@@ -294,6 +297,7 @@ export const solid = {
     FilletCorner,
     BrepEdges,
     Implicit,
+    IntersectionCertificate,
     Makeable,
     MeshBVH,
     Shell,

@@ -304,6 +304,29 @@ boxes touching at a vertex, bores through a corner or along an edge, bosses, sta
 is closed, with the exact volume, and a tangent cylinder keeps its volume and is reported. Before this work, 21 of the
 25 failed.
 
+## Proving that no branch was missed
+
+`IntersectionCertificate.check(A, B, curves)` proves, or fails to prove, that `curves` holds every branch of the
+intersection of two surfaces, closed loops included. It follows Sederberg and Meyers ("Loop detection in
+surface patch intersections", CAGD 5, 1988), with Sinha's theorem as above:
+
+1. Both domains are split into cells (4 × 4 by default). Each cell is cut out of its surface exactly, as rational
+   Bézier patches, by knot insertion. Its control points bound it: their box contains the cell.
+2. Each cell gets a **rigorous normal cone**. The numerators of the rational partial derivatives,
+   `w P_u − w_u P` and `w P_v − w_v P`, are polynomial patches whose Bézier coefficients come from products of
+   Bernstein bases; every normal of the cell is a positive combination of the cross products of their coefficients.
+3. A pair of cells whose boxes are apart cannot meet. A pair whose cones (and their opposites) are apart cannot
+   have parallel normals, so by Sinha's theorem no closed loop lies inside it: every branch through it crosses an
+   edge of one of the two cells. Those crossings are computed (each isocurve against the whole other surface, once)
+   and each must lie on a given curve. One that does not is reported in `missed`, as a start point on the branch.
+4. Any other pair is split, the cell whose normals turn most first, up to `depth` times. A pair still undecided is
+   counted in `unresolved`: the surfaces may be tangent there, or a loop smaller than the cells may hide there.
+
+The result is `proven` only when nothing is unresolved and nothing was missed. A plane through a cylinder or a
+sphere is proven complete in about 0.15 s. Dropping the curve reports start points all around it. A sphere grazing a
+plane (a loop of radius 0.014) is not proven, with or without that loop: the normals there are nearly parallel by
+nature, which is the honest answer.
+
 ## How it is checked
 
 * The intersection points lie on both surfaces to about 1e-9 (`report.maxCurveError`).
@@ -327,12 +350,12 @@ is closed, with the exact volume, and a tangent cylinder keeps its volume and is
   solids then touch along that line: the volume is right, but the result is not a manifold there (it is not, in
   exact arithmetic either), and the Model verdict calls it visual. Near-tangent pairs that do cross are traced as
   usual.
-* **Topology is checked, not proven.** Broken-up branches are detected (an end inside both domains, or a piece lying on
-  another, after Barton, Elber and Hanniel's single-component count) and traced again. The no-loop test that would
-  prove no loop is missed inside a subdomain is not implemented; small loops come from collinear-normal seeds.
-* **Small loops** are found from collinear normal points, but the normal cones that select the candidate cells are
-  sampled, not bounded. A rigorous bound would come from the control nets of the normal surfaces (the cross product
-  of the derivative surfaces).
+* **Topology is certified on demand, not by default.** Broken-up branches are detected (an end inside both domains,
+  or a piece lying on another, after Barton, Elber and Hanniel's single-component count) and traced again.
+  `IntersectionCertificate.check` (below) proves that no branch was missed, but the boolean pipeline does not run it
+  on every pair yet. Pairs it leaves unresolved, near tangency, are where a missed loop could still hide.
+* **Small loops** are found from collinear normal points. The normal cones that select their candidate cells are
+  sampled; the certificate's cones are rigorous, and could replace them.
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
   for export (see [step.md](step.md)); p-curves are left to the reader.
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
