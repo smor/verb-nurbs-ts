@@ -3,7 +3,7 @@ import { Vec } from "../core/Vec.js";
 import { triangulate } from "../eval/Cdt.js";
 import { Eval } from "../eval/Eval.js";
 import { BrepSolid } from "./Brep.js";
-import { BrepShell, ShellBuilder, ShellFace } from "./BrepShell.js";
+import { BrepShell, Projector, ShellBuilder, ShellFace } from "./BrepShell.js";
 import { TriMesh } from "./TriMesh.js";
 
 /** How finely a shell is tessellated: by how far the mesh may stray from the exact faces, not by a grid. */
@@ -188,8 +188,8 @@ export class ShellMesher {
         const s = F.surface;
         const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
         const S = (uv : UV) => Eval.rationalSurfacePoint( s, uv[0], uv[1] );
-        let projector : ((p : Point) => { uv : UV, p : Point }) | null = null;
-        const project = (p : Point) => { if (projector == null) projector = ShellBuilder.projector( s ); return projector( p ); };
+        let projector : Projector | null = null;
+        const project = (p : Point, hint? : UV) => { if (projector == null) projector = ShellBuilder.projector( s ); return projector( p, hint ); };
         // the parameter plane scaled to the face's mean lengths, so that triangles are not stretched by it; a planar
         // face is triangulated in its plane instead, where a triangle of its boundary points is exact (in parameters
         // that are not affine, as a disc's polar ones, it need not be)
@@ -231,10 +231,19 @@ export class ShellMesher {
             }
             return true;
         };
-        // the inner grid, at the lines, clear of the boundary by 0.4 of a step
+        // the inner grid, at the lines, clear of the boundary by 0.4 of a step, and thinned where its lines crowd on
+        // the surface: the lines of one direction are spaced for the iso-curve that needs most of them, so where the
+        // others are shorter (towards a pole, where they shrink to a point) a point closer to one already kept than
+        // 0.7 of the length a step should have there is left out
+        const near = ShellMesher.spacing();
+        for (const x of loops) for (const y of x) near.add( mesh.vertices[y.id] );
         for (const u of MU.lines) for (const v of MV.lines) {
             const p : UV = [u, v];
-            if (BrepSolid.insideTrims( trims, p ) && clear( p, 0.4 )) add( p, mesh.addVertex( S( p ) ) );
+            if (!BrepSolid.insideTrims( trims, p ) || !clear( p, 0.4 )) continue;
+            const q = S( p ), h = 0.7 * Math.min( MU.step( u ), MV.step( v ), maxEdge );
+            if (near.within( q, h )) continue;
+            near.add( q );
+            add( p, mesh.addVertex( q ) );
         }
         // triangulate, keep what lies inside the loops, check against the surface, and again with the points added
         let tris : Array<[number, number, number]> = [];
@@ -254,7 +263,7 @@ export class ShellMesher {
             }
             // the triangles' deviation from the surface, at the centroid and at the midpoints of inner edges
             const constrained = new Set( edges.map( e => Math.min( e[0], e[1] ) + ":" + Math.max( e[0], e[1] ) ) );
-            const extra : Array<UV> = [];
+            const extra : Array<{ uv : UV, e : number }> = [];
             const seen = new Set<string>();
             worst = 0;
             for (const t of tris) {
@@ -273,6 +282,8 @@ export class ShellMesher {
                     // from above; where that is too far (parameters whose speed changes across the triangle, as at a
                     // breakpoint between an arc and a straight side), the nearest point is found
                     let e = Vec.dist( S( x.uv ), x.p );
+                    // (from the probe's parameters first, a foot nearby; where that is still too far, from the whole face)
+                    if (e > tol) e = Math.min( e, Vec.dist( project( x.p, x.uv ).p, x.p ) );
                     if (e > tol) e = Math.min( e, Vec.dist( project( x.p ).p, x.p ) );
                     worst = Math.max( worst, e );
                     if (e > bd) { bd = e; bad = x.uv; }
@@ -280,11 +291,21 @@ export class ShellMesher {
                 if (bad == null && maxEdge < Infinity) {
                     for (let k = 0; k < 3; k++) if (Vec.dist( P[k], P[(k + 1) % 3] ) > maxEdge) { bad = probes[0].uv; break; }
                 }
-                if (bad != null && BrepSolid.insideTrims( trims, bad )) extra.push( bad );
+                if (bad != null && BrepSolid.insideTrims( trims, bad )) extra.push( { uv : bad, e : bd } );
             }
             if (extra.length == 0) break;
+            // the worst first, and none within half a step of another added in this round: one point often mends the
+            // triangles round it, so adding one to each would crowd them
+            extra.sort( (a, b) => b.e - a.e );
+            const fresh = ShellMesher.spacing();
             let added = 0;
-            for (const p of extra) { const n = uv.length; add( p, -1 ); if (uv.length > n) { ids[n] = mesh.addVertex( S( p ) ); added++; } }
+            for (const x of extra) {
+                const q = S( x.uv );
+                if (fresh.within( q, 0.5 * Math.min( MU.step( x.uv[0] ), MV.step( x.uv[1] ), maxEdge ) )) continue;
+                const n = uv.length;
+                add( x.uv, -1 );
+                if (uv.length > n) { ids[n] = mesh.addVertex( q ); fresh.add( q ); added++; }
+            }
             if (added == 0) break;
         }
         // outward: counter-clockwise in the (scaled) parameters is along dS/du x dS/dv
@@ -376,7 +397,7 @@ export class ShellMesher {
     // the iso-curves in that direction, of the density each tolerance asks for (sqrt(k / (8 tol)) for the chord's sag,
     // k / angle for the normals' turn, 1 / maxEdge), its largest over five iso-curves across.
     private static lines( s : NurbsSurfaceData, d : Array<number>, c : number, tol : number, angle : number, maxEdge : number, Lref : number )
-        : { lines : Array<number>, at : (t : number) => number } {
+        : { lines : Array<number>, at : (t : number) => number, step : (t : number) => number } {
         const ks = (c == 0 ? s.knotsU : s.knotsV).filter( (k, i, a) => i == 0 || k > a[i - 1] );
         const a = d[2 * c], b = d[2 * c + 1];
         // parameters along: eight in each knot span, at least 64
@@ -385,19 +406,25 @@ export class ShellMesher {
         for (let i = 0; i + 1 < ks.length; i++) for (let k = 0; k < per; k++) ts.push( ks[i] + (ks[i + 1] - ks[i]) * k / per );
         ts.push( b );
         const across = [0.02, 0.25, 0.5, 0.75, 0.98].map( f => d[2 * (1 - c)] + f * (d[2 * (1 - c) + 1] - d[2 * (1 - c)]) );
-        const density = ts.map( _ => 0 );
+        const density = ts.map( _ => 0 ), want = ts.map( _ => 0.999 / Lref );
         for (const w of across) ts.forEach( (t, k) => {
             const D = c == 0 ? Eval.rationalSurfaceDerivatives( s, t, w, 2 ) : Eval.rationalSurfaceDerivatives( s, w, t, 2 );
             const d1 = c == 0 ? D[1][0] : D[0][1], d2 = c == 0 ? D[2][0] : D[0][2];
             const sp = Vec.norm( d1 );
             if (!(sp > 1e-300)) return;
-            const kappa = Vec.norm( Vec.cross( d1, d2 ) ) / (sp * sp * sp);
+            // the normal curvature along the direction (a chord across the surface sags by it; the iso-curve's own
+            // curvature also counts its turn within the surface, which grows without bound on a sphere's parallels
+            // near the poles), or the iso-curve's where the normal is lost
+            const N = Vec.cross( D[1][0], D[0][1] ), nl = Vec.norm( N );
+            const kappa = nl > 1e-9 * (Vec.normSquared( D[1][0] ) + Vec.normSquared( D[0][1] ))
+                ? Math.abs( Vec.dot( d2, N ) ) / (nl * sp * sp) : Vec.norm( Vec.cross( d1, d2 ) ) / (sp * sp * sp);
             let rho = Math.sqrt( kappa / (8 * tol) );
             if (angle < Infinity) rho = Math.max( rho, kappa / angle );
             if (maxEdge < Infinity) rho = Math.max( rho, 1 / maxEdge );
             // a curvature of rounding (a straight ruling) asks for nothing but its share
             if (kappa < 1e-9) rho = maxEdge < Infinity ? 1 / maxEdge : 0;
             density[k] = Math.max( density[k], Math.max( rho, 0.999 / Lref ) * sp );
+            want[k] = Math.max( want[k], rho );
         } );
         // the cumulative measure (density per unit of parameter, integrated), and lines at its whole steps
         const cum = [0];
@@ -417,8 +444,14 @@ export class ShellMesher {
             return cum[lo] + (cum[hi] - cum[lo]) * (t - ts[lo]) / (ts[hi] - ts[lo]);
         };
         total = cum[cum.length - 1];
+        // the length on the surface a step should have here, whatever the speed of the parameter
+        const step = (t : number) => {
+            let k = 0;
+            while (k + 1 < ts.length && ts[k + 1] <= t) k++;
+            return 1 / want[k];
+        };
         const n = Math.ceil( total - 1e-6 );
-        if (n <= 1) return { lines : [], at : at };
+        if (n <= 1) return { lines : [], at : at, step : step };
         const out : Array<number> = [];
         for (let j = 1; j < n; j++) {
             const target = total * j / n;
@@ -427,7 +460,36 @@ export class ShellMesher {
             const f = cum[k] > cum[k - 1] ? (target - cum[k - 1]) / (cum[k] - cum[k - 1]) : 0;
             out.push( ts[k - 1] + f * (ts[k] - ts[k - 1]) );
         }
-        return { lines : out, at : at };
+        return { lines : out, at : at, step : step };
+    }
+
+    // Points kept on a hash grid, to ask whether any lies within a distance of a point.
+    private static spacing() : { add : (p : Point) => void, within : (p : Point, r : number) => boolean } {
+        const pts : Array<Point> = [], cells = new Map<string, Array<number>>();
+        let size = 0;
+        const keyOf = (p : Point, c : number) => Math.floor( p[0] / c ) + ":" + Math.floor( p[1] / c ) + ":" + Math.floor( p[2] / c );
+        const rebuild = (c : number) => {
+            size = c; cells.clear();
+            pts.forEach( (p, k) => { const key = keyOf( p, c ); const l = cells.get( key ); if (l) l.push( k ); else cells.set( key, [k] ); } );
+        };
+        return {
+            add : (p : Point) => {
+                pts.push( p );
+                if (size > 0) { const key = keyOf( p, size ); const l = cells.get( key ); if (l) l.push( pts.length - 1 ); else cells.set( key, [pts.length - 1] ); }
+            },
+            within : (p : Point, r : number) => {
+                if (!(r > 0) || pts.length == 0) return false;
+                // cells at least as large as the radius asked, so that the neighbours of one cell hold every candidate (grown,
+                // never shrunk)
+                if (size < r) rebuild( 2 * r );
+                const i = Math.floor( p[0] / size ), j = Math.floor( p[1] / size ), k = Math.floor( p[2] / size );
+                for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+                    const l = cells.get( (i + a) + ":" + (j + b) + ":" + (k + c) );
+                    if (l) for (const m of l) if (Vec.distSquared( pts[m], p ) < r * r) return true;
+                }
+                return false;
+            },
+        };
     }
 
     // mean length of the u and v iso-curves

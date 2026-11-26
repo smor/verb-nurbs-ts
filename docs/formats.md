@@ -145,7 +145,8 @@ document shares every feature they have in common.
 not part of the document, so one document gives a print mesh and a viewer mesh. `r.export` holds the `mesh` (a closed
 2-manifold), `faceNames` (the persistent name of each triangle's face), the `tolerance` and the `deviation` measured.
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
-A lattice output has no exact shell: only `"analysis"` is accepted there.
+A lattice output has no exact shell: its export is the lattice mesh itself (`r.lattice.mesh`, at the lattice's own
+grid step), with every triangle named `lattice` and no deviation, whatever `mesh` asks for.
 
 Evaluation is deterministic: the same document, `set` and `mesh` give the same bytes (every vertex to the last bit,
 the triangles and the face names) in every run, whatever the graph evaluated before, on every machine and Node version

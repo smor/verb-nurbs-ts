@@ -58,6 +58,10 @@ describe("verb.solid.ShellMesher", function(){
 		var E = lib.BrepEdges.all(b).map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; });
 		var round = ShellBuilder.fromResult(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : 4 }; }) }));
 		var m = check(round, 'print', 0);
+		// a ball corner (an eighth of a sphere, r 4, area 25.1): at most 200 triangles, about 120 at the sag bound
+		var per = {};
+		m.faceOf.forEach(function(f){ per[f] = (per[f] || 0) + 1; });
+		round.faces.forEach(function(F, k){ if (F.name.indexOf('corner') >= 0) per[k].should.be.below(200); });
 		// the flat parts of the six sides get no inner points: each is its boundary triangulated
 		check(round, { chordal : 0.1 }, 0).mesh.triangles.length.should.be.below(m.mesh.triangles.length);
 		check(ShellBuilder.fromResult(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E, filletShape : 'curvature' })), 'print', 0);
@@ -86,6 +90,18 @@ describe("verb.solid.ShellMesher", function(){
 			A.mesh.should.equal(r.result.mesh);
 			should(A.deviation).be.null();
 		});
+	});
+
+	it('exports a lattice output\'s own mesh, which has no exact shell behind it', function(){
+		var doc = { version : 1, output : 'l', features : {
+			b : { type : 'box', min : [0, 0, 0], max : [20, 20, 10] },
+			l : { type : 'lattice', of : 'b', pattern : 'gyroid', cell : 10, wall : 1.5, skin : 1.6, size : 1 },
+		} };
+		var r = new Graph().evaluate(doc, { mesh : 'print' });
+		r.export.mesh.should.equal(r.lattice.mesh);
+		r.export.faceNames.length.should.equal(r.lattice.mesh.triangles.length);
+		r.export.faceNames.every(function(n){ return n == 'lattice'; }).should.be.true();
+		should(r.export.deviation).be.null();
 	});
 
 	it('refuses an unknown preset and a tolerance that is not positive', function(){
