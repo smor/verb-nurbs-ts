@@ -522,9 +522,30 @@ export class ShellBuilder {
             return d[2 * c] + (t - Math.floor( t )) * span[c];
         };
         const nearest = ShellBuilder.nearest( seeds.map( x => x.p ) );
+        // Poles: rows of samples that are all one point (a side of the domain the surface shrinks to, as a disc's
+        // centre in polar parameters). There every value of the other parameter is the same point, so the nearest
+        // sample says nothing of it; a point near a pole starts from the nearest sample off the poles instead, which
+        // lies in the right direction from it. (`side`: the parameter, 0 or 1, that is fixed along the pole's row.)
+        const poleOf = seeds.map( () => -1 );
+        const nu = su.length, nv = sv.length, same = (a : Point, b : Point) => Vec.distSquared( a, b ) <= 1e-24;
+        for (let j = 0; j < nv; j++) {
+            let all = true;
+            for (let i = 1; i < nu && all; i++) all = same( seeds[i * nv + j].p, seeds[j].p );
+            if (all) for (let i = 0; i < nu; i++) poleOf[i * nv + j] = 1;
+        }
+        for (let i = 0; i < nu; i++) {
+            let all = true;
+            for (let j = 1; j < nv && all; j++) all = same( seeds[i * nv + j].p, seeds[i * nv].p );
+            if (all) for (let j = 0; j < nv; j++) poleOf[i * nv + j] = 0;
+        }
+        const off = seeds.map( (_, k) => k ).filter( k => poleOf[k] < 0 );
+        const nearestOff = off.length < seeds.length && off.length > 0 ? ShellBuilder.nearest( off.map( k => seeds[k].p ) ) : null;
         return (p : Point, hint? : UV) => {
             if (hint != null) { const x = ShellBuilder.newton( s, d, breaks, inDomain, p, hint ); return { uv : x.uv, p : x.p }; }
-            let best = seeds[nearest( p )], bd = Vec.distSquared( best.p, p );
+            const k0 = nearest( p );
+            let best = seeds[k0], bd = Vec.distSquared( best.p, p );
+            const pole = poleOf[k0] >= 0 && nearestOff != null ? { side : poleOf[k0], at : best, d : bd } : null;
+            if (pole != null) { best = seeds[off[nearestOff!( p )]]; bd = Vec.distSquared( best.p, p ); }
             // closer, on finer grids round the nearest sample (Newton alone can run off along a surface of revolution)
             let h = [Math.min( span[0] / g, 2 * gap( su, best.uv[0] ) ), Math.min( span[1] / g, 2 * gap( sv, best.uv[1] ) )];
             // (at each spacing, moving on while the nearest is at the edge of the grid round it: the nearest sample can
@@ -541,7 +562,14 @@ export class ShellBuilder {
                 h = [h[0] / 2.5, h[1] / 2.5]; round++; moves = 0;
             }
             const x = ShellBuilder.newton( s, d, breaks, inDomain, p, best.uv );
-            return x.d <= bd ? { uv : x.uv, p : x.p } : { uv : best.uv, p : best.p };
+            const found = x.d <= bd ? { uv : x.uv, p : x.p, d : x.d } : { uv : best.uv, p : best.p, d : bd };
+            // the pole itself, if it is nearer still, in the direction found
+            if (pole != null && pole.d < found.d) {
+                const uv = found.uv.slice() as UV;
+                uv[pole.side] = pole.at.uv[pole.side];
+                return { uv : uv, p : pole.at.p };
+            }
+            return { uv : found.uv, p : found.p };
         };
     }
 
@@ -588,7 +616,8 @@ export class ShellBuilder {
                 }
                 if (reach == Infinity || bd < reach * reach) break;
             }
-            return best;
+            // (none: a point that is not one, NaN somewhere, for which a scan would keep the first)
+            return best < 0 ? 0 : best;
         };
     }
 
@@ -679,7 +708,19 @@ export class ShellBuilder {
     }
 
     // A cubic B-spline through a chain of points, within `tol` of the polyline (its ends exact).
-    private static fitChain( pts : Array<Point>, tol : number ) : NurbsCurveData {
+    private static fitChain( given : Array<Point>, tol : number ) : NurbsCurveData {
+        // repeated points (a chain that starts at a pole, where the faces' curve leaves a point several samples share)
+        // would give repeated parameters, and a singular fit: kept once, the chain's ends exact
+        const pts : Array<Point> = [given[0]];
+        for (let k = 1; k < given.length; k++) {
+            if (Vec.dist( given[k], pts[pts.length - 1] ) > 1e-12) pts.push( given[k] );
+            else if (k == given.length - 1) pts[pts.length - 1] = given[k];
+        }
+        if (pts.length == 1) {
+            // a point: the segment between the chain's ends, on [0, 1]
+            const p0 = given[0], p1 = given[given.length - 1];
+            return new NurbsCurveData( 1, [0, 0, 1, 1], [[p0[0], p0[1], p0[2], 1], [p1[0], p1[1], p1[2], 1]] );
+        }
         if (pts.length <= 3) return Fit.curve( pts, Math.min( 3, pts.length - 1 ) );
         const u = Fit.chordLengthParams( pts );
         const at = (s : number) : Point => {
