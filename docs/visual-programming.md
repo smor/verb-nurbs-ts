@@ -348,12 +348,15 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 100 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 101 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
   `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
   comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve`,
-  `freeform/pipe` and `freeform/vessel`.
+  `freeform/pipe` and `freeform/vessel`; `profile/extrude`.
+* **Profiles** (`profile/extrude`) take an *outline* port: a planar region as JSON (507's profiles: lines, three-point
+  arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded exactly from `z` up by `height`.
+  The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
   `freeform/pipe` runs a round tube along the smooth curve through (x(t), y(t), z(t)) (the model's `pipe`). Both

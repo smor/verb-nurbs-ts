@@ -152,6 +152,7 @@
             "freeform/revolve",
             "freeform/pipe",
             "freeform/vessel",
+            "profile/extrude",
             "transform/move",
             "transform/rotate",
             "transform/scale",
@@ -1267,6 +1268,18 @@
           },
           "then": {
             "$ref": "#/$defs/freeform.vessel"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "profile/extrude"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/profile.extrude"
           }
         },
         {
@@ -5138,6 +5151,116 @@
               "type": "string",
               "description": "foot: points \"r z; r z; ...\", millimetres, from the base up; empty for none",
               "default": ""
+            }
+          }
+        }
+      }
+    },
+    "profile.extrude": {
+      "title": "Extrude profile",
+      "description": "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; faces bottom, top, outer.k and hole{i}.k for segment k",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "profile/extrude"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "type": "object",
+              "description": "profile: { outer, holes }, paths of lines, three-point arcs and cubic Béziers, or circles, in millimetres (docs/formats.md, Profiles)",
+              "required": [
+                "outer"
+              ],
+              "properties": {
+                "outer": {
+                  "type": "object"
+                },
+                "holes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              },
+              "default": {
+                "outer": {
+                  "kind": "path",
+                  "start": [
+                    0,
+                    0
+                  ],
+                  "segments": [
+                    {
+                      "type": "line",
+                      "to": [
+                        30,
+                        0
+                      ]
+                    },
+                    {
+                      "type": "arc",
+                      "via": [
+                        38,
+                        10
+                      ],
+                      "to": [
+                        30,
+                        20
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        0,
+                        20
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        0,
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "holes": [
+                  {
+                    "kind": "circle",
+                    "center": [
+                      12,
+                      10
+                    ],
+                    "r": 4
+                  }
+                ]
+              }
+            },
+            "height": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "height (mm)",
+              "default": 6
+            },
+            "z": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "z (mm)",
+              "default": 0
             }
           }
         }

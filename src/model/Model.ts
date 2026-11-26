@@ -8,6 +8,7 @@ import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
+import { Extrusion, ProfileSpec } from "../solid/Extrusion.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -28,6 +29,9 @@ export type ModelFeature =
     | { type : "cylinder", from : ModelPoint, to : ModelPoint, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
+    // a planar profile (lines, three-point arcs, circles and cubic Béziers, with holes) extruded from z up by height,
+    // exact (`Extrusion`): faces bottom, top, outer.k and hole{i}.k
+    | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -282,6 +286,7 @@ export class Model {
             const f = features[id];
             switch (f.type) {
                 case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
+                case "extrude": throw new Error( `Model: a shell cannot yet offset the extrusion "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -322,7 +327,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve": case "primitive":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -492,6 +497,7 @@ export class Model {
             case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
+            case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -521,6 +527,7 @@ export class Model {
         const positive = (x : number, what : string) => { if (!(x > 0)) throw new Error( `Model: ${what} must be positive` ); return x; };
         switch (f.type) {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
+            case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ) );
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
