@@ -90,7 +90,10 @@ export interface BooleanResult {
         filletsSkipped : number;
         // closed fillets made smaller than asked, so that their edges on a face they share keep clear of each other
         filletsReduced : number;
-        // with `certify`: the pairs of faces whose boxes meet, how many of them are proven complete, and the others
+        // pairs of faces (of different operands) whose boxes meet: those intersected, and those skipped because no
+        // point where they meet can be on the result's boundary (`BrepBoolean.activeBoxes`)
+        facePairs : { intersected : number, skipped : number };
+        // with `certify`: the pairs of faces intersected, how many of them are proven complete, and the others
         // (their pairs of cells left undecided, where the faces may be tangent or a loop may hide, and the starts of
         // branches found on no curve)
         certificate? : { pairs : number, proven : number,
@@ -205,9 +208,13 @@ export class BrepBoolean {
         let maxErr = 0.0;
         let tangentContacts = 0;
         const certificate = o.certify ? { pairs : 0, proven : 0, unproven : [] as NonNullable<BooleanResult["report"]["certificate"]>["unproven"] } : undefined;
+        const active = BrepBoolean.activeBoxes( solids, meshes, expr );
+        const facePairs = { intersected : 0, skipped : 0 };
         for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
             solids[i].faces.forEach( (fa, ia) => solids[j].faces.forEach( (fb, ib) => {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
+                if (active != null && !BrepBoolean.boxesOverlap( active[i][ia], active[j][ib] )) { facePairs.skipped++; return; }
+                facePairs.intersected++;
                 const step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 const res = SurfaceIntersect.analyze( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
@@ -708,7 +715,7 @@ export class BrepBoolean {
         out.compact(); // drops the same degenerate triangles
         return { mesh : out, faces : faces, faceOf : faceOf, cornerUV : cornerUV, patchXY : patchXY, curves : curves, fillets : filletInfo, corners : cornerInfo, report : {
             manifold : out.checkClosedManifold(), volume : out.signedVolume(), intersectionCurves : curves.length, tangentContacts : tangentContacts, maxCurveError : maxErr,
-            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, filletsReduced : reduced.count, certificate : certificate } };
+            fillets : blends.length, filletsFailed : failed, filletsSkipped : skipped, filletsReduced : reduced.count, facePairs : facePairs, certificate : certificate } };
     }
 
     // Drop a closed branch that only retraces part of another branch: where a branch ends on a face's edge, the marcher
@@ -1423,6 +1430,107 @@ export class BrepBoolean {
     // grid used to find intersection branches: the face's own grid, at most 96 cells each way
     private static searchDivs( f : BrepFace ) : [number, number] {
         return [Math.min( 96, Math.max( 8, f.divs[0] ) ), Math.min( 96, Math.max( 8, f.divs[1] ) )];
+    }
+
+    // For each face of each operand, a box around the part of it that can be on the result's boundary, or null when
+    // there are only two operands. A point of operand L's face is on the boundary only where L matters: where
+    // `expr` changes when L's membership flips, the others' held (J. R. Rossignac, H. B. Voelcker, "Active zones in
+    // CSG for accelerating boundary evaluation, redundancy elimination, interference detection, and shading
+    // algorithms", ACM Transactions on Graphics 8(1), 1989). Each triangle of the face's mesh is tested against
+    // every other operand: out of it when their boxes miss, inside or outside it (by its mesh) when no triangle of it
+    // comes within both meshes' distance from their exact faces, and undecided otherwise. The triangle is kept when
+    // some choice for the undecided operands makes L matter, or makes an undecided operand matter (a face that
+    // coincides with another operand's, like the hub cylinders of windows cut one after another, is split along
+    // that one's edges too). A pair of faces whose boxes of kept triangles miss has no branch on the result: when
+    // windows are cut one after another, the faces of different windows are not paired. Up to 16 operands (a truth
+    // table of the expression); with more, or only two, every pair whose face boxes meet is intersected.
+    private static activeBoxes( solids : Array<BrepSolid>, meshes : Array<MeshBVH>, expr : (inside : Array<boolean>) => boolean ) : Array<Array<{ min : Point, max : Point }>> | null {
+        const n = solids.length;
+        if (n < 3 || n > 16) return null;
+        const empty = () => ({ min : [Infinity, Infinity, Infinity] as Point, max : [-Infinity, -Infinity, -Infinity] as Point });
+        // each face's own mesh, and how far an operand's mesh may be from its exact faces: twice the largest gap
+        // between a triangle's centroid and the surface at its parameters (a chord's sag peaks inside it), or a cell
+        // of the coarsest face when the operand brings its own mesh
+        const faceMeshes = solids.map( s => s.faces.map( f => FaceMesher.mesh( f, [], new Welder( s.weldTolerance() ) ) ) );
+        const margin = solids.map( (s, L) => {
+            if (s.boundary != null) return Math.max( ...s.faces.map( f => BrepBoolean.cell( f ) ) ) + s.weldTolerance();
+            let sag = 0;
+            s.faces.forEach( (f, fi) => { const t = faceMeshes[L][fi]; for (const tri of t.triangles) {
+                const uv : UV = [(t.uv[tri[0]][0] + t.uv[tri[1]][0] + t.uv[tri[2]][0]) / 3, (t.uv[tri[0]][1] + t.uv[tri[1]][1] + t.uv[tri[2]][1]) / 3];
+                const c = [0, 1, 2].map( k => (t.points[tri[0]][k] + t.points[tri[1]][k] + t.points[tri[2]][k]) / 3 );
+                sag = Math.max( sag, Vec.dist( Eval.rationalSurfacePoint( f.surface, uv[0], uv[1] ), c ) );
+            } } );
+            return 2 * sag + s.weldTolerance();
+        } );
+        const boxes = solids.map( s => s.boundingBox() );
+        const flags = new Array<boolean>( n ).fill( false );
+        const unknown : Array<number> = [];
+        // the expression's truth table, by bit mask of the operands a point is inside, and whether operand X matters
+        // for some choice of the operands in `free` (X aside), the others as in `flags`
+        const table = new Uint8Array( 1 << n );
+        const bits = new Array<boolean>( n );
+        for (let m = 0; m < table.length; m++) {
+            for (let k = 0; k < n; k++) bits[k] = ((m >> k) & 1) == 1;
+            table[m] = expr( bits ) ? 1 : 0;
+        }
+        const matters = (X : number, free : Array<number>) : boolean => {
+            const vary = free.filter( k => k != X );
+            if (vary.length > 12) return true;
+            let base = 0;
+            for (let k = 0; k < n; k++) if (flags[k] && k != X && !vary.includes( k )) base |= 1 << k;
+            const x = 1 << X;
+            for (let m = 0; m < (1 << vary.length); m++) {
+                let mask = base;
+                for (let b = 0; b < vary.length; b++) if ((m >> b) & 1) mask |= 1 << vary[b];
+                if (table[mask | x] != table[mask]) return true;
+            }
+            return false;
+        };
+        // a group of triangles of L's face is tested as one box, and split in two along its longest side while it
+        // may be on the boundary: large regions away from it are settled at once, the boundary found triangle by
+        // triangle
+        const test = (L : number, lo : Point, hi : Point) : boolean => {
+            unknown.length = 0;
+            const mid = [0, 1, 2].map( c => (lo[c] + hi[c]) / 2 ) as Point;
+            for (let k = 0; k < n; k++) {
+                if (k == L) continue;
+                const m = margin[k];
+                const lo2 = lo.map( x => x - m ) as Point, hi2 = hi.map( x => x + m ) as Point;
+                if (!BrepBoolean.boxesOverlap( { min : lo2, max : hi2 }, boxes[k] )) flags[k] = false;
+                else if (!meshes[k].overlaps( lo2, hi2 )) flags[k] = meshes[k].contains( mid );
+                else unknown.push( k );
+            }
+            // on the boundary where L matters, or near the boundary of an operand that matters there: the Boolean
+            // splits a face that coincides with another operand's along that one's edges too
+            if (matters( L, unknown )) return true;
+            const near = unknown.slice();
+            return near.some( K => matters( K, near.concat( [L] ) ) );
+        };
+        return solids.map( (s, L) => s.faces.map( (f, fi) => {
+            const t = faceMeshes[L][fi];
+            const out = empty();
+            const tri = t.triangles.map( x => {
+                const P = x.map( k => t.points[k] );
+                return { lo : [0, 1, 2].map( c => Math.min( P[0][c], P[1][c], P[2][c] ) - margin[L] ) as Point,
+                         hi : [0, 1, 2].map( c => Math.max( P[0][c], P[1][c], P[2][c] ) + margin[L] ) as Point };
+            } );
+            const visit = (group : typeof tri) : void => {
+                const lo = [0, 1, 2].map( c => Math.min( ...group.map( g => g.lo[c] ) ) ) as Point;
+                const hi = [0, 1, 2].map( c => Math.max( ...group.map( g => g.hi[c] ) ) ) as Point;
+                if (!test( L, lo, hi )) return;
+                if (group.length == 1) {
+                    for (let c = 0; c < 3; c++) { out.min[c] = Math.min( out.min[c], lo[c] ); out.max[c] = Math.max( out.max[c], hi[c] ); }
+                    return;
+                }
+                let axis = 0;
+                for (let c = 1; c < 3; c++) if (hi[c] - lo[c] > hi[axis] - lo[axis]) axis = c;
+                const sorted = group.slice().sort( (x, y) => (x.lo[axis] + x.hi[axis]) - (y.lo[axis] + y.hi[axis]) );
+                const h = sorted.length >> 1;
+                visit( sorted.slice( 0, h ) ); visit( sorted.slice( h ) );
+            };
+            if (tri.length > 0) visit( tri );
+            return out;
+        } ) );
     }
 
     private static boxesOverlap( a : { min : Point, max : Point }, b : { min : Point, max : Point } ) : boolean {
