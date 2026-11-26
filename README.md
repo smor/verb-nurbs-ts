@@ -50,7 +50,7 @@ import verb from "verb-nurbs-ts";
 const crv = verb.geom.NurbsCurve.byPoints([[0, 0, 0], [1, 1, 0], [2, 0, 0]], 2);
 ```
 
-`dist/` is plain ES modules. The only runtime dependency is [cdt2d](https://github.com/mikolalysenko/cdt2d) (constrained Delaunay triangulation, used to tessellate trimmed faces); bundle it with esbuild or use an import map to load the library in a browser.
+`dist/` is plain ES modules. The runtime dependencies are [cdt2d](https://github.com/mikolalysenko/cdt2d) (constrained Delaunay triangulation, used to tessellate trimmed faces) and its exact in-circle predicate robust-in-sphere; bundle it with esbuild or use an import map to load the library in a browser.
 
 ## Demo: a free-form vessel, validated as a manifold
 

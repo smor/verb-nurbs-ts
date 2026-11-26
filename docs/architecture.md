@@ -62,8 +62,8 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
    exported as six four-sided B-spline surfaces.
 5. **Own edges** (`BrepEdges`): a solid's existing edges can be filleted too, alone or together with the
    Boolean's new edges.
-6. **Tessellation**: each face is meshed inside its trims with constrained Delaunay triangulation (cdt2d), sharing
-   seam vertices with its neighbours. The result is checked as a closed 2-manifold.
+6. **Tessellation**: each face is meshed inside its trims with constrained Delaunay triangulation (cdt2d's sweep
+   with the filtered Delaunay flips of `eval/Cdt`), sharing seam vertices with its neighbours. The result is checked as a closed 2-manifold.
 
 `docs/booleans.md` describes each step's method, its checks and its known limits.
 
