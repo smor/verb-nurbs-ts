@@ -27,7 +27,7 @@ export interface IntersectionCertificateResult {
 export interface IntersectionCertificateOptions {
     /** cells per direction to start from (default 4) */
     cells? : number;
-    /** how many times a pair may still be split (default 4) */
+    /** how many times a pair may still be split (default 8) */
     depth? : number;
     /** how far from a curve a crossing may be and still lie on it (default 1e-6 x the surfaces' size) */
     tolerance? : number;
@@ -62,7 +62,7 @@ type Crossing = { point : Point, uvA : UV, uvB : UV };
 export class IntersectionCertificate {
 
     public static check( A : SurfaceDomain, B : SurfaceDomain, curves : Array<IntersectionCurve>, options? : IntersectionCertificateOptions ) : IntersectionCertificateResult {
-        const n = options?.cells ?? 4, depth = options?.depth ?? 4;
+        const n = options?.cells ?? 4, depth = options?.depth ?? 8;
         const pa = IntersectionCertificate.grid( A.surface, n ), pb = IntersectionCertificate.grid( B.surface, n );
         const size = Math.max( IntersectionCertificate.diagonal( pa ), IntersectionCertificate.diagonal( pb ), 1e-12 );
         const tol = options?.tolerance ?? 1e-6 * size;
