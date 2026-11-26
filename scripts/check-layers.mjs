@@ -24,7 +24,7 @@ const ALLOWED = {
     types : [],
 };
 // the mesh package: these files may only import these modules, so they can serve any mesh, not just B-reps
-const MESH = ["solid/TriMesh.ts", "solid/MeshBVH.ts", "solid/Makeable.ts", "solid/Implicit.ts"];
+const MESH = ["solid/TriMesh.ts", "solid/MeshBVH.ts", "solid/Makeable.ts", "solid/Implicit.ts", "solid/Growth.ts"];
 const MESH_ALLOWED = ["core/Data.ts", "core/Vec.ts", ...MESH];
 
 function files( dir ) {

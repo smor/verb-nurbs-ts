@@ -76,6 +76,8 @@ import { BrepEdges } from "./solid/BrepEdges.js";
 export type { DomainSide, SolidEdge } from "./solid/BrepEdges.js";
 export type { OpenBlend, TrimPoint, ThirdEdge, CornerPatch } from "./solid/FilletCorner.js";
 import { IntersectionCertificate } from "./solid/IntersectionCertificate.js";
+import { Growth } from "./solid/Growth.js";
+export type { GrowthZone, GrowthOptions, GrowthResult, GrownSolid } from "./solid/Growth.js";
 export type { IntersectionCertificateResult, IntersectionCertificateOptions } from "./solid/IntersectionCertificate.js";
 import { Implicit } from "./solid/Implicit.js";
 export type { Field, Grade, LatticePattern } from "./solid/Implicit.js";
@@ -194,6 +196,7 @@ export {
     BrepEdges,
     Implicit,
     IntersectionCertificate,
+    Growth,
     Makeable,
     MeshBVH,
     Shell,
@@ -306,6 +309,7 @@ export const solid = {
     BrepEdges,
     Implicit,
     IntersectionCertificate,
+    Growth,
     Makeable,
     MeshBVH,
     Shell,
