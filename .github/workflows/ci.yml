@@ -1,7 +1,12 @@
 name: ci
+# One run per change: a pull request's commits run as the pull request (whatever branch it targets), and main, release
+# tags and manual runs as themselves. (Running on every push as well ran each pull request's commits twice.)
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,7 +39,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        # pull requests on Node 22; main, release tags and manual runs on every supported version
+        node: ${{ fromJSON(github.event_name == 'pull_request' && '[22]' || '[20, 22, 24]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
