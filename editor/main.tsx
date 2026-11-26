@@ -25,6 +25,19 @@ const ref = ( v : ModelValue | undefined ) : [string, string] | null => {
 const clone = <T,>( x : T ) : T => JSON.parse( JSON.stringify( x ) ) as T;
 
 let DOC : GraphDocument = clone( SAMPLE );
+// the solid node the 3D view shows: the one asked for with Show, else the document's first output
+const shownNode = () : string => {
+    const s = DOC.view?.show;
+    if (typeof s == "string" && DOC.nodes[s] != null) return s;
+    return ref( Object.values( DOC.outputs ?? {} )[0] )?.[0] ?? "";
+};
+// the name of the output that exports a node, if any; adding one names it after the node, removing the last is refused
+const outputOf = ( id : string ) : string | null => Object.entries( DOC.outputs ?? {} ).find( ([, v]) => ref( v )?.[0] == id )?.[0] ?? null;
+const toggleOutput = ( id : string ) => {
+    const name = outputOf( id );
+    if (name == null) DOC.outputs = { ...DOC.outputs, [id] : "@" + id };
+    else if (Object.keys( DOC.outputs ).length > 1) delete DOC.outputs[name];
+};
 const view = () => { DOC.view = DOC.view ?? {}; DOC.view.nodes = DOC.view.nodes ?? {}; return DOC.view.nodes; };
 
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
@@ -35,7 +48,8 @@ let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = 
 function evaluate() {
     if (busy) { pending = true; return; }
     busy = true;
-    worker.postMessage( { seq : ++seq, doc : DOC } );
+    const shown = shownNode();
+    worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown } );
 }
 worker.onmessage = ( e : MessageEvent<Result> ) => {
     busy = false;
@@ -105,8 +119,10 @@ function GraphNodeView( { id } : NodeProps ) {
                 <span className="wired">{ref( nd.in?.[k] ) ? "← " + (DOC.nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : "connect a solid"}</span></div>
             : <TextInput key={k} id={id} k={k} port={p} /> )}
         {Object.entries( t.outputs ).map( ([k, ty]) => <div className="row out" key={k}>
-            {isSolid && <button className="nodrag show" aria-pressed={shown == id} onClick={() => { DOC.outputs = { solid : "@" + id }; changed(); }}>
+            {isSolid && <button className="nodrag show" aria-pressed={shown == id} onClick={() => { DOC.view = { ...DOC.view, show : id }; changed(); }}>
                 {shown == id ? "Shown" : "Show"}</button>}
+            {isSolid && <button className="nodrag show out-toggle" aria-pressed={outputOf( id ) != null} title="Export this solid as an output of the graph file"
+                onClick={() => { toggleOutput( id ); changed(); }}>{outputOf( id ) != null ? "Output: " + outputOf( id ) : "Make output"}</button>}
             <span className="lbl">{k}</span>
             <Handle type="source" position={Position.Right} id={k} className={"h-" + ty} /></div> )}
     </div>;
@@ -210,6 +226,7 @@ function App() {
     };
     const onNodesDelete = ( ns : Node[] ) => {
         for (const x of ns) { delete DOC.nodes[x.id]; delete view()[x.id]; }
+        for (const [name, v] of Object.entries( DOC.outputs ?? {} )) if (DOC.nodes[ref( v )?.[0] ?? ""] == null) delete DOC.outputs[name];
         for (const n of Object.values( DOC.nodes )) for (const [k, v] of Object.entries( n.in ?? {} )) { const r = ref( v ); if (r && DOC.nodes[r[0]] == null) delete n.in![k]; }
         changed();
     };
@@ -232,7 +249,7 @@ function App() {
         } catch (e) { setResult( { ok : false, ms : 0, error : `Could not open ${f.name}: ${(e as Error).message}` } ); }
     };
 
-    const shown = ref( DOC.outputs?.solid )?.[0] ?? "";
+    const shown = shownNode();
     const status = result?.nodes ?? {};
     const rebuilt = Object.keys( status ).filter( k => status[k] == "built" ), reused = Object.keys( status ).filter( k => status[k] == "cached" );
     return <Ctx.Provider value={{ status, shown, changed }}>

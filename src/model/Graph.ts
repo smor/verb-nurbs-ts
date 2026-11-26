@@ -1,6 +1,7 @@
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { Expr } from "./Expr.js";
 import { Model } from "./Model.js";
+import type { Machine } from "../solid/Makeable.js";
 import type { ModelDocument, ModelFeature, ModelResult, ModelValue } from "./Model.js";
 
 // Node graphs for visual programming (docs/visual-programming.md). A graph document is plain JSON: nodes keyed by
@@ -41,24 +42,46 @@ export interface GraphNode {
     label? : string;
 }
 
-/** A graph document, version 2. `view` holds the layout only, and never changes what is built. */
+/**
+ * A graph document, version 2 (the format is specified in docs/formats.md). Lengths are in millimetres and angles in
+ * degrees. `view` and `meta` never change what is built.
+ */
 export interface GraphDocument {
     version : 2;
     nodes : { [id : string] : GraphNode };
-    // the result: a reference to a solid output, `{ solid : "@round" }`
+    // the solids the graph exports, by name: `{ wheel : "@wheel", shaft : "@shaft" }`. The first is the default
     outputs : { [name : string] : string };
-    view? : { nodes? : { [id : string] : { x : number, y : number } }, [key : string] : unknown };
+    // the editor's layout, and anything else an editor keeps (`show`: the node it displays)
+    view? : { nodes? : { [id : string] : { x : number, y : number } }, show? : string, [key : string] : unknown };
+    // about the document: a name, a description, an author; free-form
+    meta? : { name? : string, description? : string, [key : string] : unknown };
+    // the machine the solids are checked against for the verdict (`Makeable.MACHINES` key, or a machine), as in a model
+    machine? : string | Machine;
+}
+
+/** How to evaluate a graph: which output, and number nodes set from outside (a part's parameters in an assembly). */
+export interface GraphOptions {
+    // an output's name, or a reference to any solid node (`"@cut"`, to preview it); default: the first output
+    output? : string;
+    // values for `number` nodes, by id, replacing their own
+    set? : { [id : string] : ModelValue };
 }
 
 /** A graph evaluated: the model's result, the model document it compiled into, and each node's state. */
 export interface GraphResult extends ModelResult {
     model : ModelDocument;
+    // the output evaluated: its name, or the reference asked for
+    output : string;
     // "built": computed by this evaluation; "cached": taken from an earlier one; "parameter": a number node;
     // "unused": not upstream of the output
     nodes : { [id : string] : "built" | "cached" | "parameter" | "unused" };
 }
 
+// the top-level keys of a graph document
+const TOP = ["version", "nodes", "outputs", "view", "meta", "machine"];
 const ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// an output's name: an id that may also hold "-" (a part's name, "axle-washer"); never used in expressions
+const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const REF = /^@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_ ]*))?$/;
 
 const num = ( label : string, value : number, min : number, max : number, step = 1, unit? : string ) : GraphPort =>
@@ -100,14 +123,14 @@ export class Graph {
      * Evaluates a graph document (or a version 1 model document, as it is). The graph keeps what it built, so
      * evaluating an edited document rebuilds only what the edit changed.
      */
-    public evaluate( doc : GraphDocument | ModelDocument ) : GraphResult {
+    public evaluate( doc : GraphDocument | ModelDocument, options : GraphOptions = {} ) : GraphResult {
         if (doc.version === 1) {
             const r = this.model.evaluate( doc );
             const nodes : GraphResult["nodes"] = {};
             for (const [id, f] of Object.entries( r.features )) nodes[id] = f.built ? "built" : "cached";
-            return { ...r, model : doc, nodes : nodes };
+            return { ...r, model : doc, output : doc.output, nodes : nodes };
         }
-        const model = Graph.compile( doc );
+        const model = Graph.compile( doc, options );
         const r = this.model.evaluate( model );
         const nodes : GraphResult["nodes"] = {};
         for (const id of Object.keys( doc.nodes )) {
@@ -115,7 +138,7 @@ export class Graph {
             const f = r.features[id];
             nodes[id] = Graph.isNumber( t ) ? "parameter" : f == null ? "unused" : f.built ? "built" : "cached";
         }
-        return { ...r, model : model, nodes : nodes };
+        return { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes };
     }
 
     /**
@@ -123,11 +146,20 @@ export class Graph {
      * their own ids. Refuses, with a message naming the node and the port: an unknown type or port, an id that is not
      * a name (or a number node named like a function or constant of `Expr`), a reference to a missing node or port,
      * a wire between a number and a solid, a solid input left unconnected, and an expression naming something other
-     * than a number node.
+     * than a number node, an output that is not a solid node, a top-level key the format does not have, and a `set`
+     * for something other than a `number` node. Every output is checked, whichever one is compiled.
      */
-    public static compile( doc : GraphDocument ) : ModelDocument {
+    public static compile( doc : GraphDocument, options : GraphOptions = {} ) : ModelDocument {
         if (doc.version !== 2) throw new Error( `Graph: unknown document version ${String( ( doc as { version? : unknown } ).version )}` );
-        const nodes = doc.nodes ?? {};
+        for (const k of Object.keys( doc )) if (!TOP.includes( k )) throw new Error( `Graph: "${k}" is not a key of a graph document (${TOP.join( ", " )})` );
+        let nodes = doc.nodes ?? {};
+        if (options.set != null) {
+            nodes = { ...nodes };
+            for (const [id, v] of Object.entries( options.set )) {
+                if (nodes[id]?.type != "number") throw new Error( `Graph: cannot set "${id}", which is not a number node` );
+                nodes[id] = { ...nodes[id], in : { ...nodes[id].in, value : v } };
+            }
+        }
         const numbers = new Set<string>();
         for (const [id, n] of Object.entries( nodes )) {
             if (!ID.test( id )) throw new Error( `Graph: "${id}" is not a valid node id (letters, digits and _, not starting with a digit)` );
@@ -245,11 +277,71 @@ export class Graph {
                 default: throw new Error( `Graph: node type "${n.type}" has no compiler` );
             }
         }
-        const out = doc.outputs?.solid;
-        if (typeof out != "string") throw new Error( `Graph: the document has no "solid" output` );
-        const m = REF.exec( out.trim() );
-        if (m == null || features[m[1]] == null) throw new Error( `Graph: the output "${out}" is not a solid node` );
-        return { version : 1, parameters : parameters, features : features, output : m[1] };
+        // every output names a solid node; the one asked for (by name, or "@id") is the model's output
+        const solidOf = ( name : string, ref : unknown ) : string => {
+            const m = typeof ref == "string" ? REF.exec( ref.trim() ) : null;
+            if (m == null || features[m[1]] == null) throw new Error( `Graph: the output "${name}" is ${JSON.stringify( ref )}, not a reference to a solid node` );
+            return m[1];
+        };
+        const outputs = doc.outputs ?? {};
+        const names = Object.keys( outputs );
+        if (names.length == 0) throw new Error( `Graph: the document has no outputs` );
+        for (const name of names) {
+            if (!NAME.test( name )) throw new Error( `Graph: "${name}" is not a valid output name (letters, digits, _ and -, starting with a letter or _)` );
+            solidOf( name, outputs[name] );
+        }
+        const want = options.output ?? names[0];
+        if (!want.startsWith( "@" ) && outputs[want] == null) throw new Error( `Graph: the document has no output "${want}" (${names.join( ", " )})` );
+        const output = solidOf( want, want.startsWith( "@" ) ? want : outputs[want] );
+        const model : ModelDocument = { version : 1, parameters : parameters, features : features, output : output };
+        if (doc.machine != null) model.machine = doc.machine;
+        return model;
+    }
+
+    /**
+     * The JSON Schema (draft 2020-12) of graph documents, version 2, made from `Graph.REGISTRY`: every node type with
+     * its inputs, their kinds and defaults. `schema/graph.v2.schema.json` is this, checked in; a test keeps the two
+     * equal, and refuses a change to a released type, port or default (docs/formats.md, "Stability").
+     * The schema checks shape only: what refers to what (wires, expressions, outputs) is checked by `compile`.
+     */
+    public static schema() : { [key : string] : unknown } {
+        const value = { type : ["number", "string"] };
+        const wire = { type : "string", pattern : REF.source };
+        const defs : { [key : string] : unknown } = {};
+        const types = Object.keys( Graph.REGISTRY );
+        for (const type of types) {
+            const t = Graph.REGISTRY[type];
+            const ports : { [port : string] : unknown } = {};
+            for (const [k, p] of Object.entries( t.inputs ))
+                ports[k] = p.kind == "number" ? { ...value, description : p.unit == null ? p.label : `${p.label} (${p.unit})`, default : p.value }
+                    : p.kind == "solid" ? { ...wire, description : `${p.label}: a solid, "@node"` }
+                    : p.kind == "choice" ? { enum : p.options, description : p.label, default : p.value }
+                    : { type : "string", description : p.label, default : p.value };
+            defs[type.replace( /\//g, "." )] = { title : t.title, description : t.help, type : "object", required : ["type"], additionalProperties : false,
+                properties : { type : { const : type }, label : { type : "string" }, in : { type : "object", additionalProperties : false, properties : ports } } };
+        }
+        return {
+            $schema : "https://json-schema.org/draft/2020-12/schema",
+            $id : "https://github.com/smor/verb-nurbs-ts/schema/graph.v2.schema.json",
+            title : "verb-nurbs-ts graph document, version 2",
+            description : "A node graph (docs/formats.md). Lengths in millimetres, angles in degrees.",
+            type : "object",
+            required : ["version", "nodes", "outputs"],
+            additionalProperties : false,
+            properties : {
+                version : { const : 2 },
+                nodes : { type : "object", propertyNames : { pattern : ID.source }, additionalProperties : { $ref : "#/$defs/node" } },
+                outputs : { type : "object", minProperties : 1, propertyNames : { pattern : NAME.source }, additionalProperties : wire },
+                view : { type : "object" },
+                meta : { type : "object" },
+                machine : { anyOf : [{ type : "string" }, { type : "object" }] },
+            },
+            $defs : {
+                node : { type : "object", required : ["type"], properties : { type : { enum : types } },
+                    allOf : types.map( type => ({ if : { properties : { type : { const : type } } }, then : { $ref : `#/$defs/${type.replace( /\//g, "." )}` } }) ) },
+                ...defs,
+            },
+        };
     }
 
     /** Whether a node type gives a number (and so compiles into a parameter). */

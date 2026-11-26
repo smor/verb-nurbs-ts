@@ -3,11 +3,11 @@ import { Graph } from "../src/index.js";
 import type { GraphDocument } from "../src/index.js";
 
 const graph = new Graph();
-self.onmessage = ( e : MessageEvent<{ seq : number, doc : GraphDocument }> ) => {
-    const { seq, doc } = e.data;
+self.onmessage = ( e : MessageEvent<{ seq : number, doc : GraphDocument, output? : string }> ) => {
+    const { seq, doc, output } = e.data;
     const t = performance.now();
     try {
-        const r = graph.evaluate( doc );
+        const r = graph.evaluate( doc, { output } );
         const m = r.result.mesh;
         const pos = new Float32Array( m.vertices.length * 3 ), idx = new Uint32Array( m.triangles.length * 3 );
         m.vertices.forEach( (v, i) => { pos[3 * i] = v[0]; pos[3 * i + 1] = v[1]; pos[3 * i + 2] = v[2]; } );
