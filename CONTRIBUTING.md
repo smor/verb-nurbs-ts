@@ -36,7 +36,8 @@ checks that solids are valid manifolds.
    continuity to 1e-6", and check it numerically.
 3. Keep tolerances explicit: take a `tol` and pass it on.
 4. `npm run check` must pass. CI runs the same steps, plus the demos, the apps and the API docs: on Node 22 for a pull
-   request, and on Node 20, 22 and 24 on main, on release tags and on demand.
+   request, and on Node 20, 22 and 24 on main, on release tags and on demand. Coverage (`npm run coverage`, which fails
+   below its thresholds) runs on main, release tags and on demand; run it locally before a change that may lower it.
 
 ## Pull requests
 
@@ -54,7 +55,7 @@ Every gate runs locally and in CI, so a change that passes on your machine passe
 | Lint, with a warning cap | pre-commit hook, `npm run check` | `static` job |
 | No gate loosened | `npm run ratchets` | `static` job, on pull requests, against the target branch |
 | Full test suite, no `.only` | pre-push hook, `npm run check` | `test` job: Node 22 on pull requests; 20, 22, 24 on main and releases |
-| Coverage thresholds | `npm run coverage` | `test` job on Node 22 |
+| Coverage thresholds | `npm run coverage` | `test` job on Node 22, on main and releases |
 | Demos, apps, API docs build | `npm run build`, `viewer`, `playground`, `docs` | `demos` job |
 
 The thresholds are ratchets: the lint cap and the list of files exempt from the determinism rule only shrink,

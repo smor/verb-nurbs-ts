@@ -48,14 +48,16 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # coverage (five times slower than the plain run) on main, release tags and manual runs, on Node 22; a drop
+      # shows on main right after the merge
       - name: test with coverage (fails below the thresholds)
-        if: matrix.node == 22
+        if: matrix.node == 22 && github.event_name != 'pull_request'
         run: npm run coverage
       - name: test
-        if: matrix.node != 22
+        if: matrix.node != 22 || github.event_name == 'pull_request'
         run: npm test
       - name: upload coverage report
-        if: matrix.node == 22
+        if: matrix.node == 22 && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: coverage
