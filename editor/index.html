@@ -45,6 +45,23 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
   padding-right:env(safe-area-inset-right,0px)}
 .viewport{position:relative;min-height:0;border-bottom:1px solid var(--line)}
 .viewport canvas{display:block}
+.view3d{position:relative;min-height:0;display:grid}
+.view3d .viewport{min-height:0}
+.viewport .labels{position:absolute;inset:0;pointer-events:none}
+.shelf-label{font:600 11.5px var(--sans);color:var(--ink);background:color-mix(in srgb,var(--panel) 82%,transparent);padding:1px 5px;border-radius:3px;white-space:nowrap}
+.shelf-label.row{transform:translateX(-50%)}
+.shelf-label small{display:block;font:400 10.5px var(--mono);color:var(--muted)}
+.shelf-label.col{max-width:90px;white-space:normal;text-align:center}
+.piece-card{position:fixed;z-index:20;pointer-events:none;max-width:320px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;
+  box-shadow:0 6px 24px rgb(0 0 0 / .14);padding:8px 10px;font:12px/1.4 var(--sans)}
+.piece-card b{font:600 12px var(--mono)}
+.piece-card dl{margin:6px 0 0;display:grid;gap:2px}
+.piece-card dl div{display:grid;grid-template-columns:92px 1fr;gap:6px}
+.piece-card dt{color:var(--muted)}
+.piece-card dd{margin:0}
+.toolbar button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.layout.big{grid-template-columns:190px minmax(0,0.7fr) minmax(360px,2.2fr)}
+.layout.big .side{grid-template-rows:minmax(300px,72%) auto minmax(0,1fr)}
 .readout{padding:10px max(16px,env(safe-area-inset-left,0px)) 6px 16px;border-bottom:1px solid var(--line)}
 .readout p{margin:6px 0 0}
 .verdict-line{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
