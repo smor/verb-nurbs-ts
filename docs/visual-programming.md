@@ -367,7 +367,7 @@ Graph.compile( doc );         // the version 1 model document it runs
   (`Primitives.prism` over `Profiles.polygon` or `Profiles.rounded`). Limits: the caps are fans from a centre, so the
   outline must be star-shaped about its centroid or about the `center` port's point; concave parts are built from
   several prisms and Booleans. Booleans on such prisms are also less robust than on boxes where an operand comes
-  near the cap's centre (#94). #85 asks for a general profile extrusion (holes, arcs, Bézier curves); this node would
+  near the cap’s centre (#99). #85 asks for a general profile extrusion (holes, arcs, Bézier curves); this node would
   then extrude through it.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
