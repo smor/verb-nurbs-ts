@@ -27,6 +27,34 @@ function discAndRod(around) {
 // the quarter circle, of area (1 - pi/4) r^2, whose centroid lies 0.22337 r from both faces
 function pappus(R, r) { return 2 * Math.PI * (R + 0.22337 * r) * (1 - Math.PI / 4) * r * r; }
 
+// Every face of a result is a trimmed NURBS face: its surface at each triangle's corner parameters is the mesh vertex
+// (to tol, or to setbackTol on a setback corner's parts, which are fitted to its exact patch), and its loops close round
+// its triangles: the area they enclose in (u, v) is the area of the triangles there. Returns the worst distance by face.
+function uvArea(p) { var a = 0; for (var i = 0; i < p.length; i++) { var q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return a / 2; }
+function trimmed(res, tol, setbackTol) {
+	var m = res.mesh, tri = res.faces.map(function(){ return 0; }), worst = {};
+	var setback = new Set();
+	res.corners.forEach(function(c){ if (c.kind == 'setback') c.faces.forEach(function(fi){ setback.add(fi); }); });
+	m.triangles.forEach(function(t, k){
+		var fi = res.faceOf[k], f = res.faces[fi], c = res.cornerUV[k];
+		should.exist(c, f.name + ': a triangle with no parameters');
+		for (var x = 0; x < 3; x++) {
+			var d = Vec.dist(Eval.rationalSurfacePoint(f.surface, c[x][0], c[x][1]), m.vertices[t[x]]);
+			worst[f.name] = Math.max(worst[f.name] || 0, d);
+			d.should.be.below(setback.has(fi) ? setbackTol : tol, f.name);
+		}
+		tri[fi] += f.reversed ? -uvArea(c) : uvArea(c);
+	});
+	res.faces.forEach(function(f, fi){
+		if (tri[fi] == 0) return;
+		f.loops.length.should.be.above(0, f.name);
+		f.loops.forEach(function(l){ l.length.should.be.above(2, f.name); });
+		var a = f.loops.reduce(function(s, l){ return s + uvArea(l); }, 0);
+		a.should.be.approximately(tri[fi], 1e-9 * Math.abs(tri[fi]), f.name);
+	});
+	return worst;
+}
+
 describe("verb.solid.Fillet", function(){
 	this.timeout(budget(60000));
 
@@ -244,6 +272,20 @@ describe("verb.solid.Fillet", function(){
 		var exact = a * bb * c + r * 2 * (a * bb + bb * c + c * a) + Math.PI * r * r * (a + bb + c) + 4 / 3 * Math.PI * r * r * r;
 		res.report.volume.should.be.approximately(exact, exact * 0.01);
 		res.report.volume.should.be.below(exact);
+	});
+
+	it("gives every face of a rounded solid its trimmed NURBS surface: blends and corners too (A1)", function(){
+		// a rounded box: open blends meeting at ball corners
+		var b = BrepSolid.box([0, 0, 0], [40, 28, 20], 12), E = lib.BrepEdges.all(b);
+		var w = trimmed(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { edges : E.map(function(e){ return { solid : 0, faces : e.faces, radius : 4 }; }) }), 1e-8, 0);
+		w.should.have.properties('fillet', 'fillet corner');
+		// three radii: setback corners, whose parts are B-splines fitted to their patch to a thousandth of the radius
+		['circular', 'curvature', 'chamfer'].forEach(function(shape){
+			trimmed(BrepBoolean.evaluate([b], function(f){ return f[0]; }, { filletShape : shape, edges : E.map(function(e, k){ return { solid : 0, faces : e.faces, radius : [3, 4, 5][k % 3] }; }) }), 1e-8, 5e-3);
+		});
+		// the filleted mug: closed blends round the handle's joints
+		w = trimmed(lib.BooleanObjectsRecipe.mug({ divsU : 32, divsV : 128, fillet : 3 }).result, 1e-8, 0);
+		w.fillet.should.be.below(1e-12);
 	});
 
 	it("keeps setback corners inside the faces they round: no corner of a rounded box bulges past the box", function(){

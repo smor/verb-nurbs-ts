@@ -204,6 +204,30 @@ export class Transfinite {
         } );
     }
 
+    // The parameters (u, w) on `surfaces( ribbons )[i]` of a point x of the polygon: the inverse of that surface's
+    // bilinear map from its quadrilateral (corner i, the split after it, the centre, the split before it), by Newton's
+    // method from the quadrilateral's middle.
+    public static quadParameters( ribbons : Array<Ribbon>, i : number, x : [number, number] ) : [number, number] {
+        const n = ribbons.length, P = Transfinite.polygon( n );
+        const sp = Transfinite.splits( ribbons ).map( s => s.at );
+        const v = P[i], m1 = sp[i], m0 = sp[(i + n - 1) % n];
+        const at = (u : number, w : number) => [0, 1].map( k => (1 - u) * (1 - w) * v[k] + u * (1 - w) * m1[k] + (1 - u) * w * m0[k] );
+        let u = 0.5, w = 0.5;
+        for (let it = 0; it < 30; it++) {
+            const p = at( u, w );
+            const fx = p[0] - x[0], fy = p[1] - x[1];
+            // derivatives of the bilinear map (the fourth corner, the centre, is the origin)
+            const du = [0, 1].map( k => -(1 - w) * v[k] + (1 - w) * m1[k] - w * m0[k] );
+            const dw = [0, 1].map( k => -(1 - u) * v[k] - u * m1[k] + (1 - u) * m0[k] );
+            const det = du[0] * dw[1] - du[1] * dw[0];
+            if (Math.abs( det ) < 1e-300) break;
+            const su = (fx * dw[1] - fy * dw[0]) / det, sw = (du[0] * fy - du[1] * fx) / det;
+            u -= su; w -= sw;
+            if (Math.abs( su ) + Math.abs( sw ) < 1e-15) break;
+        }
+        return [Math.min( 1, Math.max( 0, u ) ), Math.min( 1, Math.max( 0, w ) )];
+    }
+
     // Which of the `surfaces` a point of the polygon lies on: the quadrilateral that contains it (the nearest vertex's
     // when it is on none, from round-off).
     public static quadOf( ribbons : Array<Ribbon>, x : [number, number] ) : number {
