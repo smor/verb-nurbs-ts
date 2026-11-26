@@ -75,9 +75,11 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
   `Constants` or a parameter.
 * **Makeable is opt-in.** Free-form, open or self-crossing geometry is legal. `Makeable.check` decides whether a
   mesh can be fabricated on a given machine, and a surface that passes through itself never can.
-* **Sweeps don't fold by accident.** A section that reaches past the centre of a bend turns the surface inside out
-  there. `SweepResult.fold` measures it (curvature times the section's reach towards the bend's centre: 1 or more
-  folds), and `noFold` narrows the section smoothly where, and only where, it would; the swept recipes turn it on.
+* **Sweeps don't fold or collide by accident.** A section that reaches past the centre of a bend turns the surface
+  inside out there. `SweepResult.fold` measures it (curvature times the section's reach towards the bend's centre: 1
+  or more folds). Parts of a sweep far apart along the rail can also come back near each other (strands of a knot,
+  turns of a coil). `noFold` narrows the section smoothly where, and only where, either would happen, and the swept
+  recipes turn it on.
 * **No rendering in the library.** `view/Inspect` returns plain arrays. three.js lives only in `viewer/` and
   `playground/`.
 

@@ -135,10 +135,12 @@ export interface SweepOptions extends FrameOptions {
     // maximum distance between the returned NURBS and the exact sweep (default 1e-3)
     tolerance? : number;
     maxIterations? : number;
-    // keep the surface from folding on the inside of tight bends. A section reaching further towards the centre of a
-    // bend than the bend's radius turns the surface inside out there, and the solid crosses itself. With `noFold`
-    // set (a fraction of that radius, 0.9 when given as true), the section is narrowed smoothly where, and only where,
-    // it would reach further; everywhere else the sweep is unchanged. `SweepResult.narrowed` says how much
+    // keep the surface from folding on the inside of tight bends, or running into itself. A section reaching further
+    // towards the centre of a bend than the bend's radius turns the surface inside out there; parts of the sweep far
+    // apart along the rail can come back near each other (the strands of a knot, the turns of a coil). With `noFold`
+    // set (a fraction of the bend's radius, and of the distance between the parts, 0.9 when given as true), the
+    // section is narrowed smoothly where, and only where, it would reach further; everywhere else the sweep is
+    // unchanged. `SweepResult.narrowed` says how much
     noFold? : boolean | number;
 }
 

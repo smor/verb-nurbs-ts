@@ -100,6 +100,13 @@ exactly where a contact curve crosses a periodic seam. The strip of each face be
 is dropped: it is the region bounded by both curves. The blend's mesh uses the contact points themselves on its two
 boundary rows, so it welds to the faces and the result stays watertight.
 
+**Fillets that crowd each other.** Two closed blends on the same face, such as the two handle joints of a short mug
+or two holes close together, can have contact curves that come close or cross on that face. Crossing contact curves
+cut the face into pieces that belong to neither blend, and the result is not a solid. Where two contact curves come
+within a tenth of the smaller radius of each other (segment against segment, in space), both blends are rebuilt at
+0.8 times their radius, up to six times. Each blend made smaller is counted in `report.filletsReduced`, and one that
+still cannot keep clear is left sharp and counted in `report.filletsFailed`.
+
 Checks: a disc with a hole and a rod through a disc have exactly known fillet volumes (Pappus: the corner region of
 area (1 - pi/4) r^2 swept around the hole). The volume removed or added agrees to 0.3% at 256 divisions around, and to
 1.5% at 128, converging as the tessellation refines. The ball is at distance r from both contact points, along both
@@ -365,7 +372,10 @@ nature, which is the honest answer.
   exact arithmetic either), and the Model verdict calls it visual. Near-tangent pairs that do cross are traced as
   usual.
 * **Topology is certified on request, not by default.** Broken-up branches are detected (an end inside both domains,
-  or a piece lying on another, after Barton, Elber and Hanniel's single-component count) and traced again.
+  a piece lying on another, after Barton, Elber and Hanniel's single-component count, or a piece that turns straight
+  back on itself, which the meshes' intersection produces where they cross at a grazing angle) and traced again. A
+  branch whose two ends lie on sides of a domain stays open even when its ends are closer than a mesh edge (a narrow
+  notch across a rim).
   `certify: true` (a Boolean option, or a model document's flag) runs `IntersectionCertificate.check` (below) on
   every pair of faces that meet. It is off by default because it costs a fraction of a second per pair. Pairs it
   leaves unresolved, near tangency, are where a missed loop could still hide.
@@ -373,5 +383,8 @@ nature, which is the honest answer.
   sampled; the certificate's cones are rigorous, and could replace them.
 * **Trim curves are polylines** in `TrimmedFace.loops` (dense, in `(u, v)`). `Step.write` fits exact 3D edge curves
   for export (see [step.md](step.md)); p-curves are left to the reader.
+* **Narrow fillets meeting a sharp edge.** A blend that ends in a mitre at a sharp edge (a rim notch filleted with the
+  rim left sharp) can overlap its neighbour there when it is much narrower than the tessellation of the faces around
+  it (a 0.2 mm fillet on a notch meshed in millimetre steps).
 * **Speed.** Classification casts rays against the whole tessellation of each other solid. A bounding volume
   hierarchy would make it scale to many tools.

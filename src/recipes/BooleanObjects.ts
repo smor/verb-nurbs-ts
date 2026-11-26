@@ -225,6 +225,10 @@ export class BooleanObjectsRecipe {
         const rows = p.rows != null ? p.rows : 2;
         const hr = p.holeRadius != null ? p.holeRadius : 7;
         const R = Math.max( ...(vp.radius as Array<number>) ) * 1.6;
+        // the tools start well inside the cavity wherever they cut, even where the wall leans in: at half the larger
+        // radius, but no further out than 0.6 times the smaller one (a vessel narrowing to its rim had its notches
+        // start inside the wall, and their end caps cut a pocket in it)
+        const start = Math.min( 0.5 * R / 1.6, 0.6 * Math.min( ...(vp.radius as Array<number>) ) );
         const tools : Array<BrepSolid> = [];
         for (let row = 0; row < rows; row++) {
             const z = H * (0.35 + 0.35 * (rows == 1 ? 0.5 : row / (rows - 1)));
@@ -233,7 +237,7 @@ export class BooleanObjectsRecipe {
                 const th = 2 * Math.PI * (k + 0.5 + 0.5 * (row % 2)) / n;
                 const dir : Point = [Math.cos( th ), Math.sin( th ), 0];
                 // from inside the cavity (not through the axis, so each tool cuts the wall once) to well outside
-                const a = Vec.add( [0, 0, z], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, z], Vec.mul( R, dir ) );
+                const a = Vec.add( [0, 0, z], Vec.mul( start, dir ) ), b = Vec.add( [0, 0, z], Vec.mul( R, dir ) );
                 const tube = Sweep.pipe( Make.rationalBezierCurve( [a, b] ), hr ).surface;
                 tools.push( BrepSolid.cappedTube( tube, [12, 32] ) );
             }
@@ -243,7 +247,7 @@ export class BooleanObjectsRecipe {
         for (let k = 0; k < notches; k++) {
             const th = 2 * Math.PI * (k + (p.notchPhase != null ? p.notchPhase : 0.5)) / notches;
             const dir : Point = [Math.cos( th ), Math.sin( th ), 0];
-            const a = Vec.add( [0, 0, H], Vec.mul( 0.5 * R / 1.6, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
+            const a = Vec.add( [0, 0, H], Vec.mul( start, dir ) ), b = Vec.add( [0, 0, H], Vec.mul( R, dir ) );
             tools.push( BrepSolid.cappedTube( Sweep.pipe( Make.rationalBezierCurve( [a, b] ), nr ).surface, [12, 32] ) );
         }
         const fr = p.fillet != null ? p.fillet : 0, rim = p.rimFillet != null ? p.rimFillet : 0;

@@ -312,7 +312,6 @@ export class BrepBoolean {
         const blends : Array<FilletResult> = [];
         const filletInfo : BooleanResult["fillets"] = [];
         let failed = ownFailed, skipped = 0;
-        let reduced = { count : 0, dropped : 0 };
         const closedBlends = new Map<number, FilletResult>();
         const openBlends = new Map<number, OpenBlend>();
         runs.forEach( (r, g) => {
@@ -340,7 +339,7 @@ export class BrepBoolean {
         // close together, holes close together) would cut the face into pieces that belong to neither. Where two come
         // within a tenth of the smaller radius, both are rebuilt smaller, in steps, until they keep clear; a blend
         // that still cannot is left sharp (counted as failed)
-        reduced = BrepBoolean.keepBlendsApart( runs, curves, closedBlends, tol, o.filletShape );
+        const reduced = BrepBoolean.keepBlendsApart( runs, curves, closedBlends, tol, o.filletShape );
         failed += reduced.dropped;
         // corners: the ends of the runs that are edges of the result
         const key = (s : number, f : number) => s + ":" + f;
