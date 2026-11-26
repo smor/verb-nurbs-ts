@@ -244,6 +244,51 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		m.volume().should.be.approximately(ref.volume(), ref.volume() * 1e-3);
 	});
 
+	function folds(k) {
+		return lib.FreeformVesselRecipe.DEFAULT_HARMONICS.map(function(h){
+			return { frequency : h.frequency, amplitude : [h.amplitude[0] * k, h.amplitude[1] * k], phase : h.phase }; });
+	}
+	function closedWithoutCrossings(r) {
+		r.report.manifold.closedManifold.should.be.true();
+		r.mesh.selfIntersections().pairs.should.be.equal(0);
+	}
+
+	it('mug: a short mug with a long handle keeps the handle legs apart, and its joint fillets clear of each other', function(){
+		this.timeout(budget(120000));
+		var base = { height : 80, radius : [48, 62], harmonics : folds(0.5), wallThickness : 3.1, handleRadius : 5.2, handleReach : 48,
+		             handleHeights : [0.41, 0.68], offsetTolerance : 0.02, divsU : 48, divsV : 192 };
+		// a fillet that fits as asked (this one also met a flat sliver in the wall's mesh, on three collinear nodes)
+		var small = lib.BooleanObjectsRecipe.mug(Object.assign({ fillet : 1 }, base)).result;
+		closedWithoutCrossings(small);
+		small.report.filletsReduced.should.be.equal(0);
+		// fillets whose contact curves would cross on the wall between the legs are made smaller, not left to clash
+		var big = lib.BooleanObjectsRecipe.mug(Object.assign({ fillet : 2.5 }, base)).result;
+		closedWithoutCrossings(big);
+		big.report.filletsReduced.should.be.equal(2);
+		big.report.filletsFailed.should.be.equal(0);
+		big.report.manifold.genus.should.be.equal(1);
+	});
+
+	it('rim notches on folded and narrowing walls: each notch arc is one branch, from rim to rim', function(){
+		this.timeout(budget(120000));
+		// a deep fold under the notch (the meshes cross at a grazing angle, and their intersection doubled back)
+		var a = lib.BooleanObjectsRecipe.pierced({ height : 172, radius : [55, 75], harmonics : folds(1.4), wallThickness : 4.7,
+			holes : 0, notches : 1, notchRadius : 8, notchPhase : 0.05, divsU : 48, divsV : 192 });
+		// a narrow notch on a wide wall (its ends on the rim are closer than a mesh edge, and it was taken for a loop)
+		var b = lib.BooleanObjectsRecipe.pierced({ height : 155, radius : [82, 79], harmonics : folds(0.15), wallThickness : 4.4,
+			holes : 0, notches : 1, notchRadius : 4.5, notchPhase : 0.05, divsU : 48, divsV : 192 });
+		// a vessel narrowing to its rim (the notch tool used to start inside the wall)
+		var c = lib.BooleanObjectsRecipe.pierced({ height : 127, radius : [80, 51], harmonics : folds(0.8), wallThickness : 2.9,
+			holes : 0, notches : 1, notchRadius : 3.5, notchPhase : 0.3, divsU : 48, divsV : 192 });
+		[a, b, c].forEach(function(o){
+			closedWithoutCrossings(o.result);
+			o.result.report.manifold.genus.should.be.equal(0);
+			var arcs = o.result.curves.filter(function(x){ return x.solids[0] == 0 && x.solids[1] == 2 && x.faces[0] == 0; });
+			arcs.length.should.be.equal(1);
+			arcs[0].curve.closed.should.be.false();
+		});
+	});
+
 	it('rim notches: three faces meet at triple points, and the result is still watertight', function(){
 		var o = lib.BooleanObjectsRecipe.pierced({ holes : 0, notches : 3, divsU : 48, divsV : 192 });
 		o.result.report.manifold.closedManifold.should.be.true();

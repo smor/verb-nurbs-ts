@@ -93,7 +93,10 @@ export class SurfaceIntersect {
             }
             if (pts.length < 2) continue;
             const gap = Vec.dist( pts[0], pts[pts.length - 1] );
-            const closed = gap < step * 2 || gap < SurfaceIntersect.meshEdge( ma, mb ) * 1.5;
+            // ends close together close the branch, unless both lie on a side of a domain (an arc cut short by an
+            // edge, such as a notch across a rim, whose ends can be nearer each other than a mesh edge)
+            const bothOnSides = SurfaceIntersect.endOnSide( A, B, ua[0], ub[0] ) && SurfaceIntersect.endOnSide( A, B, ua[ua.length - 1], ub[ub.length - 1] );
+            const closed = !bothOnSides && (gap < step * 2 || gap < SurfaceIntersect.meshEdge( ma, mb ) * 1.5);
             if (closed && gap < step * 0.2) { pts.pop(); ua.pop(); ub.pop(); }
             let c : IntersectionCurve = { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed };
             if (!closed) c = SurfaceIntersect.extendToEdges( A, B, c, Math.max( step, SurfaceIntersect.meshEdge( ma, mb ) ) * 4, tol );
@@ -253,20 +256,44 @@ export class SurfaceIntersect {
     // Whether a parameter pair is inside the domain (periodic directions always are).
     // Whether branches found from the meshes' intersection are broken up: an open one with an end inside both
     // domains (not on a side that is not a seam), or one whose points all lie on another.
+    // Whether a parameter pair lies on a side of the domain that is not a seam.
+    private static onSide( S : SurfaceDomain, uv : UV ) : boolean {
+        const d = SurfaceIntersect.domain( S.surface ), p = S.periodic != null ? S.periodic : [false, false];
+        for (let k = 0; k < 2; k++) {
+            const w = d[2 * k + 1] - d[2 * k];
+            if (!p[k] && (Math.abs( uv[k] - d[2 * k] ) < 1e-6 * w || Math.abs( uv[k] - d[2 * k + 1] ) < 1e-6 * w)) return true;
+        }
+        return false;
+    }
+
+    // Whether a point of a branch, given by its parameters on both surfaces, is on a side of either domain.
+    private static endOnSide( A : SurfaceDomain, B : SurfaceDomain, uvA : UV, uvB : UV ) : boolean {
+        return SurfaceIntersect.onSide( A, uvA ) || SurfaceIntersect.onSide( B, uvB );
+    }
+
     private static broken( A : SurfaceDomain, B : SurfaceDomain, curves : Array<IntersectionCurve> ) : boolean {
-        const onSide = (S : SurfaceDomain, uv : UV) => {
-            const d = SurfaceIntersect.domain( S.surface ), p = S.periodic != null ? S.periodic : [false, false];
-            for (let k = 0; k < 2; k++) {
-                const w = d[2 * k + 1] - d[2 * k];
-                if (!p[k] && (Math.abs( uv[k] - d[2 * k] ) < 1e-6 * w || Math.abs( uv[k] - d[2 * k + 1] ) < 1e-6 * w)) return true;
-            }
-            return false;
-        };
+        const onSide = (S : SurfaceDomain, uv : UV) => SurfaceIntersect.onSide( S, uv );
         for (const c of curves) {
+            // a branch that turns straight back on itself: the meshes' intersection chained a piece to its own
+            // copy (a branch crossing a wall at a fold, where the meshes cross at a grazing angle); a transversal
+            // branch has no such cusp
+            if (SurfaceIntersect.doublesBack( c )) return true;
             if (c.closed) continue;
             for (const k of [0, c.points.length - 1]) if (!onSide( A, c.uvA[k] ) && !onSide( B, c.uvB[k] )) return true;
         }
         return curves.some( (c, i) => curves.some( (e, j) => j != i && c.points.length <= e.points.length && c.points.every( p => SurfaceIntersect.onCurve( e, p ) ) ) );
+    }
+
+    // Whether a polyline turns back by more than 150 degrees at one of its vertices.
+    private static doublesBack( c : IntersectionCurve ) : boolean {
+        const n = c.points.length, m = c.closed ? n : n - 2;
+        for (let i = 0; i < m; i++) {
+            const a = c.points[i], b = c.points[(i + 1) % n], d = c.points[(i + 2) % n];
+            const u = Vec.sub( b, a ), v = Vec.sub( d, b );
+            const lu = Vec.norm( u ), lv = Vec.norm( v );
+            if (lu > 0 && lv > 0 && Vec.dot( u, v ) < -0.866 * lu * lv) return true;
+        }
+        return false;
     }
 
     private static within( S : SurfaceDomain, uv : UV ) : boolean {

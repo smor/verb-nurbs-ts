@@ -154,6 +154,39 @@ describe("verb.recipes.SweptObjectsRecipe", function(){
 		s.sweep.narrowed.scale.should.be.within(0.5, 0.99);
 	});
 
+	it('keeps distant parts of a sweep clear of each other: strands of a knot, turns of a coil', function(){
+		this.timeout(60000);
+		// a coil whose pitch is less than the pipe's width: each turn runs into the next
+		var pts = [];
+		for (var i = 0; i <= 60; i++) { var t = 2 * Math.PI * 3 * i / 60; pts.push([20 * Math.cos(t), 20 * Math.sin(t), 2 * t]); }
+		var coil = Fit.curve(pts, 3);
+		var plain = Sweep.pipe(coil, 9, { tolerance : 0.01 });
+		Shell.tube(plain.surface, false, { divsU : 240, divsV : 24 }).selfIntersections().pairs.should.be.above(0);
+		var kept = Sweep.pipe(coil, 9, { tolerance : 0.01, noFold : true });
+		kept.narrowed.scale.should.be.below(1);
+		var m = Shell.tube(kept.surface, false, { divsU : 240, divsV : 24 });
+		m.checkClosedManifold().closedManifold.should.be.true();
+		m.selfIntersections().pairs.should.be.equal(0);
+		// knots that used to cross where their strands meet
+		[{ p : 4, q : 6, radius : 51, tubeRadius : 25, pipeRadius : 5.7, pipeSwell : 0.69 },
+		 { p : 4, q : 4, radius : 45, tubeRadius : 13.5, pipeRadius : 3.6, pipeSwell : 0.55 },
+		 { p : 3, q : 5, radius : 21, tubeRadius : 22.5, pipeRadius : 3.8, pipeSwell : 0.01 }].forEach(function(k){
+			var o = lib.SweptObjectsRecipe.knotPipe(Object.assign({ divsU : 300, divsV : 20, tolerance : 0.05 }, k));
+			o.report.manifold.closedManifold.should.be.true();
+			o.mesh.selfIntersections().pairs.should.be.equal(0);
+		});
+	});
+
+	it('draws a torus knot whose indices share a factor once, and keeps its tube off the axis', function(){
+		var a = lib.SweptObjectsRecipe.knotPipe({ p : 4, q : 6, divsU : 120, divsV : 12, tolerance : 0.1 });
+		var b = lib.SweptObjectsRecipe.knotPipe({ p : 2, q : 3, divsU : 120, divsV : 12, tolerance : 0.1 });
+		a.rail.controlPoints.should.eql(b.rail.controlPoints);
+		var c = lib.SweptObjectsRecipe.knotPipe({ radius : 20, tubeRadius : 30, divsU : 120, divsV : 12, tolerance : 0.1 });
+		var nearest = Infinity;
+		c.rail.controlPoints.forEach(function(p){ nearest = Math.min(nearest, Math.hypot(p[0] / p[3], p[1] / p[3])); });
+		nearest.should.be.above(0.1 * 20);
+	});
+
 	['knotPipe', 'twistedRing'].forEach(function(name){
 		it(name + ' is a genus 1 solid accepted by manifold-3d', function(){
 			var o = lib.SweptObjectsRecipe[name]({ divsU : 160, divsV : 24 });

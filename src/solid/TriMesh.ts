@@ -238,18 +238,17 @@ export class TriMesh {
                 l.push( i );
             }
         } );
-        const seen = new Set<number>();
+        const ownerKey = (x : number, y : number, z : number) =>
+            Math.floor( (x - bb.min[0]) / h ) + "," + Math.floor( (y - bb.min[1]) / h ) + "," + Math.floor( (z - bb.min[2]) / h );
         const points : Array<Point> = [];
         let pairs = 0;
-        const n = T.length;
-        for (const l of cells.values()) for (let p = 0; p < l.length; p++) for (let q = p + 1; q < l.length; q++) {
+        for (const [key, l] of cells) for (let p = 0; p < l.length; p++) for (let q = p + 1; q < l.length; q++) {
             const i = Math.min( l[p], l[q] ), j = Math.max( l[p], l[q] );
             const ti = T[i], tj = T[j];
             if (ti.some( x => tj.includes( x ) )) continue;
             if (lo[i][0] > hi[j][0] || lo[j][0] > hi[i][0] || lo[i][1] > hi[j][1] || lo[j][1] > hi[i][1] || lo[i][2] > hi[j][2] || lo[j][2] > hi[i][2]) continue;
-            const key = i * n + j;
-            if (seen.has( key )) continue;
-            seen.add( key );
+            // test each pair once: in the cell holding the low corner of where the two boxes overlap
+            if (ownerKey( Math.max( lo[i][0], lo[j][0] ), Math.max( lo[i][1], lo[j][1] ), Math.max( lo[i][2], lo[j][2] ) ) != key) continue;
             const x = TriMesh.trianglesCross( V[ti[0]], V[ti[1]], V[ti[2]], V[tj[0]], V[tj[1]], V[tj[2]] );
             if (x != null) { pairs++; hit.add( i ); hit.add( j ); if (points.length < maxPoints) points.push( x ); }
         }
