@@ -79,7 +79,7 @@ export interface ModelResult {
     result : BooleanResult;
     // for each face of `result.faces`, its persistent name
     faceNames : Array<string>;
-    // for each persistent name, the faces it names (one, unless the name is ambiguous after all)
+    // for each persistent name, the face it names (in `result.faces`; no two faces share a name)
     faceIndex : { [name : string] : number };
     verdict : ModelVerdict;
     // each feature's content hash, and whether this evaluation built it (false: it came from the cache)
