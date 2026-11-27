@@ -1,6 +1,7 @@
 var should = require('should');
 var lib = require('../dist/index.js');
 var Graph = lib.Graph, Clearance = lib.Clearance;
+var budget = require('./support/budget.cjs');
 
 // Clearance and interference between posed solids, on their exact shells (#150, ask 1).
 
@@ -11,7 +12,7 @@ var pair = { version : 2, meta : { name : 'pair' }, nodes : {
 	k : { type : 'primitive/box', in : { width : 2, depth : 2, height : 2 } } }, outputs : { a : '@a', b : '@b', box : '@k' } };
 
 describe("verb.solid.Clearance", function () {
-	this.timeout(60000);
+	this.timeout(budget(120000));
 
 	it('two parallel cylinders at a known gap: the gap, on their sides, the contact normal across', function () {
 		var g = new Graph(), r = g.clearance(pair, 'a', 'b', { poseB : { translate : [6.5, 0, 0] } });
@@ -65,6 +66,42 @@ describe("verb.solid.Clearance", function () {
 		};
 		r.interference.volume.should.be.approximately(5 * lens(3, 2, 4), 1e-3 * 5 * lens(3, 2, 4));
 		r.interference.depth.should.be.approximately(0.5, 0.02); // half the lens's width, 1
+	});
+
+	it('along a motion: a cylinder passing by another, the closest approach and when, with a bound', function () {
+		var g = new Graph();
+		// b at y 7 moves along x from -10 to 10 over [0, 1]: closest at t 0.5, 7 - 3 - 2 = 2 apart
+		var r = g.closestApproach(pair, 'a', 'b', { motionB : { translate : { at : function (t) { return [-10 + 20 * t, 7, 0]; }, rate : 20 } }, from : 0, to : 1 });
+		r.overlap.should.be.false();
+		// the least distance lies between the bound and the least distance measured, within 1e-3
+		r.distance.should.be.aboveOrEqual(2 - 1e-12); r.bound.should.be.belowOrEqual(2 + 1e-12);
+		(r.distance - r.bound).should.be.belowOrEqual(1e-3);
+		r.t.should.be.approximately(0.5, 1e-2);
+		// the true distance never goes below the bound at the times sampled here
+		for (var t = 0; t <= 1; t += 0.125) g.clearance(pair, 'a', 'b', { poseB : { translate : [-10 + 20 * t, 7, 0] } }).distance.should.be.aboveOrEqual(r.bound);
+	});
+
+	it('along a motion: an arm turning past a post, its corner nearest (11 - sqrt 101 apart)', function () {
+		var g = new Graph();
+		var doc = { version : 2, meta : { name : 'arm' }, nodes : {
+			arm0 : { type : 'primitive/box', in : { width : 10, depth : 2, height : 2 } }, arm : { type : 'transform/move', in : { of : '@arm0', x : 5, y : 0, z : 0 } },
+			post0 : { type : 'primitive/cylinder', in : { radius : 1, height : 2 } }, post : { type : 'transform/move', in : { of : '@post0', x : 0, y : 12, z : 0 } } },
+			outputs : { arm : '@arm', post : '@post' } };
+		var r = g.closestApproach(doc, 'arm', 'post', { motionA : { rotate : { axis : [0, 0, 1], degrees : function (t) { return 180 * t; }, rate : 180 } }, from : 0, to : 1 });
+		var exact = 11 - Math.sqrt(101);
+		r.distance.should.be.aboveOrEqual(exact - 1e-12); r.bound.should.be.belowOrEqual(exact + 1e-12);
+		(r.distance - r.bound).should.be.belowOrEqual(1e-3);
+		// a corner (10, ±1) points at the post's axis when turned by 90° ∓ atan(1/10): two minima, as near
+		Math.abs(180 * r.t - 90).should.be.approximately(Math.atan(0.1) * 180 / PI, 1);
+	});
+
+	it('along a motion: a cylinder driven through another overlaps at some time', function () {
+		var g = new Graph();
+		var r = g.closestApproach(pair, 'a', 'b', { motionB : { translate : { at : function (t) { return [-10 + 20 * t, 0, 0]; }, rate : 20 } }, from : 0, to : 1 });
+		r.overlap.should.be.true();
+		r.distance.should.equal(0);
+		Math.abs(-10 + 20 * r.t).should.be.below(5);
+		(function () { g.closestApproach(pair, 'a', 'b', { from : 1, to : 0 }); }).should.throw(/before its start/);
 	});
 
 	it('refuses a name that is neither an output nor a node', function () {

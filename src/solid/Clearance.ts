@@ -5,6 +5,7 @@ import { Eval } from "../eval/Eval.js";
 import { BrepShell, Projector, ShellBuilder } from "./BrepShell.js";
 import { BrepSolid } from "./Brep.js";
 import { ShellMesher } from "./ShellMesher.js";
+import type { ShellMesh } from "./ShellMesher.js";
 import { TriMesh } from "./TriMesh.js";
 
 /** A closest point on a shell: the point, the shell face it lies on, its parameters there and the face's outward normal. */
@@ -34,14 +35,43 @@ export interface ClearanceResult {
     lower : number;
 }
 
+/**
+ * A body's motion: its rigid transform at each time (3 by 4, null for none), and a bound on how fast any of its points
+ * moves (distance per unit of time), which the closest approach's guarantee rests on.
+ */
+export interface ClearanceMotion {
+    at : (t : number) => Array<Array<number>> | null;
+    speed : number;
+}
+
+/**
+ * The closest approach of two moving bodies over an interval of time: the clearance at the time `t` it happens, and
+ * `bound`, a lower bound on the distance at every time of the interval (within `tol` of `distance` unless the
+ * evaluations ran out). When the bodies overlap at some time, `overlap` is true and `t` is such a time.
+ */
+export interface ClosestApproach extends ClearanceResult {
+    t : number;
+    bound : number;
+    evaluations : number;
+}
+
 /** Options for `Clearance.between`: the chordal tolerance of the search meshes (default 0.02, the print preset). */
 export interface ClearanceOptions {
     chordal? : number;
 }
 
-// A face prepared for projection: its surface's projector, its loops as polygons in its parameters (for the inside
-// test) and its edges (for the nearest point on its boundary).
-interface PreparedFace {
+/** A shell ready for clearances under many poses (`Clearance.body`). */
+export interface ClearanceBody {
+    shell : BrepShell;
+    mesh : ShellMesh;
+    faces : Map<number, PreparedFace>;
+}
+
+/**
+ * A face prepared for projection: its surface's projector, its loops as polygons in its parameters (for the inside
+ * test) and its edges (for the nearest point on its boundary).
+ */
+export interface PreparedFace {
     project : Projector;
     loops : Array<Array<UV>>;
     edges : Array<{ edge : number, forward : boolean }>;
@@ -63,11 +93,29 @@ interface PreparedFace {
  */
 export class Clearance {
 
+    /** The clearance between two shells in one frame. */
     public static between( A : BrepShell, B : BrepShell, options : ClearanceOptions = {} ) : ClearanceResult {
-        const T = { chordal : options.chordal ?? 0.02 };
-        const ma = ShellMesher.mesh( A, T ), mb = ShellMesher.mesh( B, T );
-        const ta = Clearance.tree( ma.mesh ), tb = Clearance.tree( mb.mesh );
-        const slack = ma.deviation + mb.deviation;
+        return Clearance.posed( Clearance.body( A, options ), null, Clearance.body( B, options ), null );
+    }
+
+    /**
+     * A shell made ready for clearances under many poses: its search mesh (meshed once, in the shell's own frame) and
+     * its faces as they are prepared for projection.
+     */
+    public static body( shell : BrepShell, options : ClearanceOptions = {} ) : ClearanceBody {
+        const mesh = ShellMesher.mesh( shell, { chordal : options.chordal ?? 0.02 } );
+        return { shell : shell, mesh : mesh, faces : new Map() };
+    }
+
+    /**
+     * The clearance between two bodies, each under a rigid transform (3 by 4, rotation and translation; null for none).
+     * The search meshes are moved, the shells are not: a point is taken into a body's own frame to be projected onto its
+     * faces, and the nearest point brought back.
+     */
+    public static posed( A : ClearanceBody, MA : Array<Array<number>> | null, B : ClearanceBody, MB : Array<Array<number>> | null ) : ClearanceResult {
+        const ma = Clearance.moved( A.mesh.mesh, MA ), mb = Clearance.moved( B.mesh.mesh, MB );
+        const ta = Clearance.tree( ma ), tb = Clearance.tree( mb );
+        const slack = A.mesh.deviation + B.mesh.deviation;
         // the least distance between the meshes, then every triangle pair within it plus the meshes' deviations
         let best = Infinity, crossing = false;
         Clearance.pairs( ta, tb, () => best, (i, j) => {
@@ -75,7 +123,7 @@ export class Clearance {
             if (d == 0) crossing = true;
             if (d < best) best = d;
         } );
-        const overlapping = crossing || Clearance.inside( ma.mesh, mb.mesh ) || Clearance.inside( mb.mesh, ma.mesh );
+        const overlapping = crossing || Clearance.inside( ma, mb ) || Clearance.inside( mb, ma );
         if (overlapping) return { distance : 0, overlap : true, a : null, b : null, normal : null, lower : 0 };
         const bound = best + 2 * slack;
         const size = Math.max( Vec.dist( ta.box( 0 )[0], ta.box( 0 )[1] ), Vec.dist( tb.box( 0 )[0], tb.box( 0 )[1] ) );
@@ -85,7 +133,7 @@ export class Clearance {
             const x = ta.tri( i ), y = tb.tri( j );
             const d = Clearance.triTri( x, y );
             if (d > bound) return;
-            const fa = ma.faceOf[i], fb = mb.faceOf[j], key = fa + "," + fb;
+            const fa = A.mesh.faceOf[i], fb = B.mesh.faceOf[j], key = fa + "," + fb;
             const p = Clearance.centroid( x ), q = Clearance.centroid( y );
             let list = seeds.get( key );
             if (list == null) seeds.set( key, list = [] );
@@ -96,37 +144,121 @@ export class Clearance {
             list.sort( (s, t) => s.d - t.d );
             if (list.length > 4) list.pop();
         } );
-        const prepA = new Map<number, PreparedFace>(), prepB = new Map<number, PreparedFace>();
-        const prep = (S : BrepShell, cache : Map<number, PreparedFace>, f : number) => {
-            let P = cache.get( f );
-            if (P == null) cache.set( f, P = Clearance.prepare( S, f ) );
+        const prep = (X : ClearanceBody, f : number) => {
+            let P = X.faces.get( f );
+            if (P == null) X.faces.set( f, P = Clearance.prepare( X.shell, f ) );
             return P;
         };
-        let out : { d : number, x : { p : Point, uv : UV, f : number }, y : { p : Point, uv : UV, f : number } } | null = null;
-        for (const list of seeds.values()) for (const s of list) {
-            const FA = prep( A, prepA, s.fa ), FB = prep( B, prepB, s.fb );
-            let x = Clearance.nearestOn( A, FA, s.p, null, s.fa ), y = Clearance.nearestOn( B, FB, x.p, null, s.fb );
+        // the nearest point of a body's face to a point in the common frame, in that frame
+        const nearest = (X : ClearanceBody, M : Array<Array<number>> | null, f : number, p : Point, hint : UV | null) => {
+            const r = Clearance.nearestOn( X.shell, prep( X, f ), Clearance.unapply( M, p ), hint, f );
+            return { p : Clearance.apply( M, r.p ), uv : r.uv, edge : r.edge };
+        };
+        let out : { d : number, edges : number, x : { p : Point, uv : UV, f : number }, y : { p : Point, uv : UV, f : number } } | null = null;
+        // nearest seeds first; a seed whose triangles are farther apart than the best distance found plus both meshes'
+        // deviations cannot hold a nearer pair of points
+        const all = Array.from( seeds.values() ).flat().sort( (s, t) => s.d - t.d );
+        for (const s of all) {
+            if (out != null && s.d - slack > out.d + 1e-12 * size) break;
+            let x = nearest( A, MA, s.fa, s.p, null ), y = nearest( B, MB, s.fb, x.p, null );
+            // each round can only bring the points nearer; it stops once they no longer move, or no longer come nearer
+            // (where the nearest points form a line or a patch, two parallel sides, they slide along it)
+            let d = Vec.dist( x.p, y.p );
             for (let it = 0; it < 200; it++) {
-                const x1 = Clearance.nearestOn( A, FA, y.p, x.uv, s.fa ), y1 = Clearance.nearestOn( B, FB, x1.p, y.uv, s.fb );
-                const moved = Vec.dist( x1.p, x.p ) + Vec.dist( y1.p, y.p );
-                x = x1; y = y1;
-                if (moved <= 1e-13 * size) break;
+                const x1 = nearest( A, MA, s.fa, y.p, x.uv ), y1 = nearest( B, MB, s.fb, x1.p, y.uv );
+                const moved = Vec.dist( x1.p, x.p ) + Vec.dist( y1.p, y.p ), d1 = Vec.dist( x1.p, y1.p );
+                const gain = d - d1;
+                x = x1; y = y1; d = Math.min( d, d1 );
+                if (moved <= 1e-13 * size || (it > 2 && gain <= 1e-14 * size)) break;
             }
-            const d = Vec.dist( x.p, y.p );
-            if (out == null || d < out.d) out = { d, x : { ...x, f : s.fa }, y : { ...y, f : s.fb } };
+            d = Vec.dist( x.p, y.p );
+            // of pairs as near (to rounding), the one with fewer points on edges, whose normals are the faces' own
+            const edges = (x.edge ? 1 : 0) + (y.edge ? 1 : 0), tie = 1e-12 * size;
+            if (out == null || d < out.d - tie || (d <= out.d + tie && edges < out.edges)) out = { d, edges, x : { ...x, f : s.fa }, y : { ...y, f : s.fb } };
         }
         if (out == null) throw new Error( "Clearance: no face pair to refine" );
-        const witness = (S : BrepShell, F : PreparedFace, w : { p : Point, uv : UV, f : number }) : ClearanceWitness => {
-            const s = S.faces[w.f].surface, D = Eval.rationalSurfaceDerivatives( s, w.uv[0], w.uv[1], 1 );
+        const witness = (X : ClearanceBody, M : Array<Array<number>> | null, w : { p : Point, uv : UV, f : number }) : ClearanceWitness => {
+            const s = X.shell.faces[w.f].surface, D = Eval.rationalSurfaceDerivatives( s, w.uv[0], w.uv[1], 1 );
             const n = Vec.normalized( Vec.cross( D[1][0], D[0][1] ) );
-            return { point : w.p, face : w.f, name : S.faces[w.f].name, uv : w.uv, normal : F.sameSense ? n : Vec.neg( n ) };
+            return { point : w.p, face : w.f, name : X.shell.faces[w.f].name, uv : w.uv, normal : Clearance.turn( M, prep( X, w.f ).sameSense ? n : Vec.neg( n ) ) };
         };
         return {
             distance : out.d, overlap : false,
-            a : witness( A, prep( A, prepA, out.x.f ), out.x ), b : witness( B, prep( B, prepB, out.y.f ), out.y ),
+            a : witness( A, MA, out.x ), b : witness( B, MB, out.y ),
             normal : out.d > 0 ? Vec.mul( 1 / out.d, Vec.sub( out.y.p, out.x.p ) ) : null,
             lower : Math.max( 0, best - slack ),
         };
+    }
+
+    /**
+     * The closest approach of two moving bodies over [t0, t1], with a guaranteed bound.
+     *
+     * The distance between two bodies whose points move no faster than vA and vB changes no faster than vA + vB, so
+     * over [a, b] it stays above (d(a) + d(b) - (vA + vB) (b - a)) / 2 (it is Lipschitz). The interval of least such
+     * bound is split at its middle and the distance measured there, until that bound comes within `tol` of the least
+     * distance measured (Piyavskii's method: Piyavskii, "An algorithm for finding the absolute extremum of a
+     * function", USSR Computational Mathematics and Mathematical Physics 12(4), 1972; Shubert, SIAM Journal on
+     * Numerical Analysis 9(3), 1972). The bound rests on the speeds given and on each measured distance being the
+     * true one (`posed`).
+     */
+    public static along( A : ClearanceBody, ma : ClearanceMotion, B : ClearanceBody, mb : ClearanceMotion, t0 : number, t1 : number,
+                         tol : number = 1e-3, maxEvaluations : number = 400 ) : ClosestApproach {
+        if (!(t1 >= t0)) throw new Error( "Clearance: the interval's end comes before its start" );
+        if (!(ma.speed >= 0 && mb.speed >= 0)) throw new Error( "Clearance: a motion's speed bound must be 0 or more" );
+        const L = ma.speed + mb.speed;
+        let evaluations = 0;
+        // (in an object: a closure's assignments are not followed by the compiler's narrowing)
+        const found : { r : ClearanceResult | null, t : number } = { r : null, t : t0 };
+        const measure = (t : number) => {
+            evaluations++;
+            const r = Clearance.posed( A, ma.at( t ), B, mb.at( t ) );
+            if (found.r == null || r.distance < found.r.distance) { found.r = r; found.t = t; }
+            return r.distance;
+        };
+        type Span = { a : number, b : number, da : number, db : number, lb : number };
+        const span = (a : number, b : number, da : number, db : number) : Span => ({ a, b, da, db, lb : Math.max( 0, 0.5 * (da + db - L * (b - a)) ) });
+        const open : Array<Span> = [span( t0, t1, measure( t0 ), t1 > t0 ? measure( t1 ) : Infinity )];
+        if (t1 == t0) open[0].lb = open[0].da;
+        let bound = open[0].lb;
+        for (;;) {
+            // the span of least bound (a short list: a scan does)
+            let k = 0;
+            for (let i = 1; i < open.length; i++) if (open[i].lb < open[k].lb) k = i;
+            bound = open[k].lb;
+            const r = found.r as ClearanceResult;
+            if (r.overlap || bound >= r.distance - tol || evaluations >= maxEvaluations || open[k].b - open[k].a <= 0) break;
+            const s = open.splice( k, 1 )[0], m = 0.5 * (s.a + s.b), dm = measure( m );
+            open.push( span( s.a, m, s.da, dm ), span( m, s.b, dm, s.db ) );
+        }
+        const r = found.r as ClearanceResult;
+        return { ...r, t : found.t, bound : Math.min( bound, r.distance ), evaluations : evaluations };
+    }
+
+    // ---- rigid transforms (3 by 4: a rotation, then a translation) ----
+
+    private static apply( M : Array<Array<number>> | null, p : Point ) : Point {
+        if (M == null) return p;
+        return [0, 1, 2].map( i => M[i][0] * p[0] + M[i][1] * p[1] + M[i][2] * p[2] + M[i][3] );
+    }
+
+    // the inverse of a rigid transform: the rotation's transpose, after taking the translation off
+    private static unapply( M : Array<Array<number>> | null, p : Point ) : Point {
+        if (M == null) return p;
+        const q = [p[0] - M[0][3], p[1] - M[1][3], p[2] - M[2][3]];
+        return [0, 1, 2].map( j => M[0][j] * q[0] + M[1][j] * q[1] + M[2][j] * q[2] );
+    }
+
+    private static turn( M : Array<Array<number>> | null, v : Point ) : Point {
+        if (M == null) return v;
+        return [0, 1, 2].map( i => M[i][0] * v[0] + M[i][1] * v[1] + M[i][2] * v[2] );
+    }
+
+    private static moved( m : TriMesh, M : Array<Array<number>> | null ) : TriMesh {
+        if (M == null) return m;
+        const out = new TriMesh();
+        out.vertices = m.vertices.map( p => Clearance.apply( M, p ) );
+        out.triangles = m.triangles;
+        return out;
     }
 
     // The face's projector, its loops as polygons in its parameters (each edge's p-curve sampled through its knot
@@ -154,10 +286,10 @@ export class Clearance {
 
     // The point of a face nearest p: its surface's nearest point when that lies inside the face's loops, else the
     // nearest point of the face's edges (with its parameters from the edge's p-curve at the same parameter).
-    private static nearestOn( S : BrepShell, F : PreparedFace, p : Point, hint : UV | null, f : number ) : { p : Point, uv : UV } {
+    private static nearestOn( S : BrepShell, F : PreparedFace, p : Point, hint : UV | null, f : number ) : { p : Point, uv : UV, edge : boolean } {
         const r = F.project( p, hint ?? undefined );
-        if (F.loops.length == 0 || BrepSolid.insideTrims( F.loops, r.uv )) return { p : r.p, uv : r.uv };
-        let best : { p : Point, uv : UV } | null = null, bd = Infinity;
+        if (F.loops.length == 0 || BrepSolid.insideTrims( F.loops, r.uv )) return { p : r.p, uv : r.uv, edge : false };
+        let best : { p : Point, uv : UV, edge : boolean } | null = null, bd = Infinity;
         for (const { edge, forward } of F.edges) {
             // the edge's curve finds the parameter; the point is the face's own at the edge's p-curve there (the curve
             // is fitted within the shell's tolerance, the surface is exact)
@@ -174,9 +306,9 @@ export class Clearance {
                 if (Vec.dist( a.p, q ) < 10 * S.tolerance) { q = a.p; quv = a.uv; }
             }
             const d = Vec.dist( q, p );
-            if (d < bd) { bd = d; best = { p : q, uv : quv }; }
+            if (d < bd) { bd = d; best = { p : q, uv : quv, edge : true }; }
         }
-        return best ?? { p : r.p, uv : r.uv };
+        return best ?? { p : r.p, uv : r.uv, edge : false };
     }
 
     /**

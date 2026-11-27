@@ -30,7 +30,30 @@ its shell (within about 3e-4 of exact at the default tolerance); its depth is me
 
 **Limits.** Two face pairs whose nearest points fall between the search mesh's sample points by more than the mesh's
 deviation could be missed; that needs a deviation larger than the gap's own variation, which the print preset keeps
-small. A motion over time (closest approach over an interval) is not there yet. There is no graph node yet.
+small. There is no graph node yet.
+
+### Along a motion
+
+`Graph.closestApproach( doc, a, b, { motionA, motionB, from, to, tol } )` gives the least distance over an interval of
+time, the time it happens, and `bound`, a lower bound on the distance at every time of the interval, within `tol`
+(1e-3 by default) of the least distance found. A motion turns a solid about an axis by `degrees(t)` and moves it by
+`at(t)`, each with a bound on its rate. `Clearance.along` is the same on two bodies (`Clearance.body`) with their
+transforms over time and a bound on their points' speeds.
+
+**Method.** Each solid's points move no faster than its turn's rate times their farthest distance from the axis, plus
+its move's rate, so the distance between the solids changes no faster than the sum of their speeds L. Over [a, b] it
+stays above (d(a) + d(b) - L (b - a)) / 2. The interval with the least such bound is split at its middle and measured
+there, until that bound comes within `tol` of the least distance measured (Piyavskii's method, 1972; Shubert, 1972).
+Each measurement is a clearance at a pose; the search meshes are made once and moved, the shells are not (points are
+taken into a solid's own frame to be projected).
+
+**Guarantee.** The bound holds if the rates given bound the motions' true rates and each measured clearance is the true
+one (see above). If the solids overlap at some time measured, the result says so, with that time; the first time of
+contact is not searched for.
+
+**Cost.** Near a smooth minimum the distance is quadratic in time while the bound is linear, so the evaluations grow
+like L / sqrt(tol κ), with κ the distance's second derivative there: a few hundred for the tests (10 to 20 seconds).
+A bound on the distance's rate along the contact normal, rather than on any point's speed, would cut this.
 
 ## Mass properties
 
