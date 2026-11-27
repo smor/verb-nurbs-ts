@@ -47,9 +47,9 @@ describe('freeform/vessel', function () {
 
 describe('freeform/prism', function () {
 	this.timeout(budget(60000));
-	var prism = function (inputs, extra) {
+	var prism = function (inputs, extra, output) {
 		var nodes = Object.assign({ p : { type : 'freeform/prism', in : inputs } }, extra || {});
-		return { version : 2, nodes : nodes, outputs : { p : '@p' } };
+		return { version : 2, nodes : nodes, outputs : output ? { t : '@' + output } : { p : '@p' } };
 	};
 
 	it('extrudes its outline: a rectangle with two rounded corners has area w h - 2 (1 - pi / 4) r^2', function () {
@@ -82,6 +82,51 @@ describe('freeform/prism', function () {
 		var U = new Graph().evaluate(prism({ outline : '0, 0; 30, 0; 30, 30; 28, 30; 28, 2; 2, 2; 2, 30; 0, 30', height : 2 }));
 		U.result.report.manifold.closedManifold.should.be.true();
 		U.result.report.volume.should.be.approximately((30 * 2 + 2 * 28 * 2) * 2, 0.05);
+	});
+
+	it('caps are trimmed planes: a union no longer depends on where a cap centre falls (#99)', function () {
+		// #99's plate (concave, three corners rounded) united with a pad over it; with fan caps the result was open
+		// when the centre lay under the pad or near it
+		var outline = '0, 0; 93.5, 0; 101.8, 2.8; 120.3, 2.8; 120.3, 10.33, 5; 54.7, 36.3; 30.2, 36.3; 30.2, 54.52, 5; 0, 54.52, 5';
+		// the plate's area: the polygon's, less what each rounded corner cuts off, r^2 (cot(h) - (pi / 2 - h)) for half
+		// the interior angle h
+		var pts = outline.split(';').map(function (q) { return q.split(',').map(Number); }), n = pts.length, area = 0;
+		pts.forEach(function (p, i) {
+			var q = pts[(i + 1) % n];
+			area += (p[0] * q[1] - q[0] * p[1]) / 2;
+			if (!(p[2] > 0)) return;
+			var a = pts[(i + n - 1) % n], ua = [a[0] - p[0], a[1] - p[1]], ub = [q[0] - p[0], q[1] - p[1]];
+			var h = Math.acos((ua[0] * ub[0] + ua[1] * ub[1]) / Math.hypot(ua[0], ua[1]) / Math.hypot(ub[0], ub[1])) / 2;
+			area -= p[2] * p[2] * (1 / Math.tan(h) - (PI / 2 - h));
+		});
+		// the pad: 12.2 x 31 from z = 2 to 5.1 over the plate's 3, so 1 of its height above it
+		var exact = area * 3 + 12.2 * 31 * 2.1;
+		['25.2, 30.3', '20, 33.3', '15, 15', ''].forEach(function (c) {
+			var r = new Graph().evaluate(prism({ outline : outline, height : 3, center : c }, {
+				padS : { type : 'primitive/box', in : { width : 12.2, depth : 31, height : 3.1 } },
+				pad : { type : 'transform/move', in : { of : '@padS', x : 24.1, y : 15.8, z : 2 } },
+				t : { type : 'boolean/union', in : { a : '@p', b : '@pad' } } }, 't'), { mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', c);
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			// (a Boolean's volume is its mesh's, whose chords cut the rounded corners a little short)
+			r.result.report.volume.should.be.approximately(exact, 5e-4 * exact);
+		});
+	});
+
+	it('a housing of prisms takes a beam flush with its walls\' top (as #101\'s TV-mount part)', function () {
+		var r = new Graph().evaluate(prism({ outline : '0, 0; 40, 0, 2; 40, 30, 2; 0, 30', height : 10 }, {
+			inner : { type : 'freeform/prism', in : { outline : '2, 2; 38, 2; 38, 28; 2, 28', height : 10 } },
+			innerM : { type : 'transform/move', in : { of : '@inner', x : 0, y : 0, z : 2 } },
+			housing : { type : 'boolean/difference', in : { from : '@p', minus : '@innerM' } },
+			b0 : { type : 'freeform/prism', in : { outline : '-3, 12; 43, 12; 43, 18; -3, 18', height : 4 } },
+			b : { type : 'transform/move', in : { of : '@b0', x : 0, y : 0, z : 6 } },
+			t : { type : 'boolean/union', in : { a : '@housing', b : '@b' } } }, 't'), { mesh : 'print' });
+		r.verdict.kind.should.equal('buildable');
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		// the housing (40 x 30 less two corners rounded 2, 10 high, less a 36 x 26 pocket 8 deep), the beam's 3 out each side
+		var housing = (1200 - 2 * 4 * (1 - PI / 4)) * 10 - 36 * 26 * 8;
+		r.result.report.volume.should.be.approximately(housing + 2 * 3 * 6 * 4 + 36 * 6 * 4, 5e-4 * housing);
 	});
 
 	it('refuses an outline that is not points, a name that is not a number node, and fewer than three points', function () {

@@ -257,7 +257,8 @@ export class Graph {
         const T = ShellMesher.tolerance( given );
         let known = this.shells.get( r.result );
         if (known == null) {
-            known = { shell : ShellBuilder.fromResult( r.result ), meshes : new Map() };
+            // (a result that is one solid's exact shell as it is meshes that shell, #117)
+            known = { shell : r.shell ?? ShellBuilder.fromResult( r.result ), meshes : new Map() };
             this.shells.set( r.result, known );
         }
         const key = JSON.stringify( [T.chordal, T.angle ?? null, T.maxEdge ?? null] );
@@ -651,10 +652,11 @@ export class Graph {
                 case "freeform/prism": {
                     const pts = pointsOf( id, "outline" );
                     if (pts.length < 3) throw new Error( `Graph: "${id}.outline" has ${pts.length} points; an outline needs three or more` );
-                    // the point the caps fan from: the centroid, unless the outline is star-shaped only about another
+                    // (an exact extrusion, #99: `center`, the point its caps once fanned from, is still accepted and checked,
+                    // so documents that give one keep loading, but it no longer shapes anything)
                     const c = typeof (nodes[id].in?.center ?? "") == "string" && String( nodes[id].in?.center ?? "" ).trim() != "" ? pointsOf( id, "center" ) : null;
                     if (c != null && (c.length != 1 || c[0].length != 2)) throw new Error( `Graph: "${id}.center" is one point "x, y"` );
-                    features[id] = { type : "prism", outline : pts, height : asNum( "height" ), ...(c != null ? { center : [c[0][0], c[0][1]] as [ModelValue, ModelValue] } : {}) };
+                    features[id] = { type : "prism", outline : pts, height : asNum( "height" ) };
                     break;
                 }
                 case "freeform/pipe": {
@@ -864,9 +866,9 @@ export class Graph {
             outputs : { solid : "solid" } };
         // a straight prism over an outline whose coordinates may be expressions: plates, ribs, tabs
         r["freeform/prism"] = { title : "Prism", category : "freeform",
-            help : "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. Any simple polygon: it is built as an exact extrusion. For curves, arcs and holes, Extrude profile",
+            help : "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. Any simple polygon: it is built as an exact extrusion, its caps planes trimmed by the outline. For curves, arcs and holes, Extrude profile",
             inputs : { outline : { kind : "points", label : "outline", value : "0, 0; 40, 0, 4; 40, 20, 4; 0, 20" }, height : num( "height", 5, 0.1, 400, 0.1, "mm" ),
-                center : { kind : "points", label : "cap centre (no longer needed)", value : "" } },
+                center : { kind : "points", label : "cap centre (not used)", value : "" } },
             outputs : { solid : "solid" } };
         // a vessel from its drawn section: the archaeologist's half-profile, outside, inside and under the foot
         const prof = ( label : string, v : string, optional : boolean ) : GraphPort => ({ kind : "profile", label : label, value : v, optional : optional });

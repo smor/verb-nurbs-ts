@@ -60,7 +60,9 @@ export interface ShellFace {
 // A closed shell of trimmed NURBS faces with exact topology: vertices, edges (curves with p-curves and tolerances)
 // and faces bounded by loops of edges. Each edge is used once each way by the loops: twice by one face for a seam.
 // The nearest point of a surface to p, and its parameters (from `hint` when given: see `ShellBuilder.projector`).
-export type Projector = (p : Point, hint? : UV) => { uv : UV, p : Point };
+// (`within`: a distance that is close enough. Newton's method stops at the first point found that near p, which is then
+// not the nearest point but bounds the distance to it from above: enough for a check against a tolerance)
+export type Projector = (p : Point, hint? : UV, within? : number) => { uv : UV, p : Point };
 
 export interface BrepShell {
     vertices : Array<Point>;
@@ -68,6 +70,8 @@ export interface BrepShell {
     faces : Array<ShellFace>;
     // the uncertainty the edges were fitted to (`ShellOptions.tolerance`)
     tolerance : number;
+    // the volume it bounds, where its maker has it in closed form (an extrusion, #117): `ShellBuilder.volume` otherwise
+    volume? : number;
 }
 
 // `ShellBuilder` makes a Boolean result's exact topology.
@@ -165,12 +169,14 @@ export class ShellBuilder {
             const divs : [number, number] = [Math.max( 4, Math.min( 96, Math.ceil( len( true ) / h ) ) ), Math.max( 4, Math.min( 96, Math.ceil( len( false ) / h ) ) )];
             return { surface : s, periodic : [false, false], divs : divs, reversed : !F.sameSense, name : F.name, trims : [] };
         } );
-        // each edge sampled by its length; its points and their parameters on its two faces, at the same parameters
+        // each edge sampled by its length, twice as finely as the faces' grids, and capped as they are (at twice their
+        // 96: a worm's edges, helices of several turns, at 400 made most of its sides' triangles, #117); its points and
+        // their parameters on its two faces, at the same parameters
         const edges : Array<TrimEdge> = shell.edges.map( e => {
             const a = e.curve.knots[0], b = e.curve.knots[e.curve.knots.length - 1];
             let L = 0, prev = Eval.rationalCurvePoint( e.curve, a );
             for (let i = 1; i <= 64; i++) { const p = Eval.rationalCurvePoint( e.curve, a + (b - a) * i / 64 ); L += Vec.dist( prev, p ); prev = p; }
-            const n = Math.max( 4, Math.min( 400, Math.ceil( 2 * L / h ) ) );
+            const n = Math.max( 4, Math.min( 192, Math.ceil( 2 * L / h ) ) );
             const ts = Array.from( { length : n + 1 }, (_, i) => a + (b - a) * i / n );
             const points = ts.map( t => Eval.rationalCurvePoint( e.curve, t ) );
             points[0] = shell.vertices[e.start]; points[n] = shell.vertices[e.end];
@@ -213,7 +219,16 @@ export class ShellBuilder {
         const solid = new BrepSolid( faces );
         solid.edges = edges;
         solid.boundary = mesh;
+        ShellBuilder.sources.set( solid, shell );
         return solid;
+    }
+
+    // the shell each solid made from one was made from
+    private static sources = new WeakMap<BrepSolid, BrepShell>();
+
+    /** The exact shell a solid was made from (`ShellBuilder.solid`), if it was. */
+    public static sourceOf( solid : BrepSolid ) : BrepShell | undefined {
+        return ShellBuilder.sources.get( solid );
     }
 
     /**
@@ -224,9 +239,17 @@ export class ShellBuilder {
      * surface in u), so on these piecewise-smooth integrands the result is good to about the edges' tolerances rather
      * than to a mesh's chords. (Methods of this kind: S. Gonzalez-Ochoa, S. McCammon, J. Peters, "Computing moments of
      * objects enclosed by piecewise polynomial surfaces", ACM Transactions on Graphics 17(3), 1998.)
+     *
+     * On a polynomial face (all weights 1) with polynomial p-curves the integrands are polynomials in each span, and
+     * the sums take just the points that make them exact: f has degree 3p - 1 in a parameter of degree p, its integral
+     * F one more, so Fu needs ceil(3 pu / 2) points, and F dv along a p-curve of degree q (q (3 pu + 3 pv) at most;
+     * q 3 pv along a line of constant u) ceil of half that. A twisted side, linear across and cubic up, takes 2 by 5
+     * where 8 by 8 were spent (#117). Rational faces keep `order`.
      */
     public static volume( shell : BrepShell, order : number = 8 ) : number {
-        const [xs, ws] = ShellBuilder.gauss( order );
+        const tables = new Map<number, [Array<number>, Array<number>]>();
+        const rule = (n : number) => { let t = tables.get( n ); if (t == null) { t = ShellBuilder.gauss( n ); tables.set( n, t ); } return t; };
+        const polynomial = (pts : Array<Array<number>>) => pts.every( p => p[p.length - 1] == 1 );
         // the spans of a knot vector, between distinct knots
         const spans = (ks : Array<number>) => {
             const out : Array<[number, number]> = [];
@@ -236,6 +259,8 @@ export class ShellBuilder {
         let total = 0.0;
         for (const F of shell.faces) {
             const s = F.surface, u0 = s.knotsU[0], uSpans = spans( s.knotsU );
+            const poly = polynomial( s.controlPoints.flat() );
+            const [xs, ws] = rule( poly ? Math.max( 1, Math.ceil( 3 * s.degreeU / 2 ) ) : order );
             // f = S . (Su x Sv) / 3
             const f = (u : number, v : number) => {
                 const D = Eval.rationalSurfaceDerivatives( s, u, v, 1 );
@@ -255,13 +280,15 @@ export class ShellBuilder {
             let flux = 0.0, area = 0.0;
             for (const loop of F.loops) for (const [ei, fwd] of loop.edges) {
                 const e = shell.edges[ei], pc = e.pcurves[fwd ? 0 : 1];
+                const isoU = pc.controlPoints.every( p => p[0] / p[p.length - 1] == pc.controlPoints[0][0] / pc.controlPoints[0][pc.controlPoints[0].length - 1] );
+                const [ys, vs] = rule( poly && polynomial( pc.controlPoints ) ? Math.max( 1, Math.ceil( pc.degree * (isoU ? 3 * s.degreeV : 3 * s.degreeU + 3 * s.degreeV) / 2 ) ) : order );
                 const ts = Array.from( new Set( pc.knots.concat( e.curve.knots ) ) ).sort( (x, y) => x - y );
                 for (let i = 0; i + 1 < ts.length; i++) {
                     const a = ts[i], b = ts[i + 1], h = 0.5 * (b - a), m = 0.5 * (a + b);
                     if (!(b > a)) continue;
-                    for (let k = 0; k < xs.length; k++) {
-                        const D = Eval.rationalCurveDerivatives( pc, m + h * xs[k], 1 );
-                        const w = ws[k] * h * D[1][1] * (fwd ? 1 : -1);
+                    for (let k = 0; k < ys.length; k++) {
+                        const D = Eval.rationalCurveDerivatives( pc, m + h * ys[k], 1 );
+                        const w = vs[k] * h * D[1][1] * (fwd ? 1 : -1);
                         flux += w * Fu( D[0][0], D[0][1] );
                         area += w * (D[0][0] - u0);
                     }
@@ -277,7 +304,7 @@ export class ShellBuilder {
     }
 
     // Gauss–Legendre abscissae and weights on [-1, 1], by Newton's method on the Legendre polynomial.
-    private static gauss( n : number ) : [Array<number>, Array<number>] {
+    public static gauss( n : number ) : [Array<number>, Array<number>] {
         const xs : Array<number> = [], ws : Array<number> = [];
         for (let i = 0; i < n; i++) {
             let x = Math.cos( Math.PI * (i + 0.75) / (n + 0.5) ), dp = 1;
@@ -499,52 +526,61 @@ export class ShellBuilder {
     public static projector( s : NurbsSurfaceData ) : Projector {
         const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
         const periodic : [boolean, boolean] = [Analyze.isRationalSurfaceClosed( s, true ), Analyze.isRationalSurfaceClosed( s, false )];
-        const seeds : Array<{ uv : UV, p : Point }> = [];
         const g = 16;
-        // samples in each direction: a uniform grid, and three in each knot span (a surface whose spans differ in
-        // length, as a cap on a rounded rectangle whose long sides take a tenth of its domain, would otherwise be
-        // sampled across a whole side at one point), up to 64 spans; one in each span up to 1024 (a worm's side turns
-        // three times in 200 spans: sixteen samples along it left Newton to find its way across a dozen spans each)
-        const samples = (knots : Array<number>, a : number, b : number) => {
-            const xs : Array<number> = [];
-            for (let i = 0; i <= g; i++) xs.push( a + (b - a) * i / g );
-            const ks = knots.filter( (k, i) => i == 0 || k > knots[i - 1] );
-            const fs = ks.length - 1 <= 64 ? [0.25, 0.5, 0.75] : ks.length - 1 <= 1024 ? [0.5] : [];
-            for (let i = 0; i + 1 < ks.length; i++) for (const f of fs) xs.push( ks[i] + f * (ks[i + 1] - ks[i]) );
-            return xs.sort( (x, y) => x - y );
-        };
-        const su = samples( s.knotsU, d[0], d[1] ), sv = samples( s.knotsV, d[2], d[3] );
         const breaks : [Array<number>, Array<number>] = [ShellBuilder.breakpoints( s.knotsU, s.degreeU ), ShellBuilder.breakpoints( s.knotsV, s.degreeV )];
-        for (const u of su) for (const v of sv) seeds.push( { uv : [u, v], p : Eval.rationalSurfacePoint( s, u, v ) } );
-        // each sample's neighbours' spacing, for the finer grids round the nearest
-        const gap = (xs : Array<number>, x : number) => { let h = Infinity; for (const y of xs) if (y != x) h = Math.min( h, Math.abs( y - x ) ); return h; };
         const span = [d[1] - d[0], d[3] - d[2]];
         const inDomain = (x : number, c : number) => {
             if (!periodic[c]) return Math.max( d[2 * c], Math.min( d[2 * c + 1], x ) );
             const t = (x - d[2 * c]) / span[c];
             return d[2 * c] + (t - Math.floor( t )) * span[c];
         };
-        const nearest = ShellBuilder.nearest( seeds.map( x => x.p ) );
-        // Poles: rows of samples that are all one point (a side of the domain the surface shrinks to, as a disc's
-        // centre in polar parameters). There every value of the other parameter is the same point, so the nearest
-        // sample says nothing of it; a point near a pole starts from the nearest sample off the poles instead, which
-        // lies in the right direction from it. (`side`: the parameter, 0 or 1, that is fixed along the pole's row.)
-        const poleOf = seeds.map( () => -1 );
-        const nu = su.length, nv = sv.length, same = (a : Point, b : Point) => Vec.distSquared( a, b ) <= 1e-24;
-        for (let j = 0; j < nv; j++) {
-            let all = true;
-            for (let i = 1; i < nu && all; i++) all = same( seeds[i * nv + j].p, seeds[j].p );
-            if (all) for (let i = 0; i < nu; i++) poleOf[i * nv + j] = 1;
-        }
-        for (let i = 0; i < nu; i++) {
-            let all = true;
-            for (let j = 1; j < nv && all; j++) all = same( seeds[i * nv + j].p, seeds[i * nv].p );
-            if (all) for (let j = 0; j < nv; j++) poleOf[i * nv + j] = 0;
-        }
-        const off = seeds.map( (_, k) => k ).filter( k => poleOf[k] < 0 );
-        const nearestOff = off.length < seeds.length && off.length > 0 ? ShellBuilder.nearest( off.map( k => seeds[k].p ) ) : null;
-        return (p : Point, hint? : UV) => {
-            if (hint != null) { const x = ShellBuilder.newton( s, d, breaks, inDomain, p, hint ); return { uv : x.uv, p : x.p }; }
+        // each sample's neighbours' spacing, for the finer grids round the nearest
+        const gap = (xs : Array<number>, x : number) => { let h = Infinity; for (const y of xs) if (y != x) h = Math.min( h, Math.abs( y - x ) ); return h; };
+        // the grid of samples, made the first time a point comes without a hint: a projector asked only from hints (the
+        // mesher's checks, on most faces) never needs it (on a worm's side, thousands of points, #117)
+        const seeds : Array<{ uv : UV, p : Point }> = [];
+        let su : Array<number> = [], sv : Array<number> = [], poleOf : Array<number> = [], off : Array<number> = [];
+        let nearest : (p : Point) => number = () => 0, nearestOff : ((p : Point) => number) | null = null;
+        let ready = false;
+        const prepare = () => {
+            ready = true;
+            // samples in each direction: a uniform grid, and three in each knot span (a surface whose spans differ in
+            // length, as a cap on a rounded rectangle whose long sides take a tenth of its domain, would otherwise be
+            // sampled across a whole side at one point), up to 64 spans; one in each span up to 1024 (a worm's side turns
+            // three times in 200 spans: sixteen samples along it left Newton to find its way across a dozen spans each)
+            const samples = (knots : Array<number>, a : number, b : number) => {
+                const xs : Array<number> = [];
+                for (let i = 0; i <= g; i++) xs.push( a + (b - a) * i / g );
+                const ks = knots.filter( (k, i) => i == 0 || k > knots[i - 1] );
+                const fs = ks.length - 1 <= 64 ? [0.25, 0.5, 0.75] : ks.length - 1 <= 1024 ? [0.5] : [];
+                for (let i = 0; i + 1 < ks.length; i++) for (const f of fs) xs.push( ks[i] + f * (ks[i + 1] - ks[i]) );
+                return xs.sort( (x, y) => x - y );
+            };
+            su = samples( s.knotsU, d[0], d[1] ); sv = samples( s.knotsV, d[2], d[3] );
+            for (const u of su) for (const v of sv) seeds.push( { uv : [u, v], p : Eval.rationalSurfacePoint( s, u, v ) } );
+            nearest = ShellBuilder.nearest( seeds.map( x => x.p ) );
+            // Poles: rows of samples that are all one point (a side of the domain the surface shrinks to, as a disc's
+            // centre in polar parameters). There every value of the other parameter is the same point, so the nearest
+            // sample says nothing of it; a point near a pole starts from the nearest sample off the poles instead, which
+            // lies in the right direction from it. (`side`: the parameter, 0 or 1, that is fixed along the pole's row.)
+            poleOf = seeds.map( () => -1 );
+            const nu = su.length, nv = sv.length, same = (a : Point, b : Point) => Vec.distSquared( a, b ) <= 1e-24;
+            for (let j = 0; j < nv; j++) {
+                let all = true;
+                for (let i = 1; i < nu && all; i++) all = same( seeds[i * nv + j].p, seeds[j].p );
+                if (all) for (let i = 0; i < nu; i++) poleOf[i * nv + j] = 1;
+            }
+            for (let i = 0; i < nu; i++) {
+                let all = true;
+                for (let j = 1; j < nv && all; j++) all = same( seeds[i * nv + j].p, seeds[i * nv].p );
+                if (all) for (let j = 0; j < nv; j++) poleOf[i * nv + j] = 0;
+            }
+            off = seeds.map( (_, k) => k ).filter( k => poleOf[k] < 0 );
+            nearestOff = off.length < seeds.length && off.length > 0 ? ShellBuilder.nearest( off.map( k => seeds[k].p ) ) : null;
+        };
+        return (p : Point, hint? : UV, within? : number) => {
+            if (hint != null) { const x = ShellBuilder.newton( s, d, breaks, inDomain, p, hint, within ); return { uv : x.uv, p : x.p }; }
+            if (!ready) prepare();
             const k0 = nearest( p );
             let best = seeds[k0], bd = Vec.distSquared( best.p, p );
             const pole = poleOf[k0] >= 0 && nearestOff != null ? { side : poleOf[k0], at : best, d : bd } : null;
@@ -564,7 +600,7 @@ export class ShellBuilder {
                 if (atEdge && moves < 16) { moves++; continue; }
                 h = [h[0] / 2.5, h[1] / 2.5]; round++; moves = 0;
             }
-            const x = ShellBuilder.newton( s, d, breaks, inDomain, p, best.uv );
+            const x = ShellBuilder.newton( s, d, breaks, inDomain, p, best.uv, within );
             const found = x.d <= bd ? { uv : x.uv, p : x.p, d : x.d } : { uv : best.uv, p : best.p, d : bd };
             // the pole itself, if it is nearer still, in the direction found
             if (pole != null && pole.d < found.d) {
@@ -642,10 +678,16 @@ export class ShellBuilder {
     // cross a breakpoint stopping just past it (in the next span, whose polynomial is then followed). Returns the
     // nearest point it reached.
     private static newton( s : NurbsSurfaceData, d : Array<number>, breaks : [Array<number>, Array<number>], inDomain : (x : number, c : number) => number,
-                           p : Point, uv0 : UV ) : { uv : UV, p : Point, d : number } {
+                           p : Point, uv0 : UV, within? : number ) : { uv : UV, p : Point, d : number } {
         let uv : UV = [inDomain( uv0[0], 0 ), inDomain( uv0[1], 1 )];
         let q = Eval.rationalSurfacePoint( s, uv[0], uv[1] ), dq = Vec.distSquared( q, p );
+        // (asked only whether p is within a distance: that settled either way, by a point that near, or by steps that
+        // no longer gain a thousandth of it, the rest of the way to round-off is not needed)
+        const enough = within != null && within > 0 ? within * within : -1;
+        let last = Infinity;
         for (let it = 0; it < 60; it++) {
+            if (dq <= enough) break;
+            if (enough > 0) { const now = Math.sqrt( dq ); if (last - now < 1e-3 * within!) break; last = now; }
             const D = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
             const r = Vec.sub( D[0][0], p );
             const g = [Vec.dot( r, D[1][0] ), Vec.dot( r, D[0][1] )];

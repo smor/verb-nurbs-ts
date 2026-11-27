@@ -180,7 +180,8 @@ export class Extrusion {
             faces[0].loops.push( { outer : l.outer, region : 0, edges : B.slice().reverse().map( e => [e, false] as [number, boolean] ) } );
             faces[1].loops.push( { outer : l.outer, region : 0, edges : T.map( e => [e, true] as [number, boolean] ) } );
         }
-        const shell : BrepShell = { vertices : vertices, edges : edges, faces : faces, tolerance : 0 };
+        const shell : BrepShell = { vertices : vertices, edges : edges, faces : faces, tolerance : 0,
+                                    volume : Extrusion.volume( loops.map( l => l.pieces ), height, scale, G ) };
         return { shell : shell, mesh : Extrusion.mesh( loops.map( l => l.pieces ), z, zt, at, steps ) };
     }
 
@@ -243,6 +244,47 @@ export class Extrusion {
     }
 
     // signed area of a loop of pieces (positive counter-clockwise), by sampling
+    // The volume the shell bounds, in closed form (#117). Each section of it is the profile under the map
+    // p -> (x a - y b, x b + y a) of the path's (a(v), b(v)) at height z(v): the profile turned and scaled by
+    // |(a, b)|, its area A (a^2 + b^2), so the volume is the integral of A (a^2 + b^2) dz up the path, exact on its
+    // spans (polynomials of degree 8) by Gauss-Legendre at 8 points; without a twist, A h (1 + s + s^2) / 3 for a top
+    // scaled by s. A is the profile's own, of its exact pieces (`exactArea`): so this is the shell's volume to
+    // rounding, where integrating over its faces costs a surface evaluation at each of thousands of points.
+    private static volume( loops : Array<Array<Piece>>, height : number, scale : number, G : NurbsCurveData | null ) : number {
+        let A = 0;
+        for (const l of loops) A += Extrusion.exactArea( l );
+        if (G == null) return A * height * (1 + scale + scale * scale) / 3;
+        const [xs, ws] = ShellBuilder.gauss( 8 );
+        const ks = G.knots.filter( (k, i) => i == 0 || k > G.knots[i - 1] );
+        let V = 0;
+        for (let i = 0; i + 1 < ks.length; i++) {
+            const h = 0.5 * (ks[i + 1] - ks[i]), m = 0.5 * (ks[i] + ks[i + 1]);
+            for (let k = 0; k < xs.length; k++) {
+                const D = Eval.rationalCurveDerivatives( G, m + h * xs[k], 1 );
+                V += ws[k] * h * (D[0][0] * D[0][0] + D[0][1] * D[0][1]) * D[1][2];
+            }
+        }
+        return A * V;
+    }
+
+    // The signed area of a loop of pieces, by Green's theorem on their exact curves (the integral of (x y' - y x') / 2),
+    // Gauss-Legendre at 16 points on each knot span: exact on polynomial pieces, to rounding on rational arcs.
+    private static exactArea( pieces : Array<Piece> ) : number {
+        const [xs, ws] = ShellBuilder.gauss( 16 );
+        let a = 0;
+        for (const q of pieces) {
+            const ks = q.curve.knots.filter( (k, i) => i == 0 || k > q.curve.knots[i - 1] );
+            for (let i = 0; i + 1 < ks.length; i++) {
+                const h = 0.5 * (ks[i + 1] - ks[i]), m = 0.5 * (ks[i] + ks[i + 1]);
+                for (let k = 0; k < xs.length; k++) {
+                    const D = Eval.rationalCurveDerivatives( q.curve, m + h * xs[k], 1 );
+                    a += ws[k] * h * (D[0][0] * D[1][1] - D[0][1] * D[1][0]) / 2;
+                }
+            }
+        }
+        return a;
+    }
+
     private static area( pieces : Array<Piece> ) : number {
         let a = 0;
         for (const q of pieces) {
