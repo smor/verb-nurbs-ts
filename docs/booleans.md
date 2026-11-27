@@ -437,6 +437,12 @@ parts sharing a face. Three things make them work.
   seam. Its parameter there is either end of the domain. A piece ending on the seam takes the end its neighbour is
   nearer, so it doesn't run back across the whole face. An arm halfway up a bored hub, and a boss over a plate's hole,
   close (test "507 regressions", I).
+* **One circle found three times (#121).** A pulley turned from a profile stands on a bored hub, its bore over the
+  hub's, the hub's borer reaching 1 into the pulley's bore. The pulley's bore meets the hub's top, the pulley's bottom
+  meets the hub's bore, and the hub's top meets its bore all round one circle. Each is a separate loop, sampled its own
+  way, and the faces meeting round it did not share their vertices. A loop with no corners that lies all along others
+  takes the points of the finest of them, projected onto its faces, with its seam points flagged again (a loop whose
+  points would miss a seam it crosses keeps its own). The pulley on its hub closes (test "507 regressions", J).
 * **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
   found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
   transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side

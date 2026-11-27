@@ -1651,6 +1651,42 @@ export class BrepBoolean {
             if (e.trim || n < 2) continue;
             // (a point on a seam is a corner too: it keeps its place and its flags)
             const ks = c.points.map( (_, k) => k ).filter( k => (owners.get( c.points[k] ) || 0) > 1 || c.seamA[k] != 0 || c.seamB[k] != 0 || (!c.closed && (k == 0 || k == n - 1)) );
+            // a loop with no corners all along another (a pulley's bore standing on a bored hub, #121: the bore's foot
+            // on the hub's top, the pulley's bottom on the hub's bore and the hub's top on its bore are one circle, found
+            // three times with different samples, and each face meets the others round it): all of them take the
+            // points of the finest, projected onto their faces
+            if (c.closed && c.points.every( p => (owners.get( p ) || 0) <= 1 )) {
+                const ring = (x : IntersectionCurve) => x.points.concat( [x.points[0]] );
+                const same = curves.filter( t => t.curve.closed && t.curve.points.length >= 3
+                    && c.points.every( p => onto( ring( t.curve ), p, eps ).on ) && t.curve.points.every( p => onto( ring( c ), p, eps ).on ) );
+                let ref = same[0];
+                for (const t of same) if (t.curve.points.length > ref.curve.points.length) ref = t;
+                if (ref != null && ref != e) {
+                    const FA = solids[e.solids[0]].faces[e.faces[0]], FB = solids[e.solids[1]].faces[e.faces[1]];
+                    const near = (p : Point) => { let b = 0; c.points.forEach( (q, k) => { if (Vec.dist( q, p ) < Vec.dist( c.points[b], p )) b = k; } ); return b; };
+                    const pts = ref.curve.points.map( q => [q[0], q[1], q[2]] as Point );
+                    const uvA = pts.map( p => SurfaceIntersect.project( FA.surface, p, 12, c.uvA[near( p )] ) );
+                    const uvB = pts.map( p => SurfaceIntersect.project( FB.surface, p, 12, c.uvB[near( p )] ) );
+                    // on a periodic face the loop crosses the seam at one of the points, flagged as such (a parameter
+                    // within rounding of the seam is on it); one whose points miss the seam keeps its own
+                    const seams = (F : BrepFace, uv : Array<UV>) : Array<number> | null => {
+                        const d = SurfaceIntersect.domain( F.surface ), flags = uv.map( _ => 0 );
+                        for (let a = 0; a < 2; a++) {
+                            if (!F.periodic[a]) continue;
+                            const lo = d[2 * a], hi = d[2 * a + 1], w = 1e-9 * (hi - lo);
+                            uv.forEach( (q, k) => { if (Math.abs( q[a] - lo ) <= w || Math.abs( q[a] - hi ) <= w) { q[a] = lo; flags[k] |= 1 << a; } } );
+                            const wraps = uv.some( (q, k) => Math.abs( q[a] - uv[(k + 1) % uv.length][a] ) > 0.5 * (hi - lo) );
+                            if (wraps && !flags.some( f => (f & (1 << a)) != 0 )) return null;
+                        }
+                        return flags;
+                    };
+                    const sA = seams( FA, uvA ), sB = seams( FB, uvB );
+                    if (sA != null && sB != null && pts.every( (p, k) => Vec.dist( BrepBoolean.eval( FA.surface, uvA[k] ), p ) <= eps && Vec.dist( BrepBoolean.eval( FB.surface, uvB[k] ), p ) <= eps )) {
+                        c.points = pts; c.uvA = uvA; c.uvB = uvB; c.seamA = sA; c.seamB = sB;
+                    }
+                }
+                continue;
+            }
             if (ks.length < (c.closed ? 1 : 2)) continue;
             const stretches : Array<Array<number>> = [];
             if (c.closed) {
