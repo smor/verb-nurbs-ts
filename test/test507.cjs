@@ -147,7 +147,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 			b : { type : 'transform/move', in : { of : '@c', x : 1.5, y : 0, z : 0 } }, u : op('union') })
 			.should.be.approximately(24 * 23 * 1.33 + 21 * 23 * 2.17 - 21 * 23 * 0.5, 1e-9 * 1540);
 	});
-	it('H: an upright on a foot with rounded corners, sharing its bottom plane, its sides crossing the corner arcs (#123)', function () {
+	it('H: an upright on a foot with rounded corners, sharing its bottom plane, its sides crossing the corner arcs or flush with the foot\'s (#123)', function () {
 		var line = function (to) { return { type : 'line', to : to }; };
 		var arc = function (via, to) { return { type : 'arc', via : via, to : to }; };
 		// a base 16 x 18 x 4 with r 2 corners, x 0..16, y -9..9
@@ -166,6 +166,18 @@ describe("507 regressions (test/fixtures/507)", function () {
 			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			r.result.report.volume.should.be.approximately(exact, 1e-3 * exact);
+		});
+		// Y1: the upright made as 507 makes it, a rectangle extruded and turned up (x 0..6, y -h..h, z 0..70), flush with
+		// the foot's x = 0 side, which turns into the corner arcs at y = -7 and 7: the upright's bottom edge is cut there
+		var rect = function (h) { return { kind : 'path', start : [-h, 0], segments : [line([h, 0]), line([h, 70]), line([-h, 70]), line([-h, 0])] }; };
+		[[9, 6 * 18 * 70 + 4 * (16 * 18 - 4 * (4 - PI)) - 4 * (108 - 2 * (4 - PI))], [8, exact]].forEach(function (c) {
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'stand' }, nodes : {
+				e : { type : 'profile/extrude', in : { profile : { outer : rect(c[0]), holes : [] }, height : 6, z : 0 } },
+				r1 : { type : 'transform/rotate', in : { of : '@e', axis : 'x', degrees : 90 } }, up : { type : 'transform/rotate', in : { of : '@r1', axis : 'z', degrees : 90 } },
+				base : base, u : { type : 'boolean/union', in : { a : '@up', b : '@base' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			r.result.report.volume.should.be.approximately(c[1], 1e-3 * c[1]);
 		});
 	});
 });

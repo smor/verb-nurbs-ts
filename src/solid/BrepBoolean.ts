@@ -1003,6 +1003,10 @@ export class BrepBoolean {
             for (const cj of onFace.get( e.solids[k] + ":" + e.faces[k] ) as Array<number>) {
                 const f = curves[cj];
                 if (cj == ci) continue;
+                // an edge of a solid made from a shell always cuts its face: a branch along it keeps only its runs inside
+                // both faces' trims, and would leave the rest of the edge uncut (an upright flush with a foot's side,
+                // along its bottom edge only as far as the foot's corner arcs, #123)
+                if (e.trim && !f.trim) continue;
                 if ((e.curve.closed && !f.curve.closed) || !within( ci, cj )) continue;
                 // all of it along the other (a stretch of it: a face covering only part of a third face's edge)
                 if (!e.curve.points.every( p => near( p, f.curve ) )) continue;
@@ -1475,6 +1479,26 @@ export class BrepBoolean {
     // where the branch leaves that edge (a hub's rim runs along the arm's round end, then on across the arm's top):
     // the branch gets that very point, and its runs end there (#104).
     private static trimVertices( solids : Array<BrepSolid>, curves : BooleanResult["curves"], eps : number ) : void {
+        // a vertex of one solid inside an edge of another (an upright flush with a foot's side, standing on its bottom
+        // plane: the foot's corner, where its side turns into a rounded corner, lies on the upright's bottom edge) is a
+        // vertex of that edge too, as of the branches through it, so the edge's faces and the branches share it (#123)
+        for (const T of curves) {
+            if (!T.trim || T.curve.closed) continue;
+            for (const end of [0, T.curve.points.length - 1]) {
+                const v = T.curve.points[end];
+                for (const U of curves) {
+                    if (!U.trim || U.solids[0] == T.solids[0] || U.curve.closed || U.curve.points.includes( v )) continue;
+                    const P = U.curve.points;
+                    if (P.some( p => Vec.dist( p, v ) < eps ) || !BrepBoolean.onto( P, v, eps ).on) continue;
+                    let nearest = 0;
+                    P.forEach( (p, k) => { if (Vec.dist( p, v ) < Vec.dist( P[nearest], v )) nearest = k; } );
+                    const FA = solids[U.solids[0]].faces[U.faces[0]], FB = solids[U.solids[1]].faces[U.faces[1]];
+                    const uvA = SurfaceIntersect.project( FA.surface, v, 12, U.curve.uvA[nearest] ), uvB = SurfaceIntersect.project( FB.surface, v, 12, U.curve.uvB[nearest] );
+                    if (Vec.dist( BrepBoolean.eval( FA.surface, uvA ), v ) > eps || Vec.dist( BrepBoolean.eval( FB.surface, uvB ), v ) > eps) continue;
+                    BrepBoolean.insertPoint( U.curve, v, uvA, uvB, eps );
+                }
+            }
+        }
         for (const e of curves) {
             if (e.trim) continue;
             const c = e.curve;
