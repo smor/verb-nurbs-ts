@@ -450,6 +450,14 @@ parts sharing a face. Three things make them work.
   past the foot's corner it is gone. So an edge of a solid made from a shell always cuts its own face, whichever
   branch runs along it, and a vertex of one solid lying inside an edge of another (the foot's corner on the
   upright's bottom edge) becomes a vertex of that edge too, so the edge and the branches through the vertex share it.
+* **Branches along each other for a stretch (#120).** Two pockets of one depth cut through a plate's bottom, which
+  overlap with a side of each in one plane (squares in a row, say), give each side a branch with the plate's bottom,
+  and the two run along each other where the sides overlap, each sampled on its own. The bottom took the points of
+  both and the side kept across the overlap only those of one, so the result was open there. Each of two branches on
+  one face takes the other's points along the stretch they share (two neighbouring points of one on the other), so
+  both have them all. Overlapping pockets, rotated or in a row, close with their exact volume (test "507
+  regressions", K); a slot cut as a run of overlapping pockets closes too. (Rotated pockets, whose floors share a
+  plane but whose sides cross, closed with #123's edges flush along part of their length.)
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
