@@ -207,9 +207,16 @@ describe('pottery of ancient Italy (editor/samples/ceramics)', function () {
 			var outer = doc.nodes[n].in.outer.split(';'), top = +outer[outer.length - 1].trim().split(' ')[1];
 			top.should.be.approximately(it.height_cm * 10, 0.06, n);
 			// the capacity: the cavity's volume against the dataset's (stacked cylinders on the drawing)
+			// to the rim: the cavity runs a few millimetres above it so the mouth is open, a cylinder of its last radius
 			var cav = Graph.compile(doc, { output : n }).features[n + '/cavity'];
-			var c = g.evaluate({ version : 1, features : { c : cav }, output : 'c' }).result.report.volume / 1e6;
+			var pts = doc.nodes[n].in.cavity.split(';').map(function (p) { return p.trim().split(' ').map(Number); }), last = pts[pts.length - 1];
+			var over = Math.PI * last[0] * last[0] * Math.max(0, last[1] - top);
+			var cr = g.evaluate({ version : 1, features : { c : cav }, output : 'c' }).result;
+			var c = (cr.report.volume - over) / 1e6;
 			c.should.be.approximately(it.capacity_l, 0.12 * it.capacity_l, n);
+			// the turned cavity follows the drawing: it never swings below its floor (through the base, at worst)
+			var low = Math.min.apply(null, cr.mesh.vertices.map(function (v) { return v[2]; }));
+			low.should.be.above(pts[0][1] - 1, n + ': the cavity dips below its floor');
 		});
 	});
 
