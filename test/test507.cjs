@@ -225,6 +225,22 @@ describe("507 regressions (test/fixtures/507)", function () {
 		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
 		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
 	});
+	it('L: a bored boss on a bored disc, the boss\'s bore starting inside the disc (#133 A)', function () {
+		// the disc's top and the boss's bottom each meet the boss's bore in one circle, found twice; the disc's top is
+		// parametrised round the disc's axis, so that circle crosses its seam twice: the loops share their points only
+		// when both crossings are flagged, else each keeps its own
+		var cyl = function (radius, height) { return { type : 'primitive/cylinder', in : { radius : radius, height : height } }; };
+		var mv = function (of, z, x) { return { type : 'transform/move', in : { of : '@' + of, x : x || 0, y : 0, z : z } }; };
+		var r = new Graph().evaluate({ version : 2, meta : { name : 'disc' }, nodes : {
+			d : cyl(25, 6), b : cyl(2.5, 8), bm : mv('b', -1), disc : { type : 'boolean/difference', in : { from : '@d', minus : '@bm' } },
+			s : cyl(3, 5.5), sm : mv('s', 6, 18), h : cyl(1.4, 7.5), hm : mv('h', 5, 18), boss : { type : 'boolean/difference', in : { from : '@sm', minus : '@hm' } },
+			u : { type : 'boolean/union', in : { a : '@disc', b : '@boss' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+		r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		var exact = PI * (25 * 25 - 2.5 * 2.5) * 6 + PI * (9 - 1.96) * 5.5;
+		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
+		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
+	});
 	it('K: overlapping blind pockets of one depth, cut one after the other (#120)', function () {
 		var square = function (s, c, deg) {
 			var a = deg * PI / 180, p = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + s / 2 * (q[0] * Math.cos(a) - q[1] * Math.sin(a)), c[1] + s / 2 * (q[0] * Math.sin(a) + q[1] * Math.cos(a))]; });

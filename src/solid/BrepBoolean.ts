@@ -1739,8 +1739,9 @@ export class BrepBoolean {
                             if (!F.periodic[a]) continue;
                             const lo = d[2 * a], hi = d[2 * a + 1], w = 1e-9 * (hi - lo);
                             uv.forEach( (q, k) => { if (Math.abs( q[a] - lo ) <= w || Math.abs( q[a] - hi ) <= w) { q[a] = lo; flags[k] |= 1 << a; } } );
-                            const wraps = uv.some( (q, k) => Math.abs( q[a] - uv[(k + 1) % uv.length][a] ) > 0.5 * (hi - lo) );
-                            if (wraps && !flags.some( f => (f & (1 << a)) != 0 )) return null;
+                            const unflagged = uv.some( (q, k) => { const k1 = (k + 1) % uv.length;
+                                return Math.abs( q[a] - uv[k1][a] ) > 0.5 * (hi - lo) && (flags[k] & (1 << a)) == 0 && (flags[k1] & (1 << a)) == 0; } );
+                            if (unflagged) return null;
                         }
                         return flags;
                     };
