@@ -32,7 +32,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
         catch (err) { post( { seq, ok : false, error : (err as Error).message, ms : performance.now() - t } ); return; }
         const a = analysis( r );
         post( { seq, ok : true, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, ms : performance.now() - t, volume : r.result.report.volume,
-            faces : r.faceNames.length, verdict : { kind : r.verdict.kind, reasons : r.verdict.reasons }, nodes : r.nodes, model : r.model }, a.transfer );
+            faces : r.faceNames.length, verdict : { kind : r.verdict.kind, reasons : r.verdict.reasons }, nodes : r.nodes, model : r.model, params : r.parameters }, a.transfer );
         if (await superseded( seq )) return;
         const v = viewOf( graph, r );
         if (v != null) post( { seq, refine : true, pos : v.pos, idx : v.idx, face : v.face, names : v.names, normal : v.normal, deviation : v.deviation }, v.transfer );
@@ -41,6 +41,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
     // the shelf: every output, one message each, then a summary, then the view meshes
     const names = Object.keys( doc.outputs ?? {} );
     const nodes : Record<string, string> = {}, failed : Array<string> = [], built : Array<[string, GraphResult]> = [];
+    let params : Record<string, number> = {};
     let volume = 0, buildable = 0;
     for (const name of names) {
         if (await superseded( seq )) return;
@@ -49,6 +50,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
             const a = analysis( r );
             for (const [k, v] of Object.entries( r.nodes )) if (v != "unused" && nodes[k] != "built") nodes[k] = v;
             volume += r.result.report.volume;
+            params = { ...params, ...r.parameters };
             if (r.verdict.kind == "buildable") buildable++;
             built.push( [name, r] );
             post( { seq, part : name, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, verdict : r.verdict.kind }, a.transfer );
@@ -56,7 +58,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
             failed.push( `${name}: ${(err as Error).message}` );
         }
     }
-    post( { seq, ok : failed.length == 0, shelf : true, ms : performance.now() - t, volume, faces : 0, nodes,
+    post( { seq, ok : failed.length == 0, shelf : true, ms : performance.now() - t, volume, faces : 0, nodes, params,
         verdict : { kind : buildable == names.length ? "buildable" : "visual", reasons : [`${buildable} of ${names.length} outputs buildable`, ...failed] },
         error : failed.length > 0 ? failed.join( "; " ) : undefined } );
     for (const [name, r] of built) {
