@@ -135,7 +135,9 @@ inside the outer path and don't overlap. Coordinates are millimetres in the x, y
 and circles are rational, cubics are Bézier curves, and the sides are ruled surfaces over them (`Extrusion`). Its
 faces are `bottom`, `top`, `outer.k` for the outer path's segment k, and `hole{i}.k` for hole i's, both counted from
 0, so `gear.outer.12` or `plate.hole0.0`. Names follow the segments as written, whichever way round the path runs, so
-they stay put as parameters change. The solid is a shell of trimmed faces, an operand of any Boolean. A round over an
+they stay put as parameters change. A circle's side is built as two exact halves, so that no face meets itself along a
+seam (the Booleans don't cut a face against itself there, #122). The two halves keep the circle's one name. They are
+numbered `#1`, `#2`, ... like the pieces of any face only once a Boolean splits one of them. The solid is a shell of trimmed faces, an operand of any Boolean. A round over an
 extrusion is not built yet: rounding the edges of a trimmed solid is step A5 of docs/exact-booleans.md.
 
 `twist` (degrees, default 0) turns the top about the z axis, and `scaleTop` (default 1) scales it about the origin, so a
