@@ -150,17 +150,18 @@ export class ShellBuilder {
         const h = spacing != null ? spacing : Vec.dist( bb.min, bb.max ) / 48;
         const faces : Array<BrepFace> = shell.faces.map( F => {
             const s = F.surface, d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
-            // the surface's extent each way, along its middle iso-curves
-            const len = (alongU : boolean) => {
+            // the surface's extent each way, along the longest of its middle and side iso-curves (a tapered side is
+            // widest at its base, #122)
+            const len = (alongU : boolean) => Math.max( ...[0, 0.5, 1].map( w => {
                 let L = 0, prev : Point | null = null;
                 for (let i = 0; i <= 32; i++) {
-                    const t = i / 32, p = alongU ? Eval.rationalSurfacePoint( s, d[0] + t * (d[1] - d[0]), 0.5 * (d[2] + d[3]) )
-                        : Eval.rationalSurfacePoint( s, 0.5 * (d[0] + d[1]), d[2] + t * (d[3] - d[2]) );
+                    const t = i / 32, p = alongU ? Eval.rationalSurfacePoint( s, d[0] + t * (d[1] - d[0]), d[2] + w * (d[3] - d[2]) )
+                        : Eval.rationalSurfacePoint( s, d[0] + w * (d[1] - d[0]), d[2] + t * (d[3] - d[2]) );
                     if (prev != null) L += Vec.dist( prev, p );
                     prev = p;
                 }
                 return L;
-            };
+            } ) );
             const divs : [number, number] = [Math.max( 4, Math.min( 96, Math.ceil( len( true ) / h ) ) ), Math.max( 4, Math.min( 96, Math.ceil( len( false ) / h ) ) )];
             return { surface : s, periodic : [false, false], divs : divs, reversed : !F.sameSense, name : F.name, trims : [] };
         } );

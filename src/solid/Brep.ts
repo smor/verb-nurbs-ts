@@ -22,6 +22,9 @@ export interface BrepFace {
     // a trimmed face (of a solid made from a shell, `ShellBuilder.solid`): the loops in its parameters that bound the
     // part of its surface it covers; the surface carries on past them
     trims? : Array<Array<UV>>;
+    // one of the two halves of an extrusion's side round a path of one piece (a circle, #122): the two are named as
+    // one face while neither is split
+    half? : boolean;
 }
 
 // An edge between two trimmed faces of a solid: its points, shared by both faces, with their parameters on each.
