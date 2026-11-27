@@ -98,7 +98,7 @@ CI, so a wrong import fails the build rather than waiting for a reviewer to spot
 | Fillets, chamfers | `src/solid/Fillet.ts` |
 | Vertex blends | `src/solid/FilletCorner.ts` |
 | Meshes, fabrication checks | `src/solid/TriMesh.ts`, `src/solid/Makeable.ts` |
-| Mass properties, mechanism measurements | `src/solid/MassProperties.ts`, [mechanics.md](mechanics.md) |
+| Mass properties, clearance, mechanism measurements | `src/solid/MassProperties.ts`, `src/solid/Clearance.ts`, [mechanics.md](mechanics.md) |
 | Display data | `src/view/Inspect.ts` |
 | STEP export | `src/io/Step.ts`, [step.md](step.md) |
 | Feature tree, persistent names, verdict | `src/model/Model.ts`, [model.md](model.md) |

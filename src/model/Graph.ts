@@ -6,6 +6,9 @@ import { ShellMesher } from "../solid/ShellMesher.js";
 import type { BrepShell } from "../solid/BrepShell.js";
 import { MassPropertiesOf } from "../solid/MassProperties.js";
 import type { MassProperties } from "../solid/MassProperties.js";
+import { Clearance } from "../solid/Clearance.js";
+import type { ClearanceResult } from "../solid/Clearance.js";
+import type { Point } from "../core/Data.js";
 import type { BooleanResult } from "../solid/BrepBoolean.js";
 import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
@@ -172,6 +175,32 @@ export class GraphError extends Error {
 }
 
 /** A graph evaluated: the model's result, the model document it compiled into, and each node's state. */
+/**
+ * A solid's pose: turned about an axis (through `about`, the origin by default) by `degrees`, then moved by
+ * `translate`. The same transform as a model's "transform" feature, without its scale.
+ */
+export interface GraphPose {
+    rotate? : { axis : [number, number, number], degrees : number, about? : [number, number, number] };
+    translate? : [number, number, number];
+}
+
+/** What `Graph.clearance` measures between two posed solids of a graph document. */
+export interface GraphClearanceOptions {
+    poseA? : GraphPose;
+    poseB? : GraphPose;
+    // the search meshes' chordal tolerance (`ClearanceOptions.chordal`)
+    chordal? : number;
+}
+
+/**
+ * The clearance between two posed solids (`ClearanceResult`) and, when they overlap, their interference: its volume
+ * (on its exact shell), its box and its deepest point, the centre of the largest ball inside it, with that ball's
+ * radius (`depth`, measured on its print mesh).
+ */
+export interface GraphClearance extends ClearanceResult {
+    interference : { volume : number, box : { min : Point, max : Point }, deepest : Point | null, depth : number } | null;
+}
+
 export interface GraphResult extends ModelResult {
     model : ModelDocument;
     // the output evaluated: its name, or the reference asked for
@@ -304,6 +333,38 @@ export class Graph {
      */
     public massProperties( r : ModelResult, density : number = 1 ) : MassProperties {
         return MassPropertiesOf.shell( this.shellOf( r ), density );
+    }
+
+    /**
+     * The clearance between two solids of a graph document, each under its pose (#150, ask 1). `a` and `b` name an
+     * output of the document or one of its nodes (with or without "@"). The distance and its witnesses are measured
+     * on the solids' exact shells (`Clearance.between`); when the solids overlap, their intersection is built and
+     * measured.
+     */
+    public clearance( doc : GraphDocument, a : string, b : string, options : GraphClearanceOptions = {} ) : GraphClearance {
+        const { model, types } = Graph.compileTyped( doc, {} );
+        const ref = (x : string) => {
+            const out = doc.outputs[x];
+            const id = (out != null ? out : x).replace( /^@/, "" );
+            if (model.features[id] == null) throw new GraphError( `Graph: "${x}" is neither an output nor a node of the document`, "document", {} );
+            return id;
+        };
+        const pose = (of : string, p : GraphPose | undefined) : ModelFeature => ({ type : "transform", of : of,
+            ...(p?.rotate != null ? { rotate : { axis : p.rotate.axis, degrees : p.rotate.degrees, ...(p.rotate.about != null ? { about : p.rotate.about } : {}) } } : {}),
+            ...(p?.translate != null ? { translate : p.translate } : {}) });
+        const features = { ...model.features, "clearance:a" : pose( ref( a ), options.poseA ), "clearance:b" : pose( ref( b ), options.poseB ),
+            "clearance:both" : { type : "intersection", of : ["clearance:a", "clearance:b"] } as ModelFeature };
+        const run = (output : string) => Graph.build( () => this.model.evaluate( { ...model, features : features, output : output } ), types );
+        const ra = run( "clearance:a" ), rb = run( "clearance:b" );
+        const c = Clearance.between( this.shellOf( ra ), this.shellOf( rb ), options.chordal != null ? { chordal : options.chordal } : {} );
+        if (!c.overlap) return { ...c, interference : null };
+        const ri = run( "clearance:both" );
+        const shell = this.shellOf( ri ), mesh = this.exportMesh( ri, "print" ).mesh;
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const v of mesh.vertices) for (let k = 0; k < 3; k++) { lo[k] = Math.min( lo[k], v[k] ); hi[k] = Math.max( hi[k], v[k] ); }
+        const deep = Clearance.deepest( mesh );
+        return { ...c, interference : { volume : shell.volume ?? MassPropertiesOf.shell( shell ).volume, box : { min : lo, max : hi },
+            deepest : deep?.point ?? null, depth : deep?.depth ?? 0 } };
     }
 
     private known( r : ModelResult ) : { shell : BrepShell, meshes : Map<string, GraphMesh> } {
