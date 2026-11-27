@@ -432,6 +432,11 @@ parts sharing a face. Three things make them work.
   arm's vertices that lie on a branch are put into it, so its runs end there, and each stretch of a branch between
   its corners (seam points among them) that lies along an edge takes that edge's points. Lying along a curved edge
   allows for the sag of its chords, as `traced` does.
+* **Runs ending on a seam (#121).** A run of a branch on a periodic face ends where it meets another branch, and that
+  point can lie on the face's seam: an arm's hole on a hub's bore, the hole's side two halves that meet at the bore's
+  seam. Its parameter there is either end of the domain. A piece ending on the seam takes the end its neighbour is
+  nearer, so it doesn't run back across the whole face. An arm halfway up a bored hub, and a boss over a plate's hole,
+  close (test "507 regressions", I).
 * **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
   found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
   transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side

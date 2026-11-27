@@ -168,4 +168,32 @@ describe("507 regressions (test/fixtures/507)", function () {
 			r.result.report.volume.should.be.approximately(exact, 1e-3 * exact);
 		});
 	});
+	it('I: a boss over a plate\'s hole, and an arm with a hole halfway up a bored hub (#121)', function () {
+		var line = function (to) { return { type : 'line', to : to }; };
+		var circ = function (r, c) { return { kind : 'circle', center : c || [0, 0], r : r }; };
+		var cyl = function (radius, height) { return { type : 'primitive/cylinder', in : { radius : radius, height : height } }; };
+		var mv = function (of, z, x, y) { return { type : 'transform/move', in : { of : '@' + of, x : x || 0, y : y || 0, z : z } }; };
+		var sq = { kind : 'path', start : [-20, -20], segments : [line([20, -20]), line([20, 20]), line([-20, 20]), line([-20, -20])] };
+		var build = function (nodes) {
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'boss' }, nodes : nodes, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			return r.result.report.volume;
+		};
+		var bore = PI * 2.625 * 2.625, plate = 1600 * 6 - bore * 6;
+		var ex = function (outer, holes, height, z) { return { type : 'profile/extrude', in : { profile : { outer : outer, holes : holes }, height : height, z : z || 0 } }; };
+		// H1: a plate with a hole and a bored boss on it, the bores lined up; H1c: the boss unbored, over the hole
+		build({ p : ex(sq, [circ(2.625)], 6), c : cyl(7, 8), cm : mv('c', 6), h : cyl(2.625, 10), hm : mv('h', 5),
+			boss : { type : 'boolean/difference', in : { from : '@cm', minus : '@hm' } }, u : { type : 'boolean/union', in : { a : '@p', b : '@boss' } } })
+			.should.be.approximately(plate + 8 * (PI * 49 - bore), 1e-3 * 10528);
+		build({ p : ex(sq, [circ(2.625, [10, 5])], 6), c : cyl(7, 8), boss : mv('c', 6, 10, 5), u : { type : 'boolean/union', in : { a : '@p', b : '@boss' } } })
+			.should.be.approximately(plate + 8 * PI * 49, 1e-3 * 10702);
+		// R3: an arm whose hole lies on a hub's bore, halfway up the hub: the hole's halves meet at the bore's seam; the
+		// same volume as the arm flush with the hub's top
+		var st = { kind : 'path', start : [0, -5], segments : [line([40, -5]), { type : 'arc', via : [45, 0], to : [40, 5] }, line([0, 5]), { type : 'arc', via : [-5, 0], to : [0, -5] }] };
+		var arm = function (z) { return { c : cyl(6, 11), h : cyl(2.625, 13), hm : mv('h', -1), hub : { type : 'boolean/difference', in : { from : '@c', minus : '@hm' } },
+			arm : ex(st, [circ(2.625)], 5, z), u : { type : 'boolean/union', in : { a : '@hub', b : '@arm' } } }; };
+		var flush = build(arm(6));
+		build(arm(5)).should.be.approximately(flush, 1e-4 * flush);
+	});
 });
