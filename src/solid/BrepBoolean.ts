@@ -210,11 +210,13 @@ export class BrepBoolean {
         const certificate = o.certify ? { pairs : 0, proven : 0, unproven : [] as NonNullable<BooleanResult["report"]["certificate"]>["unproven"] } : undefined;
         const active = BrepBoolean.activeBoxes( solids, meshes, expr );
         const facePairs = { intersected : 0, skipped : 0 };
+        const paired : Array<[number, number, number, number]> = [];
         for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
             solids[i].faces.forEach( (fa, ia) => solids[j].faces.forEach( (fb, ib) => {
                 if (!BrepBoolean.boxesOverlap( BrepSolid.faceBox( fa ), BrepSolid.faceBox( fb ) )) return;
                 if (active != null && !BrepBoolean.boxesOverlap( active[i][ia], active[j][ib] )) { facePairs.skipped++; return; }
                 facePairs.intersected++;
+                paired.push( [i, ia, j, ib] );
                 const step = o.step != null ? o.step : Math.min( BrepBoolean.cell( fa ), BrepBoolean.cell( fb ) );
                 const res = SurfaceIntersect.analyze( BrepSolid.domainOf( fa ), BrepSolid.domainOf( fb ), {
                     divsA : BrepBoolean.searchDivs( fa ), divsB : BrepBoolean.searchDivs( fb ), step : step, tolerance : tol, loops : o.loops } );
@@ -588,6 +590,11 @@ export class BrepBoolean {
                 maxErr = Math.max( maxErr, err );
             }
         } );
+        // faces of two solids whose sides coincide (a rim on a disc of the same radius, each with its own grid)
+        BrepBoolean.coincidentSides( solids, cuts, paired, snap );
+        // a cut that runs along a side of its face's domain, to rounding (the parameters of a branch found where two
+        // solids are flush at an edge stray from the side by 1e-17 or so), lies exactly on it (#94)
+        solids.forEach( (solid, si) => solid.faces.forEach( (f, fi) => { for (const c of cuts[si][fi]) BrepBoolean.ontoSide( f, c ); } ) );
         // a cut along a side of a face runs along an edge of its solid: the face across that edge gets it too, so that
         // the three faces meeting there (two of this solid, one of the other) share its points
         solids.forEach( (solid, si) => solid.faces.forEach( (_, fi) => {
@@ -964,6 +971,62 @@ export class BrepBoolean {
             }
         } } );
         return out;
+    }
+
+    // Sides of faces of two solids that are the same curve (#94), as where a tube stands on a disc of its outer radius:
+    // nothing crosses there, so no intersection is traced, and each face would keep its own grid along the side (the
+    // disc's 64 divisions round, the tube's 32), which do not meet. Both get a cut along it, at the same points: the
+    // finer of the two grids, on the first face's side.
+    private static coincidentSides( solids : Array<BrepSolid>, cuts : Array<Array<Array<FaceCut>>>, pairs : Array<[number, number, number, number]>, snap : number ) : void {
+        const sides = (f : BrepFace) => {
+            const d = SurfaceIntersect.domain( f.surface ), out : Array<{ axis : number, value : number, lo : number, hi : number, n : number }> = [];
+            for (let axis = 0; axis < 2; axis++) {
+                if (f.periodic[axis]) continue;
+                for (const value of [d[2 * axis], d[2 * axis + 1]]) out.push( { axis : axis, value : value, lo : d[2 * (1 - axis)], hi : d[2 * (1 - axis) + 1], n : f.divs[1 - axis] } );
+            }
+            return out;
+        };
+        const at = (f : BrepFace, s : { axis : number, value : number, lo : number, hi : number }, t : number) : UV => s.axis == 0 ? [s.value, s.lo + t * (s.hi - s.lo)] : [s.lo + t * (s.hi - s.lo), s.value];
+        const probe = [0.13, 0.37, 0.5, 0.71, 0.94];
+        for (const [i, ia, j, ib] of pairs) {
+            const fa = solids[i].faces[ia], fb = solids[j].faces[ib];
+            if (fa.trims != null || fb.trims != null) continue;
+            for (const sa of sides( fa )) {
+                // a side of fa all along a side of fb, and that side all along fa's: the same curve
+                const pa = probe.map( t => BrepBoolean.eval( fa.surface, at( fa, sa, t ) ) );
+                if (Vec.norm( Vec.sub( pa[0], pa[4] ) ) <= snap) continue; // a pole: no side
+                if (BrepBoolean.along( fb, pa, snap ) == null) continue;
+                const sb = sides( fb ).find( s => BrepBoolean.along( fa, probe.map( t => BrepBoolean.eval( fb.surface, at( fb, s, t ) ) ), snap ) != null );
+                if (sb == null) continue;
+                const ends = [0, 1].map( t => BrepBoolean.eval( fb.surface, at( fb, sb, t ) ) );
+                if (BrepBoolean.along( fa, ends, snap ) == null) continue;
+                const n = Math.max( sa.n, sb.n ), points : Array<Point> = [], uvA : Array<UV> = [];
+                for (let k = 0; k <= n; k++) {
+                    uvA.push( at( fa, sa, k / n ) );
+                    points.push( k == n && Vec.dist( BrepBoolean.eval( fa.surface, uvA[k] ), points[0] ) <= snap ? points[0] : BrepBoolean.eval( fa.surface, uvA[k] ) );
+                }
+                const uvB = BrepBoolean.along( fb, points, snap );
+                if (uvB == null) continue;
+                cuts[i][ia].push( { uv : uvA, points : points, closed : false, tag : -1 } );
+                cuts[j][ib].push( { uv : uvB, points : points, closed : false, tag : -1 } );
+            }
+        }
+    }
+
+    // A cut whose parameters are all on one side of its face's domain to within 1e-12 of the domain's width is put
+    // exactly on that side.
+    private static ontoSide( f : BrepFace, c : FaceCut ) : void {
+        if (c.uv.length < 2) return;
+        const d = SurfaceIntersect.domain( f.surface );
+        for (let axis = 0; axis < 2; axis++) {
+            if (f.periodic[axis]) continue;
+            const w = d[2 * axis + 1] - d[2 * axis];
+            for (const value of [d[2 * axis], d[2 * axis + 1]]) {
+                if (!c.uv.every( p => Math.abs( p[axis] - value ) <= 1e-12 * w )) continue;
+                c.uv = c.uv.map( p => (axis == 0 ? [value, p[1]] : [p[0], value]) as UV );
+                return;
+            }
+        }
     }
 
     // The side of a face's domain that a polyline lies on (all its parameters exactly there), or null.

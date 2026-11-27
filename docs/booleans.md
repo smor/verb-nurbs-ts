@@ -392,6 +392,13 @@ parts sharing a face. Three things make them work.
   When the two sides match end to end, the pieces the meshes found along them are dropped too; when one covers only a
   stretch of the other (a box flush with a wider box's edge), they stay, and cut the longer side where the shorter
   one ends.
+* **Sides that are the same curve share their points (#94).** Where two faces meet edge to edge and no branch is
+  made (a rim standing on a disc of its outer radius), each would keep its own grid along that side: the disc's 64
+  divisions round, the tube's 32, which do not meet. Both now get a cut along the side, at the finer grid's points
+  (`BrepBoolean.coincidentSides`). Two boxes of equal footprint stacked, or two cylinders of one radius, closed only
+  because their grids happened to match. And a cut whose parameters lie on a side of the domain to rounding (1e-17
+  off, as where a T's bar ends flush with its stem) is put exactly on it, so that it counts as a cut along that side
+  and the face across the edge gets it too.
 * **Surfaces that coincide over an area are not intersected.** Two copies of one cylinder (each window of a wheel
   bringing its own hub) would have meshes crossing everywhere, at great cost and with nothing to find.
   `SurfaceIntersect.coincide` looks for a 2 by 2 block of samples of one surface lying on the other with parallel
