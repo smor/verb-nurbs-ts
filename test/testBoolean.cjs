@@ -181,6 +181,33 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 		r.report.volume.should.be.approximately(1000 + P * 9 * 20, 2e-3 * (1000 + P * 9 * 20));
 		r.report.manifold.closedManifold.should.be.false();
 	});
+	it('notches across a disc\'s rim, on its seam and off it, and a bored crank pin on the seam\'s line (#95)', function(){
+		var cyl = function (r, h) { return { type : 'primitive/cylinder', in : { radius : r, height : h } }; };
+		var mv = function (of, x, y, z) { return { type : 'transform/move', in : { of : '@' + of, x : x, y : y, z : z } }; };
+		var build = function (nodes) {
+			var r = new lib.Graph().evaluate({ version : 2, meta : { name : 'seams' }, nodes : nodes, outputs : { s : '@u' } }, { output : 's', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			return r.result.report.volume;
+		};
+		// the area a circle of radius r at distance d from the centre of a disc of radius R shares with it
+		var lens = function (R, r, d) {
+			return r * r * Math.acos((d * d + r * r - R * R) / (2 * d * r)) + R * R * Math.acos((d * d + R * R - r * r) / (2 * d * R))
+				- 0.5 * Math.sqrt((-d + r + R) * (d + r - R) * (d - r + R) * (d + r + R));
+		};
+		// a disc of radius 20 less a pin of radius 1 straddling its rim: on its seam (+x), just off it, and a quarter turn
+		// away (the disc's chords: within 1e-3)
+		[[19.8, 0], [19.796, 0.383], [19.8, 1.5], [0, 19.8]].forEach(function (c) {
+			build({ d : cyl(20, 3), n : cyl(1, 5), m : mv('n', c[0], c[1], -1), u : { type : 'boolean/difference', in : { from : '@d', minus : '@m' } } })
+				.should.be.approximately(P * 400 * 3 - 3 * lens(20, 1, Math.hypot(c[0], c[1])), 1e-3 * 3770);
+		});
+		// a bored disc with a bored crank pin standing on it at angle 0
+		build({ d : cyl(30, 6), b : cyl(2.5, 8), bm : mv('b', 0, 0, -1), db : { type : 'boolean/difference', in : { from : '@d', minus : '@bm' } },
+			p : cyl(3, 7), pm : mv('p', 20, 0, 6), h : cyl(1.4, 9), hm : mv('h', 20, 0, 5), ph : { type : 'boolean/difference', in : { from : '@pm', minus : '@hm' } },
+			u : { type : 'boolean/union', in : { a : '@db', b : '@ph' } } })
+			.should.be.approximately(P * (900 - 6.25) * 6 + P * (9 - 1.96) * 7, 1e-3 * 17000);
+	});
 	it('a countersink whose cone meets its hole in the plate\'s top plane: three branches on one circle (#92)', function(){
 		// the cone (radius 5.5 at z = -1, 45 degrees) meets the hole (radius 1.5) at z = 3, the plate's top; and 0.2 below
 		var doc = function (r) { return { version : 2, meta : { name : 'countersink' }, nodes : {

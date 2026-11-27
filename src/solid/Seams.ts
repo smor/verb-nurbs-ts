@@ -76,9 +76,26 @@ export class Seams {
         const plans : Array<Plan | null> = faces.map( (F, fi) => {
             const s = F.surface;
             const cu = Analyze.isRationalSurfaceClosed( s, true ), cv = Analyze.isRationalSurfaceClosed( s, false );
-            if (cu == cv) return null;
-            const d = cu ? 0 : 1;
-            const dom = Seams.domain( s ), c0 = dom[2 * d], per = dom[2 * d + 1] - c0;
+            if (!cu && !cv) return null;
+            const dom = Seams.domain( s );
+            // whether the face's loops go round direction a (their parameter along it, unwrapped, ends a period away)
+            const crosses = (a : number) => loops[fi].some( loop => {
+                const ps : Array<Point> = [];
+                for (const [e, fwd] of loop) {
+                    const pts = fwd ? edges[e].pts : edges[e].pts.slice().reverse();
+                    for (let k = 0; k + 1 < pts.length; k++) ps.push( pts[k] );
+                }
+                const x = Seams.unwrap( ps.map( p => (F.project( p ).uv[a] - dom[2 * a]) / (dom[2 * a + 1] - dom[2 * a]) ) );
+                return Math.abs( x[x.length - 1] - x[0] ) > 0.5;
+            } );
+            // closed both ways (a torus): the seam the loops go round, if only one (a groove's band round the axis, #116)
+            let d = cu ? 0 : 1;
+            if (cu && cv) {
+                const ru = crosses( 0 ), rv = crosses( 1 );
+                if (ru == rv) return null;
+                d = ru ? 0 : 1;
+            }
+            const c0 = dom[2 * d], per = dom[2 * d + 1] - c0;
             const crossings : Array<{ vertex : number, w : number, above : boolean }> = [];
             for (const loop of loops[fi]) {
                 const S : Array<{ j : number, k : number, n : number, p : Point }> = [];

@@ -429,7 +429,7 @@ export class Model {
             // naming a face that is not there, would otherwise round nothing in silence)
             const unmatched = round == null ? [] : rules.filter( x => x.hits == 0 ).map( x => `"${solidId}": "${x.edges}"` );
             const fillets = unmatched.length == 0 ? t.fillets : Model.addFillets( [t.fillets, { failed : 0, skipped : 0, reduced : 0, unmatched : unmatched }] );
-            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets };
+            return { result : r, names : Model.names( r, leafName, (si, fi) => t.leaves[si].solid.faces[fi].half === true ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets };
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
@@ -812,7 +812,7 @@ export class Model {
     }
 
     // Persistent names of a Boolean result's faces (see the class comment).
-    private static names( r : BooleanResult, leafName : (solid : number, face : number) => string ) : Array<string> {
+    private static names( r : BooleanResult, leafName : (solid : number, face : number) => string, half : (solid : number, face : number) => boolean = () => false ) : Array<string> {
         const n = r.faces.length;
         const base : Array<string> = new Array( n ).fill( "" );
         r.faces.forEach( (f, k) => { if (f.solid >= 0) base[k] = leafName( f.solid, f.face ); } );
@@ -847,6 +847,9 @@ export class Model {
         const out = base.slice();
         for (const [name, g] of groups) {
             if (g.length < 2) continue;
+            // the halves of one side round a circle, each whole, are that one face (#122)
+            const leaves = new Set( g.map( k => r.faces[k].solid + ":" + r.faces[k].face ) );
+            if (leaves.size == g.length && g.every( k => r.faces[k].solid >= 0 && half( r.faces[k].solid, r.faces[k].face ) )) continue;
             const key = (k : number) => [-Model.round( area[k] ), ...centroid[k].map( x => Model.round( area[k] > 0 ? x / area[k] : 0 ) )];
             g.sort( (p, q) => { const a = key( p ), b = key( q ); for (let i = 0; i < 4; i++) if (a[i] != b[i]) return a[i] - b[i]; return p - q; } );
             g.forEach( (k, j) => { out[k] = name + "#" + (j + 1); } );

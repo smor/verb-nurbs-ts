@@ -432,6 +432,60 @@ parts sharing a face. Three things make them work.
   arm's vertices that lie on a branch are put into it, so its runs end there, and each stretch of a branch between
   its corners (seam points among them) that lies along an edge takes that edge's points. Lying along a curved edge
   allows for the sag of its chords, as `traced` does.
+* **Runs ending on a seam (#121).** A run of a branch on a periodic face ends where it meets another branch, and that
+  point can lie on the face's seam: an arm's hole on a hub's bore, the hole's side two halves that meet at the bore's
+  seam. Its parameter there is either end of the domain. A piece ending on the seam takes the end its neighbour is
+  nearer, so it doesn't run back across the whole face. An arm halfway up a bored hub, and a boss over a plate's hole,
+  close (test "507 regressions", I).
+* **One circle found three times (#121).** A pulley turned from a profile stands on a bored hub, its bore over the
+  hub's, the hub's borer reaching 1 into the pulley's bore. The pulley's bore meets the hub's top, the pulley's bottom
+  meets the hub's bore, and the hub's top meets its bore all round one circle. Each is a separate loop, sampled its own
+  way, and the faces meeting round it did not share their vertices. A loop with no corners that lies all along others
+  takes the points of the finest of them, projected onto its faces, with its seam points flagged again (a loop whose
+  points would miss a seam it crosses keeps its own). The pulley on its hub closes (test "507 regressions", J).
+* **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
+  found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
+  transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side
+  meeting a foot's rounded corner, when the two share their bottom plane) ends at that exact point, and so does the
+  crossing. A point that does not settle within a quarter of the chord (the edge's faces meeting tangentially, as a
+  blend and a face it rounds) keeps the chord's. An upright on a foot with rounded corners closes, with its exact
+  volume (test "507 regressions", H).
+* **Edges flush along part of their length (#123).** An upright made as an extrusion stands flush with its foot's
+  side, which turns into the foot's corner arcs before the upright's edge ends. The branch of the upright's side and
+  the foot's bottom plane runs along the upright's bottom edge, but keeps only its runs inside both faces' trims:
+  past the foot's corner it is gone. So an edge of a solid made from a shell always cuts its own face, whichever
+  branch runs along it, and a vertex of one solid lying inside an edge of another (the foot's corner on the
+  upright's bottom edge) becomes a vertex of that edge too, so the edge and the branches through the vertex share it.
+* **Branches along each other for a stretch (#120).** Two pockets of one depth cut through a plate's bottom, which
+  overlap with a side of each in one plane (squares in a row, say), give each side a branch with the plate's bottom,
+  and the two run along each other where the sides overlap, each sampled on its own. The bottom took the points of
+  both and the side kept across the overlap only those of one, so the result was open there. Each of two branches on
+  one face takes the other's points along the stretch they share (two neighbouring points of one on the other), so
+  both have them all. Overlapping pockets, rotated or in a row, close with their exact volume (test "507
+  regressions", K); a slot cut as a run of overlapping pockets closes too. (Rotated pockets, whose floors share a
+  plane but whose sides cross, closed with #123's edges flush along part of their length.)
+* **Short runs along an edge (#120).** Three pockets along an arc, each overlapping the next: where the third one's
+  floor meets the first one's side, two corners (the second's and the third's edges crossing that side) lie close
+  together, and the branch of the first one's side with the third one's floor has a run of two points between them,
+  along the side's top edge. A run of two points along a trim did not count as inside it (a chord between two
+  crossings of a straight trim by a curved branch lies along it too), so it was dropped and the sliver of floor it
+  bounds went with the region beside it. Such a run now counts when the branch's points on either side of it lie on
+  the trim too. Two more things go wrong in such a slot. A corner put into an edge of a solid made from a shell
+  can land a hundred-thousandth from one of the edge's own samples, which the branches along the edge on other faces
+  do not have: a sample within snapping distance of its curve's next or previous point, and in no other curve, is
+  dropped. And two pockets' sides crossing at a shallow angle have samples near the crossing within snapping
+  distance of both: branches only share points along a stretch where they run parallel (to 1e-3), not across one
+  another. Test "507 regressions", K, checks slots of three, four and eight pockets on an arc against their exact
+  volumes (the union's area by inclusion and exclusion, the squares' overlaps clipped exactly).
+* **Edges lying in a face over a few hundredths (#120).** In a denser slot (each pocket overlapping three on either
+  side), an earlier pocket's edge crosses a later pocket's floor only near its corner, over a few hundredths of a
+  millimetre: shorter than the intersection's grid, so the branch of the earlier pocket's side with that floor was
+  not found, and the corner was cut off. An edge of a solid made from a shell that lies in a face of another solid
+  (its one face flush with it, the other across it) now cuts that face wherever it runs inside the face's trims,
+  as a branch made from the edge's own points, unless the intersection found one there already or the edge runs
+  along an edge of that face too. Test "507 regressions", K, checks a slot of 13 such pockets against its exact
+  volume. Three walls meeting within snapping distance of one line (2e-4, a slot whose spacing happens to put one
+  pocket's side through the crossing of two others') are still out of reach.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
@@ -533,7 +587,10 @@ parts joined), is [exact-booleans.md](exact-booleans.md).
   a piece lying on another, after Barton, Elber and Hanniel's single-component count, or a piece that turns straight
   back on itself, which the meshes' intersection produces where they cross at a grazing angle) and traced again. A
   branch whose two ends lie on sides of a domain stays open even when its ends are closer than a mesh edge (a narrow
-  notch across a rim).
+  notch across a rim). The meshes may stop such an arc short of the rim, with neither end on a side yet: ends more
+  than two steps apart close a branch only if extending it at both ends, by less than half the gap, does not reach a
+  side of a domain (#95; the wrong loop's closing chord cut across the notch's wall, and a notch on the disc's seam
+  failed to place its seam crossing).
   `certify: true` (a Boolean option, or a model document's flag) runs `IntersectionCertificate.check` (below) on
   every pair of faces that meet. It is off by default because it costs a fraction of a second per pair. Pairs it
   leaves unresolved, near tangency, are where a missed loop could still hide.
