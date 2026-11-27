@@ -451,6 +451,13 @@ parts sharing a face. Three things make them work.
   finest loop had a point on one crossing only, and the loop took it anyway (#133 A). A loop now takes another's
   points only when each step that wraps round a periodic direction has a point on the seam (test "507
   regressions", L).
+* **Branches along a coarsely sampled curved edge (#133 B).** A boss whose cap is flush with an extrusion's cap,
+  over or under a small hole of it (r 1.4), left the union open. The hole's rim is sampled a sixteenth of a turn per
+  chord, and its chords sag from it by about 5 % of their length, the allowance for a point to lie along a polyline.
+  The boss's cap meets the hole all along the rim, but its branch's points, on the true rim, missed that allowance,
+  so the branch did not take the rim's points and the faces did not share their vertices. A branch's point now also
+  counts as on an edge when it lies within eps of the face's surface at parameters interpolated between two of the
+  edge's samples (test "507 regressions", M).
 * **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
   found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
   transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side
