@@ -240,7 +240,8 @@ export class Extrusion {
     }
 
     // the segments of a path as exact curves over [0, 1] in the plane z = 0
-    private static pieces( path : ProfilePath, name : string ) : Array<Piece> {
+    // (also the revolve's, `Lathe`)
+    public static pieces( path : ProfilePath, name : string ) : Array<{ curve : NurbsCurveData, index : number }> {
         const P = (p : ProfilePoint, what : string) : Point => {
             if (!Array.isArray( p ) || p.length != 2 || !isFinite( p[0] ) || !isFinite( p[1] )) throw new Error( `Extrusion: ${name}: ${what} is a point [x, y]` );
             return [p[0], p[1], 0];

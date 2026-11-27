@@ -99,6 +99,9 @@ export interface GraphMesh {
     mesh : TriMesh;
     // for each triangle, the persistent name of the face it stands for
     faceNames : Array<string>;
+    // for each triangle, the index of that face in the result (`ModelResult.result.faces`), which `Inspect.brep` draws
+    // on (none for a lattice, which has no faces)
+    faceOf? : Array<number>;
     // the tolerance asked ("analysis": none), and the largest deviation from the exact faces measured (null: not measured)
     tolerance : MeshTolerance | null;
     deviation : number | null;
@@ -238,7 +241,7 @@ export class Graph {
             return { mesh : m, faceNames : m.triangles.map( () => "lattice" ), tolerance : null, deviation : null };
         }
         if (given == "analysis") {
-            return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), tolerance : null, deviation : null };
+            return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), faceOf : r.result.faceOf, tolerance : null, deviation : null };
         }
         const T = ShellMesher.tolerance( given );
         let known = this.shells.get( r.result );
@@ -250,7 +253,8 @@ export class Graph {
         let m = known.meshes.get( key );
         if (m == null) {
             const shell = known.shell, sm = ShellMesher.mesh( shell, T );
-            m = { mesh : sm.mesh, faceNames : sm.faceOf.map( k => r.faceNames[shell.faces[k].source] ), tolerance : T, deviation : sm.deviation };
+            m = { mesh : sm.mesh, faceNames : sm.faceOf.map( k => r.faceNames[shell.faces[k].source] ), faceOf : sm.faceOf.map( k => shell.faces[k].source ),
+                  tolerance : T, deviation : sm.deviation };
             known.meshes.set( key, m );
         }
         return m;
@@ -537,6 +541,10 @@ export class Graph {
                 features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ), twist : asNum( "twist" ), scaleTop : asNum( "scaleTop" ) };
                 continue;
             }
+            if (n.type == "profile/revolve") {
+                features[id] = { type : "lathe", profile : outline( id, "profile" ), degrees : asNum( "degrees" ) };
+                continue;
+            }
             const pt = ( a : string, b : string, c : string ) : [ModelValue, ModelValue, ModelValue] => [asNum( a ), asNum( b ), asNum( c )];
             switch (n.type) {
                 case "transform/move": features[id] = { type : "transform", of : s( "of" ), translate : pt( "x", "y", "z" ) }; break;
@@ -660,6 +668,7 @@ export class Graph {
                 case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}),
                     ...(f.twist != null ? { twist : value( f.twist ) } : {}), ...(f.scaleTop != null ? { scaleTop : value( f.scaleTop ) } : {}) };
+                case "lathe": return { ...f, ...(f.degrees != null ? { degrees : value( f.degrees ) } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
@@ -790,6 +799,14 @@ export class Graph {
                     holes : [{ kind : "circle", center : [12, 10], r : 4 }] } },
                 height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ),
                 twist : num( "twist", 0, -3600, 3600, 1, "°" ), scaleTop : num( "scaleTop", 1, 0.05, 4, 0.01 ) },
+            outputs : { solid : "solid" } };
+        // the same profile in the (r, z) half-plane turned about z (507's pulleys, eccentrics and hand wheels)
+        r["profile/revolve"] = { title : "Revolve profile", category : "primitive",
+            help : "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",
+            inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [3, 0], segments : [
+                    { type : "line", to : [20, 0] }, { type : "line", to : [20, 2] }, { type : "line", to : [16, 6] }, { type : "line", to : [20, 10] },
+                    { type : "line", to : [20, 12] }, { type : "line", to : [3, 12] }, { type : "line", to : [3, 0] }] } } },
+                degrees : num( "degrees", 360, 1, 360, 1, "°" ) },
             outputs : { solid : "solid" } };
         const of = { of : solid( "solid" ) };
         r["transform/move"] = { title : "Move", category : "transform", help : "Translate by (x, y, z)",

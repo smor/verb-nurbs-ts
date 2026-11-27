@@ -185,7 +185,10 @@ A viewer that shows each kind of object as what it is:
 
 It comes with examples of each kind, and you can drop your own STL or OBJ mesh, or a NURBS curve or surface as
 verb JSON. What it draws is built by `Inspect` (`Inspect.curve`, `.surface`, `.brep`, `.mesh`), which returns plain
-arrays of layers and pickable items, so other front ends can use it too.
+arrays of layers and pickable items, so other front ends can use it too. A B-rep can be drawn on its export mesh
+instead of its dense analysis mesh, `Inspect.brep( r.result, title, { mesh : r.export } )` after
+`graph.evaluate( doc, { mesh : "view" } )`: the same faces, facts and picking, with its lines sampled to the mesh's
+tolerance, about 25 times lighter (507's flywheel: 0.43 MB against 11.8 MB).
 
 ## Development
 

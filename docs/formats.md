@@ -143,6 +143,13 @@ bottom moved by a rotation and scale, so its edges and cap are those of the bott
 ruled between the two. With twist each side is its segment swept along a cubic path that follows the turn, fitted every
 5° with its ends exact (a twist of 90° gives a volume within 1e-7 of exact; a worm of three turns within 2e-7).
 
+`profile/revolve` turns the same outline, drawn in the (r, z) half-plane (x is the radius, y the height), a full turn
+about the z axis (`Lathe`; #87): lines become planes, cylinders and cones, arcs spheres and tori, cubics their exact
+surfaces of revolution, and a circle a torus (a belt groove to subtract). A segment along the axis (x = 0 at both ends)
+is the axis itself and makes no face; a path off the axis makes a solid with a hole through it (a pulley and its
+bore). Faces are `outer.k` for segment k. `degrees` must be 360 for now, and the outline has no holes (revolve each
+and subtract it): a part turn needs its end caps, which are not built yet.
+
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is
 refused.
@@ -177,7 +184,9 @@ document shares every feature they have in common.
 ([booleans.md, Export mesh](booleans.md#export-mesh)): `"print"` (0.02 mm), `"view"` (0.1 mm, normals within 20°),
 `{ chordal, angle?, maxEdge? }`, or `"analysis"` for the Boolean's own dense mesh as it is. It is an evaluation option,
 not part of the document, so one document gives a print mesh and a viewer mesh. `r.export` holds the `mesh` (a closed
-2-manifold), `faceNames` (the persistent name of each triangle's face), the `tolerance` and the `deviation` measured.
+2-manifold), `faceNames` (the persistent name of each triangle's face), `faceOf` (the index of that face in
+`r.result.faces`, which `Inspect.brep( r.result, title, { mesh : r.export } )` draws on), the `tolerance` and the
+`deviation` measured.
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
 A lattice output has no exact shell: its export is the lattice mesh itself (`r.lattice.mesh`, at the lattice's own
 grid step), with every triangle named `lattice` and no deviation, whatever `mesh` asks for.
