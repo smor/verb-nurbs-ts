@@ -69,6 +69,7 @@ import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { ShellBuilder } from "./solid/BrepShell.js";
 import { Extrusion } from "./solid/Extrusion.js";
+import { Lathe } from "./solid/Lathe.js";
 export type { ProfileSpec, ProfilePath, ProfileSegmentSpec, ProfilePoint } from "./solid/Extrusion.js";
 import { ShellMesher } from "./solid/ShellMesher.js";
 export type { MeshTolerance, ShellMesh } from "./solid/ShellMesher.js";
@@ -116,7 +117,7 @@ export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./rec
 import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
 export type { SweptObject, KnotPipeParams, TwistedRingParams, RibbonKnotParams } from "./recipes/SweptObjects.js";
 import { Inspect } from "./view/Inspect.js";
-export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
+export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions, BrepViewOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model, ModelError } from "./model/Model.js";
 export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
@@ -209,6 +210,7 @@ export {
     BrepBoolean,
     ShellBuilder,
     Extrusion,
+    Lathe,
     ShellMesher,
     Fillet,
     FilletCorner,
@@ -333,6 +335,7 @@ export const solid = {
     BrepBoolean,
     ShellBuilder,
     Extrusion,
+    Lathe,
     ShellMesher,
     Fillet,
     FilletCorner,

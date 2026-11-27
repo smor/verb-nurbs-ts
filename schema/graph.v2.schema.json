@@ -153,6 +153,7 @@
             "freeform/pipe",
             "freeform/vessel",
             "profile/extrude",
+            "profile/revolve",
             "transform/move",
             "transform/rotate",
             "transform/scale",
@@ -1280,6 +1281,18 @@
           },
           "then": {
             "$ref": "#/$defs/profile.extrude"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "profile/revolve"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/profile.revolve"
           }
         },
         {
@@ -5261,6 +5274,115 @@
               ],
               "description": "z (mm)",
               "default": 0
+            }
+          }
+        }
+      }
+    },
+    "profile.revolve": {
+      "title": "Revolve profile",
+      "description": "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "profile/revolve"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "type": "object",
+              "description": "profile: { outer, holes }, paths of lines, three-point arcs and cubic Béziers, or circles, in millimetres (docs/formats.md, Profiles)",
+              "required": [
+                "outer"
+              ],
+              "properties": {
+                "outer": {
+                  "type": "object"
+                },
+                "holes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              },
+              "default": {
+                "outer": {
+                  "kind": "path",
+                  "start": [
+                    3,
+                    0
+                  ],
+                  "segments": [
+                    {
+                      "type": "line",
+                      "to": [
+                        20,
+                        0
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        20,
+                        2
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        16,
+                        6
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        20,
+                        10
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        20,
+                        12
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        3,
+                        12
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        3,
+                        0
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "degrees": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "degrees (°)",
+              "default": 360
             }
           }
         }
