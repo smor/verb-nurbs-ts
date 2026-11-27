@@ -106,3 +106,25 @@ Aided Geometric Design 3, 1986), so planes stay planes and the faces stay exact 
 **Accuracy.** Boxes and plain extrusions are exact; cylinders' rounds and twisted sides are within about 2e-4 at the
 graph's default tolerance (test "ProfileOffset", by distances measured both ways between the exact shells with
 `Clearance.distanceTo`).
+
+## Swept envelope
+
+The `finish/sweep` node (model feature `{ type : "sweep", of, along }`) is the room a solid takes moving along a path:
+the union of all its positions, as a solid usable in Booleans (cut it from a part to make the groove or the channel
+it runs in). The node moves the solid by (x, y, z) at the samples of t from 0 to 1, along the smooth curve through
+them; the feature takes those points as `along`.
+
+- **Ball.** The catalogue's sphere, through rigid or uniformly scaled transforms. A ball's envelope is the canal
+  surface of its centre's path (Monge): the pipe of its radius round the path, closed by hemispheres at the ends. Along
+  a straight path that is a capsule, exact (an exact cylinder and two exact hemispheres). Along a curve, the pipe is
+  `Sweep.pipe`'s, within its fit, and the domes take their rims from its end sections, so they meet it along the very
+  same curves (`BrepSolid.roundedTube`). The pipe model feature takes the same ends as `ends : "round"`.
+- Other solids are refused for now. The envelope of a cone or another solid of revolution under a rigid motion (a
+  barrel cam's follower) comes next.
+
+**Accuracy.** Along a line, every point lies at the radius from the centre's path within 1e-9 and the volume is the
+capsule's within the shell's tolerance. Along half a circle of radius 30 through 24 samples, within 5e-4, most of it
+the cubic through the samples departing from the circle near its ends (test "sweeps").
+
+**Limits.** The path must bend less sharply than the radius and must not come back within a diameter of itself, or
+the pipe folds.

@@ -910,6 +910,11 @@ export class Graph {
                     break;
                 }
                 case "finish/offset": features[id] = { type : "offset", of : s( "of" ), distance : asNum( "distance" ) }; break;
+                case "finish/sweep": {
+                    const x = sampler( id, "x" ), y = sampler( id, "y" ), z = sampler( id, "z" );
+                    features[id] = { type : "sweep", of : s( "of" ), along : samples( count( id, "samples" ) ).map( t => [x( t ), y( t ), z( t )] as [ModelValue, ModelValue, ModelValue] ) };
+                    break;
+                }
                 case "finish/shell": {
                     const open = s( "open" ).split( "," ).map( e => e.trim() ).filter( e => e != "" );
                     features[id] = { type : "shell", of : s( "of" ), thickness : asNum( "thickness" ), open : open };
@@ -1003,6 +1008,7 @@ export class Graph {
                 case "round": return { ...f, of : ref( f.of ), rules : f.rules.map( r => ({ edges : pattern( r.edges ), radius : value( r.radius ) }) ) };
                 case "shell": return { ...f, of : ref( f.of ), thickness : value( f.thickness ), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
                 case "offset": return { ...f, of : ref( f.of ), distance : value( f.distance ) };
+                case "sweep": return { ...f, of : ref( f.of ), along : f.along.map( point ) };
                 case "lattice": return { ...f, of : ref( f.of ), cell : value( f.cell ), wall : value( f.wall ),
                     ...(f.skin != null ? { skin : value( f.skin ) } : {}), ...(f.blend != null ? { blend : value( f.blend ) } : {}), ...(f.size != null ? { size : value( f.size ) } : {}),
                     ...(f.grade != null ? { grade : { axis : f.grade.axis, to : value( f.grade.to ) } } : {}), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
@@ -1178,6 +1184,9 @@ export class Graph {
                 shape : { kind : "choice", label : "shape", value : "circular", options : ["circular", "curvature", "chamfer"] } }, outputs : { solid : "solid" } };
         r["finish/offset"] = { title : "Offset", category : "finish", help : "Grow the solid by a distance (shrink it when negative), every face moved along its normal: a mating part's clearance",
             inputs : { ...of, distance : num( "distance", 0.25, -20, 20, 0.05, "mm" ) }, outputs : { solid : "solid" } };
+        r["finish/sweep"] = { title : "Swept envelope", category : "finish",
+            help : "The room the solid takes moving by (x, y, z) at the samples of t from 0 to 1, along the smooth curve through them: a ball's path as a groove or a channel to cut",
+            inputs : { ...of, x : fn( "x", "20 * t" ), y : fn( "y", "0" ), z : fn( "z", "0" ), samples : many( 2 ) }, outputs : { solid : "solid" } };
         r["finish/shell"] = { title : "Shell", category : "finish", help : "Hollow the solid; faces named by patterns are left open",
             inputs : { ...of, thickness : num( "thickness", 2, 0.2, 20, 0.1, "mm" ), open : { kind : "text", label : "open faces", value : "" } }, outputs : { solid : "solid" } };
         return r;

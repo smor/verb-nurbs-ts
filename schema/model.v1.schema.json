@@ -34,7 +34,7 @@
     },
     "feature": {
       "type": "object", "required": ["type"],
-      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "choose", "round", "shell", "lattice", "offset"] } },
+      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "choose", "round", "shell", "lattice", "offset", "sweep"] } },
       "allOf": [
         { "if": { "properties": { "type": { "const": "box" } } }, "then": { "$ref": "#/$defs/box" } },
         { "if": { "properties": { "type": { "const": "cylinder" } } }, "then": { "$ref": "#/$defs/cylinder" } },
@@ -49,7 +49,8 @@
         { "if": { "properties": { "type": { "const": "round" } } }, "then": { "$ref": "#/$defs/round" } },
         { "if": { "properties": { "type": { "const": "shell" } } }, "then": { "$ref": "#/$defs/shell" } },
         { "if": { "properties": { "type": { "const": "lattice" } } }, "then": { "$ref": "#/$defs/lattice" } },
-        { "if": { "properties": { "type": { "const": "offset" } } }, "then": { "$ref": "#/$defs/offset" } }
+        { "if": { "properties": { "type": { "const": "offset" } } }, "then": { "$ref": "#/$defs/offset" } },
+        { "if": { "properties": { "type": { "const": "sweep" } } }, "then": { "$ref": "#/$defs/sweep" } }
       ]
     },
     "box": { "type": "object", "required": ["type", "min", "max"], "additionalProperties": false,
@@ -57,7 +58,8 @@
     "cylinder": { "type": "object", "required": ["type", "from", "to", "radius"], "additionalProperties": false,
       "properties": { "type": true, "from": { "$ref": "#/$defs/point" }, "to": { "$ref": "#/$defs/point" }, "radius": { "$ref": "#/$defs/value" }, "divs": { "$ref": "#/$defs/pair" } } },
     "pipe": { "type": "object", "required": ["type", "through", "radius"], "additionalProperties": false,
-      "properties": { "type": true, "through": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 2 }, "radius": { "$ref": "#/$defs/value" }, "divs": { "$ref": "#/$defs/pair" } } },
+      "properties": { "type": true, "through": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 2 }, "radius": { "$ref": "#/$defs/value" }, "divs": { "$ref": "#/$defs/pair" },
+        "ends": { "enum": ["flat", "round"], "description": "round: closed by hemispheres" } } },
     "revolve": { "type": "object", "required": ["type", "profile"], "additionalProperties": false,
       "properties": { "type": true, "profile": { "type": "array", "items": { "$ref": "#/$defs/pair" }, "minItems": 2 }, "divs": { "$ref": "#/$defs/pair" } } },
     "prism": { "type": "object", "required": ["type", "outline", "height"], "additionalProperties": false,
@@ -95,6 +97,9 @@
         "open": { "$ref": "#/$defs/patterns" } } },
     "offset": { "type": "object", "required": ["type", "of", "distance"], "additionalProperties": false,
       "description": "the solid grown by distance (shrunk when negative): docs/mechanics.md",
-      "properties": { "type": true, "of": { "$ref": "#/$defs/id" }, "distance": { "$ref": "#/$defs/value" } } }
+      "properties": { "type": true, "of": { "$ref": "#/$defs/id" }, "distance": { "$ref": "#/$defs/value" } } },
+    "sweep": { "type": "object", "required": ["type", "of", "along"], "additionalProperties": false,
+      "description": "the room the solid takes moving along a path: translated by each point of along in turn (docs/mechanics.md)",
+      "properties": { "type": true, "of": { "$ref": "#/$defs/id" }, "along": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 2 } } }
   }
 }

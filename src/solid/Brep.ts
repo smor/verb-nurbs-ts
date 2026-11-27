@@ -158,6 +158,41 @@ export class BrepSolid {
         ] ).orient();
     }
 
+    // The solid inside a round tube closed by hemispheres (#150, ask 4: a ball swept along its rail). The tube's ends
+    // must be circles (a pipe's are: its section, an exact rational circle, moved by the rail's frame); each dome is the
+    // end circle turned a quarter about its centre towards the pole, as a tensor product of the circle (exact, with its
+    // own weights) and the rational quarter circle (weights 1, sqrt 2 / 2, 1), so it meets the tube along the very same
+    // curve and is an exact hemisphere: centre + cos(v) (c(u) - centre) + sin(v) r axis.
+    public static roundedTube( tube : NurbsSurfaceData, divs : [number, number] ) : BrepSolid {
+        const d = SurfaceIntersect.domain( tube );
+        const dome = (atEnd : boolean) : NurbsSurfaceData => {
+            const c = BrepSolid.edge( tube, true, atEnd ), centre = BrepSolid.curveCentroid( c );
+            // the circle's plane (Newell's normal of its samples), turned outwards: away from a section a little way in
+            const a0 = c.knots[0], a1 = c.knots[c.knots.length - 1], ring : Array<Point> = [];
+            for (let i = 0; i < 64; i++) ring.push( Vec.sub( Eval.rationalCurvePoint( c, a0 + (a1 - a0) * i / 64 ), centre ) );
+            let axis = [0, 0, 0];
+            ring.forEach( (p, i) => { axis = Vec.add( axis, Vec.cross( p, ring[(i + 1) % ring.length] ) ); } );
+            axis = Vec.normalized( axis );
+            const inner = BrepSolid.curveCentroid( Make.surfaceIsocurve( tube, atEnd ? d[1] - 1e-3 * (d[1] - d[0]) : d[0] + 1e-3 * (d[1] - d[0]), false ) );
+            if (Vec.dot( axis, Vec.sub( centre, inner ) ) < 0) axis = Vec.mul( -1, axis );
+            const r = Vec.dist( centre, Eval.rationalCurvePoint( c, c.knots[0] ) );
+            const pole = Vec.add( centre, Vec.mul( r, axis ) ), h = Math.SQRT1_2;
+            // rows along v from the pole (as `cone`, apex first) to the circle
+            const cps = c.controlPoints.map( hp => {
+                const w = hp[hp.length - 1], p = [hp[0] / w, hp[1] / w, hp[2] / w];
+                const mid = Vec.add( p, Vec.mul( r, axis ) );
+                return [pole.map( x => x * w ).concat( [w] ), mid.map( x => x * w * h ).concat( [w * h] ), hp.slice()];
+            } );
+            return new NurbsSurfaceData( c.degree, 2, c.knots.slice(), [0, 0, 0, 1, 1, 1], cps );
+        };
+        const capDivs : [number, number] = [divs[1], Math.max( 4, Math.round( divs[1] / 4 ) )];
+        return new BrepSolid( [
+            BrepSolid.face( tube, [false, true], divs, "tube" ),
+            BrepSolid.face( dome( false ), [true, false], capDivs, "start cap" ),
+            BrepSolid.face( dome( true ), [true, false], capDivs, "end cap" ),
+        ] ).orient();
+    }
+
     // The solid inside a wall that is closed in v (u from bottom to top), with a cap at the bottom and at the top.
     public static cappedWall( wall : NurbsSurfaceData, divs : [number, number] ) : BrepSolid {
         const s = BrepSolid.cappedTube( wall, divs );

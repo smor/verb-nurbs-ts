@@ -174,6 +174,7 @@
             "look/motif",
             "finish/round",
             "finish/offset",
+            "finish/sweep",
             "finish/shell",
             "component"
           ]
@@ -1462,6 +1463,18 @@
           },
           "then": {
             "$ref": "#/$defs/finish.offset"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "finish/sweep"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/finish.sweep"
           }
         },
         {
@@ -6067,6 +6080,57 @@
               ],
               "description": "distance (mm)",
               "default": 0.25
+            }
+          }
+        }
+      }
+    },
+    "finish.sweep": {
+      "title": "Swept envelope",
+      "description": "The room the solid takes moving by (x, y, z) at the samples of t from 0 to 1, along the smooth curve through them: a ball's path as a groove or a channel to cut",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "finish/sweep"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "x": {
+              "type": "string",
+              "description": "x, an expression of t (0 to 1) and number nodes",
+              "default": "20 * t"
+            },
+            "y": {
+              "type": "string",
+              "description": "y, an expression of t (0 to 1) and number nodes",
+              "default": "0"
+            },
+            "z": {
+              "type": "string",
+              "description": "z, an expression of t (0 to 1) and number nodes",
+              "default": "0"
+            },
+            "samples": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "samples",
+              "default": 2
             }
           }
         }

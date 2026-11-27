@@ -43,7 +43,7 @@ the same cache.
 |---|---|---|
 | `box` | `min`, `max`, `divs?` | `-x +x -y +y -z +z` |
 | `cylinder` | `from`, `to`, `radius`, `divs?` | `tube`, `start cap`, `end cap` |
-| `pipe` | `through` (points of the rail), `radius`, `divs?` | `tube`, `start cap`, `end cap` |
+| `pipe` | `through` (points of the rail), `radius`, `divs?`, `ends?` (`flat`, or `round`: hemispheres) | `tube`, `start cap`, `end cap` |
 | `revolve` | `profile` (`[radius, height]` pairs, heights increasing), `divs?` | `wall`, `bottom`, `top` |
 | `prism` | `outline` (`[x, y]` or `[x, y, r]` points in z = 0, numbers or expressions; r rounds that corner), `height`; an exact extrusion (lines and arcs), its caps planes trimmed by the outline (#99; `center?` is accepted and not read) | `bottom`, `top`, `outer.k` |
 | `extrude` | `profile` (an outline: `{ outer, holes }`, see [formats.md](formats.md), Profiles), `height`, `z?`, `twist?` (degrees), `scaleTop?` | `bottom`, `top`, `outer.k`, `hole{i}.k` |
@@ -55,6 +55,8 @@ the same cache.
 | `choose` | `when` (a number or expression), `then?`, `else?`: a switch, `then` where `when` is not 0, else `else`; a side left out is nothing | the chosen feature's |
 | `round` | `of`, `rules` (`edges` pattern, `radius`), `shape?` (`circular`, `curvature`, `chamfer`), `corner?` | `round(...)`, `corner(...)` |
 | `shell` | `of`, `thickness`, `open?` (face name patterns) | its input's, and the inside's as `<shell>~<face>` |
+| `offset` | `of`, `distance` (negative shrinks); see [mechanics.md](mechanics.md) | written out as the features that build it |
+| `sweep` | `of` (a ball for now), `along` (the points it is moved by, in turn); see [mechanics.md](mechanics.md) | a round-ended pipe's: `tube`, `start cap`, `end cap` |
 | `lattice` | `of`, `pattern`, `cell`, `wall`, `skin?`, `blend?`, `grade?` (`axis`, `to`), `open?` (face name patterns), `size?` | a mesh: `ModelResult.lattice` |
 
 **Switches.** `choose` features are resolved before anything is hashed or built (`Model.choose`), at the parameters'

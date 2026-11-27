@@ -352,7 +352,7 @@ Graph.compile( doc );         // the version 1 model document it runs
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
   `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
-  comma separated; circular, curvature or chamfer), `finish/shell` and `finish/offset` (docs/mechanics.md); the freeform nodes `freeform/revolve`,
+  comma separated; circular, curvature or chamfer), `finish/shell`, `finish/offset` and `finish/sweep` (docs/mechanics.md); the freeform nodes `freeform/revolve`,
   `freeform/pipe` and `freeform/vessel`; `profile/extrude` and `profile/revolve`.
 * **Profiles** (`profile/extrude`, `profile/revolve`) take an *outline* port: a planar region as JSON (507's
   profiles: lines, three-point arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded

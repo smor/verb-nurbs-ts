@@ -29,7 +29,8 @@ export type ModelFeature =
     // primitives: closed solids with named faces
     | { type : "box", min : ModelPoint, max : ModelPoint, divs? : ModelValue }
     | { type : "cylinder", from : ModelPoint, to : ModelPoint, radius : ModelValue, divs? : [ModelValue, ModelValue] }
-    | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue] }
+    // (`ends` "round": closed by hemispheres, the room a ball takes moving along the rail, instead of flat caps)
+    | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue], ends? : "flat" | "round" }
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
     // a straight prism over an outline in the plane z = 0, from z = 0 to `height`: points [x, y] or [x, y, r] (r rounds
     // that corner by a tangent arc), in either orientation; its values may be expressions. Built as an exact extrusion
@@ -64,6 +65,9 @@ export type ModelFeature =
     | { type : "shell", of : string, thickness : ModelValue, open? : Array<string> }
     // the solid grown by `distance` (shrunk when it is negative), every face moved along its normal (`Model.expandOffsets`)
     | { type : "offset", of : string, distance : ModelValue }
+    // the room the solid takes moving along a path: translated by each point of `along` in turn, along the smooth curve
+    // through them (`Model.expandSweeps`)
+    | { type : "sweep", of : string, along : Array<ModelPoint> }
     // lightweighting: the solid's inside as a lattice (a TPMS sheet or struts, `wall` thick, in cubic cells of side
     // `cell`) within a skin `skin` thick (0: none), fused to it with a smooth joint of radius `blend`; the wall may be
     // graded, linearly along an axis of the solid's bounding box to `grade.to`. Meshed on a grid of side `size`
@@ -213,7 +217,7 @@ export class Model {
         if (given.features?.[given.output] == null) throw new Error( `Model: the output "${given.output}" is not a feature` );
         const params = Model.parameters( given.parameters ?? {} );
         const chosen : { [id : string] : boolean } = {};
-        const doc = Model.liftRound( Model.expandOffsets( Model.choose( given, params, chosen ), params ) );
+        const doc = Model.liftRound( Model.expandOffsets( Model.expandSweeps( Model.choose( given, params, chosen ), params ), params ) );
         const num = (v : ModelValue, what : string) : number => {
             if (typeof v == "number") { if (!isFinite( v )) throw new Error( `Model: ${what} is not finite` ); return v; }
             if (typeof v == "string") return Expr.evaluate( v, params );
@@ -502,7 +506,7 @@ export class Model {
                     r = next == null ? null : at( next );
                     break;
                 }
-                case "transform": case "round": case "shell": case "lattice": case "offset": {
+                case "transform": case "round": case "shell": case "lattice": case "offset": case "sweep": {
                     const of = at( f.of );
                     if (of == null) r = null; else out[id] = { ...f, of : of };
                     break;
@@ -646,6 +650,60 @@ export class Model {
     }
 
     /**
+     * A document with each "sweep" feature written out as the features that build it (#150, ask 4): the room the solid
+     * takes moving along its path, the envelope of its positions (the swept volume).
+     *
+     * * A ball (the catalogue's sphere, through rigid or uniformly scaled transforms) moving along a curve sweeps the
+     *   pipe of its radius round its centre's path, closed by hemispheres at the ends (a capsule along a straight
+     *   line): the ball's envelope is the canal surface of its centre's path (Monge), exact while the path bends less
+     *   sharply than the radius and does not come back within a diameter of itself.
+     *
+     * Other solids are refused for now. The new features take the sweep's id followed by "~" and a number.
+     */
+    public static expandSweeps( doc : ModelDocument, params : { [name : string] : number } ) : ModelDocument {
+        if (!Object.values( doc.features ).some( f => f.type == "sweep" )) return doc;
+        const features : { [id : string] : ModelFeature } = { ...doc.features };
+        const num = (v : ModelValue, what : string) : number => {
+            const x = typeof v == "number" ? v : typeof v == "string" ? Expr.evaluate( v, params ) : NaN;
+            if (!isFinite( x )) throw new Error( `Model: ${what} must be a finite number or an expression` );
+            return x;
+        };
+        const point = (p : ModelPoint, what : string) : Point => [num( p[0], what ), num( p[1], what ), num( p[2], what )];
+        // the ball that the feature `id` is, as its centre and radius, or null
+        const ball = (id : string) : { centre : Point, r : number } | null => {
+            const f = features[id];
+            if (f == null) return null;
+            if (f.type == "primitive" && f.shape == "sphere") {
+                const r = num( f.values?.radius ?? 15, `"${id}" radius` );
+                return { centre : [0, 0, r], r : r };
+            }
+            if (f.type == "transform") {
+                const b = ball( f.of );
+                if (b == null) return null;
+                const M = Model.matrix( f, num, point ), s = Model.similarity( M );
+                if (s == null) return null;
+                const c = b.centre;
+                return { centre : [0, 1, 2].map( i => M[i][0] * c[0] + M[i][1] * c[1] + M[i][2] * c[2] + M[i][3] ) as Point, r : b.r * s };
+            }
+            return null;
+        };
+        let count = 0;
+        for (const id of Object.keys( doc.features )) {
+            const f = doc.features[id];
+            if (f.type != "sweep") continue;
+            const b = ball( f.of );
+            if (b == null) throw new ModelError( `Model: a sweep can only take a ball for now, not "${f.of}"`, { feature : id, type : "sweep" } );
+            if (f.along.length < 2) throw new ModelError( `Model: the sweep "${id}" runs along two points or more`, { feature : id, type : "sweep" } );
+            const through = f.along.map( (p, k) => { const q = point( p, `"${id}" along[${k}]` ); return [b.centre[0] + q[0], b.centre[1] + q[1], b.centre[2] + q[2]] as ModelPoint; } );
+            let n : string;
+            do { n = id + "~" + (++count); } while (features[n] != null);
+            features[n] = { type : "pipe", through : through, radius : b.r, ends : "round" };
+            features[id] = { type : "transform", of : n };
+        }
+        return { ...doc, features : features };
+    }
+
+    /**
      * A document whose solid is a round moved by transforms (the round of a part, then placed), rewritten as the round
      * of the moved part: rigid motions commute with rounding, and a uniform scale does once the radii are scaled with
      * it, so the solid is the same, and the round stays the last feature, as the single Boolean that builds it needs.
@@ -719,7 +777,7 @@ export class Model {
         switch (f.type) {
             case "box": return { min : point( f.min, "min" ), max : point( f.max, "max" ), divs : f.divs == null ? null : num( f.divs, "divs" ) };
             case "cylinder": return { from : point( f.from, "from" ), to : point( f.to, "to" ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
-            case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
+            case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ), ...(f.ends == "round" ? { ends : "round" } : {}) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
             case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ) };
@@ -732,6 +790,7 @@ export class Model {
             case "round": return { rules : f.rules.map( r => [r.edges, num( r.radius, "radius" )] ), shape : f.shape ?? "circular", corner : f.corner ?? "auto" };
             case "shell": return { thickness : num( f.thickness, "thickness" ), open : f.open ?? [] };
             case "offset": return { distance : num( f.distance, "distance" ) };
+            case "sweep": return { along : f.along.map( (p, k) => point( p, "along[" + k + "]" ) ) };
             case "lattice": return { pattern : f.pattern, cell : num( f.cell, "cell" ), wall : num( f.wall, "wall" ), skin : num( f.skin ?? 0, "skin" ),
                                      blend : num( f.blend ?? 0, "blend" ), size : f.size == null ? null : num( f.size, "size" ),
                                      grade : f.grade == null ? null : [f.grade.axis, num( f.grade.to, "grade" )], open : f.open ?? [] };
@@ -741,7 +800,7 @@ export class Model {
 
     private static inputs( f : ModelFeature ) : Array<string> {
         switch (f.type) {
-            case "transform": case "round": case "shell": case "lattice": case "offset": return [f.of];
+            case "transform": case "round": case "shell": case "lattice": case "offset": case "sweep": return [f.of];
             case "union": case "intersection": return f.of;
             case "difference": return [f.from].concat( f.minus );
             default: return [];
@@ -786,7 +845,16 @@ export class Model {
             case "pipe": {
                 if (f.through.length < 2) throw new Error( "Model: a pipe runs through two points or more" );
                 const pts = f.through.map( (p, k) => point( p, "through[" + k + "]" ) );
-                return BrepSolid.cappedTube( Sweep.pipe( Model.rail( pts ), positive( num( f.radius, "radius" ), "a pipe's radius" ) ).surface, divs( f.divs, [48, 64] ) );
+                const r = positive( num( f.radius, "radius" ), "a pipe's radius" );
+                if (f.ends != "round") return BrepSolid.cappedTube( Sweep.pipe( Model.rail( pts ), r ).surface, divs( f.divs, [48, 64] ) );
+                // round ends: along a straight rail (its points in a line) the exact cylinder, a capsule once closed
+                const a = pts[0], b = pts[pts.length - 1], len = Vec.dist( a, b ), axis = Vec.normalized( Vec.sub( b, a ) );
+                const straight = len > 0 && pts.every( p => Vec.norm( Vec.cross( Vec.sub( p, a ), axis ) ) <= 1e-12 * Math.max( 1, len ) );
+                if (!straight) return BrepSolid.roundedTube( Sweep.pipe( Model.rail( pts ), r ).surface, divs( f.divs, [48, 64] ) );
+                const k = [0, 1, 2].reduce( (m, i) => Math.abs( axis[i] ) < Math.abs( axis[m] ) - 1e-12 ? i : m, 0 );
+                const e = [0, 0, 0]; e[k] = 1;
+                const x = Vec.normalized( Vec.sub( e, Vec.mul( Vec.dot( e, axis ), axis ) ) ), y = Vec.cross( axis, x );
+                return BrepSolid.roundedTube( Make.extrudedSurface( Vec.mul( -1, axis ), len, Make.arc( b, x, y, r, 0, 2 * Math.PI ) ), divs( f.divs, [24, 96] ) );
             }
             case "revolve": {
                 // circles of the profile's radii at its heights, lofted (u around), turned so that u runs up the
@@ -872,6 +940,7 @@ export class Model {
                 return Model.primitive( { type : "box", min : lo as ModelPoint, max : hi as ModelPoint, divs : f.divs }, num, point );
             }
             case "cylinder": case "pipe": {
+                if (f.type == "pipe" && f.ends == "round") throw new Error( `Model: a shell cannot yet offset the round-ended pipe "${id}"` );
                 const pts = f.type == "cylinder" ? [point( f.from, "from" ), point( f.to, "to" )] : f.through.map( (p, k) => point( p, "through[" + k + "]" ) );
                 const r = num( f.radius, "radius" ) - by( "tube" ), s0 = by( "start cap" ), s1 = by( "end cap" );
                 if (!(r > 0)) return null;
