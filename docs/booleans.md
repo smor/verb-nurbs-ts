@@ -319,6 +319,12 @@ within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher
   of the normal across a span; `maxEdge`. The presets: `print` (0.02 mm) and `view` (0.1 mm, 20°).
 * **Edges first.** Each edge is sampled once, adaptively, and both of its faces use those points: the mesh is closed and
   manifold by construction, without welding.
+* **Loops that touch themselves.** Where an edge meets another edge of its face tangentially, at a point the Boolean
+  left without a vertex on the second (the ends of a bar across a cup, tangent to its rim: #96), a sample of the first
+  can fall on a chord of the second, and the face's polygon pinches through the middle of a segment. That chord is split
+  at that very vertex, in the edge's own samples, so both of its faces see the split. Only a sample within the tighter of the
+  two edges' tolerances of the other curve, and within 1e-6 mm, is used: a tangency pinches to rounding, and no point
+  moves further than the shell already allows.
 * **Faces.** A planar face is its loops triangulated in its plane, with no inner points. Other faces are triangulated
   (constrained Delaunay) in their parameters, stretched to the surface's lengths: a straight direction (the rulings of a
   cylinder) gets one span, a curved one lines at steps of the sag bound L ≤ √(8 r tol). Then every triangle is measured

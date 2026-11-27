@@ -106,6 +106,42 @@ describe("verb.solid.ShellMesher", function(){
 		should(r.export.deviation).be.null();
 	});
 
+	it('closes a face whose loop touches itself where a bar is tangent to a cup (#96)', function(){
+		// 507's drive weight: the bar's ends are tangent to the cup's rim, so a sample of the rim falls on the bar's edge
+		var nodes = { n1 : { type : 'primitive/cylinder', in : { radius : 16, height : 60 } },
+			n2 : { type : 'primitive/box', in : { width : 32, depth : 3, height : 5 } },
+			n3 : { type : 'transform/move', in : { of : '@n2', x : 0, y : 0, z : 60 } },
+			n4 : { type : 'boolean/union', in : { a : '@n1', b : '@n3' } },
+			n5 : { type : 'primitive/cylinder', in : { radius : 14.4, height : 60 } },
+			n6 : { type : 'transform/move', in : { of : '@n5', x : 0, y : 0, z : 2 } },
+			n7 : { type : 'boolean/difference', in : { from : '@n4', minus : '@n6' } },
+			n8 : { type : 'primitive/cylinder', in : { radius : 1.2, height : 5 } },
+			n9 : { type : 'transform/rotate', in : { of : '@n8', axis : 'x', degrees : -90 } },
+			n10 : { type : 'transform/move', in : { of : '@n9', x : 0, y : -2.5, z : 0 } },
+			n11 : { type : 'transform/move', in : { of : '@n10', x : 0, y : 0, z : 63 } },
+			n12 : { type : 'boolean/difference', in : { from : '@n7', minus : '@n11' } } };
+		var doc = { version : 2, meta : { name : 'drive weight' }, nodes : nodes, outputs : { s : '@n12', u : '@n4' } };
+		var g = new Graph();
+		[['u', 2], ['s', 0]].forEach(function(o){
+			['print', 'view', { chordal : 0.05 }, { chordal : 0.005 }].forEach(function(m){
+				var r = g.evaluate(doc, { output : o[0], mesh : m });
+				var c = r.export.mesh.checkClosedManifold();
+				c.closedManifold.should.be.true();
+				c.eulerCharacteristic.should.equal(o[1]);
+				// (the vertices lie on the faces: low by at most the chordal tolerance times the area)
+				r.export.mesh.signedVolume().should.be.approximately(r.result.report.volume, r.export.tolerance.chordal * area(r.export.mesh) + 1e-3 * r.result.report.volume);
+			});
+		});
+		// the bar's underside outside the rim is there on both sides, each a sliver between the rim and the bar's end
+		var u = g.evaluate(doc, { output : 'u', mesh : 'print' }).export, xs = [];
+		u.mesh.triangles.forEach(function(t, i){
+			if (!/^n3\/n2\.-z/.test(u.faceNames[i])) return;
+			xs.push(t.reduce(function(a, v){ return a + u.mesh.vertices[v][0] / 3; }, 0));
+		});
+		xs.some(function(x){ return x < -15.9; }).should.be.true();
+		xs.some(function(x){ return x > 15.9; }).should.be.true();
+	});
+
 	it('refuses an unknown preset and a tolerance that is not positive', function(){
 		(function(){ ShellMesher.tolerance('fine'); }).should.throw(/unknown preset/);
 		(function(){ ShellMesher.tolerance({ chordal : 0 }); }).should.throw(/positive/);
