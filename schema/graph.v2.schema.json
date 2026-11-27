@@ -5225,7 +5225,7 @@
     },
     "profile.extrude": {
       "title": "Extrude profile",
-      "description": "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; faces bottom, top, outer.k and hole{i}.k for segment k",
+      "description": "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; the top turned by twist degrees and scaled by scaleTop about the z axis (helical and conical sides); faces bottom, top, outer.k and hole{i}.k for segment k",
       "type": "object",
       "required": [
         "type"
@@ -5328,6 +5328,22 @@
               ],
               "description": "z (mm)",
               "default": 0
+            },
+            "twist": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "twist (°)",
+              "default": 0
+            },
+            "scaleTop": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "scaleTop",
+              "default": 1
             }
           }
         }
