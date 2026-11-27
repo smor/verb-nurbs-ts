@@ -433,6 +433,10 @@ parts sharing a face. Three things make them work.
   the seam at the estimate is taken, if its projection lands on the other surface. A vertex put into a branch between
   two points on one isoline (the seam's trim, on its own side) stays on that isoline, since parameters copied from
   another branch may name the other side of the seam.
+* **Branches along one curve do not cross (#92).** A countersink's cone meeting its hole exactly in the plate's top
+  plane gives three branches on one circle: plate and cone, plate and hole, cone and hole. Their chord polylines cross
+  each other at shallow angles all along it, and each crossing was taken as a point where three faces meet. Two
+  branches of which one lies along the other (allowing for the chords' sag) are not searched for triple points.
 * **Surfaces that coincide over an area are not intersected.** Two copies of one cylinder (each window of a wheel
   bringing its own hub) would have meshes crossing everywhere, at great cost and with nothing to find.
   `SurfaceIntersect.coincide` looks for a 2 by 2 block of samples of one surface lying on the other with parallel

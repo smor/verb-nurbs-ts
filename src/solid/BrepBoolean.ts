@@ -1250,6 +1250,22 @@ export class BrepBoolean {
         }
         const face = (s : number, f : number) => solids[s].faces[f];
         const found : Array<Point> = [];
+        // whether one of two branches lies along the other all its length (allowing for the chords' sag)
+        const known = new Map<IntersectionCurve, Map<IntersectionCurve, boolean>>();
+        const alongOne = (x : IntersectionCurve, y : IntersectionCurve) => {
+            let m = known.get( x );
+            if (m == null) known.set( x, m = new Map() );
+            let r = m.get( y );
+            if (r == null) {
+                const on = (u : IntersectionCurve, v : IntersectionCurve) => {
+                    const pts = v.closed ? v.points.concat( [v.points[0]] ) : v.points;
+                    return u.points.every( p => BrepBoolean.onto( pts, p, same ).on );
+                };
+                r = on( x, y ) || on( y, x );
+                m.set( y, r );
+            }
+            return r;
+        };
         for (const [k, uses] of byFace) {
             const parts = k.split( ":" ).map( Number );
             const F = face( parts[0], parts[1] );
@@ -1263,6 +1279,10 @@ export class BrepBoolean {
                 if (oa[0] == ob[0] && oa[1] == ob[1]) continue;
                 // two edges of one solid meet only at its vertices, which they share already
                 if (a.e.trim && b.e.trim) continue;
+                // two branches along one curve (a countersink's cone meeting its hole in the plate's top plane: plate
+                // and cone, plate and hole, cone and hole all meet on one circle, #92) do not cross: their chords do,
+                // at shallow angles, all along it
+                if (alongOne( a.e.curve, b.e.curve )) continue;
                 const ua = a.onA ? a.e.curve.uvA : a.e.curve.uvB, ub = b.onA ? b.e.curve.uvA : b.e.curve.uvB;
                 const na = ua.length, nb = ub.length;
                 const sa = a.e.curve.closed ? na : na - 1, sb = b.e.curve.closed ? nb : nb - 1;
