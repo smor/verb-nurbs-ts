@@ -28,7 +28,14 @@ function check(profile, exact) {
 	var r = evaluate({ x : { type : 'profile/revolve', in : { profile : profile } } }, { mesh : 'print' });
 	r.verdict.kind.should.equal('buildable');
 	r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
-	r.export.mesh.signedVolume().should.be.approximately(exact, 2e-3 * exact);
+	// an inscribed mesh within `chordal` of the surface loses at most chordal x its area
+	var M = r.export.mesh, area = 0;
+	M.triangles.forEach(function (t) {
+		var a = M.vertices[t[0]], b = M.vertices[t[1]], c = M.vertices[t[2]];
+		var u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+		area += 0.5 * Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+	});
+	M.signedVolume().should.be.approximately(exact, Math.max(2e-3 * exact, r.export.tolerance.chordal * area));
 	r.result.report.volume.should.be.approximately(exact, 5e-3 * exact);
 	return r;
 }
