@@ -307,6 +307,7 @@ export class BrepBoolean {
         BrepBoolean.trimVertices( solids, curves, snap );
         BrepBoolean.alongEdges( solids, curves, snap );
         BrepBoolean.sharedStretches( solids, curves, snap );
+        BrepBoolean.dropNearSamples( curves, snap );
 
         // the edges of the result: runs of each branch between corners, the points where it meets another branch
         const owners = new Map<Point, Set<number>>();
@@ -329,8 +330,12 @@ export class BrepBoolean {
                     const m = run.points.length >> 1;
                     const uvA = closed || run.points.length > 2 ? run.uvA[m] : Vec.lerp( 0.5, run.uvA[0], run.uvA[1] ) as UV;
                     const uvB = closed || run.points.length > 2 ? run.uvB[m] : Vec.lerp( 0.5, run.uvB[0], run.uvB[1] ) as UV;
-                    if (!(inTrims( e.solids[0], e.faces[0], uvA ) || alongTrim( e.solids[0], e.faces[0], run.uvA ))
-                        || !(inTrims( e.solids[1], e.faces[1], uvB ) || alongTrim( e.solids[1], e.faces[1], run.uvB ))) return;
+                    // a run of two points along a trim, between corners close together (where pockets cut one after
+                    // another meet on its edge, #120), counts with its branch's points on either side on the trim too
+                    const wide = run.points.length == 2 && !closed
+                        ? [idx[0] - 1].concat( idx, [idx[1] + 1] ).map( k => c.closed ? (k + n) % n : k ).filter( k => k >= 0 && k < n ) : idx;
+                    if (!(inTrims( e.solids[0], e.faces[0], uvA ) || alongTrim( e.solids[0], e.faces[0], wide.map( k => c.uvA[k] ) ))
+                        || !(inTrims( e.solids[1], e.faces[1], uvB ) || alongTrim( e.solids[1], e.faces[1], wide.map( k => c.uvB[k] ) ))) return;
                 }
                 runs.push( { ci : ci, curve : run, sides : e.trim ? null : BrepBoolean.sides( solids, meshes, expr, e, mid ), radius : 0 } );
             };
@@ -1547,6 +1552,26 @@ export class BrepBoolean {
         }
     }
 
+    // A sample of a curve within eps of the next or previous point of it, and in no other curve, is dropped: a corner
+    // put into an edge of a solid made from a shell (a triple point, where pockets cut one after another meet) can land
+    // a hundred-thousandth from one of the edge's own samples, which the branches along that edge on other faces do not
+    // have, and the faces on either side would not meet there (#120).
+    private static dropNearSamples( curves : BooleanResult["curves"], eps : number ) : void {
+        const owners = new Map<Point, number>();
+        for (const e of curves) for (const p of e.curve.points) owners.set( p, (owners.get( p ) || 0) + 1 );
+        for (const e of curves) {
+            const c = e.curve;
+            for (let k = c.points.length - 1; k >= 0; k--) {
+                const n = c.points.length;
+                if (n <= (c.closed ? 3 : 2) || (!c.closed && (k == 0 || k == n - 1))) continue;
+                if (owners.get( c.points[k] ) != 1 || c.seamA[k] != 0 || c.seamB[k] != 0) continue;
+                const prev = c.points[(k + n - 1) % n], next = c.points[(k + 1) % n];
+                if (Vec.dist( c.points[k], prev ) >= eps && Vec.dist( c.points[k], next ) >= eps) continue;
+                for (const x of [c.points, c.uvA, c.uvB, c.seamA, c.seamB] as Array<Array<unknown>>) x.splice( k, 1 );
+            }
+        }
+    }
+
     // Two branches on one face that lie along each other for a stretch of their length, and no further (two pockets of
     // one depth that overlap, their sides in one plane: each side's branch with the plate's bottom runs along the
     // other's where the sides overlap, #120), are sampled each on its own: the face takes the points of both and the
@@ -1577,7 +1602,23 @@ export class BrepBoolean {
                 if (!on[k] || B.curve.points.some( q => Vec.dist( p, q ) < eps )) return;
                 // on a stretch: a neighbour on it too
                 const prev = k > 0 ? k - 1 : A.curve.closed ? n - 1 : -1, next = k + 1 < n ? k + 1 : A.curve.closed ? 0 : -1;
-                if (!((prev >= 0 && on[prev]) || (next >= 0 && on[next]))) return;
+                // and running along it, not across it at a shallow angle (two pockets' sides crossing near a corner,
+                // whose samples there lie within eps of both)
+                const parallel = (j : number) => {
+                    if (j < 0 || !on[j]) return false;
+                    const d = Vec.sub( P[j], p ), l = Vec.norm( d );
+                    if (l == 0) return false;
+                    let best = Infinity, dir : Point = [0, 0, 0];
+                    for (let i = 0; i + 1 < Q.length; i++) {
+                        const ab = Vec.sub( Q[i + 1], Q[i] ), l2 = Vec.dot( ab, ab );
+                        if (l2 == 0) continue;
+                        const t = Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, Q[i] ), ab ) / l2 ) );
+                        const dd = Vec.dist( p, Vec.add( Q[i], Vec.mul( t, ab ) ) );
+                        if (dd < best) { best = dd; dir = Vec.mul( 1 / Math.sqrt( l2 ), ab ); }
+                    }
+                    return Vec.norm( Vec.cross( Vec.mul( 1 / l, d ), dir ) ) < 1e-3;
+                };
+                if (!parallel( prev ) && !parallel( next )) return;
                 let nearest = 0;
                 B.curve.points.forEach( (q, j) => { if (Vec.dist( q, p ) < Vec.dist( B.curve.points[nearest], p )) nearest = j; } );
                 const uvS = (shared == 0 ? A.curve.uvA : A.curve.uvB)[k];
