@@ -87,6 +87,16 @@ function refine( points : Array<P>, tri : Tri ) : void {
 export function triangulate( points : Array<Array<number>>, edges : Array<Array<number>>,
                              options : { exterior : boolean } ) : Array<[number, number, number]> {
     if (points.length === 0) return [];
+    // The sweep runs along x. Across a long, narrow set of points (a twisted side's parameters: a few columns of
+    // hundreds of points each, #117) it would make long fans that the flips then take apart one by one, so the sweep
+    // runs along the longer side: the points mirrored across x = y, and the triangles turned back the other way.
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of points) { x0 = Math.min( x0, p[0] ); x1 = Math.max( x1, p[0] ); y0 = Math.min( y0, p[1] ); y1 = Math.max( y1, p[1] ); }
+    if (y1 - y0 > x1 - x0) return sweep( points.map( p => [p[1], p[0]] ), edges, options ).map( t => [t[0], t[2], t[1]] as [number, number, number] );
+    return sweep( points, edges, options );
+}
+
+function sweep( points : Array<Array<number>>, edges : Array<Array<number>>, options : { exterior : boolean } ) : Array<[number, number, number]> {
     const cells = monotoneTriangulate( points, edges );
     const canon = edges.map( e => [Math.min( e[0], e[1] ), Math.max( e[0], e[1] )] )
                        .sort( (p, q) => p[0] - q[0] || p[1] - q[1] );

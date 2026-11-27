@@ -144,6 +144,10 @@ worm's tooth is `twist = 360 × height / lead` and a tapered boss is `scaleTop <
 bottom moved by a rotation and scale, so its edges and cap are those of the bottom, moved. Without twist the sides are
 ruled between the two. With twist each side is its segment swept along a cubic path that follows the turn, fitted every
 5° with its ends exact (a twist of 90° gives a volume within 1e-7 of exact; a worm of three turns within 2e-7).
+The volume reported is the shell's, in closed form: each section is the profile turned and scaled, so the volume is
+the profile's area times the integral of the path's squared scale up its height (`rect(20, 2)` twisted 360° over 10:
+399.99995, #117). A result that is one extrusion, as it is, keeps its shell: its export mesh is that shell's mesh,
+not a shell fitted back to the result (a 60-cubic worm turned 1 375° at `print`: 84 s before, about 4 s, #117).
 
 `profile/revolve` turns the same outline, drawn in the (r, z) half-plane (x is the radius, y the height), a full turn
 about the z axis (`Lathe`; #87): lines become planes, cylinders and cones, arcs spheres and tori, cubics their exact
@@ -190,6 +194,8 @@ not part of the document, so one document gives a print mesh and a viewer mesh. 
 `r.result.faces`, which `Inspect.brep( r.result, title, { mesh : r.export } )` draws on), the `tolerance` and the
 `deviation` measured.
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
+A result that is one solid made from an exact shell (an extrusion), with nothing cut or rounded, uses that
+shell itself, and reports its exact volume (#117).
 A lattice output has no exact shell: its export is the lattice mesh itself (`r.lattice.mesh`, at the lattice's own
 grid step), with every triangle named `lattice` and no deviation, whatever `mesh` asks for.
 

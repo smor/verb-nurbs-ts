@@ -7,7 +7,7 @@ import { Sweep } from "../eval/Sweep.js";
 import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
-import { ShellBuilder } from "../solid/BrepShell.js";
+import { BrepShell, ShellBuilder } from "../solid/BrepShell.js";
 import { Extrusion, ProfileSpec } from "../solid/Extrusion.js";
 import { Lathe } from "../solid/Lathe.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
@@ -96,6 +96,9 @@ export interface ModelResult {
     walls : Array<ModelWall>;
     // for a lattice output: its mesh (the solid it fills is `result`), and its volume against the solid's
     lattice? : ModelLattice;
+    // the result's exact shell, when the result is one solid made from a shell, as it is (an extrusion, a turned
+    // profile): its faces are `result.faces`, in order (#117)
+    shell? : BrepShell;
 }
 
 // A lattice output: the mesh, the pattern, and how much of the solid it keeps.
@@ -385,7 +388,7 @@ export class Model {
         } );
 
         // a feature's solid: one Boolean of its tree, rounded if it is a round
-        const build = (solidId : string) : { result : BooleanResult, names : Array<string>, walls : Array<ModelWall>, fillets? : Fillets } =>
+        const build = (solidId : string) : { result : BooleanResult, names : Array<string>, walls : Array<ModelWall>, fillets? : Fillets, shell? : BrepShell } =>
             cached( doc.certify === true ? "solid+certify" : "solid", solidId, () => {
             const out = features[solidId];
             const round = out.type == "round" ? out : null;
@@ -416,12 +419,22 @@ export class Model {
                     edges : edges, filletShape : round.shape, filletCorner : round.corner,
                 };
             }
-            const r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
+            let r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
+            // one solid made from a shell, as it is (no other operand, nothing rounded, each face whole): the shell is
+            // the result's exact boundary, so its volume is the exact one (on the faces, not the mesh's chords) and it
+            // meshes for export as it is, without fitting a shell back to the result (#117)
+            let shell : BrepShell | undefined;
+            const source = t.leaves.length == 1 && round == null ? ShellBuilder.sourceOf( t.leaves[0].solid ) : undefined;
+            if (source != null && r.faces.length == source.faces.length && r.faces.every( (f, k) => f.solid == 0 && f.face == k )
+                && source.faces.every( (f, k) => f.source == k )) {
+                shell = source;
+                r = { ...r, report : { ...r.report, volume : source.volume ?? ShellBuilder.volume( source ) } };
+            }
             // a rule that selected no edge, of the operands or new, is said (a pattern written the wrong way round, or
             // naming a face that is not there, would otherwise round nothing in silence)
             const unmatched = round == null ? [] : rules.filter( x => x.hits == 0 ).map( x => `"${solidId}": "${x.edges}"` );
             const fillets = unmatched.length == 0 ? t.fillets : Model.addFillets( [t.fillets, { failed : 0, skipped : 0, reduced : 0, unmatched : unmatched }] );
-            return { result : r, names : Model.names( r, leafName, (si, fi) => t.leaves[si].solid.faces[fi].half === true ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets };
+            return { result : r, names : Model.names( r, leafName, (si, fi) => t.leaves[si].solid.faces[fi].half === true ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets, shell : shell };
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
@@ -437,7 +450,7 @@ export class Model {
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
         for (const [id, h] of hashes) report[id] = { hash : h, built : built.has( id ) };
-        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice };
+        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice, shell : solid.shell };
     }
 
     /**
