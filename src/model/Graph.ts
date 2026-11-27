@@ -537,6 +537,10 @@ export class Graph {
                 features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ) };
                 continue;
             }
+            if (n.type == "profile/revolve") {
+                features[id] = { type : "lathe", profile : outline( id, "profile" ), degrees : asNum( "degrees" ) };
+                continue;
+            }
             const pt = ( a : string, b : string, c : string ) : [ModelValue, ModelValue, ModelValue] => [asNum( a ), asNum( b ), asNum( c )];
             switch (n.type) {
                 case "transform/move": features[id] = { type : "transform", of : s( "of" ), translate : pt( "x", "y", "z" ) }; break;
@@ -659,6 +663,7 @@ export class Graph {
                 case "pipe": return { ...f, through : f.through.map( point ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}) };
+                case "lathe": return { ...f, ...(f.degrees != null ? { degrees : value( f.degrees ) } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
@@ -788,6 +793,14 @@ export class Graph {
                     { type : "line", to : [30, 0] }, { type : "arc", via : [38, 10], to : [30, 20] }, { type : "line", to : [0, 20] }, { type : "line", to : [0, 0] }] },
                     holes : [{ kind : "circle", center : [12, 10], r : 4 }] } },
                 height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ) },
+            outputs : { solid : "solid" } };
+        // the same profile in the (r, z) half-plane turned about z (507's pulleys, eccentrics and hand wheels)
+        r["profile/revolve"] = { title : "Revolve profile", category : "primitive",
+            help : "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",
+            inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [3, 0], segments : [
+                    { type : "line", to : [20, 0] }, { type : "line", to : [20, 2] }, { type : "line", to : [16, 6] }, { type : "line", to : [20, 10] },
+                    { type : "line", to : [20, 12] }, { type : "line", to : [3, 12] }, { type : "line", to : [3, 0] }] } } },
+                degrees : num( "degrees", 360, 1, 360, 1, "°" ) },
             outputs : { solid : "solid" } };
         const of = { of : solid( "solid" ) };
         r["transform/move"] = { title : "Move", category : "transform", help : "Translate by (x, y, z)",

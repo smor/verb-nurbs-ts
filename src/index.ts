@@ -69,6 +69,7 @@ import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { ShellBuilder } from "./solid/BrepShell.js";
 import { Extrusion } from "./solid/Extrusion.js";
+import { Lathe } from "./solid/Lathe.js";
 export type { ProfileSpec, ProfilePath, ProfileSegmentSpec, ProfilePoint } from "./solid/Extrusion.js";
 import { ShellMesher } from "./solid/ShellMesher.js";
 export type { MeshTolerance, ShellMesh } from "./solid/ShellMesher.js";
@@ -209,6 +210,7 @@ export {
     BrepBoolean,
     ShellBuilder,
     Extrusion,
+    Lathe,
     ShellMesher,
     Fillet,
     FilletCorner,
@@ -333,6 +335,7 @@ export const solid = {
     BrepBoolean,
     ShellBuilder,
     Extrusion,
+    Lathe,
     ShellMesher,
     Fillet,
     FilletCorner,

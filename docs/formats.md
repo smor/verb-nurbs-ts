@@ -137,6 +137,13 @@ faces are `bottom`, `top`, `outer.k` for the outer path's segment k, and `hole{i
 they stay put as parameters change. The solid is a shell of trimmed faces, an operand of any Boolean. A round over an
 extrusion is not built yet: rounding the edges of a trimmed solid is step A5 of docs/exact-booleans.md.
 
+`profile/revolve` turns the same outline, drawn in the (r, z) half-plane (x is the radius, y the height), a full turn
+about the z axis (`Lathe`; #87): lines become planes, cylinders and cones, arcs spheres and tori, cubics their exact
+surfaces of revolution, and a circle a torus (a belt groove to subtract). A segment along the axis (x = 0 at both ends)
+is the axis itself and makes no face; a path off the axis makes a solid with a hole through it (a pulley and its
+bore). Faces are `outer.k` for segment k. `degrees` must be 360 for now, and the outline has no holes (revolve each
+and subtract it): a part turn needs its end caps, which are not built yet.
+
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is
 refused.
