@@ -408,6 +408,18 @@ parts sharing a face. Three things make them work.
   because their grids happened to match. And a cut whose parameters lie on a side of the domain to rounding (1e-17
   off, as where a T's bar ends flush with its stem) is put exactly on it, so that it counts as a cut along that side
   and the face across the edge gets it too.
+* **Trimmed faces flush with others (#104, #101).** A solid made from a shell (an extrusion, a revolved profile)
+  has trimmed faces: a cap is a plane that runs on past its outline. Three things follow. A region lies on another
+  solid's trimmed face only inside that face's trims, so the part of a cap beside a layer stacked on it is not taken
+  as covered. A branch that runs along an edge of the solid (where a layer's side meets the cap below, along the
+  layer's bottom edge) takes that edge's points between its ends, with the edge's parameters on the shared face and
+  its own projected onto the other, so the cap's cut and the layer's edge share their vertices; a run along a trim
+  counts as inside it. Where four faces meet (the layer's edge crossing the rim of the cap it stands on), a point
+  found from one pair of faces goes into the other pair's branches too, and a branch ending within snapping distance
+  of it ends there exactly. Segments parallel to rounding never cross, so a branch beside an edge it runs along
+  gives no spurious crossings. Stacked squares, a turned square on another, a bar on a hub and a T plate of two
+  extrusions all close with their exact volumes (test "507 regressions", G). A hub standing on an arm's round end of
+  its own radius, and bores that line up through stacked layers, are not closed yet.
 * **Surfaces that coincide over an area are not intersected.** Two copies of one cylinder (each window of a wheel
   bringing its own hub) would have meshes crossing everywhere, at great cost and with nothing to find.
   `SurfaceIntersect.coincide` looks for a 2 by 2 block of samples of one surface lying on the other with parallel
