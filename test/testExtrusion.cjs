@@ -34,8 +34,10 @@ describe("Extrusion of profiles (#85)", function () {
 		// the mesh for inside tests is closed, its volume within its chords of the exact one
 		s.mesh.checkClosedManifold().closedManifold.should.be.true();
 		s.mesh.signedVolume().should.be.approximately(exact, 2e-3 * exact);
-		Extrusion.solid(profile, 6, 2).faces.map(function (f) { return f.name; })
-			.should.eql(['bottom', 'top', 'outer.0', 'outer.1', 'outer.2', 'outer.3', 'hole0.0']);
+		// (the hole's side is two exact halves, named as one face: #122)
+		var faces = Extrusion.solid(profile, 6, 2).faces;
+		faces.map(function (f) { return f.name; }).should.eql(['bottom', 'top', 'outer.0', 'outer.1', 'outer.2', 'outer.3', 'hole0.0', 'hole0.0']);
+		faces.map(function (f) { return f.half === true; }).should.eql([false, false, false, false, false, false, true, true]);
 	});
 
 	it('takes paths either way round, and a cubic Bézier exactly', function () {
@@ -118,6 +120,27 @@ describe("Extrusion of profiles (#85)", function () {
 		var names = {};
 		r.export.faceNames.forEach(function (n) { names[n] = true; });
 		Object.keys(names).sort().should.eql(['x.bottom', 'x.outer.0', 'x.outer.1', 'x.outer.2', 'x.outer.3', 'x.top']);
+	});
+
+	it('cuts with a circle and tapers a circle to a small top: closed, of the exact volumes, named as one face (#122)', function () {
+		var ex = function (outer, height, z, more) { return { type : 'profile/extrude', in : Object.assign({ profile : { outer : outer, holes : [] }, height : height, z : z || 0 }, more || {}) }; };
+		var stadium = { kind : 'path', start : P(0, -2.5), segments : [line(P(64, -2.5)), arc(P(66.5, 0), P(64, 2.5)), line(P(0, 2.5)), arc(P(-2.5, 0), P(0, -2.5))] };
+		var cases = [
+			// a hole through a bar 5 wide, its wall 0.1 thick at the sides
+			[{ a : ex(stadium, 5), b : ex(circle(32, 0, 2.4), 7, -1), x : { type : 'boolean/difference', in : { from : '@a', minus : '@b' } } },
+			 (64 * 5 + PI * 2.5 * 2.5 - PI * 2.4 * 2.4) * 5, ['a.bottom', 'a.outer.0', 'a.outer.1', 'a.outer.2', 'a.outer.3', 'a.top', 'b.outer.0']],
+			// a frustum r 7 to r 2
+			[{ x : ex(circle(0, 0, 7), 5, 0, { scaleTop : 2 / 7 }) }, PI * 5 / 3 * (49 + 14 + 4), ['x.bottom', 'x.outer.0', 'x.top']]];
+		cases.forEach(function (c) {
+			var r = evaluate(c[0], { mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', r.verdict.reasons.join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			r.result.report.volume.should.be.approximately(c[1], 3e-3 * c[1]);
+			r.export.mesh.signedVolume().should.be.approximately(c[1], 3e-3 * c[1]);
+			Array.from(new Set(r.export.faceNames)).sort().should.eql(c[2]);
+		});
+		// the frustum's report within 0.1 %: its side's grid is as fine as its base needs
+		evaluate(cases[1][0]).result.report.volume.should.be.approximately(cases[1][1], 1e-3 * cases[1][1]);
 	});
 
 	it('refuses an open path, an arc on a line, and a profile that is not one', function () {

@@ -1,4 +1,5 @@
 import { NurbsCurveData, NurbsSurfaceData, Point } from "../core/Data.js";
+import { Divide } from "../eval/Divide.js";
 import { Eval } from "../eval/Eval.js";
 import { Make } from "../eval/Make.js";
 import { Modify } from "../eval/Modify.js";
@@ -57,7 +58,11 @@ export class Extrusion {
     /** The solid between z and z + height over the profile, its top turned and scaled about the z axis (#86). */
     public static solid( profile : ProfileSpec, height : number, z : number = 0, options : ExtrusionOptions = {} ) : BrepSolid {
         const shell = Extrusion.shell( profile, height, z, options );
-        return ShellBuilder.solid( shell.shell, shell.mesh );
+        const solid = ShellBuilder.solid( shell.shell, shell.mesh );
+        // the two halves of a side round a circle share its name
+        const names = shell.shell.faces.map( f => f.name );
+        solid.faces.forEach( (f, k) => { if (names.indexOf( names[k] ) != names.lastIndexOf( names[k] )) f.half = true; } );
+        return solid;
     }
 
     /** The exact shell of the extrusion, and a closed mesh of it for telling inside from outside. */
@@ -101,6 +106,19 @@ export class Extrusion {
             const area = Extrusion.area( pieces );
             if (!(Math.abs( area ) > 0)) throw new Error( `Extrusion: the ${p.name} path encloses no area` );
             if ((area > 0) != p.outer) pieces = pieces.slice().reverse().map( q => ({ curve : Modify.curveReverse( q.curve ), index : q.index }) );
+            // a path of one piece (a circle) is split in two halves, exactly: a side face round the whole of it would
+            // meet itself along its seam, which the Booleans do not cut against (#122); both halves keep its name
+            if (pieces.length == 1) {
+                // (at the middle of the knot span nearest the middle of the domain: never at a knot, where the split
+                // would leave a knot too many)
+                const c = pieces[0].curve, a = c.knots[0], b = c.knots[c.knots.length - 1], ks = Array.from( new Set( c.knots ) );
+                let u = 0.5 * (ks[0] + ks[1]);
+                for (let i = 0; i + 1 < ks.length; i++) {
+                    const m = 0.5 * (ks[i] + ks[i + 1]);
+                    if (Math.abs( m - 0.5 * (a + b) ) < Math.abs( u - 0.5 * (a + b) )) u = m;
+                }
+                pieces = Divide.curveSplit( c, u ).map( h => ({ curve : Extrusion.unit( h ), index : pieces[0].index }) );
+            }
             return { name : p.name, outer : p.outer, pieces : pieces };
         } );
 
