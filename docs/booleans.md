@@ -188,6 +188,12 @@ past each end. Then:
   boundary the contact points shared with the faces' cuts and the mitre points shared with the other blend, so the
   result stays watertight.
 
+The sharp edge is found as a side of each of a1's and a2's domains that the corner lies on. At a corner of a face's
+domain (a box's vertex) the corner lies on two sides; the one taken is not the one along the blend's own
+edge, so that a ring of chamfers or fillets round one face of a box (each corner two rounded edges and a sharp third)
+is mitred at every corner (#93). A prism's side face is not done yet: its caps are fans from the cap's centre, whose
+rim is one side of the domain, so the sharp edge between two side faces is not a side of the cap's domain (#99).
+
 Where three rounded edges of one radius meet, all convex or all concave, the corner is a **ball corner**: the ball
 that touches all three faces (its centre found by Newton's method on the three faces' offsets, six unknowns) stops
 each blend at the section through its centre. The corner is the spherical triangle on that ball between the three
