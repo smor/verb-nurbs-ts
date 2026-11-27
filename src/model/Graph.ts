@@ -538,7 +538,7 @@ export class Graph {
             }
             const s = ( k : string ) => at( k ) as string;
             if (n.type == "profile/extrude") {
-                features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ) };
+                features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ), twist : asNum( "twist" ), scaleTop : asNum( "scaleTop" ) };
                 continue;
             }
             if (n.type == "profile/revolve") {
@@ -666,7 +666,8 @@ export class Graph {
                 case "cylinder": return { ...f, from : point( f.from ), to : point( f.to ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "pipe": return { ...f, through : f.through.map( point ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
-                case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}) };
+                case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}),
+                    ...(f.twist != null ? { twist : value( f.twist ) } : {}), ...(f.scaleTop != null ? { scaleTop : value( f.scaleTop ) } : {}) };
                 case "lathe": return { ...f, ...(f.degrees != null ? { degrees : value( f.degrees ) } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
@@ -792,11 +793,12 @@ export class Graph {
             outputs : { solid : "solid" } };
         // a planar region extruded along z (507's profiles: lines, three-point arcs, cubic Béziers and circles, with holes)
         r["profile/extrude"] = { title : "Extrude profile", category : "primitive",
-            help : "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; faces bottom, top, outer.k and hole{i}.k for segment k",
+            help : "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; the top turned by twist degrees and scaled by scaleTop about the z axis (helical and conical sides); faces bottom, top, outer.k and hole{i}.k for segment k",
             inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [0, 0], segments : [
                     { type : "line", to : [30, 0] }, { type : "arc", via : [38, 10], to : [30, 20] }, { type : "line", to : [0, 20] }, { type : "line", to : [0, 0] }] },
                     holes : [{ kind : "circle", center : [12, 10], r : 4 }] } },
-                height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ) },
+                height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ),
+                twist : num( "twist", 0, -3600, 3600, 1, "°" ), scaleTop : num( "scaleTop", 1, 0.05, 4, 0.01 ) },
             outputs : { solid : "solid" } };
         // the same profile in the (r, z) half-plane turned about z (507's pulleys, eccentrics and hand wheels)
         r["profile/revolve"] = { title : "Revolve profile", category : "primitive",

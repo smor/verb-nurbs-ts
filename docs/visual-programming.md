@@ -356,7 +356,8 @@ Graph.compile( doc );         // the version 1 model document it runs
   `freeform/pipe` and `freeform/vessel`; `profile/extrude` and `profile/revolve`.
 * **Profiles** (`profile/extrude`, `profile/revolve`) take an *outline* port: a planar region as JSON (507's
   profiles: lines, three-point arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded
-  exactly from `z` up by `height`, or drawn in the (r, z) half-plane and turned about z.
+  exactly from `z` up by `height` (the top turned by `twist` degrees and scaled by `scaleTop`: a worm, a tapered
+  boss), or drawn in the (r, z) half-plane and turned about z.
   The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
