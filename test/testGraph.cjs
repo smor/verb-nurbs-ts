@@ -78,6 +78,28 @@ describe("verb.model.Graph", function(){
 		loss.should.be.within(exact, exact * 1.1);
 	});
 
+	it('rounds or chamfers the four edges around one face of a box, mitred where they meet, the third edge sharp (#93)', function(){
+		var ring = function (shape, edges) {
+			var r = new Graph().evaluate({ version : 2, nodes : { box : { type : "primitive/box", in : { width : 40, depth : 20, height : 30 } },
+				r : { type : "finish/round", in : { of : "@box", radius : 1.5, edges : edges || "box.-y|*, *|box.-y", shape : shape } } }, outputs : { r : "@r" } }, { output : "r", mesh : "print" });
+			r.verdict.kind.should.be.equal("buildable", (r.verdict.reasons || []).join("; "));
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			return 40 * 20 * 30 - r.result.report.volume;
+		};
+		// a mitred ring of chamfers: the section (r²/2) along each edge's length at the section's centroid, r/3 in from
+		// each end; planar, so exact
+		ring("chamfer").should.be.approximately(1.5 * 1.5 / 2 * (2 * (40 - 1) + 2 * (30 - 1)), 1e-9);
+		// circular: the section r²(1 − π/4) at its centroid, r(10 − 3π)/(3(4 − π)) in from each end; the mesh's chords
+		// cut inside the fillets, so it may only lose more, and by less than a tenth
+		var rr = 1.5, c = rr * (10 - 3 * Math.PI) / (3 * (4 - Math.PI)), A = rr * rr * (1 - Math.PI / 4);
+		var exact = A * (2 * (40 - 2 * c) + 2 * (30 - 2 * c));
+		ring("circular").should.be.within(exact, exact * 1.1);
+		// two of them: one mitre, and each runs out at its other end
+		var two = A * (40 - c + 30 - c);
+		ring("circular", "box.-y|box.+z, box.+x|box.-y").should.be.within(two, two * 1.1);
+	});
+
 	it('rebuilds only the nodes downstream of an edit, and nothing when nothing changed', function(){
 		var g = new Graph(), doc = sample();
 		var first = g.evaluate(doc);
