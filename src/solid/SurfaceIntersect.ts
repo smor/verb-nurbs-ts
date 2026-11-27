@@ -105,7 +105,16 @@ export class SurfaceIntersect {
             const closed = !bothOnSides && (gap < step * 2 || gap < meshEdge() * 1.5);
             if (closed && gap < step * 0.2) { pts.pop(); ua.pop(); ub.pop(); }
             let c : IntersectionCurve = { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : closed };
-            if (!closed) c = SurfaceIntersect.extendToEdges( A, B, c, Math.max( step, meshEdge() ) * 4, tol );
+            // ends a few steps apart close the branch only if it does not run on, a short way, out of a domain at
+            // both: a notch's arc across a disc's rim stops short of the rim on the meshes, with its ends nearer each
+            // other than a mesh edge (#95); a loop's ends reach no side within a fraction of the gap between them
+            if (closed && gap >= step * 2) {
+                const open = SurfaceIntersect.extendToEdges( A, B, { ...c, closed : false }, Math.max( step, meshEdge() ) * 4, tol );
+                const n = open.points.length - 1, m = pts.length - 1;
+                const near = Vec.dist( open.points[0], pts[0] ) < 0.5 * gap && Vec.dist( open.points[n], pts[m] ) < 0.5 * gap;
+                if (near && SurfaceIntersect.endOnSide( A, B, open.uvA[0], open.uvB[0] ) && SurfaceIntersect.endOnSide( A, B, open.uvA[n], open.uvB[n] )) c = open;
+            }
+            else if (!closed) c = SurfaceIntersect.extendToEdges( A, B, c, Math.max( step, meshEdge() ) * 4, tol );
             c = SurfaceIntersect.densify( A, B, c, step, tol );
             if (c.closed && c.points.length < SurfaceIntersect.MIN_LOOP_POINTS) {
                 // a loop not much bigger than the step is too coarse to trim with: trace it again, finer
