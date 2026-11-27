@@ -219,7 +219,7 @@ export class Clearance {
         const span = (a : number, b : number, da : number, db : number) : Span => ({ a, b, da, db, lb : Math.max( 0, 0.5 * (da + db - L * (b - a)) ) });
         const open : Array<Span> = [span( t0, t1, measure( t0 ), t1 > t0 ? measure( t1 ) : Infinity )];
         if (t1 == t0) open[0].lb = open[0].da;
-        let bound = open[0].lb;
+        let bound : number;
         for (;;) {
             // the span of least bound (a short list: a scan does)
             let k = 0;
