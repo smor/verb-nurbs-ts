@@ -476,9 +476,16 @@ parts sharing a face. Three things make them work.
   dropped. And two pockets' sides crossing at a shallow angle have samples near the crossing within snapping
   distance of both: branches only share points along a stretch where they run parallel (to 1e-3), not across one
   another. Test "507 regressions", K, checks slots of three, four and eight pockets on an arc against their exact
-  volumes (the union's area by inclusion and exclusion, the squares' overlaps clipped exactly). A denser slot (16
-  pockets, each overlapping three on either side) can still leave a gap where a pocket's corner lies almost on a
-  third pocket's edge.
+  volumes (the union's area by inclusion and exclusion, the squares' overlaps clipped exactly).
+* **Edges lying in a face over a few hundredths (#120).** In a denser slot (each pocket overlapping three on either
+  side), an earlier pocket's edge crosses a later pocket's floor only near its corner, over a few hundredths of a
+  millimetre: shorter than the intersection's grid, so the branch of the earlier pocket's side with that floor was
+  not found, and the corner was cut off. An edge of a solid made from a shell that lies in a face of another solid
+  (its one face flush with it, the other across it) now cuts that face wherever it runs inside the face's trims,
+  as a branch made from the edge's own points, unless the intersection found one there already or the edge runs
+  along an edge of that face too. Test "507 regressions", K, checks a slot of 13 such pockets against its exact
+  volume. Three walls meeting within snapping distance of one line (2e-4, a slot whose spacing happens to put one
+  pocket's side through the crossing of two others') are still out of reach.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface

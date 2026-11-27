@@ -265,12 +265,13 @@ describe("507 regressions (test/fixtures/507)", function () {
 			return P;
 		};
 		var area = function (P) { var s = 0; P.forEach(function (p, i) { var q = P[(i + 1) % P.length]; s += p[0] * q[1] - q[0] * p[1]; }); return Math.abs(s) / 2; };
-		var arc = function (R, dt, n) {
-			var ts = [], nodes = { p : ex(square(30, [0, 0], 0), 6) }, prev = 'p';
+		var arc = function (R, dt, n, side, plate) {
+			side = side || 3; plate = plate || 30;
+			var ts = [], nodes = { p : ex(square(plate, [0, 0], 0), 6) }, prev = 'p';
 			for (var i = 0; i < n; i++) ts.push(-1.1 + i * dt);
 			var sqs = ts.map(function (t) {
 				var c = [R * Math.cos(t) - 4, R * Math.sin(t)];
-				return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + 1.5 * (q[0] * Math.cos(t) - q[1] * Math.sin(t)), c[1] + 1.5 * (q[0] * Math.sin(t) + q[1] * Math.cos(t))]; });
+				return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + side / 2 * (q[0] * Math.cos(t) - q[1] * Math.sin(t)), c[1] + side / 2 * (q[0] * Math.sin(t) + q[1] * Math.cos(t))]; });
 			});
 			var union = 0;
 			for (var m = 1; m < (1 << n); m++) {
@@ -279,17 +280,20 @@ describe("507 regressions (test/fixtures/507)", function () {
 				union += (bits % 2 ? 1 : -1) * (P.length > 2 ? area(P) : 0);
 			}
 			ts.forEach(function (t, i) {
-				nodes['m' + i] = ex(square(3, [R * Math.cos(t) - 4, R * Math.sin(t)], t * 180 / PI), 3.01, -0.01);
+				nodes['m' + i] = ex(square(side, [R * Math.cos(t) - 4, R * Math.sin(t)], t * 180 / PI), 3.01, -0.01);
 				nodes['d' + i] = { type : 'boolean/difference', in : { from : '@' + prev, minus : '@m' + i } };
 				prev = 'd' + i;
 			});
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'slot' }, nodes : nodes, outputs : { s : '@' + prev } }, { output : 's', mesh : 'print' });
 			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
-			r.result.report.volume.should.be.approximately(30 * 30 * 6 - union * 3, 1e-9 * 5400);
+			r.result.report.volume.should.be.approximately(plate * plate * 6 - union * 3, 1e-9 * plate * plate * 6);
 		};
 		arc(9, 0.115, 3);
 		arc(11, 0.09, 4);
 		arc(12, 0.12, 8);
+		// each overlapping three on either side: a pocket's corner just past an earlier one's edge, which crosses the
+		// pocket's floor over a few hundredths only
+		arc(15, 0.05, 13, 2.5, 40);
 	});
 });
