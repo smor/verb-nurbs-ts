@@ -91,6 +91,7 @@ export class ShellMesher {
             const ids = ts.map( (t, k) => k == 0 ? vertexOf[e.start] : k == ts.length - 1 ? vertexOf[e.end] : mesh.addVertex( Eval.rationalCurvePoint( e.curve, t ) ) );
             return { ts : ts, ids : ids };
         } );
+        ShellMesher.touching( shell, samples, mesh );
         const faceOf : Array<number> = [];
         let deviation = 0;
         shell.faces.forEach( (F, fi) => {
@@ -115,6 +116,65 @@ export class ShellMesher {
             for (const t of r.triangles) { mesh.addTriangle( t[0], t[1], t[2] ); faceOf.push( fi ); }
         } );
         return { mesh : mesh, faceOf : faceOf, deviation : deviation };
+    }
+
+    // Loops that touch themselves (#96). Where an edge meets another edge of its face tangentially, at a point the
+    // Boolean left without a vertex on the second one (the ends of a bar across a cup, tangent to its rim), a sample of
+    // the first can fall on a chord of the second: the face's polygon then pinches through the middle of a segment, and
+    // its triangulation comes out empty. Such a chord is split, in the edge's own samples (so that both of its faces
+    // see the split, and the mesh stays closed), at that very vertex, where the point lies within the tighter of the
+    // two edges' tolerances of the curve, and within 1e-6 mm (a fitted edge's own tolerance can be loose, tenths of a
+    // mm at a pole: a tangency pinches to rounding, and nothing looser is touched). A point at one of the chord's ends
+    // (a vertex repeated at a pole) is no pinch. Repeated until no sample of a face lies on another's chord.
+    private static touching( shell : BrepShell, samples : Array<{ ts : Array<number>, ids : Array<number> }>, mesh : TriMesh ) : void {
+        const V = mesh.vertices;
+        for (let pass = 0; pass < 4; pass++) {
+            let split = 0;
+            for (const F of shell.faces) {
+                const es = [...new Set( F.loops.flatMap( l => l.edges.map( e => e[0] ) ) )];
+                // each edge's box, of its samples, widened by its tolerance and a little more
+                const box = es.map( ei => {
+                    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+                    for (const id of samples[ei].ids) for (let k = 0; k < 3; k++) { lo[k] = Math.min( lo[k], V[id][k] ); hi[k] = Math.max( hi[k], V[id][k] ); }
+                    const w = 1e-6 + 1e-9 * (1 + Math.max( ...hi.map( Math.abs ), ...lo.map( Math.abs ) ));
+                    return { lo : lo.map( x => x - w ), hi : hi.map( x => x + w ) };
+                } );
+                for (let i = 0; i < es.length; i++) for (let j = 0; j < es.length; j++) {
+                    if (i == j) continue;
+                    const a = box[i], b = box[j];
+                    if (a.lo[0] > b.hi[0] || b.lo[0] > a.hi[0] || a.lo[1] > b.hi[1] || b.lo[1] > a.hi[1] || a.lo[2] > b.hi[2] || b.lo[2] > a.hi[2]) continue;
+                    // the samples of es[i] against the chords of es[j]
+                    const e = shell.edges[es[j]], s = samples[es[j]];
+                    for (const id of samples[es[i]].ids) {
+                        const P = V[id];
+                        const d = Math.min( ...[e.tolerance, shell.edges[es[i]].tolerance, 1e-6].filter( x => x >= 0 ) ) + 1e-9 * (1 + Vec.norm( P ));
+                        if (s.ids.includes( id )) continue;
+                        for (let k = 0; k + 1 < s.ids.length; k++) {
+                            const A = V[s.ids[k]], B = V[s.ids[k + 1]];
+                            if (id == s.ids[k] || id == s.ids[k + 1]) continue;
+                            const AB = Vec.sub( B, A ), l2 = Vec.dot( AB, AB );
+                            if (l2 == 0) continue;
+                            const f = Vec.dot( Vec.sub( P, A ), AB ) / l2;
+                            if (f <= 0 || f >= 1 || Vec.dist( P, Vec.add( A, Vec.mul( f, AB ) ) ) > d || Vec.dist( P, A ) <= d || Vec.dist( P, B ) <= d) continue;
+                            // the parameter of the curve's point nearest P, within the span (golden section)
+                            let lo = s.ts[k], hi = s.ts[k + 1];
+                            const g = (t : number) => Vec.distSquared( Eval.rationalCurvePoint( e.curve, t ), P );
+                            for (let it = 0; it < 80; it++) {
+                                const m1 = hi - (hi - lo) * 0.618033988749895, m2 = lo + (hi - lo) * 0.618033988749895;
+                                if (g( m1 ) < g( m2 )) hi = m2; else lo = m1;
+                            }
+                            const t = 0.5 * (lo + hi);
+                            if (!(t > s.ts[k] && t < s.ts[k + 1]) || Math.sqrt( g( t ) ) > d) continue;
+                            s.ts.splice( k + 1, 0, t );
+                            s.ids.splice( k + 1, 0, id );
+                            split++;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (split == 0) return;
+        }
     }
 
     // Parameters along a curve: its knot spans halved, then each span split while its chord strays from the curve at
