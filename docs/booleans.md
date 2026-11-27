@@ -464,7 +464,15 @@ parts sharing a face. Three things make them work.
   along the side's top edge. A run of two points along a trim did not count as inside it (a chord between two
   crossings of a straight trim by a curved branch lies along it too), so it was dropped and the sliver of floor it
   bounds went with the region beside it. Such a run now counts when the branch's points on either side of it lie on
-  the trim too. Test "507 regressions", K, checks three such pockets against their exact volume.
+  the trim too. Two more things go wrong in such a slot. A corner put into an edge of a solid made from a shell
+  can land a hundred-thousandth from one of the edge's own samples, which the branches along the edge on other faces
+  do not have: a sample within snapping distance of its curve's next or previous point, and in no other curve, is
+  dropped. And two pockets' sides crossing at a shallow angle have samples near the crossing within snapping
+  distance of both: branches only share points along a stretch where they run parallel (to 1e-3), not across one
+  another. Test "507 regressions", K, checks slots of three, four and eight pockets on an arc against their exact
+  volumes (the union's area by inclusion and exclusion, the squares' overlaps clipped exactly). A denser slot (16
+  pockets, each overlapping three on either side) can still leave a gap where a pocket's corner lies almost on a
+  third pocket's edge.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
