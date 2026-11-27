@@ -91,6 +91,7 @@ it cannot prove are named in `result.report.certificate`.
   | `round rules` | (with a round) every rule selects at least one edge: one that matches nothing, a misspelt face, is named (#79) |
   | `makeable` | (with a machine) `Makeable.check` passes: the surface does not pass through itself, fits, no wall too thin, no sealed void on a machine that drains, and for a moulded process (`Machine.draft`) enough draft and no undercut along the best pull |
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
+  | `export mesh` | (in a graph evaluated with `mesh: "print"` or `"view"`) the export mesh is closed: the faces are meshed from the exact shell apart from the result's own mesh, and an open one names how many edges are open (#116) |
 
   Any failed check makes the model **visual**: fine to look at and render, not to fabricate. The reasons say why.
   Fillets made smaller than asked so that they keep clear of each other (`report.filletsReduced`) are in place and
