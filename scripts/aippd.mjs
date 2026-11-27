@@ -9,8 +9,9 @@
 // holds its documented capacity (within CAPACITY_TOLERANCE) becomes a `freeform/vessel` node, its documentation and
 // source in `meta.items`, its place in a period × form grid in `view.shelf`. Run after `npm run build`.
 import { readFileSync, writeFileSync } from "node:fs";
+import { dress } from "./ceramic-looks.mjs";
 import { execFileSync } from "node:child_process";
-import { profile } from "./aippd-profile.mjs";
+import { profile, densify } from "./aippd-profile.mjs";
 
 const [dir, out] = process.argv.slice( 2 );
 if (dir == null || out == null) { console.error( "usage: node scripts/aippd.mjs <AIPPD folder> <out.graph.json>" ); process.exit( 1 ); }
@@ -58,7 +59,7 @@ const mask = ( i ) => ( y, x ) => (masks[i * 8192 + y * 32 + (x >> 3)] >> (7 - (
 const commit = (() => { try { return execFileSync( "git", ["-C", dir, "rev-parse", "--short", "HEAD"], { encoding : "utf8" } ).trim(); } catch { return null; } })();
 
 const r1 = ( x ) => Math.round( x * 10 ) / 10;
-const text = ( pts ) => pts.map( ([r, z]) => `${r1( r )} ${r1( z )}` ).join( "; " );
+const text = ( pts ) => densify( pts ).map( ([r, z]) => `${r1( r )} ${r1( z )}` ).join( "; " );
 const nodes = {}, outputs = {}, items = {}, place = {};
 
 let built = 0;
@@ -123,5 +124,5 @@ const doc = {
         },
     },
 };
-writeFileSync( out, JSON.stringify( doc, null, 1 ) + "\n" );
+writeFileSync( out, JSON.stringify( dress( doc ), null, 1 ) + "\n" );
 console.log( `wrote ${out}: ${built} vessels` );

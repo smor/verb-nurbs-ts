@@ -61,3 +61,20 @@ export function profile( get, heightCm, samples = 22 ) {
     }
     return { outer, cavity, foot, mmPerPx : s, heightMm : z( top ) };
 }
+
+// A profile with its long segments split evenly, so no two points are more than `step` mm apart along it. The revolve
+// lofts a cubic through its points: rows sampled evenly in height leave a flat floor as one long segment beside short
+// ones, and the cubic then swings far past the drawing there, through the base at worst.
+export const STEP_MM = 8;
+export function densify( pts, step = STEP_MM ) {
+    if (pts == null || pts.length < 2) return pts;
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+        // heights keep increasing once rounded to 0.1 mm: no piece rises less than 0.15
+        const [r0, z0] = pts[i - 1], [r1, z1] = pts[i];
+        const n = Math.max( 1, Math.min( Math.ceil( Math.hypot( r1 - r0, z1 - z0 ) / step ), Math.floor( (z1 - z0) / 0.15 ) ) );
+        for (let k = 1; k < n; k++) out.push( [r0 + (r1 - r0) * k / n, z0 + (z1 - z0) * k / n] );
+        out.push( pts[i] );
+    }
+    return out;
+}

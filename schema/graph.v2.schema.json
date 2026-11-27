@@ -169,6 +169,9 @@
             "boolean/intersection",
             "boolean/difference",
             "logic/switch",
+            "look/material",
+            "look/band",
+            "look/motif",
             "finish/round",
             "finish/shell",
             "component"
@@ -1398,6 +1401,42 @@
           },
           "then": {
             "$ref": "#/$defs/logic.switch"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "look/material"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/look.material"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "look/band"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/look.band"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "look/motif"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/look.motif"
           }
         },
         {
@@ -5746,6 +5785,189 @@
               "type": "string",
               "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "when off: a solid, \"@node\""
+            }
+          }
+        }
+      }
+    },
+    "look.material": {
+      "title": "Material",
+      "description": "What the solid looks made of: a base colour, how rough (0 polished to 1 matt) and how metallic it is, a clear glossy coat over it (a glaze), and grain (the speckle of a coarse clay). Changes nothing that is built",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "look/material"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "color": {
+              "type": "string",
+              "description": "colour",
+              "default": "#b5653a"
+            },
+            "roughness": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "roughness",
+              "default": 0.85
+            },
+            "metalness": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "metalness",
+              "default": 0
+            },
+            "clearcoat": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "glaze",
+              "default": 0
+            },
+            "grain": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "grain",
+              "default": 0.3
+            }
+          }
+        }
+      }
+    },
+    "look.band": {
+      "title": "Painted band",
+      "description": "A band of paint round the solid, between two heights given as fractions of its own height (0 the foot, 1 the top)",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "look/band"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "color": {
+              "type": "string",
+              "description": "colour",
+              "default": "#1c1613"
+            },
+            "from": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "from",
+              "default": 0.45
+            },
+            "to": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "to",
+              "default": 0.5
+            }
+          }
+        }
+      }
+    },
+    "look.motif": {
+      "title": "Painted motif",
+      "description": "A frieze painted round the solid between two heights (fractions of its height): a meander, waves, a zigzag, dots, rays or a chequer, repeated `count` times round",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "look/motif"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "motif": {
+              "enum": [
+                "meander",
+                "wave",
+                "zigzag",
+                "dots",
+                "rays",
+                "checker"
+              ],
+              "description": "motif",
+              "default": "meander"
+            },
+            "color": {
+              "type": "string",
+              "description": "colour",
+              "default": "#1c1613"
+            },
+            "from": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "from",
+              "default": 0.55
+            },
+            "to": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "to",
+              "default": 0.65
+            },
+            "count": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "repeats",
+              "default": 12
             }
           }
         }
