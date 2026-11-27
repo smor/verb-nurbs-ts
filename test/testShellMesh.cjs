@@ -142,6 +142,23 @@ describe("verb.solid.ShellMesher", function(){
 		xs.some(function(x){ return x > 15.9; }).should.be.true();
 	});
 
+	it('meshes a face with no edges, its whole surface: a sphere and a torus, closed across their seams and poles', function(){
+		// a closed surface has no loops: its domain's sides are seams and poles (the export mesh was empty)
+		var g = new Graph(), PI = Math.PI;
+		[[{ type : 'primitive/sphere', in : { radius : 10 } }, 0, 4 / 3 * PI * 1000], [{ type : 'primitive/torus', in : {} }, 1, null]].forEach(function(c){
+			['print', 'view'].forEach(function(m){
+				var r = g.evaluate({ version : 2, meta : { name : 'closed' }, nodes : { x : c[0] }, outputs : { s : '@x' } }, { mesh : m });
+				var X = r.export, mf = X.mesh.checkClosedManifold();
+				X.mesh.triangles.length.should.be.above(100);
+				mf.closedManifold.should.be.true();
+				mf.genus.should.equal(c[1]);
+				X.deviation.should.be.below(X.tolerance.chordal * 1.1);
+				var exact = c[2] != null ? c[2] : r.result.report.volume;
+				X.mesh.signedVolume().should.be.approximately(exact, X.tolerance.chordal * area(X.mesh) + 2e-3 * exact);
+			});
+		});
+	});
+
 	it('refuses an unknown preset and a tolerance that is not positive', function(){
 		(function(){ ShellMesher.tolerance('fine'); }).should.throw(/unknown preset/);
 		(function(){ ShellMesher.tolerance({ chordal : 0 }); }).should.throw(/positive/);

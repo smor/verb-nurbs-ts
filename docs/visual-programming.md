@@ -348,14 +348,15 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 101 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 102 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
   `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
   comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve`,
-  `freeform/pipe` and `freeform/vessel`; `profile/extrude`.
-* **Profiles** (`profile/extrude`) take an *outline* port: a planar region as JSON (507's profiles: lines, three-point
-  arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded exactly from `z` up by `height`.
+  `freeform/pipe` and `freeform/vessel`; `profile/extrude` and `profile/revolve`.
+* **Profiles** (`profile/extrude`, `profile/revolve`) take an *outline* port: a planar region as JSON (507's
+  profiles: lines, three-point arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded
+  exactly from `z` up by `height`, or drawn in the (r, z) half-plane and turned about z.
   The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
@@ -369,8 +370,8 @@ Graph.compile( doc );         // the version 1 model document it runs
   parametric. An optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`, which
   resolves the expressions and builds a fan-capped prism when the outline is star-shaped about its centroid (or the
   `center` port's point), and an exact extrusion (`Extrusion`, from #85, lines and arcs) otherwise, so any simple
-  polygon will do. Limits: Booleans on fan-capped prisms can fail near a cap's centre (#99), and unions of extrusions
-  that share planes fail (#101), hence the choice. For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
+  polygon will do. Limits: Booleans on fan-capped prisms can fail near a cap's centre (#99), and one real part still
+  unites only from fan-capped prisms (see #101), hence the choice. For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
   the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its

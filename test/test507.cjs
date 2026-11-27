@@ -94,4 +94,43 @@ describe("507 regressions (test/fixtures/507)", function () {
 	it('E: a union of solids sharing their top and bottom planes (#63)', function () {
 		builds('E', 'rim-spoke', PI * (35 * 35 - 29 * 29) * 6 + (14 / 360) * PI * 29 * 29 * 6);
 	});
+	it('G: extrusions meeting on a cap plane or a side plane: stacked layers, a bar on a hub, a T plate (#104, #101)', function () {
+		// a trimmed face's surface runs on past its outline: the region beside a layer is not on it, and a branch along
+		// a layer's edge takes the edge's points
+		var line = function (to) { return { type : 'line', to : to }; };
+		var poly = function (pts) { return { kind : 'path', start : pts[0], segments : pts.slice(1).concat([pts[0]]).map(line) }; };
+		var square = function (s, c, deg) {
+			var a = deg * PI / 180;
+			return poly([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) {
+				return [c[0] + s / 2 * (q[0] * Math.cos(a) - q[1] * Math.sin(a)), c[1] + s / 2 * (q[0] * Math.sin(a) + q[1] * Math.cos(a))];
+			}));
+		};
+		var ex = function (outer, height, z) { return { type : 'profile/extrude', in : { profile : { outer : outer }, height : height, z : z || 0 } }; };
+		var op = function (type) { return { type : 'boolean/' + type, in : { a : '@a', b : '@b' } }; };
+		var build = function (nodes) {
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'caps' }, nodes : nodes, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			return r.result.report.volume;
+		};
+		// B1d: a square turned 30 degrees stacked on another
+		build({ a : ex(square(20, [0, 0], 0), 6), b : ex(square(20, [5, 5], 30), 4, 6), u : op('union') }).should.be.approximately(400 * 6 + 400 * 4, 1e-9 * 4000);
+		// B2: the two side by side, over the same heights: union and intersection make up both
+		var cup = build({ a : ex(square(20, [0, 0], 0), 6), b : ex(square(20, [5, 5], 30), 6), u : op('union') });
+		var cap = build({ a : ex(square(20, [0, 0], 0), 6), b : ex(square(20, [5, 5], 30), 6), u : op('intersection') });
+		(cup + cap).should.be.approximately(2 * 400 * 6, 1e-9 * 4800);
+		cap.should.be.above(0.5 * 400 * 6);
+		// B1b: the turned square with a box over the same heights
+		build({ a : ex(square(20, [5, 5], 30), 6), b : { type : 'primitive/box', in : { width : 20, depth : 20, height : 6 } }, u : op('intersection') })
+			.should.be.approximately(cap, 1e-9 * cap);
+		// D3: a bar, written as five segments, stacked on a hub whose rim crosses its edge (the cylinder's chords)
+		var bar = poly([[-4, -5], [26, -5], [26, 5], [-4, 5], [-4, 0]]);
+		build({ a : { type : 'primitive/cylinder', in : { radius : 5.5, height : 5.5 } }, b : ex(bar, 5, 5.5), u : op('union') })
+			.should.be.approximately(PI * 5.5 * 5.5 * 5.5 + 30 * 10 * 5, 1e-3 * 2022);
+		// #101: a T-shaped slide plate, two plates sharing their y = 0 and y = 23 side planes
+		build({ a : ex(poly([[0, 0], [24, 0], [24, 23], [0, 23]]), 1.33), c : ex(poly([[0, 0], [21, 0], [21, 23], [0, 23]]), 2.17, 0.83),
+			b : { type : 'transform/move', in : { of : '@c', x : 1.5, y : 0, z : 0 } }, u : op('union') })
+			.should.be.approximately(24 * 23 * 1.33 + 21 * 23 * 2.17 - 21 * 23 * 0.5, 1e-9 * 1540);
+	});
 });
