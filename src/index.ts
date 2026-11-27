@@ -71,6 +71,7 @@ import { ShellBuilder } from "./solid/BrepShell.js";
 import { MassPropertiesOf } from "./solid/MassProperties.js";
 export type { MassProperties } from "./solid/MassProperties.js";
 import { Clearance } from "./solid/Clearance.js";
+import { ProfileOffset } from "./solid/ProfileOffset.js";
 export type { ClearanceResult, ClearanceWitness, ClearanceOptions } from "./solid/Clearance.js";
 import { Extrusion } from "./solid/Extrusion.js";
 import { Lathe } from "./solid/Lathe.js";
@@ -215,6 +216,7 @@ export {
     ShellBuilder,
     MassPropertiesOf,
     Clearance,
+    ProfileOffset,
     Extrusion,
     Lathe,
     ShellMesher,
@@ -342,6 +344,7 @@ export const solid = {
     ShellBuilder,
     MassPropertiesOf,
     Clearance,
+    ProfileOffset,
     Extrusion,
     Lathe,
     ShellMesher,

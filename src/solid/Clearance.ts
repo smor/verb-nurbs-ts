@@ -234,6 +234,31 @@ export class Clearance {
         return { ...r, t : found.t, bound : Math.min( bound, r.distance ), evaluations : evaluations };
     }
 
+    /**
+     * The distance from a point to a body's surface, on its exact faces: the faces of the search mesh's triangles
+     * within its deviation of the nearest are projected onto, clamped to their loops, and the nearest is taken.
+     */
+    public static distanceTo( X : ClearanceBody, p : Point ) : number {
+        const tree = Clearance.treeOf( X );
+        const near = tree.nearest( p ), slack = 2 * X.mesh.deviation;
+        const faces = new Set<number>();
+        tree.within( p, near + slack, i => faces.add( X.mesh.faceOf[i] ) );
+        let best = Infinity;
+        for (const f of faces) {
+            let P = X.faces.get( f );
+            if (P == null) X.faces.set( f, P = Clearance.prepare( X.shell, f ) );
+            best = Math.min( best, Vec.dist( Clearance.nearestOn( X.shell, P, p, null, f ).p, p ) );
+        }
+        return best;
+    }
+
+    private static trees = new WeakMap<ClearanceBody, BoxTree>();
+    private static treeOf( X : ClearanceBody ) : BoxTree {
+        let t = Clearance.trees.get( X );
+        if (t == null) Clearance.trees.set( X, t = new BoxTree( X.mesh.mesh ) );
+        return t;
+    }
+
     // ---- rigid transforms (3 by 4: a rotation, then a translation) ----
 
     private static apply( M : Array<Array<number>> | null, p : Point ) : Point {
@@ -506,6 +531,18 @@ class BoxTree {
             stack.push( l, r );
         }
         return best;
+    }
+
+    // Every triangle within r of p.
+    public within( p : Point, r : number, visit : (i : number) => void ) : void {
+        const pb : [Point, Point] = [p, p], stack = [0];
+        while (stack.length > 0) {
+            const n = stack.pop() as number;
+            if (BoxTree.gap( this.boxes[n], pb ) > r) continue;
+            const k = this.kids[n];
+            if (k == null) { for (const i of this.spans[n]) if (Clearance.pointToTriangle( p, this.tris[i] ) <= r) visit( i ); continue; }
+            stack.push( k[0], k[1] );
+        }
     }
 
     public static gap( a : [Point, Point], b : [Point, Point] ) : number {

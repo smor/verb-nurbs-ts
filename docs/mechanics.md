@@ -78,3 +78,31 @@ default tolerance (0.01 mm) a cylinder's volume and moments are within about 1e-
 
 **Limits.** Uniform density per solid. Infill fractions and regions of different densities are not weighted yet.
 There is no graph node yet: this is an API on `Graph` and in `solid`.
+
+## Offset
+
+The `finish/offset` node (model feature `{ type : "offset", of, distance }`) grows a solid by a distance, or shrinks
+it when the distance is negative: every point of the result's faces lies at that distance from the solid's. It is
+built from the solid's own features (Rossignac and Requicha, "Offsetting operations in solid modelling", Computer
+Aided Geometric Design 3, 1986), so planes stay planes and the faces stay exact where they can:
+
+- **Box.** Grown: the box grown by the distance on each side, its edges rounded to the distance with ball corners (the
+  box swept by a ball). Shrunk: the smaller box.
+- **Cylinder.** Grown: the longer, wider cylinder with its rims rounded to the distance. Shrunk: the smaller cylinder.
+- **Extrusion.** The profile offset in its plane (`ProfileOffset.region`: lines move parallel, arcs keep their centres,
+  cubics are offset by Tiller and Hanson's construction within 1e-4, gaps at corners are filled by arcs round them and
+  overlaps trimmed), extruded the distance further at each end. A **twisted** extrusion's sides are screw surfaces,
+  whose offsets are screw surfaces of the same pitch: the offset section is where the offset surface meets the base
+  plane (each point moved along the surface's normal, then down its helix), fitted by cubics within 1e-4, with the
+  section of the pipe round each corner's helix filling the gaps. A grown extrusion keeps sharp rims on its caps (the
+  rounds cannot yet run over a twisted or curved side), so there the result is the offset up to the rim. A tapered
+  extrusion is refused.
+- **Transform.** Through rigid and uniformly scaled transforms (the distance divided by the scale).
+- **Union, intersection, difference.** The offset of each part, combined. A union grown and an intersection shrunk are
+  exact; the other way round they are the usual approximation of CSG offsets (Rossignac and Requicha), exact where the
+  parts' faces do not meet at the offset. A difference is the first part grown, less the others shrunk.
+- Nested offsets of the same sign add. Other features are refused with the feature's name.
+
+**Accuracy.** Boxes and plain extrusions are exact; cylinders' rounds and twisted sides are within about 2e-4 at the
+graph's default tolerance (test "ProfileOffset", by distances measured both ways between the exact shells with
+`Clearance.distanceTo`).

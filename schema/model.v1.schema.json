@@ -34,7 +34,7 @@
     },
     "feature": {
       "type": "object", "required": ["type"],
-      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "choose", "round", "shell", "lattice"] } },
+      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "choose", "round", "shell", "lattice", "offset"] } },
       "allOf": [
         { "if": { "properties": { "type": { "const": "box" } } }, "then": { "$ref": "#/$defs/box" } },
         { "if": { "properties": { "type": { "const": "cylinder" } } }, "then": { "$ref": "#/$defs/cylinder" } },
@@ -48,7 +48,8 @@
         { "if": { "properties": { "type": { "const": "choose" } } }, "then": { "$ref": "#/$defs/choose" } },
         { "if": { "properties": { "type": { "const": "round" } } }, "then": { "$ref": "#/$defs/round" } },
         { "if": { "properties": { "type": { "const": "shell" } } }, "then": { "$ref": "#/$defs/shell" } },
-        { "if": { "properties": { "type": { "const": "lattice" } } }, "then": { "$ref": "#/$defs/lattice" } }
+        { "if": { "properties": { "type": { "const": "lattice" } } }, "then": { "$ref": "#/$defs/lattice" } },
+        { "if": { "properties": { "type": { "const": "offset" } } }, "then": { "$ref": "#/$defs/offset" } }
       ]
     },
     "box": { "type": "object", "required": ["type", "min", "max"], "additionalProperties": false,
@@ -91,6 +92,9 @@
         "cell": { "$ref": "#/$defs/value" }, "wall": { "$ref": "#/$defs/value" }, "skin": { "$ref": "#/$defs/value" }, "blend": { "$ref": "#/$defs/value" },
         "size": { "$ref": "#/$defs/value" }, "grade": { "type": "object", "required": ["axis", "to"], "additionalProperties": false,
           "properties": { "axis": { "enum": ["x", "y", "z"] }, "to": { "$ref": "#/$defs/value" } } },
-        "open": { "$ref": "#/$defs/patterns" } } }
+        "open": { "$ref": "#/$defs/patterns" } } },
+    "offset": { "type": "object", "required": ["type", "of", "distance"], "additionalProperties": false,
+      "description": "the solid grown by distance (shrunk when negative): docs/mechanics.md",
+      "properties": { "type": true, "of": { "$ref": "#/$defs/id" }, "distance": { "$ref": "#/$defs/value" } } }
   }
 }
