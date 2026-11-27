@@ -338,7 +338,10 @@ within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher
   (constrained Delaunay) in their parameters, stretched to the surface's lengths: a straight direction (the rulings of a
   cylinder) gets one span, a curved one lines at steps of the sag bound L ≤ √(8 r tol). Then every triangle is measured
   at its centroid and its inner edges' midpoints, against the true distance to the surface, and gets a point where it
-  strays further than the tolerance.
+  strays further than the tolerance. The measure stops as soon as it is settled (#117): at a point of the surface within
+  the tolerance (which bounds the distance from above), or where Newton's steps from the probe's parameters gain less
+  than a thousandth of it; a search over the whole face only follows for a probe more than four tolerances off, and a
+  triangle between one and four is refined rather than searched for a nearer foot.
 * **What it guarantees.** A closed 2-manifold, a shell face (so a persistent name) per triangle, and a deviation
   measured and returned. That deviation is within the tolerance plus the face's edges' own tolerance (edges lie within
   their tolerances of their faces: up to 4e-3 mm at fitted setback corners). The vertices lie on the faces, so the volume

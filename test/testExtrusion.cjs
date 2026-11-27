@@ -143,6 +143,66 @@ describe("Extrusion of profiles (#85)", function () {
 		evaluate(cases[1][0]).result.report.volume.should.be.approximately(cases[1][1], 1e-3 * cases[1][1]);
 	});
 
+	it('gives a twisted thin bar its exact volume, in closed form, and the shell the same on its faces (#117)', function () {
+		var bar = rect(-10, -1, 10, 1);
+		// 507's sentinel: rect(20, 2) twisted 360 degrees over 10 has a volume within 0.01 % of 400 (it was 402.14)
+		[[360, 1, 400], [60, 1, 400], [60, 0.7, 10 * 40 * (1 + 0.7 + 0.49) / 3], [0, 0.7, 10 * 40 * (1 + 0.7 + 0.49) / 3]].forEach(function (c) {
+			var r = evaluate({ x : { type : 'profile/extrude', in : { profile : { outer : bar, holes : [] }, height : 10, twist : c[0], scaleTop : c[1] } } }, { mesh : 'print' });
+			r.verdict.kind.should.equal('buildable');
+			r.result.report.volume.should.be.approximately(c[2], 1e-6 * c[2]);
+			// (the export is the shell's own mesh: its vertices on the faces, its volume short of them by about the
+			// chordal tolerance times the area)
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			r.export.mesh.signedVolume().should.be.approximately(c[2], 0.02 * 2 * (20 * 10 + 40));
+		});
+		// the closed form is the volume of the shell as built, to rounding: an arc, a hole, a twist and a taper
+		var profile = { outer : { kind : 'path', start : P(0, 0), segments : [line(P(30, 0)), arc(P(38, 10), P(30, 20)), line(P(0, 20)), line(P(0, 0))] },
+			holes : [circle(12, 10, 4)] };
+		[{ twist : 400, scaleTop : 1.3 }, { twist : -90 }, { scaleTop : 0.6 }].forEach(function (o) {
+			var sh = Extrusion.shell(profile, 7, 1, o).shell;
+			sh.volume.should.be.approximately(ShellBuilder.volume(sh), 1e-10 * sh.volume);
+		});
+	});
+
+	it('builds a worm of a 60-cubic tooth outline turned 1375 degrees, with its print mesh, in seconds (#117)', function () {
+		// ten teeth, six cubics each (a root, a flank, two across the tip, a flank, a root), corners where the flanks
+		// meet the root and the tip, as 507's 31/worm
+		var Rr = 4.6, Rt = 6, pitch = 2 * PI / 10, segs = [], pts = [];
+		var at = function (r, a) { return { p : [r * Math.cos(a), r * Math.sin(a)], t : [-Math.sin(a), Math.cos(a)] }; };
+		for (var k = 0; k < 10; k++) [[Rr, 0, 1], [Rr, 0.2, 0], [Rt, 0.35, 1], [Rt, 0.5, 1], [Rt, 0.65, 0], [Rr, 0.8, 1]].forEach(function (x) {
+			var q = at(x[0], (k + x[1]) * pitch); q.round = x[2]; pts.push(q);
+		});
+		// each cubic leaves a round point along the circle and a corner along the chord
+		pts.forEach(function (a, i) {
+			var b = pts[(i + 1) % pts.length], d = [b.p[0] - a.p[0], b.p[1] - a.p[1]], l = Math.hypot(d[0], d[1]), u = [d[0] / l, d[1] / l];
+			var round = a.round && b.round || (a.p[0] * a.p[0] + a.p[1] * a.p[1] == b.p[0] * b.p[0] + b.p[1] * b.p[1]);
+			var t0 = round ? a.t : u, t1 = round ? b.t : u;
+			segs.push({ type : 'cubic', c1 : [a.p[0] + l / 3 * t0[0], a.p[1] + l / 3 * t0[1]], c2 : [b.p[0] - l / 3 * t1[0], b.p[1] - l / 3 * t1[1]], to : b.p });
+		});
+		segs[segs.length - 1].to = pts[0].p;
+		// its area, exactly (Green's theorem on each cubic: x y' - y x' is of degree 5, three Gauss points)
+		var area = 0, gx = [-Math.sqrt(0.6), 0, Math.sqrt(0.6)], gw = [5 / 9, 8 / 9, 5 / 9], from = pts[0].p;
+		segs.forEach(function (s) {
+			var c = [from, s.c1, s.c2, s.to];
+			for (var i = 0; i < 3; i++) {
+				var t = 0.5 + 0.5 * gx[i], m = 1 - t, b = [m * m * m, 3 * m * m * t, 3 * m * t * t, t * t * t], db = [-3 * m * m, 3 * m * m - 6 * m * t, 6 * m * t - 3 * t * t, 3 * t * t];
+				var x = 0, y = 0, dx = 0, dy = 0;
+				for (var j = 0; j < 4; j++) { x += b[j] * c[j][0]; y += b[j] * c[j][1]; dx += db[j] * c[j][0]; dy += db[j] * c[j][1]; }
+				area += 0.5 * gw[i] * 0.5 * (x * dy - y * dx);
+			}
+			from = s.to;
+		});
+		var t = Date.now();
+		var r = evaluate({ x : { type : 'profile/extrude', in : { profile : { outer : { kind : 'path', start : pts[0].p, segments : segs }, holes : [] }, height : 24, twist : 1375 } } }, { mesh : 'print' });
+		var took = Date.now() - t;
+		r.verdict.kind.should.equal('buildable');
+		r.result.report.volume.should.be.approximately(area * 24, 1e-6 * area * 24);
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		r.export.mesh.signedVolume().should.be.approximately(area * 24, 3e-3 * area * 24);
+		// (31 s on 507's machine before; about 4 s here)
+		took.should.be.below(budget(15000));
+	});
+
 	it('refuses an open path, an arc on a line, and a profile that is not one', function () {
 		var bad = function (profile, re) {
 			(function () { evaluate({ x : { type : 'profile/extrude', in : { profile : profile } } }); }).should.throw(re);
