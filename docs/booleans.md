@@ -527,7 +527,10 @@ parts joined), is [exact-booleans.md](exact-booleans.md).
   a piece lying on another, after Barton, Elber and Hanniel's single-component count, or a piece that turns straight
   back on itself, which the meshes' intersection produces where they cross at a grazing angle) and traced again. A
   branch whose two ends lie on sides of a domain stays open even when its ends are closer than a mesh edge (a narrow
-  notch across a rim).
+  notch across a rim). The meshes may stop such an arc short of the rim, with neither end on a side yet: ends more
+  than two steps apart close a branch only if extending it at both ends, by less than half the gap, does not reach a
+  side of a domain (#95; the wrong loop's closing chord cut across the notch's wall, and a notch on the disc's seam
+  failed to place its seam crossing).
   `certify: true` (a Boolean option, or a model document's flag) runs `IntersectionCertificate.check` (below) on
   every pair of faces that meet. It is off by default because it costs a fraction of a second per pair. Pairs it
   leaves unresolved, near tangency, are where a missed loop could still hide.
