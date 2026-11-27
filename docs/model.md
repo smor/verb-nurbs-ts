@@ -78,7 +78,8 @@ it cannot prove are named in `result.report.certificate`.
     setback corner);
   * pieces of one face split by a Boolean: `#1`, `#2`, ... by decreasing area, then by centroid.
   Edges are named by their two faces, sorted: `block.+z|peg.tube`. Rules select edges by glob patterns over those
-  names, so the same rules keep selecting the same edges as parameters change.
+  names, so the same rules keep selecting the same edges as parameters change. A pattern `A|B` matches an edge either
+  way round, so `b.*x|b.*y` is every edge between an x face and a y face of `b`, whichever name sorts first (#79).
 * **The verdict** is computed from the result, the same way every time:
 
   | Check | Passes when |
@@ -86,6 +87,7 @@ it cannot prove are named in `result.report.certificate`.
   | `closed` | every edge joins exactly two faces |
   | `outward` | the volume is positive |
   | `fillets` | every requested fillet is in place (none too large, none left sharp at a corner) |
+  | `round rules` | (with a round) every rule selects at least one edge: one that matches nothing, a misspelt face, is named (#79) |
   | `makeable` | (with a machine) `Makeable.check` passes: the surface does not pass through itself, fits, no wall too thin, no sealed void on a machine that drains, and for a moulded process (`Machine.draft`) enough draft and no undercut along the best pull |
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
 

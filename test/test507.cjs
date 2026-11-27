@@ -68,6 +68,29 @@ describe("507 regressions (test/fixtures/507)", function () {
 		pairs[2].skipped.should.be.above(pairs[2].intersected);
 	});
 
+	it('F: unions of solids flush at a side as well as a plane: a T, an L, a rim on a disc (#94)', function () {
+		// a side of one lies along a side of the other: found twice (from each face of the other that meets it), or
+		// not at all (a rim on a disc of the same radius, each with its own grid); either way the result is closed
+		var N = function (nodes) { return { version : 2, meta : { name : 'flush' }, nodes : nodes, outputs : { solid : '@out' } }; };
+		var box = function (id, w, d, h, x, y) { var o = {}; o[id] = { type : 'primitive/box', in : { width : w, depth : d, height : h } };
+			o[id + 'm'] = { type : 'transform/move', in : { of : '@' + id, x : x, y : y, z : 0 } }; return o; };
+		var union = { out : { type : 'boolean/union', in : { a : '@am', b : '@bm' } } };
+		var check = function (nodes, volume, rel) {
+			var r = new Graph().evaluate(N(nodes), { mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.result.report.volume.should.be.approximately(volume, rel * volume);
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		};
+		check(Object.assign(box('a', 8, 20, 5, 0, 0), box('b', 18, 4, 5, 0, -8), union), 8 * 20 * 5 + 10 * 4 * 5, 1e-9);
+		check(Object.assign(box('a', 29.65, 11.3, 12, -9.175, 17.65), box('b', 12, 23.3, 12, -18, 11.65), union),
+			(29.65 * 11.3 + 12 * 23.3 - 12 * 11.3) * 12, 1e-9);
+		// (the cylinders' chords: the disc's volume is within 1e-3 of the exact one)
+		check({ c : { type : 'primitive/cylinder', in : { radius : 38, height : 6 } }, t : { type : 'primitive/tube', in : { outer : 38, inner : 35, height : 2 } },
+			tm : { type : 'transform/move', in : { of : '@t', x : 0, y : 0, z : 6 } }, out : { type : 'boolean/union', in : { a : '@c', b : '@tm' } } },
+			PI * 38 * 38 * 6 + PI * (38 * 38 - 35 * 35) * 2, 1e-3);
+	});
+
 	it('E: a union of solids sharing their top and bottom planes (#63)', function () {
 		builds('E', 'rim-spoke', PI * (35 * 35 - 29 * 29) * 6 + (14 / 360) * PI * 29 * 29 * 6);
 	});

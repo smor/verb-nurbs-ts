@@ -106,7 +106,11 @@ export interface ModelLattice { mesh : TriMesh, pattern : LatticePattern, cell :
 export interface ModelWall { shell : string, thickness : number, thinnest : number }
 
 // What the rounds of a model's rounded operands left undone, summed (see `ModelVerdict`'s fillets check).
-export interface Fillets { failed : number, skipped : number, reduced : number }
+export interface Fillets {
+    failed : number, skipped : number, reduced : number,
+    // the round rules that selected no edge, as `"round": "pattern"` (#79)
+    unmatched? : Array<string>,
+}
 
 // A shell within a tree: the leaves of its solid and of its inside, and its open faces' names.
 interface Shelled { id : string, thickness : number, outside : [number, number], inside : [number, number], open : Array<string> }
@@ -385,9 +389,17 @@ export class Model {
             const leafName = (si : number, fi : number) => nameOf( t.leaves[si], fi );
 
             let options : BooleanOptions = { certify : doc.certify === true };
+            const rules : Array<{ edges : string, re : RegExp, radius : number, hits : number }> = [];
             if (round != null) {
-                const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ) }) );
-                const radius = (name : string) => { const r = rules.find( x => x.re.test( name ) ); return r != null ? r.radius : 0; };
+                rules.push( ...round.rules.map( r => ({ edges : r.edges, re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ), hits : 0 }) ) );
+                // an edge "a|b" (its faces' names sorted) matches a pattern either way round: "b.*x|b.*y" is an x face
+                // and a y face, whichever sorts first (#79); every rule that matches counts the edge, the first rounds it
+                const radius = (name : string) => {
+                    const bar = name.indexOf( "|" ), other = bar < 0 ? name : name.slice( bar + 1 ) + "|" + name.slice( 0, bar );
+                    let r : (typeof rules)[number] | undefined;
+                    for (const x of rules) if (x.re.test( name ) || x.re.test( other )) { x.hits++; r ??= x; }
+                    return r != null ? r.radius : 0;
+                };
                 // (rounding the edges of a rounded operand, or the new edges on it, is step A5 of docs/exact-booleans.md)
                 if (t.leaves.some( l => l.solid.edges != null )) throw new Error( `Model: the round "${solidId}" is over a rounded operand, which cannot be rounded again yet` );
                 const edges : Array<{ solid : number, faces : [number, number], radius : number }> = [];
@@ -401,7 +413,11 @@ export class Model {
                 };
             }
             const r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
-            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : t.fillets };
+            // a rule that selected no edge, of the operands or new, is said (a pattern written the wrong way round, or
+            // naming a face that is not there, would otherwise round nothing in silence)
+            const unmatched = round == null ? [] : rules.filter( x => x.hits == 0 ).map( x => `"${solidId}": "${x.edges}"` );
+            const fillets = unmatched.length == 0 ? t.fillets : Model.addFillets( [t.fillets, { failed : 0, skipped : 0, reduced : 0, unmatched : unmatched }] );
+            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets };
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
@@ -708,7 +724,8 @@ export class Model {
     private static addFillets( xs : Array<Fillets | undefined> ) : Fillets | undefined {
         const ys = xs.filter( (x) : x is Fillets => x != null );
         if (ys.length == 0) return undefined;
-        return { failed : ys.reduce( (a, x) => a + x.failed, 0 ), skipped : ys.reduce( (a, x) => a + x.skipped, 0 ), reduced : ys.reduce( (a, x) => a + x.reduced, 0 ) };
+        return { failed : ys.reduce( (a, x) => a + x.failed, 0 ), skipped : ys.reduce( (a, x) => a + x.skipped, 0 ), reduced : ys.reduce( (a, x) => a + x.reduced, 0 ),
+                 unmatched : ys.flatMap( x => x.unmatched ?? [] ) };
     }
 
     private static faceName( f : BrepFace, index : number ) : string {
@@ -867,6 +884,10 @@ export class Model {
             { name : "fillets", passed : fFailed == 0 && fSkipped == 0,
               detail : fFailed + fSkipped == 0 ? "every requested fillet is in place" : `${fFailed} fillet(s) too large and ${fSkipped} left sharp at corners` },
         ];
+        // a round rule that selects no edge (#79)
+        const unmatched = inner?.unmatched ?? [];
+        if (unmatched.length > 0) checks.push( { name : "round rules", passed : false,
+            detail : `${unmatched.length == 1 ? "a round rule selects" : unmatched.length + " round rules select"} no edge: ${unmatched.join( ", " )}` } );
         for (const w of walls) {
             const ok = w.thinnest >= w.thickness * (1 - Model.WALL_TOLERANCE);
             checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
