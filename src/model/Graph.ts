@@ -99,6 +99,9 @@ export interface GraphMesh {
     mesh : TriMesh;
     // for each triangle, the persistent name of the face it stands for
     faceNames : Array<string>;
+    // for each triangle, the index of that face in the result (`ModelResult.result.faces`), which `Inspect.brep` draws
+    // on (none for a lattice, which has no faces)
+    faceOf? : Array<number>;
     // the tolerance asked ("analysis": none), and the largest deviation from the exact faces measured (null: not measured)
     tolerance : MeshTolerance | null;
     deviation : number | null;
@@ -238,7 +241,7 @@ export class Graph {
             return { mesh : m, faceNames : m.triangles.map( () => "lattice" ), tolerance : null, deviation : null };
         }
         if (given == "analysis") {
-            return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), tolerance : null, deviation : null };
+            return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), faceOf : r.result.faceOf, tolerance : null, deviation : null };
         }
         const T = ShellMesher.tolerance( given );
         let known = this.shells.get( r.result );
@@ -250,7 +253,8 @@ export class Graph {
         let m = known.meshes.get( key );
         if (m == null) {
             const shell = known.shell, sm = ShellMesher.mesh( shell, T );
-            m = { mesh : sm.mesh, faceNames : sm.faceOf.map( k => r.faceNames[shell.faces[k].source] ), tolerance : T, deviation : sm.deviation };
+            m = { mesh : sm.mesh, faceNames : sm.faceOf.map( k => r.faceNames[shell.faces[k].source] ), faceOf : sm.faceOf.map( k => shell.faces[k].source ),
+                  tolerance : T, deviation : sm.deviation };
             known.meshes.set( key, m );
         }
         return m;

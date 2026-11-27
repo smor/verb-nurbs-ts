@@ -61,6 +61,31 @@ describe("verb.view.Inspect", function(){
 		fact(wall.facts, 'Edge length').should.match(/natural/);
 	});
 
+	it('a B-rep drawn on its export mesh: the same faces and facts, many times lighter (#90)', function(){
+		var fs = require('fs'), path = require('path'), dir = path.join(__dirname, 'fixtures', '507');
+		var doc = JSON.parse(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(function(f){ return f.indexOf('A-') == 0; })), 'utf8'));
+		var r = new lib.Graph().evaluate(doc, { output : 'flywheel', mesh : 'view' });
+		var full = lib.Inspect.brep(r.result, 'flywheel'), lean = lib.Inspect.brep(r.result, 'flywheel', { mesh : r.export });
+		// the same items and facts about them; the faces drawn on the export mesh, picked by their result face
+		lean.items.map(function(it){ return it.label; }).should.eql(full.items.map(function(it){ return it.label; }));
+		var faces = layer(lean, 'Faces');
+		faces.pick.should.eql(r.export.faceOf);
+		faces.indices.length.should.equal(3 * r.export.mesh.triangles.length);
+		faces.pick.forEach(function(f, k){ r.faceNames[f].should.equal(r.export.faceNames[k]); });
+		fact(lean.facts, 'Volume').should.equal(fact(full.facts, 'Volume'));
+		fact(lean.facts, 'Drawn on').should.match(/^\d+ triangles/);
+		// the face areas agree to the meshes' chords
+		lean.items.forEach(function(it, k){
+			var a = parseFloat(fact(it.facts, 'Area')), b = parseFloat(fact(full.items[k].facts, 'Area'));
+			a.should.be.approximately(b, 0.02 * b + 0.5);
+		});
+		['Trim edges', 'Natural edges'].forEach(function(n){ layer(lean, n).indices.length.should.be.above(0); });
+		// 507's views of its parts: at least twenty times smaller (11.8 MB against 0.43 MB here)
+		JSON.stringify(lean).length.should.be.below(JSON.stringify(full).length / 20);
+		// a mesh that does not say which face each triangle stands for is refused
+		(function(){ lib.Inspect.brep(r.result, 'x', { mesh : { mesh : r.export.mesh } }); }).should.throw(/faceOf/);
+	});
+
 	it('a plain solid is shown as the Boolean of itself: a capped tube has a seam and no trims', function(){
 		var rail = lib.Make.rationalInterpCurve([[0,0,0],[30,10,40],[0,40,80]], 2);
 		var v = lib.Inspect.brep(lib.BrepSolid.cappedTube(lib.Sweep.pipe(rail, 8).surface, [24, 32]));
