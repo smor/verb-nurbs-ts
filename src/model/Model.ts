@@ -10,8 +10,6 @@ import { BrepEdges } from "../solid/BrepEdges.js";
 import { BrepShell, ShellBuilder } from "../solid/BrepShell.js";
 import { Extrusion, ProfilePoint, ProfileSegmentSpec, ProfileSpec } from "../solid/Extrusion.js";
 import { Lathe } from "../solid/Lathe.js";
-import { Primitives } from "../solid/primitives/Primitives.js";
-import { Profiles } from "../solid/primitives/Profiles.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -34,9 +32,9 @@ export type ModelFeature =
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
     // a straight prism over an outline in the plane z = 0, from z = 0 to `height`: points [x, y] or [x, y, r] (r rounds
     // that corner by a tangent arc), in either orientation; its values may be expressions. Built as an exact extrusion
-    // with caps fanned from `center` (its centroid by default) when the outline is star-shaped about it; as an exact
-    // extrusion (lines and arcs, `Extrusion`) when it is not, so any simple polygon will do. Faces: bottom, top, and
-    // side.k (one per smooth piece) or outer.k (one per side and rounded corner) for an extrusion
+    // (lines and arcs, `Extrusion`), its caps planes trimmed by the outline, so any simple polygon will do (#99).
+    // Faces: bottom, top, and outer.k (one per side and rounded corner). (`center`, where its caps once fanned from,
+    // is accepted and not read.)
     | { type : "prism", outline : Array<Array<ModelValue>>, height : ModelValue, center? : [ModelValue, ModelValue] }
     // a planar profile (lines, three-point arcs, circles and cubic Béziers, with holes) extruded from z up by height,
     // exact (`Extrusion`): faces bottom, top, outer.k and hole{i}.k
@@ -538,7 +536,7 @@ export class Model {
             case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
-            case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ), center : pair( f.center, "center" ) };
+            case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ) };
             case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ),
                 ...(f.twist != null ? { twist : num( f.twist, "twist" ) } : {}), ...(f.scaleTop != null ? { scaleTop : num( f.scaleTop, "scaleTop" ) } : {}) };
             case "lathe": return { profile : f.profile, degrees : f.degrees == null ? 360 : num( f.degrees, "degrees" ) };
@@ -572,16 +570,11 @@ export class Model {
         switch (f.type) {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
             case "prism": {
-                // a fan-capped prism (`Primitives.prism`) when the outline is star-shaped about its centroid or `center`,
-                // an exact extrusion (`Extrusion`) otherwise: a housing united with a beam whose top is in its walls'
-                // plane still fails as extrusions, where the fan-capped prisms hold
+                // an exact extrusion (`Extrusion`): caps that are planes trimmed by the outline, so any simple polygon
+                // will do and a Boolean does not depend on where a fan's centre falls (#99). (`center`, the point the
+                // caps fanned from before, is no longer read.)
                 const pts = Model.outline( f, num ), h = positive( num( f.height, "height" ), "a prism's height" );
-                const c = f.center == null ? undefined : [num( f.center[0], "center" ), num( f.center[1], "center" ), 0];
-                const flat = pts.map( p => [p[0], p[1], 0] ), radii = pts.map( p => p[2] );
-                let profile;
-                try { profile = radii.some( r => r > 0 ) ? Profiles.rounded( flat, radii, c ) : Profiles.polygon( flat, c ); }
-                catch { return Extrusion.solid( Model.outlineProfile( pts ), h ); }
-                return Primitives.prism( profile, h );
+                return Extrusion.solid( Model.outlineProfile( pts ), h );
             }
             case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ),
                 { twist : f.twist == null ? 0 : num( f.twist, "twist" ), scaleTop : f.scaleTop == null ? 1 : num( f.scaleTop, "scaleTop" ) } );
