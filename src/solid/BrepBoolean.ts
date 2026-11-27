@@ -306,6 +306,7 @@ export class BrepBoolean {
         BrepBoolean.edgeContacts( solids, curves, snap );
         BrepBoolean.trimVertices( solids, curves, snap );
         BrepBoolean.alongEdges( solids, curves, snap );
+        BrepBoolean.sharedStretches( solids, curves, snap );
 
         // the edges of the result: runs of each branch between corners, the points where it meets another branch
         const owners = new Map<Point, Set<number>>();
@@ -1543,6 +1544,53 @@ export class BrepBoolean {
                     BrepBoolean.insertPoint( c, v, side == 0 ? [uvS[0], uvS[1]] : uvO, side == 0 ? uvO : [uvS[0], uvS[1]], eps );
                 }
             }
+        }
+    }
+
+    // Two branches on one face that lie along each other for a stretch of their length, and no further (two pockets of
+    // one depth that overlap, their sides in one plane: each side's branch with the plate's bottom runs along the
+    // other's where the sides overlap, #120), are sampled each on its own: the face takes the points of both and the
+    // face across the stretch only those of one. Each takes the other's points along the stretch, so both have them all.
+    private static sharedStretches( solids : Array<BrepSolid>, curves : BooleanResult["curves"], eps : number ) : void {
+        const boxes = curves.map( e => {
+            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            for (const p of e.curve.points) for (let a = 0; a < 3; a++) { lo[a] = Math.min( lo[a], p[a] ); hi[a] = Math.max( hi[a], p[a] ); }
+            return { lo : lo, hi : hi };
+        } );
+        const keys = curves.map( e => [0, 1].map( m => e.solids[m] + ":" + e.faces[m] ) );
+        const ring = (c : IntersectionCurve) => c.closed ? c.points.concat( [c.points[0]] ) : c.points;
+        const along = (pts : Array<Point>, p : Point) => BrepBoolean.onto( pts, p, eps ).d < eps;
+        const adds : Array<{ to : number, p : Point, uvA : UV, uvB : UV }> = [];
+        curves.forEach( (A, ia) => curves.forEach( (B, ib) => {
+            // (a branch along an edge of a solid made from a shell takes the edge's points in alongEdges, between its
+            // corners; here an edge only takes a branch's, as where pockets cut one after another overlap)
+            if (ia == ib || A.trim) return;
+            const shared = keys[ia].findIndex( k => keys[ib].includes( k ) );
+            if (shared < 0) return;
+            if ([0, 1, 2].some( a => boxes[ia].lo[a] > boxes[ib].hi[a] + eps || boxes[ib].lo[a] > boxes[ia].hi[a] + eps )) return;
+            const P = A.curve.points, Q = ring( B.curve ), n = P.length;
+            const on = P.map( p => along( Q, p ) );
+            if (!on.some( x => x )) return;
+            const side = keys[ib].indexOf( keys[ia][shared] );
+            const other = solids[B.solids[1 - side]].faces[B.faces[1 - side]];
+            P.forEach( (p, k) => {
+                if (!on[k] || B.curve.points.some( q => Vec.dist( p, q ) < eps )) return;
+                // on a stretch: a neighbour on it too
+                const prev = k > 0 ? k - 1 : A.curve.closed ? n - 1 : -1, next = k + 1 < n ? k + 1 : A.curve.closed ? 0 : -1;
+                if (!((prev >= 0 && on[prev]) || (next >= 0 && on[next]))) return;
+                let nearest = 0;
+                B.curve.points.forEach( (q, j) => { if (Vec.dist( q, p ) < Vec.dist( B.curve.points[nearest], p )) nearest = j; } );
+                const uvS = (shared == 0 ? A.curve.uvA : A.curve.uvB)[k];
+                const uvO = SurfaceIntersect.project( other.surface, p, 12, (side == 0 ? B.curve.uvB : B.curve.uvA)[nearest] );
+                if (Vec.dist( BrepBoolean.eval( other.surface, uvO ), p ) > eps) return;
+                const same : UV = [uvS[0], uvS[1]];
+                adds.push( { to : ib, p : [p[0], p[1], p[2]], uvA : side == 0 ? same : uvO, uvB : side == 0 ? uvO : same } );
+            } );
+        } ) );
+        for (const a of adds) {
+            const c = curves[a.to].curve;
+            if (c.points.some( q => Vec.dist( q, a.p ) < eps )) continue;
+            BrepBoolean.insertPoint( c, a.p, a.uvA, a.uvB, eps );
         }
     }
 

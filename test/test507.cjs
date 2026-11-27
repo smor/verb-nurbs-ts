@@ -225,4 +225,28 @@ describe("507 regressions (test/fixtures/507)", function () {
 		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
 		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
 	});
+	it('K: overlapping blind pockets of one depth, cut one after the other (#120)', function () {
+		var square = function (s, c, deg) {
+			var a = deg * PI / 180, p = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + s / 2 * (q[0] * Math.cos(a) - q[1] * Math.sin(a)), c[1] + s / 2 * (q[0] * Math.sin(a) + q[1] * Math.cos(a))]; });
+			return { kind : 'path', start : p[0], segments : [1, 2, 3, 0].map(function (i) { return { type : 'line', to : p[i] }; }) };
+		};
+		var ex = function (outer, height, z) { return { type : 'profile/extrude', in : { profile : { outer : outer, holes : [] }, height : height, z : z || 0 } }; };
+		// squares of side 4 turned by deg, their centres 2 dx apart along x: the overlap is a rectangle
+		var pockets = function (deg, dx, n) {
+			var nodes = { p : ex(square(40, [0, 0], 0), 6) }, prev = 'p';
+			for (var i = 0; i < n; i++) {
+				nodes['m' + i] = ex(square(4, [-dx + 2 * dx * i, 0], deg), 3.01, -0.01);
+				nodes['d' + i] = { type : 'boolean/difference', in : { from : '@' + prev, minus : '@m' + i } };
+				prev = 'd' + i;
+			}
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'F1' }, nodes : nodes, outputs : { s : '@' + prev } }, { output : 's', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			var a = deg * PI / 180, ov = (4 - 2 * dx * Math.cos(a)) * (4 - 2 * dx * Math.sin(a));
+			r.result.report.volume.should.be.approximately(40 * 40 * 6 - (16 * n - ov * (n - 1)) * 3, 1e-9 * 9600);
+		};
+		pockets(20, 1, 2); // F1
+		pockets(0, 1, 2); // their sides in one plane
+		pockets(0, 1.5, 4); // a row of four
+	});
 });
