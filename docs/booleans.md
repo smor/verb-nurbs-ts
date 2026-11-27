@@ -418,8 +418,14 @@ parts sharing a face. Three things make them work.
   found from one pair of faces goes into the other pair's branches too, and a branch ending within snapping distance
   of it ends there exactly. Segments parallel to rounding never cross, so a branch beside an edge it runs along
   gives no spurious crossings. Stacked squares, a turned square on another, a bar on a hub and a T plate of two
-  extrusions all close with their exact volumes (test "507 regressions", G). A hub standing on an arm's round end of
-  its own radius, and bores that line up through stacked layers, are not closed yet.
+  extrusions all close with their exact volumes (test "507 regressions", G).
+* **Edges along edges (#104).** A hub standing on an arm's round end of its own radius meets the arm edge to edge:
+  the arm's wall meets the hub's bottom only along the rim, and the meshes give that branch in broken pieces. A
+  branch lying along an edge of a solid made from a shell on one face, and along an edge or a domain side on the
+  other, is dropped: no face is cut there. The hub's rim runs along the arm's round edge, then on across its top: the
+  arm's vertices that lie on a branch are put into it, so its runs end there, and each stretch of a branch between
+  its corners (seam points among them) that lies along an edge takes that edge's points. Lying along a curved edge
+  allows for the sag of its chords, as `traced` does. Bores that line up through stacked layers are not closed yet.
 * **Surfaces that coincide over an area are not intersected.** Two copies of one cylinder (each window of a wheel
   bringing its own hub) would have meshes crossing everywhere, at great cost and with nothing to find.
   `SurfaceIntersect.coincide` looks for a 2 by 2 block of samples of one surface lying on the other with parallel
