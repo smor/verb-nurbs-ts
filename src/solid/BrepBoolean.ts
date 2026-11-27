@@ -1192,6 +1192,26 @@ export class BrepBoolean {
     // Split a curve, given by its parameters on one face, into the polylines it makes in that face's domain: a loop
     // that crosses a seam is cut there, and the seam vertex appears at both ends of the domain.
     public static facePieces( f : BrepFace, uv : Array<UV>, seam : Array<number>, points : Array<Point>, closed : boolean = true ) : Array<FaceCut> {
+        // an open piece that ends on a periodic face's seam, its neighbour on the far side of the domain, ends at that
+        // side's end of it: a run cut at a point on the seam (where a circle split in halves starts, #121) would
+        // otherwise run across the whole domain from the seam's other end
+        const ends = (pieces : Array<FaceCut>) : Array<FaceCut> => {
+            const d = SurfaceIntersect.domain( f.surface );
+            for (const pc of pieces) {
+                if (pc.closed || pc.uv.length < 2) continue;
+                for (const [e, nb] of [[0, 1], [pc.uv.length - 1, pc.uv.length - 2]]) for (let a = 0; a < 2; a++) {
+                    if (!f.periodic[a]) continue;
+                    const lo = d[2 * a], hi = d[2 * a + 1], eps = (hi - lo) * 1e-9, x = pc.uv[e][a], y = pc.uv[nb][a];
+                    if (Math.abs( x - lo ) <= eps && y > (lo + hi) / 2) pc.uv[e] = (a == 0 ? [hi, pc.uv[e][1]] : [pc.uv[e][0], hi]) as UV;
+                    else if (Math.abs( x - hi ) <= eps && y < (lo + hi) / 2) pc.uv[e] = (a == 0 ? [lo, pc.uv[e][1]] : [pc.uv[e][0], lo]) as UV;
+                }
+            }
+            return pieces;
+        };
+        return ends( BrepBoolean.pieces( f, uv, seam, points, closed ) );
+    }
+
+    private static pieces( f : BrepFace, uv : Array<UV>, seam : Array<number>, points : Array<Point>, closed : boolean ) : Array<FaceCut> {
         const n = uv.length;
         const first = seam.findIndex( m => m != 0 );
         if (first < 0) return [{ uv : uv.slice(), points : points.slice(), closed : closed }];
