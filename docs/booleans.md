@@ -319,6 +319,9 @@ within a tolerance (`ShellMesher.mesh(shell, tolerance)`, `src/solid/ShellMesher
   of the normal across a span; `maxEdge`. The presets: `print` (0.02 mm) and `view` (0.1 mm, 20°).
 * **Edges first.** Each edge is sampled once, adaptively, and both of its faces use those points: the mesh is closed and
   manifold by construction, without welding.
+* **Faces with no edges.** A closed surface on its own (a sphere, a torus) has no loops: its domain's sides are its
+  seams and poles. It is meshed over its whole domain, opposite sides sampled at the same parameters so that a seam's
+  two sides, and a pole's points, are one vertex each. (Its export mesh was empty before.)
 * **Loops that touch themselves.** Where an edge meets another edge of its face tangentially, at a point the Boolean
   left without a vertex on the second (the ends of a bar across a cup, tangent to its rim: #96), a sample of the first
   can fall on a chord of the second, and the face's polygon pinches through the middle of a segment. That chord is split
