@@ -171,7 +171,9 @@ document shares every feature they have in common.
 ([booleans.md, Export mesh](booleans.md#export-mesh)): `"print"` (0.02 mm), `"view"` (0.1 mm, normals within 20°),
 `{ chordal, angle?, maxEdge? }`, or `"analysis"` for the Boolean's own dense mesh as it is. It is an evaluation option,
 not part of the document, so one document gives a print mesh and a viewer mesh. `r.export` holds the `mesh` (a closed
-2-manifold), `faceNames` (the persistent name of each triangle's face), the `tolerance` and the `deviation` measured.
+2-manifold), `faceNames` (the persistent name of each triangle's face), `faceOf` (the index of that face in
+`r.result.faces`, which `Inspect.brep( r.result, title, { mesh : r.export } )` draws on), the `tolerance` and the
+`deviation` measured.
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
 A lattice output has no exact shell: its export is the lattice mesh itself (`r.lattice.mesh`, at the lattice's own
 grid step), with every triangle named `lattice` and no deviation, whatever `mesh` asks for.

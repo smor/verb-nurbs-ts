@@ -116,7 +116,7 @@ export type { VesselHarmonic, FreeformVesselParams, FreeformVessel } from "./rec
 import { SweptObjectsRecipe } from "./recipes/SweptObjects.js";
 export type { SweptObject, KnotPipeParams, TwistedRingParams, RibbonKnotParams } from "./recipes/SweptObjects.js";
 import { Inspect } from "./view/Inspect.js";
-export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions } from "./view/Inspect.js";
+export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions, BrepViewOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model, ModelError } from "./model/Model.js";
 export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
