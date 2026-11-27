@@ -147,4 +147,25 @@ describe("507 regressions (test/fixtures/507)", function () {
 			b : { type : 'transform/move', in : { of : '@c', x : 1.5, y : 0, z : 0 } }, u : op('union') })
 			.should.be.approximately(24 * 23 * 1.33 + 21 * 23 * 2.17 - 21 * 23 * 0.5, 1e-9 * 1540);
 	});
+	it('H: an upright on a foot with rounded corners, sharing its bottom plane, its sides crossing the corner arcs (#123)', function () {
+		var line = function (to) { return { type : 'line', to : to }; };
+		var arc = function (via, to) { return { type : 'arc', via : via, to : to }; };
+		// a base 16 x 18 x 4 with r 2 corners, x 0..16, y -9..9
+		var k = 2 - Math.SQRT2, K = 14 + Math.SQRT2, j = 7 + Math.SQRT2;
+		var rr = { kind : 'path', start : [2, -9], segments : [line([14, -9]), arc([K, -j], [16, -7]), line([16, 7]), arc([K, j], [14, 9]),
+			line([2, 9]), arc([k, j], [0, 7]), line([0, -7]), arc([k, -j], [2, -9])] };
+		var base = { type : 'profile/extrude', in : { profile : { outer : rr, holes : [] }, height : 4, z : 0 } };
+		// the part of the upright's foot (x 0..6, y -8..8) outside the base: two slivers between y = 8 and an arc
+		var sliver = 0, n = 2000, x1 = 2 - Math.sqrt(3);
+		for (var i = 0; i < n; i++) { var x = (i + 0.5) * x1 / n; sliver += (1 - Math.sqrt(4 - (x - 2) * (x - 2))) * x1 / n; }
+		var exact = 6 * 16 * 70 + 4 * (16 * 18 - 4 * (4 - PI)) - 4 * (96 - 2 * sliver);
+		[0, -1].forEach(function (z) {
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'stand' }, nodes : { b0 : { type : 'primitive/box', in : { width : 6, depth : 16, height : 70 } },
+				up : { type : 'transform/move', in : { of : '@b0', x : 3, y : 0, z : z } }, base : base, u : { type : 'boolean/union', in : { a : '@up', b : '@base' } } },
+				outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			r.result.report.volume.should.be.approximately(exact, 1e-3 * exact);
+		});
+	});
 });

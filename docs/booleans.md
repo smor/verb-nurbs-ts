@@ -432,6 +432,14 @@ parts sharing a face. Three things make them work.
   arm's vertices that lie on a branch are put into it, so its runs end there, and each stretch of a branch between
   its corners (seam points among them) that lies along an edge takes that edge's points. Lying along a curved edge
   allows for the sag of its chords, as `traced` does.
+* **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
+  found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
+  transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side
+  meeting a foot's rounded corner, when the two share their bottom plane) ends at that exact point, and so does the
+  crossing. A point that does not settle within a quarter of the chord (the edge's faces meeting tangentially, as a
+  blend and a face it rounds) keeps the chord's. An upright on a foot with rounded corners closes, with its exact
+  volume (test "507 regressions", H). An upright made as a rotated extrusion, whose sides are flush with the foot's
+  and touch its corner arcs tangentially, still fails.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
