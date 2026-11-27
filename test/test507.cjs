@@ -208,4 +208,21 @@ describe("507 regressions (test/fixtures/507)", function () {
 		var flush = build(arm(6));
 		build(arm(5)).should.be.approximately(flush, 1e-4 * flush);
 	});
+	it('J: a pulley turned from a profile, on a bored hub, the bores lined up (#121)', function () {
+		var line = function (to) { return { type : 'line', to : to }; };
+		var cyl = function (radius, height) { return { type : 'primitive/cylinder', in : { radius : radius, height : height } }; };
+		var mv = function (of, z) { return { type : 'transform/move', in : { of : '@' + of, x : 0, y : 0, z : z } }; };
+		var pts = [[2.5, 0], [25.9, 0], [25.9, 11.25], [2.5, 11.25]];
+		// the borer stands 1 into the pulley's bore: the bore's foot, the pulley's bottom on the hub's bore and the hub's
+		// top on it are one circle, found three times
+		var r = new Graph().evaluate({ version : 2, meta : { name : 'pulley' }, nodes : {
+			p : { type : 'profile/revolve', in : { profile : { outer : { kind : 'path', start : pts[0], segments : pts.slice(1).concat([pts[0]]).map(line) } } } },
+			c : cyl(7, 20), cm : mv('c', -20), h : cyl(2.5, 22), hm : mv('h', -21), hub : { type : 'boolean/difference', in : { from : '@cm', minus : '@hm' } },
+			u : { type : 'boolean/union', in : { a : '@p', b : '@hub' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+		r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		var exact = PI * (25.9 * 25.9 - 2.5 * 2.5) * 11.25 + PI * (49 - 6.25) * 20;
+		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
+		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
+	});
 });
