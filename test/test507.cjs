@@ -94,7 +94,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 	it('E: a union of solids sharing their top and bottom planes (#63)', function () {
 		builds('E', 'rim-spoke', PI * (35 * 35 - 29 * 29) * 6 + (14 / 360) * PI * 29 * 29 * 6);
 	});
-	it('G: extrusions meeting on a cap plane or a side plane: stacked layers, a bar on a hub, a hub on an arm, a T plate (#104, #101)', function () {
+	it('G: extrusions meeting on a cap plane or a side plane: stacked layers, a bar on a hub, a hub on an arm, aligned bores, a T plate (#104, #101)', function () {
 		// a trimmed face's surface runs on past its outline: the region beside a layer is not on it, and a branch along
 		// a layer's edge takes the edge's points
 		var line = function (to) { return { type : 'line', to : to }; };
@@ -133,6 +133,15 @@ describe("507 regressions (test/fixtures/507)", function () {
 		var arm = { kind : 'path', start : [0, -6], segments : [line([30, -6]), { type : 'arc', via : [36, 0], to : [30, 6] }, line([0, 6]), { type : 'arc', via : [-6, 0], to : [0, -6] }] };
 		build({ a : ex(arm, 5), c : { type : 'primitive/cylinder', in : { radius : 6, height : 6 } }, b : { type : 'transform/move', in : { of : '@c', x : 0, y : 0, z : 5 } }, u : op('union') })
 			.should.be.approximately((30 * 12 + PI * 36) * 5 + PI * 36 * 6, 1e-3 * 3044);
+		// C1: a bored hub under a slotted arm whose hole lines up with the bore; the borer stands 1 above the hub, so its
+		// end cap meets the arm's hole wall, a closed face cut at its seam, along a rim starting on that seam
+		var bored = { type : 'boolean/difference', in : { from : '@h', minus : '@bm' } };
+		var slot = { type : 'profile/extrude', in : { profile : { outer : { kind : 'path', start : [0, -5], segments : [line([30, -5]),
+			{ type : 'arc', via : [35, 0], to : [30, 5] }, line([0, 5]), { type : 'arc', via : [-5, 0], to : [0, -5] }] },
+			holes : [{ kind : 'circle', center : [0, 0], r : 2.5 }] }, height : 5, z : 5.5 } };
+		build({ h : { type : 'primitive/cylinder', in : { radius : 5.5, height : 5.5 } }, bc : { type : 'primitive/cylinder', in : { radius : 2.5, height : 7.5 } },
+			bm : { type : 'transform/move', in : { of : '@bc', x : 0, y : 0, z : -1 } }, a : bored, b : slot, u : op('union') })
+			.should.be.approximately(PI * (5.5 * 5.5 - 2.5 * 2.5) * 5.5 + (30 * 10 + PI * 25 - PI * 6.25) * 5, 1e-3 * 2209);
 		// #101: a T-shaped slide plate, two plates sharing their y = 0 and y = 23 side planes
 		build({ a : ex(poly([[0, 0], [24, 0], [24, 23], [0, 23]]), 1.33), c : ex(poly([[0, 0], [21, 0], [21, 23], [0, 23]]), 2.17, 0.83),
 			b : { type : 'transform/move', in : { of : '@c', x : 1.5, y : 0, z : 0 } }, u : op('union') })
