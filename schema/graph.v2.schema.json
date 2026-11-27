@@ -49,6 +49,13 @@
           "type": "object"
         }
       ]
+    },
+    "components": {
+      "type": "object",
+      "description": "The document's own components, by name; \"#name\" uses one",
+      "additionalProperties": {
+        "$ref": "#"
+      }
     }
   },
   "$defs": {

@@ -21,6 +21,7 @@ import { resolve as resolveRange } from "./controls/math.js";
 import { layout } from "./shelf.js";
 import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY, inViewer, zip } from "./storage.js";
 import type { ShelfSpec, Box } from "./shelf.js";
+import { typeOf, makeComponent, unpack, usage } from "./components.js";
 
 declare const WORKER_SOURCE : string;
 // a document the build opens on (EDITOR_START), or ""
@@ -41,20 +42,36 @@ const isGraph = ( d : unknown ) : d is GraphDocument => typeof d == "object" && 
 const SAVED = restore();
 const START = (() => { try { const d = START_DOC ? JSON.parse( START_DOC ) as unknown : null; return isGraph( d ) ? d : null; } catch { return null; } })();
 let DOC : GraphDocument = isGraph( SAVED ) ? SAVED : START != null ? clone( START ) : clone( SAMPLES[0].doc );
+// The graph on the canvas: the document, or one of its components being edited (SCOPES: the components opened, the
+// innermost last, by name in the document's `components`). Undo, autosave, files and links are of the whole document.
+const SCOPES : Array<string> = [];
+const G = () : GraphDocument => { const s = SCOPES[SCOPES.length - 1]; return s != null && DOC.components?.[s] != null ? DOC.components[s] : DOC; };
+const setG = ( g : GraphDocument ) => { const s = SCOPES[SCOPES.length - 1]; if (s != null && DOC.components?.[s] != null) DOC.components[s] = g; else DOC = { ...g, components : DOC.components }; };
+const LIB = () => DOC.components ?? {};
+// a node's type: the registry's, or an instance's, from its component
+const T = ( id : string ) => typeOf( G().nodes[id], LIB() );
+// what the graph builds for a solid node: "@id", or an instance's first output
+const solidRef = ( id : string ) => {
+    if (G().nodes[id]?.type != "component") return "@" + id;
+    const o = Object.keys( T( id )?.outputs ?? {} )[0];
+    return o == null ? "@" + id : `@${id}.${o}`;
+};
+// what the worker builds: the document, or the component being edited with the document's library
+const evalDoc = () : GraphDocument => G() === DOC ? DOC : { ...G(), components : LIB() };
 // the solid node the 3D view shows: the one asked for with Show, else the document's first output
 const shownNode = () : string => {
-    const s = DOC.view?.show;
-    if (typeof s == "string" && DOC.nodes[s] != null) return s;
-    return ref( Object.values( DOC.outputs ?? {} )[0] )?.[0] ?? "";
+    const s = G().view?.show;
+    if (typeof s == "string" && G().nodes[s] != null) return s;
+    return ref( Object.values( G().outputs ?? {} )[0] )?.[0] ?? "";
 };
 // the name of the output that exports a node, if any; adding one names it after the node, removing the last is refused
-const outputOf = ( id : string ) : string | null => Object.entries( DOC.outputs ?? {} ).find( ([, v]) => ref( v )?.[0] == id )?.[0] ?? null;
+const outputOf = ( id : string ) : string | null => Object.entries( G().outputs ?? {} ).find( ([, v]) => ref( v )?.[0] == id )?.[0] ?? null;
 const toggleOutput = ( id : string ) => {
     const name = outputOf( id );
-    if (name == null) DOC.outputs = { ...DOC.outputs, [id] : "@" + id };
-    else if (Object.keys( DOC.outputs ).length > 1) delete DOC.outputs[name];
+    if (name == null) G().outputs = { ...G().outputs, [id] : solidRef( id ) };
+    else if (Object.keys( G().outputs ).length > 1) delete G().outputs[name];
 };
-const view = () => { DOC.view = DOC.view ?? {}; DOC.view.nodes = DOC.view.nodes ?? {}; return DOC.view.nodes; };
+const view = () => { const g = G(); g.view = g.view ?? {}; g.view.nodes = g.view.nodes ?? {}; return g.view.nodes; };
 
 // ---------------------------------------------------------------- undo: a snapshot of the document after each edit
 // One user action can reach the document through several callbacks (deleting a node also deletes its wires), so the
@@ -94,10 +111,10 @@ let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = 
 // ---------------------------------------------------------------- parameters
 // How a number node shows lives in view.params[id] (it never changes what is built). Its range is fixed for the session
 // once seen (a range recomputed from the current value would move under the thumb), and soft: typing beyond is allowed.
-const metaOf = ( id : string ) : ParamMeta => ((DOC.view as { params? : Record<string, ParamMeta> } | undefined)?.params ?? {})[id] ?? {};
+const metaOf = ( id : string ) : ParamMeta => ((G().view as { params? : Record<string, ParamMeta> } | undefined)?.params ?? {})[id] ?? {};
 const setMeta = ( id : string, m : ParamMeta ) => {
-    DOC.view = DOC.view ?? {};
-    const v = DOC.view as { params? : Record<string, ParamMeta> };
+    G().view = G().view ?? {};
+    const v = G().view as { params? : Record<string, ParamMeta> };
     v.params = { ...(v.params ?? {}), [id] : m };
 };
 const sessionRange = new Map<string, { min : number, max : number, step : number }>(), openValue = new Map<string, number>();
@@ -127,7 +144,7 @@ function evaluate() {
     if (busy && !SHELF) { pending = true; return; }
     busy = true;
     const shown = shownNode();
-    worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown, shelf : SHELF } );
+    worker.postMessage( { seq : ++seq, doc : evalDoc(), output : shown == "" ? undefined : solidRef( shown ), shelf : SHELF } );
     sent.set( seq, JSON.stringify( DOC ) );
     for (const k of sent.keys()) if (k < seq - 20) sent.delete( k );
     if (fitWanted) { fitWanted = false; fitAt = seq; }
@@ -150,7 +167,7 @@ const stlReplies = new Map<string, ( r : StlReply ) => void>();
 let stlSeq = 0;
 function requestStl( output : string, name : string ) : Promise<StlReply> {
     const key = `${name}#${++stlSeq}`;
-    return new Promise( res => { stlReplies.set( key, res ); worker.postMessage( { stl : key, doc : DOC, output } ); } );
+    return new Promise( res => { stlReplies.set( key, res ); worker.postMessage( { stl : key, doc : evalDoc(), output } ); } );
 }
 const fileName = ( s : string ) => s.normalize( "NFD" ).replace( /[\u0300-\u036f]/g, "" ).replace( /[^A-Za-z0-9_-]+/g, "-" ).replace( /^-|-$/g, "" ) || "graph";
 
@@ -164,25 +181,42 @@ interface Edit {
     locate( id : string ) : void;
     params : Record<string, number>;
 }
-const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void, edit : Edit | null }>( { status : {}, shown : "", changed : () => {}, edit : null } );
+interface ComponentActions { open( id : string ) : void; unpack( id : string ) : void }
+const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void, edit : Edit | null, comp : ComponentActions | null }>(
+    { status : {}, shown : "", changed : () => {}, edit : null, comp : null } );
+// how an instance's input shows: as the component shows that number node
+const instanceMeta = ( id : string, k : string ) : ParamMeta | null => {
+    const n = G().nodes[id];
+    if (n?.type != "component" || !n.use?.startsWith( "#" )) return null;
+    return ((LIB()[n.use.slice( 1 )]?.view as { params? : Record<string, ParamMeta> } | undefined)?.params ?? {})[k] ?? {};
+};
+// an instance input's default: the component's number node, as it is there (a number or an expression)
+const instanceDefault = ( id : string, k : string ) : ModelValue | undefined => {
+    const n = G().nodes[id];
+    const v = n?.type == "component" && n.use?.startsWith( "#" ) ? LIB()[n.use.slice( 1 )]?.nodes[k]?.in?.value : undefined;
+    return typeof v == "number" || typeof v == "string" ? v : undefined;
+};
 
 // A number input of a node, or a parameter of the panel: a number node shows as its kind (number, switch, choice);
 // another node's number port as a compact number with a range tamed to its value
 function ParamControl( { id, k, port, full } : { id : string, k : string, port : Extract<GraphPort, { kind : "number" }>, full? : boolean } ) {
     const { edit } = useContext( Ctx );
     if (edit == null) return null;
-    const isParam = DOC.nodes[id].type == "number";
-    const meta = isParam ? metaOf( id ) : {};
-    const raw = DOC.nodes[id].in?.[k];
+    const isParam = G().nodes[id].type == "number";
+    const inst = instanceMeta( id, k );
+    const meta = isParam ? metaOf( id ) : inst ?? {};
+    const raw = G().nodes[id].in?.[k] ?? (inst != null ? instanceDefault( id, k ) : undefined);
     const value : number | string = typeof raw == "number" || typeof raw == "string" ? raw : port.value;
-    const computed = typeof value == "string" ? (isParam ? edit.params[id] ?? null : null) : null;
-    const label = full ? (DOC.nodes[id].label ?? id) : port.label;
+    // an expression's value now: a number node's own parameter, or an instance's (named under its id)
+    const computed = typeof value == "string" ? edit.params[isParam ? id : `${id}__${k}`] ?? null : null;
+    const label = full && isParam ? (G().nodes[id].label ?? id) : port.label;
     const fid = `p-${id}-${k}${full ? "-panel" : ""}`;
     if (meta.kind == "toggle") return <ToggleField label={label} id={fid} value={Number( value ) || 0} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
     if (meta.kind == "choice" && meta.presets && meta.presets.length > 1)
         return <ChoiceField label={label} id={fid} value={Number( value )} options={meta.presets} segments={full ? 5 : 3} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
     const n = typeof value == "number" ? value : computed ?? port.value;
-    const range = rangeOf( `${id}.${k}`, n, isParam ? { min : meta.min, max : meta.max, step : meta.step } : { min : port.min, max : port.max, step : port.step }, !!port.integer, !isParam );
+    const own = isParam || inst != null;
+    const range = rangeOf( `${id}.${k}`, n, own ? { min : meta.min, max : meta.max, step : meta.step } : { min : port.min, max : port.max, step : port.step }, !!port.integer, !own );
     return <NumberField label={label} id={fid} value={value} computed={computed} range={range} compact={!full} unit={meta.unit ?? port.unit}
         hard={port.integer ? { integer : true } : undefined} defaultValue={meta.default ?? openValue.get( `${id}.${k}` )}
         presets={meta.kind == "choice" ? undefined : meta.presets} live={() => liveMode}
@@ -191,19 +225,19 @@ function ParamControl( { id, k, port, full } : { id : string, k : string, port :
 }
 
 function NumberInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "number" }> } ) {
-    const r = ref( DOC.nodes[id].in?.[k] );
+    const r = ref( G().nodes[id].in?.[k] );
     return <div className="row">
         <Handle type="target" position={Position.Left} id={k} className="h-number" />
-        {r ? <><span className="lbl">{port.label}</span><span className="wired">← {DOC.nodes[r[0]]?.label ?? r[0]}</span></> : <ParamControl id={id} k={k} port={port} />}
+        {r ? <><span className="lbl">{port.label}</span><span className="wired">← {G().nodes[r[0]]?.label ?? r[0]}</span></> : <ParamControl id={id} k={k} port={port} />}
     </div>;
 }
 
 function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" | "profile" | "points" }> } ) {
     const { changed } = useContext( Ctx );
-    const v = String( DOC.nodes[id].in?.[k] ?? port.value );
+    const v = String( G().nodes[id].in?.[k] ?? port.value );
     const [text, setText] = useState( v );
     useEffect( () => setText( v ), [v] );
-    const set = ( x : string ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : x }; changed(); };
+    const set = ( x : string ) => { const n = G().nodes[id]; n.in = { ...n.in, [k] : x }; changed(); };
     return <div className="row">
         <span className="lbl">{port.label}</span>
         {port.kind == "function" && <span className="expr-tag" title={`An expression of ${port.variable}, from 0 to 1, and number nodes`}>ƒ({port.variable})</span>}
@@ -218,12 +252,12 @@ function TextInput( { id, k, port } : { id : string, k : string, port : Extract<
 // a profile (JSON { outer, holes }), edited as JSON: kept as typed until it parses
 function OutlineInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "outline" }> } ) {
     const { changed } = useContext( Ctx );
-    const v = JSON.stringify( DOC.nodes[id].in?.[k] ?? port.value );
+    const v = JSON.stringify( G().nodes[id].in?.[k] ?? port.value );
     const [text, setText] = useState( v );
     const [bad, setBad] = useState( false );
     useEffect( () => { setText( v ); setBad( false ); }, [v] );
     const set = ( x : string ) => {
-        try { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : JSON.parse( x ) }; setBad( false ); changed(); } catch { setBad( true ); }
+        try { const n = G().nodes[id]; n.in = { ...n.in, [k] : JSON.parse( x ) }; setBad( false ); changed(); } catch { setBad( true ); }
     };
     return <div className="row">
         <span className="lbl">{port.label}</span>
@@ -233,9 +267,11 @@ function OutlineInput( { id, k, port } : { id : string, k : string, port : Extra
 }
 
 function GraphNodeView( { id } : NodeProps ) {
-    const nd = DOC.nodes[id], t = REGISTRY[nd?.type];
-    const { status, shown, changed } = useContext( Ctx );
-    if (nd == null || t == null) return null;
+    const nd = G().nodes[id], t = T( id );
+    const { status, shown, changed, comp } = useContext( Ctx );
+    if (nd == null) return null;
+    if (t == null) return <div className="gn cat-component broken"><div className="gn-head"><span className="gn-title">{nd.label ?? id}</span></div>
+        <p className="muted small">{nd.type == "component" ? `Uses "${nd.use ?? ""}", which this document's components do not have` : `Unknown node type "${nd.type}"`}</p></div>;
     const state = status[id] ?? "idle";
     const isSolid = Object.values( t.outputs ).includes( "solid" );
     return <div className={"gn" + (shown == id ? " shown" : "") + " cat-" + t.category} title={t.help}>
@@ -243,16 +279,19 @@ function GraphNodeView( { id } : NodeProps ) {
             <span className="gn-title">{nd.label ?? t.title}</span>
             {state != "parameter" && <span className={"pill " + state}>{state}</span>}
         </div>
-        <div className="gn-type">{t.title} · <code>{id}</code></div>
+        <div className="gn-type">{nd.type == "component" ? "Component" : t.title} · <code>{id}</code></div>
+        {nd.type == "component" && comp && <div className="row gn-comp">
+            <button className="nodrag show" onClick={() => comp.open( id )} title="Open the component to edit it: every instance of it changes">Edit component</button>
+            <button className="nodrag show" onClick={() => comp.unpack( id )} title="Put the component's nodes in place of this instance">Unpack</button></div>}
         {Object.entries( t.inputs ).map( ([k, p]) => p.kind == "number" ? <NumberInput key={k} id={id} k={k} port={p} />
             : p.kind == "solid" ? <div className="row" key={k}>
                 <Handle type="target" position={Position.Left} id={k} className="h-solid" />
                 <span className="lbl">{p.label}</span>
-                <span className="wired">{ref( nd.in?.[k] ) ? "← " + (DOC.nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : "connect a solid"}</span></div>
+                <span className="wired">{ref( nd.in?.[k] ) ? "← " + (G().nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : "connect a solid"}</span></div>
             : p.kind == "outline" ? <OutlineInput key={k} id={id} k={k} port={p} />
             : <TextInput key={k} id={id} k={k} port={p} /> )}
         {Object.entries( t.outputs ).map( ([k, ty]) => <div className="row out" key={k}>
-            {isSolid && <button className="nodrag show" aria-pressed={shown == id} onClick={() => { DOC.view = { ...DOC.view, show : id }; changed(); }}>
+            {isSolid && <button className="nodrag show" aria-pressed={shown == id} onClick={() => { G().view = { ...G().view, show : id }; changed(); }}>
                 {shown == id ? "Shown" : "Show"}</button>}
             {isSolid && <button className="nodrag show out-toggle" aria-pressed={outputOf( id ) != null} title="Export this solid as an output of the graph file"
                 onClick={() => { toggleOutput( id ); changed(); }}>{outputOf( id ) != null ? "Output: " + outputOf( id ) : "Make output"}</button>}
@@ -271,21 +310,23 @@ function placeUnplaced() {
         if (seen.has( id )) return 0;
         seen.add( id );
         let d = 0;
-        for (const x of Object.values( DOC.nodes[id]?.in ?? {} )) { const r = ref( x ); if (r && DOC.nodes[r[0]] != null) d = Math.max( d, at( r[0], seen ) + 1 ); }
+        for (const x of Object.values( G().nodes[id]?.in ?? {} )) { const r = ref( x ); if (r && G().nodes[r[0]] != null) d = Math.max( d, at( r[0], seen ) + 1 ); }
         return depth[id] = d;
     };
-    for (const id of Object.keys( DOC.nodes )) {
+    for (const id of Object.keys( G().nodes )) {
         if (v[id] != null) continue;
         const c = at( id, new Set() ), r = rows[c] ?? 0;
         rows[c] = r + 1;
         v[id] = { x : c * 300, y : r * 230 };
     }
 }
-const toNodes = () : Node[] => (placeUnplaced(), Object.keys( DOC.nodes )).map( id => ({ id, type : "g", position : view()[id] ?? { x : 0, y : 0 }, data : {}, dragHandle : ".gn-head" }) );
-const toEdges = () : Edge[] => Object.entries( DOC.nodes ).flatMap( ([id, nd]) => Object.entries( nd.in ?? {} ).flatMap( ([k, v]) => {
+const toNodes = () : Node[] => (placeUnplaced(), Object.keys( G().nodes )).map( id => ({ id, type : "g", position : view()[id] ?? { x : 0, y : 0 }, data : {}, dragHandle : ".gn-head" }) );
+const toEdges = () : Edge[] => Object.entries( G().nodes ).flatMap( ([id, nd]) => Object.entries( nd.in ?? {} ).flatMap( ([k, v]) => {
     const r = ref( v );
-    if (!r || !DOC.nodes[r[0]] || !REGISTRY[DOC.nodes[r[0]].type]) return [];
-    const outs = REGISTRY[DOC.nodes[r[0]].type].outputs, port = r[1] || Object.keys( outs )[0];
+    const t = r ? T( r[0] ) : null;
+    if (!r || t == null) return [];
+    const outs = t.outputs, port = r[1] || Object.keys( outs )[0];
+    if (outs[port] == null) return [];
     return [{ id : `${id}.${k}`, source : r[0], sourceHandle : port, target : id, targetHandle : k, className : "e-" + outs[port] }];
 } ) );
 
@@ -483,13 +524,22 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
 const CATEGORIES : Array<[string, string]> = [["parameter", "Parameters"], ["math", "Math"], ["freeform", "Freeform"], ["primitive", "Primitives"], ["transform", "Transforms"],
     ["boolean", "Booleans"], ["finish", "Finishing"]];
 
-function Palette( { add } : { add : ( type : string ) => void } ) {
+function Palette( { add, remove } : { add : ( type : string, use? : string ) => void, remove : ( name : string ) => void } ) {
     const [q, setQ] = useState( "" );
+    const lib = Object.entries( LIB() ).filter( ([name, d]) => !SCOPES.includes( name ) &&
+        (q == "" || (String( d.meta?.name ?? name ) + " " + name).toLowerCase().includes( q.toLowerCase() )) );
+    const used = usage( DOC );
     const groups = useMemo( () => CATEGORIES.map( ([c, title]) => [title, Object.entries( REGISTRY ).filter( ([type, t]) => t.category == c &&
         (q == "" || (t.title + " " + type).toLowerCase().includes( q.toLowerCase() )) )] as const ).filter( g => g[1].length > 0 ), [q] );
     return <nav className="palette" aria-label="Add a node">
         <input id="palette-search" type="search" placeholder="Add a node…" aria-label="Search node types" value={q} onChange={e => setQ( e.target.value )} />
         <div className="palette-list">
+            {lib.length > 0 && <section><h3>This document's components</h3>
+                {lib.map( ([name, d]) => <div key={name} className="pal-comp">
+                    <button title={String( d.meta?.description ?? `An instance of ${name}` )} onClick={() => add( "component", name )}>{String( d.meta?.name ?? name )}
+                        <span className="pp-count"> {used[name] ?? 0}×</span></button>
+                    {(used[name] ?? 0) == 0 && <button className="pal-del" aria-label={`Remove ${name} from the document's components`} title="Remove it: nothing uses it"
+                        onClick={() => remove( name )}>×</button>}</div> )}</section>}
             {groups.map( ([title, items]) => <section key={title}><h3>{title}</h3>
                 {items.map( ([type, t]) => <button key={type} title={t.help} onClick={() => add( type )}>{t.title}</button> )}</section> )}
         </div>
@@ -517,9 +567,11 @@ function PieceCard( { name, x, y } : { name : string, x : number, y : number } )
 // node on the canvas; a click on the label shows it.
 function ParamPanel() {
     const [closed, setClosed] = useState<Record<string, boolean>>( {} );
-    const ids = Object.keys( DOC.nodes ).filter( id => DOC.nodes[id].type == "number" );
-    if (ids.length == 0) return <p className="muted small pp-empty">This graph has no number nodes. Add one from the palette (Parameters) and wire it or name it in expressions.</p>;
-    const order = ((DOC.view as { groups? : Array<string> } | undefined)?.groups) ?? [];
+    const ids = Object.keys( G().nodes ).filter( id => G().nodes[id].type == "number" );
+    const instances = Object.keys( G().nodes ).filter( id => G().nodes[id].type == "component" && T( id ) != null &&
+        Object.keys( T( id )!.inputs ).some( k => !ref( G().nodes[id].in?.[k] ) ) );
+    if (ids.length == 0 && instances.length == 0) return <p className="muted small pp-empty">This graph has no number nodes. Add one from the palette (Parameters) and wire it or name it in expressions.</p>;
+    const order = ((G().view as { groups? : Array<string> } | undefined)?.groups) ?? [];
     const groups = new Map<string, Array<string>>();
     for (const g of order) groups.set( g, [] );
     for (const id of ids) { const g = metaOf( id ).group ?? "Parameters"; if (!groups.has( g )) groups.set( g, [] ); groups.get( g )!.push( id ); }
@@ -529,9 +581,16 @@ function ParamPanel() {
         {[...groups].filter( ([, list]) => list.length > 0 ).map( ([g, list]) => <section key={g}>
             <h3><button type="button" aria-expanded={!closed[g]} onClick={() => setClosed( c => ({ ...c, [g] : !c[g] }) )}>{g}<span className="pp-count">{list.length}</span></button></h3>
             {!closed[g] && list.map( id => <div key={id} className="pp-row" onMouseEnter={() => light( id, true )} onMouseLeave={() => light( id, false )}>
-                {ref( DOC.nodes[id].in?.value ) ? <span className="muted small">{DOC.nodes[id].label ?? id}: wired</span> : <ParamControl id={id} k="value" port={port} full />}
+                {ref( G().nodes[id].in?.value ) ? <span className="muted small">{G().nodes[id].label ?? id}: wired</span> : <ParamControl id={id} k="value" port={port} full />}
             </div> )}
         </section> )}
+        {instances.map( id => { const g = `${G().nodes[id].label ?? id} (component)`; const t = T( id )!; return <section key={"i-" + id}>
+            <h3><button type="button" aria-expanded={!closed[g]} onClick={() => setClosed( c => ({ ...c, [g] : !c[g] }) )}>{g}
+                <span className="pp-count">{Object.keys( t.inputs ).length}</span></button></h3>
+            {!closed[g] && Object.entries( t.inputs ).filter( ([k]) => !ref( G().nodes[id].in?.[k] ) ).map( ([k, p]) =>
+                <div key={k} className="pp-row" onMouseEnter={() => light( id, true )} onMouseLeave={() => light( id, false )}>
+                    <ParamControl id={id} k={k} port={p as Extract<GraphPort, { kind : "number" }>} full /></div> )}
+        </section>; } )}
     </div>;
 }
 
@@ -541,7 +600,7 @@ function App() {
     const [edges, setEdges, onEdgesChange] = useEdgesState( toEdges() );
     const [, setTick] = useState( 0 );
     const [result, setResult] = useState<Result | null>( null );
-    const [tab, setTab] = useState<"params" | "graph" | "model">( Object.values( DOC.nodes ).some( n => n.type == "number" ) ? "params" : "graph" );
+    const [tab, setTab] = useState<"params" | "graph" | "model">( Object.values( G().nodes ).some( n => n.type == "number" ) ? "params" : "graph" );
     const [holding, setHolding] = useState( false );
     const [menuAt, setMenuAt] = useState<{ id : string, x : number, y : number } | null>( null );
     const [parts, setParts] = useState<Map<string, Part>>( new Map() );
@@ -560,7 +619,7 @@ function App() {
         setNodes( toNodes() ); setEdges( toEdges() ); setTick( x => x + 1 ); evaluate();
         if (fit) setTimeout( () => flow.fitView( { padding : 0.08 } ), 50 );
     };
-    const restore = ( d : GraphDocument | null ) => { if (d != null) { DOC = d; reload( false ); } };
+    const restore = ( d : GraphDocument | null ) => { if (d != null) { DOC = d; while (SCOPES.length && DOC.components?.[SCOPES[SCOPES.length - 1]] == null) SCOPES.pop(); reload( false ); } };
     const undo = () => restore( history.undo() ), redo = () => restore( history.redo() );
     useEffect( () => {
         listener = r => {
@@ -568,7 +627,7 @@ function App() {
             if (r.ok) noteTime( r.ms );
             if (r.ok && r.verdict?.kind == "buildable" && sent.has( r.seq )) lastGood = sent.get( r.seq )!;
             // a finished shelf: drop pieces of outputs that are gone
-            if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => DOC.outputs?.[k] != null ) ) );
+            if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => G().outputs?.[k] != null ) ) );
         };
         partListener = p => setParts( m => new Map( m ).set( p.part, p ) );
         refineListener = m => setResult( r => r == null ? r : { ...r, ...m } );
@@ -589,32 +648,32 @@ function App() {
         return () => window.removeEventListener( "keydown", keys );
     }, [] );
 
-    const add = ( type : string ) => {
-        const base = type.split( "/" ).pop()!.replace( /[^A-Za-z0-9]+/g, "_" ).replace( /^(\d)/, "n$1" );
+    const add = ( type : string, use? : string ) => {
+        const base = (use ?? type.split( "/" ).pop()!).toLowerCase().replace( /[^a-z0-9]+/g, "_" ).replace( /^_+|_+$/g, "" ).replace( /^(\d)|^$/, "n$1" );
         let k = 1, id = base;
-        while (DOC.nodes[id] != null || Expr.reserved( id )) id = base + ++k;
-        DOC.nodes[id] = { type };
+        while (G().nodes[id] != null || Expr.reserved( id )) id = base + ++k;
+        G().nodes[id] = use != null ? { type : "component", use : "#" + use, label : String( LIB()[use]?.meta?.name ?? use ) } : { type };
         const r = document.querySelector( ".canvas" )!.getBoundingClientRect();
         const p = flow.screenToFlowPosition( { x : r.left + r.width / 2 - 110, y : r.top + r.height / 3 } );
         view()[id] = { x : Math.round( p.x ), y : Math.round( p.y ) };
         setNodes( toNodes() );
         changed();
     };
-    const onConnect = ( c : Connection ) => { const n = DOC.nodes[c.target]; n.in = { ...n.in, [c.targetHandle!] : "@" + c.source }; changed(); };
+    const onConnect = ( c : Connection ) => { const n = G().nodes[c.target]; n.in = { ...n.in, [c.targetHandle!] : "@" + c.source }; changed(); };
     const onEdgesDelete = ( es : Edge[] ) => {
-        for (const e of es) { const n = DOC.nodes[e.target]; if (n?.in) delete n.in[e.targetHandle!]; }
+        for (const e of es) { const n = G().nodes[e.target]; if (n?.in) delete n.in[e.targetHandle!]; }
         changed();
     };
     const onNodesDelete = ( ns : Node[] ) => {
-        for (const x of ns) { delete DOC.nodes[x.id]; delete view()[x.id]; }
-        for (const [name, v] of Object.entries( DOC.outputs ?? {} )) if (DOC.nodes[ref( v )?.[0] ?? ""] == null) delete DOC.outputs[name];
-        for (const n of Object.values( DOC.nodes )) for (const [k, v] of Object.entries( n.in ?? {} )) { const r = ref( v ); if (r && DOC.nodes[r[0]] == null) delete n.in![k]; }
+        for (const x of ns) { delete G().nodes[x.id]; delete view()[x.id]; }
+        for (const [name, v] of Object.entries( G().outputs ?? {} )) if (G().nodes[ref( v )?.[0] ?? ""] == null) delete G().outputs[name];
+        for (const n of Object.values( G().nodes )) for (const [k, v] of Object.entries( n.in ?? {} )) { const r = ref( v ); if (r && G().nodes[r[0]] == null) delete n.in![k]; }
         changed();
     };
     const isValidConnection = ( c : Edge | Connection ) => {
         if (c.source == c.target) return false;
-        const out = REGISTRY[DOC.nodes[c.source].type].outputs[c.sourceHandle ?? ""], inp = REGISTRY[DOC.nodes[c.target].type].inputs[c.targetHandle ?? ""];
-        return inp != null && inp.kind == out;
+        const out = T( c.source )?.outputs[c.sourceHandle ?? ""], inp = T( c.target )?.inputs[c.targetHandle ?? ""];
+        return inp != null && out != null && inp.kind == out;
     };
     const onNodeDragStop = ( _e : unknown, _n : Node, moved : Node[] ) => {
         for (const n of moved) view()[n.id] = { x : Math.round( n.position.x ), y : Math.round( n.position.y ) };
@@ -632,7 +691,7 @@ function App() {
         try {
             const d = JSON.parse( text ) as unknown;
             if (!isGraph( d )) throw new Error( "not a version 2 graph document" );
-            DOC = d; reload(); record();
+            DOC = d; SCOPES.length = 0; reload(); record();
             tell( `Opened ${name}` );
         } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${name}: ${(e as Error).message}` } ); }
     };
@@ -647,7 +706,7 @@ function App() {
     };
     // STL: the shown part, or on the shelf every output, each its own file
     const downloadStl = async () => {
-        const outs = shelfMode ? Object.keys( DOC.outputs ) : [shownNode() == "" ? Object.keys( DOC.outputs )[0] : "@" + shownNode()];
+        const outs = shelfMode ? Object.keys( G().outputs ) : [shownNode() == "" ? Object.keys( G().outputs )[0] : "@" + shownNode()];
         if (inViewer()) {
             // the viewer saves no .stl: every part's STL in one zip
             const files : Array<{ name : string, data : Uint8Array }> = [];
@@ -676,12 +735,12 @@ function App() {
     };
     // a document in the link (#g=...): opened once decoded
     useEffect( () => {
-        void fromLink( location.hash ).then( d => { if (isGraph( d )) { DOC = d; reload(); record(); tell( "Opened the graph in the link" ); } } )
+        void fromLink( location.hash ).then( d => { if (isGraph( d )) { DOC = d; SCOPES.length = 0; reload(); record(); tell( "Opened the graph in the link" ); } } )
             .catch( () => tell( "The link's graph could not be read" ) );
     }, [] );
 
     // parameter edits: previews move the value (and rebuild live when rebuilds are quick); a commit is an undo step
-    const setValue = ( id : string, k : string, v : ModelValue ) => { const n = DOC.nodes[id]; n.in = { ...n.in, [k] : v }; };
+    const setValue = ( id : string, k : string, v : ModelValue ) => { const n = G().nodes[id]; n.in = { ...n.in, [k] : v }; };
     const edit : Edit = {
         preview : ( id, k, v ) => { setValue( id, k, v ); if (liveMode) evaluate(); },
         commit : ( id, k, v, key ) => { setValue( id, k, v ); changed( key ); },
@@ -690,20 +749,50 @@ function App() {
         locate : id => { void flow.fitView( { nodes : [{ id }], duration : 300, maxZoom : 1.2 } ); },
         params : result?.params ?? {},
     };
-    const backToGood = () => { if (lastGood == null) return; DOC = JSON.parse( lastGood ) as GraphDocument; forgetSession(); reload( false ); record(); tell( "Back to the last buildable values" ); };
+    // components: one undo step each (opening one is not an edit)
+    const structural = () => { reload( false ); record(); };
+    const makeComp = () => {
+        const sel = nodes.filter( n => n.selected ).map( n => n.id );
+        if (sel.length == 0) { tell( "Select the nodes first: Shift-drag a box round them, or Ctrl-click (⌘-click) each" ); return; }
+        const title = window.prompt( "Name of the new component", "Part" );
+        if (title == null || title.trim() == "") return;
+        try {
+            const m = makeComponent( G(), sel, title.trim(), LIB(), result?.params ?? {} );
+            const lib = { ...LIB(), [m.name] : m.component };
+            setG( m.graph );
+            DOC.components = lib;
+            structural();
+            const k = Object.values( m.component.nodes ).filter( n => n.type == "number" ).length;
+            tell( `Made the component ${title.trim()}: ${Object.keys( m.component.nodes ).length} nodes, ${k} number input${k == 1 ? "" : "s"}` );
+        } catch (e) { tell( (e as Error).message ); }
+    };
+    const comp : ComponentActions = {
+        open : id => { const n = G().nodes[id]; if (n?.use?.startsWith( "#" ) && LIB()[n.use.slice( 1 )] != null) { SCOPES.push( n.use.slice( 1 ) ); reload(); } },
+        unpack : id => { try { setG( unpack( G(), id, LIB() ) ); structural(); } catch (e) { tell( (e as Error).message ); } },
+    };
+    const removeComp = ( name : string ) => { if (DOC.components == null) return; delete DOC.components[name]; if (Object.keys( DOC.components ).length == 0) delete DOC.components; structural(); };
+    const leave = ( depth : number ) => { SCOPES.length = depth; reload(); };
+    const backToGood = () => { if (lastGood == null) return; DOC = JSON.parse( lastGood ) as GraphDocument; while (SCOPES.length && DOC.components?.[SCOPES[SCOPES.length - 1]] == null) SCOPES.pop(); forgetSession(); reload( false ); record(); tell( "Back to the last buildable values" ); };
     const unbuildable = result != null && (!result.ok || (result.verdict != null && result.verdict.kind != "buildable"));
 
     const shown = shownNode();
     const status = result?.nodes ?? {};
     const rebuilt = Object.keys( status ).filter( k => status[k] == "built" ), reused = Object.keys( status ).filter( k => status[k] == "cached" );
-    return <Ctx.Provider value={{ status, shown, changed, edit }}>
+    return <Ctx.Provider value={{ status, shown, changed, edit, comp }}>
         <main className={"layout" + (big ? " big" : "")}>
-            <Palette add={add} />
-            <section className="canvas" aria-label="Node graph">
+            <Palette add={add} remove={removeComp} />
+            <section className={"canvas" + (SCOPES.length ? " scoped" : "")} aria-label="Node graph">
+                {SCOPES.length > 0 && <nav className="crumbs" aria-label="Where you are">
+                    <button onClick={() => leave( 0 )}>{String( DOC.meta?.name ?? "Main graph" )}</button>
+                    {SCOPES.map( ( s, i ) => <span key={i}> › {i < SCOPES.length - 1
+                        ? <button onClick={() => leave( i + 1 )}>{String( LIB()[s]?.meta?.name ?? s )}</button>
+                        : <b>{String( LIB()[s]?.meta?.name ?? s )}</b>}</span> )}
+                    <span className="muted small"> · component, used {usage( DOC )[SCOPES[SCOPES.length - 1]] ?? 0}×: every instance changes with it</span>
+                </nav>}
                 <div className="toolbar">
                     <button onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z or ⌘Z)">Undo</button>
                     <button onClick={redo} disabled={!history.canRedo} title="Redo (Shift+Ctrl+Z, ⌘⇧Z or Ctrl+Y)">Redo</button>
-                    <select aria-label="Open a sample" value="" onChange={e => { const s = e.target.value == "start" ? { doc : START! } : SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); reload(); record(); } }}>
+                    <select aria-label="Open a sample" value="" onChange={e => { const s = e.target.value == "start" ? { doc : START! } : SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); SCOPES.length = 0; reload(); record(); } }}>
                         <option value="" disabled>Open a sample…</option>
                         {START != null && <option value="start">{String( START.meta?.name ?? "This project" )} (as built)</option>}
                         {[...new Set( SAMPLES.map( s => s.group ) )].map( grp => <optgroup key={grp} label={grp}>
@@ -716,6 +805,7 @@ function App() {
                     <button aria-pressed={shelfMode} onClick={() => { setShelf( !shelfMode ); fitWanted = true; evaluate(); }}
                         title="Show every output of the graph at once, side by side">Shelf</button>
                     <button aria-pressed={big} onClick={() => setBig( !big )} title="A larger 3D view">Large view</button>
+                    <button onClick={makeComp} title="Make a component of the selected nodes (Shift-drag to select): one node, its numbers as inputs, reusable from the palette">Make component</button>
                     {note && <span className="note" role="status">{note}</span>}
                     <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void open( f ); e.target.value = ""; }} />
                 </div>
@@ -760,10 +850,10 @@ function App() {
                     {tab == "params" ? <ParamPanel /> : <pre>{JSON.stringify( tab == "graph" ? DOC : result?.model ?? null, null, 2 )}</pre>}
                 </div>
             </aside>
-            {menuAt && DOC.nodes[menuAt.id] && (() => {
-                const v = DOC.nodes[menuAt.id].in?.value, n = typeof v == "number" ? v : (result?.params?.[menuAt.id] ?? 0);
+            {menuAt && G().nodes[menuAt.id] && (() => {
+                const v = G().nodes[menuAt.id].in?.value, n = typeof v == "number" ? v : (result?.params?.[menuAt.id] ?? 0);
                 const r = rangeOf( `${menuAt.id}.value`, n, metaOf( menuAt.id ), false, false );
-                return <ParamMenu label={DOC.nodes[menuAt.id].label ?? menuAt.id} at={menuAt} meta={metaOf( menuAt.id )} effective={r} current={n}
+                return <ParamMenu label={G().nodes[menuAt.id].label ?? menuAt.id} at={menuAt} meta={metaOf( menuAt.id )} effective={r} current={n}
                     onClose={() => setMenuAt( null )} onSave={m => { setMeta( menuAt.id, m ); setMenuAt( null ); changed(); }} />;
             })()}
         </main>

@@ -426,13 +426,25 @@ Graph.compile( doc );         // the version 1 model document it runs
   adds or removes a solid node from them, and **Show** displays any solid node without changing the outputs.
 * **Components**: any graph document can be used as a node of type `component` (`use`, an optional pinning `hash`,
   its number nodes as inputs, its outputs as outputs, names nested under the instance's id); this is the design's
-  group, specified in docs/formats.md.
+  group, specified in docs/formats.md. The editor keeps them in the document (`components`, used as `"#name"`), so
+  files, links and the browser's copy carry them (`editor/components.ts`):
+  * **Make component** turns the selected nodes into one instance. Its inputs are the selected number nodes nothing
+    else uses, plus a copy of each number the selection takes from outside, which the instance is wired to, so the
+    part builds the same. Its outputs are the selected solids used outside or exported, else the selection's last
+    solids. Wires, outputs and the face names of rounds outside follow (`a.+z` becomes `plate/a.+z`). A selection
+    that takes a solid from outside is refused, with the node to add.
+  * **Edit component** opens it on the canvas, with a breadcrumb back. The 3D view shows the component alone, and
+    every instance changes with it. Undo covers it like any edit.
+  * **Unpack** puts the component's nodes back in place of an instance, renamed where an id is taken. A parameter
+    the instance wired to an outer number node becomes that node again.
+  * The palette lists the document's components, with how many instances use each, and removes one nothing uses.
+    The Customize panel shows each instance's inputs that are not wired, as the component shows them.
 * **Undo and redo** (`editor/history.ts`): a snapshot of the graph document after each edit, so an undone document is
   byte for byte the earlier one, and the evaluator's cache rebuilds nothing for it. Everything one action does (a
   node deleted with its wires) is one step, a slider drag is one step while it keeps moving (`COALESCE_MS`), moving
   nodes and Open and New are steps too, and the last 200 are kept. Ctrl+Z or Cmd+Z, and Shift+Ctrl+Z, Cmd+Shift+Z or
   Ctrl+Y, or the toolbar's buttons; a text field keeps its own undo while it has the focus.
-* **Not yet:** components in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), and
+* **Not yet:** components of other files in the editor, lists and lacing, curve and surface nodes (`Nodes`, `Make`), and
   renaming a node on the canvas (edit `label` in the file). Curves are not yet wires: a pipe's curve lives in its own
   node, so two nodes cannot share one. A pipe's radius is constant along it, and `finish/shell` cannot yet offset a
   revolve (the samples hollow the vase with a second revolve instead). Vessels have no handles or decoration yet:

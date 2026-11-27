@@ -83,6 +83,7 @@ radians as in every programming language (`math/rad` and `rad()` convert). Volum
 | `outputs` | yes | the solids the document exports, by name; at least one |
 | `meta` | no | about the document: `name`, `description`, anything else; never read by the evaluator |
 | `machine` | no | the machine every output is checked against for its verdict: a key of `Makeable.MACHINES` (`"fdm"`, `"sla"`, ...) or a machine object |
+| `components` | no | the document's own components, by name: graph documents its `"#name"` instances use ([Components](#components)) |
 | `view` | no | the editor's state: `nodes` (positions by id), `show` (the node on display), anything else |
 
 Any other top-level key is refused. `meta` and `view` never change what is built: editing them rebuilds nothing.
@@ -260,6 +261,21 @@ node.
 * **`use`** names the component's document. The library never reads files itself: the caller passes
   `resolve( use, from )` in the options, which returns the document (`from` is the `use` of the document the node is
   in, `null` at the top, so relative paths can be resolved). The same document may be used by any number of instances.
+* **The document's own components.** `use: "#name"` is an instance of `components.name`, a graph document kept in
+  the using document's top-level `components`. A file, a shared link or a browser's copy then carries its components
+  with it, and nothing needs resolving. A component of the library has no library of its own: its own `"#name"`
+  instances are of the same one, so components can use each other (not themselves). `Graph.hash` covers the library
+  (each entry's hash, so moving a node inside a component does not change it); a document without one keeps the hash
+  it had.
+
+  ```json
+  { "version": 2,
+    "nodes": { "w": { "type": "number", "in": { "value": 40 } },
+               "p": { "type": "component", "use": "#Plate", "in": { "w": "@w" } } },
+    "outputs": { "plate": "@p.body" },
+    "components": { "Plate": { "version": 2, "nodes": { "w": { "type": "number", "in": { "value": 10 } }, "...": {} },
+                               "outputs": { "body": "@d" } } } }
+  ```
 * **`hash`** (optional, recommended for anything shared) pins the component's content: `Graph.hash( doc )`, which
   leaves out `meta` and `view`. If the component changed since, the instance is refused with both hashes in the
   message, so a change is noticed and accepted on purpose (update the hash), never picked up silently.
@@ -272,13 +288,14 @@ node.
   `crank1/disc.top`, and through a transform every feature id on the path carries it (`part/cone/part/coneShape.side`).
   Edge and face patterns inside the component are renamed the same way, so a component's own fillets select the same
   edges in every instance. The instance's parameters become `crank1__crank` in the compiled model document.
-* **What is refused:** a component that uses itself (directly or not), a `use` with nothing to resolve it, a pinned
+* **What is refused:** a component that uses itself (directly or not), a `use` with nothing to resolve it, a
+  `"#name"` the document's components do not have, a component of the library with a library of its own, a pinned
   hash that does not match, an input or an output the component does not have, `use` or `hash` on another node, and
   a number node whose id is already an instance's compiled parameter name (`crank1__rod`).
 * **Limits.** A component whose output is a round can be moved, rotated and uniformly scaled, but not yet combined
   in a further Boolean, since a round is the last feature of a model (docs/model.md, "Limits", says why and what
-  it would take); a lattice cannot be moved either. The node editor shows
-  components' outputs in files it opens but cannot open their documents yet.
+  it would take); a lattice cannot be moved either. The node editor makes, edits and unpacks the document's own
+  components (docs/visual-programming.md); an instance of a file (`use` a path) shows as a broken node there.
 
 ## Model document, version 1
 
