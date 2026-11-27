@@ -8,9 +8,10 @@ import { BrepFace, BrepSolid } from "../solid/Brep.js";
 import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean.js";
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
-import { Catalog } from "../solid/primitives/Catalog.js";
+import { Extrusion, ProfilePoint, ProfileSegmentSpec, ProfileSpec } from "../solid/Extrusion.js";
 import { Primitives } from "../solid/primitives/Primitives.js";
 import { Profiles } from "../solid/primitives/Profiles.js";
+import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
 import { Machine, Makeable, MakeableReport } from "../solid/Makeable.js";
@@ -31,9 +32,14 @@ export type ModelFeature =
     | { type : "pipe", through : Array<ModelPoint>, radius : ModelValue, divs? : [ModelValue, ModelValue] }
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
     // a straight prism over an outline in the plane z = 0, from z = 0 to `height`: points [x, y] or [x, y, r] (r rounds
-    // that corner by a tangent arc), counter-clockwise or clockwise. The outline must be star-shaped about `center`
-    // (its centroid by default): the caps are fans from it. Faces: side.k (one per smooth piece), bottom, top
+    // that corner by a tangent arc), in either orientation; its values may be expressions. Built as an exact extrusion
+    // with caps fanned from `center` (its centroid by default) when the outline is star-shaped about it; as an exact
+    // extrusion (lines and arcs, `Extrusion`) when it is not, so any simple polygon will do. Faces: bottom, top, and
+    // side.k (one per smooth piece) or outer.k (one per side and rounded corner) for an extrusion
     | { type : "prism", outline : Array<Array<ModelValue>>, height : ModelValue, center? : [ModelValue, ModelValue] }
+    // a planar profile (lines, three-point arcs, circles and cubic Béziers, with holes) extruded from z up by height,
+    // exact (`Extrusion`): faces bottom, top, outer.k and hole{i}.k
+    | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -287,7 +293,8 @@ export class Model {
         const offset = (id : string, d : number, path : string, open : Array<RegExp>) : Tree => {
             const f = features[id];
             switch (f.type) {
-                case "primitive": case "prism": throw new Error( `Model: a shell cannot yet offset the ${f.type} "${id}"` );
+                case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
+                case "extrude": case "prism": throw new Error( `Model: a shell cannot yet offset the extrusion "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -328,7 +335,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "prism":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "prism":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -499,6 +506,7 @@ export class Model {
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
             case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ), center : pair( f.center, "center" ) };
+            case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -529,13 +537,18 @@ export class Model {
         switch (f.type) {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
             case "prism": {
+                // a fan-capped prism (`Primitives.prism`) when the outline is star-shaped about its centroid or `center`,
+                // an exact extrusion (`Extrusion`) otherwise: unions of extrusions that share planes still fail (#101),
+                // where the fan-capped prisms hold
                 const pts = Model.outline( f, num ), h = positive( num( f.height, "height" ), "a prism's height" );
                 const c = f.center == null ? undefined : [num( f.center[0], "center" ), num( f.center[1], "center" ), 0];
-                const radii = pts.map( p => p[2] );
-                const flat = pts.map( p => [p[0], p[1], 0] );
-                const profile = radii.some( r => r > 0 ) ? Profiles.rounded( flat, radii, c ) : Profiles.polygon( flat, c );
+                const flat = pts.map( p => [p[0], p[1], 0] ), radii = pts.map( p => p[2] );
+                let profile;
+                try { profile = radii.some( r => r > 0 ) ? Profiles.rounded( flat, radii, c ) : Profiles.polygon( flat, c ); }
+                catch { return Extrusion.solid( Model.outlineProfile( pts ), h ); }
                 return Primitives.prism( profile, h );
             }
+            case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ) );
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
@@ -573,6 +586,38 @@ export class Model {
             }
         }
         throw new Error( "Model: not a primitive: " + f.type );
+    }
+
+    // An outline with rounded corners as an exact profile: at a corner of radius r between its neighbours, the arc of
+    // that radius tangent to both sides (from the side's tangent point to the other's, through the arc's middle), and
+    // lines between. Refuses radii whose arcs would overlap along a side.
+    private static outlineProfile( pts : Array<[number, number, number]> ) : ProfileSpec {
+        const n = pts.length;
+        const corners = pts.map( (p, i) => {
+            const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n], r = p[2];
+            if (!(r > 0)) return { in : [p[0], p[1]] as ProfilePoint, out : [p[0], p[1]] as ProfilePoint, via : null as ProfilePoint | null, d : 0 };
+            const ua = Vec.normalized( [a[0] - p[0], a[1] - p[1], 0] ), ub = Vec.normalized( [b[0] - p[0], b[1] - p[1], 0] );
+            const cos = Math.max( -1, Math.min( 1, Vec.dot( ua, ub ) ) ), half = Math.acos( cos ) / 2;
+            if (!(half > 1e-6) || !(half < Math.PI / 2 - 1e-6)) throw new Error( `Model: outline corner ${i} is too flat or too sharp to round` );
+            const d = r / Math.tan( half ), bis = Vec.normalized( Vec.add( ua, ub ) ), toC = r / Math.sin( half );
+            const c = [p[0] + bis[0] * toC, p[1] + bis[1] * toC];
+            return { in : [p[0] + ua[0] * d, p[1] + ua[1] * d] as ProfilePoint, out : [p[0] + ub[0] * d, p[1] + ub[1] * d] as ProfilePoint,
+                     via : [c[0] - bis[0] * r, c[1] - bis[1] * r] as ProfilePoint, d };
+        } );
+        for (let i = 0; i < n; i++) {
+            const j = (i + 1) % n, len = Math.hypot( pts[j][0] - pts[i][0], pts[j][1] - pts[i][1] );
+            if (corners[i].d + corners[j].d > len * (1 + 1e-9)) throw new Error( `Model: the rounded corners ${i} and ${j} overlap along their side (radii too large)` );
+        }
+        const segments : Array<ProfileSegmentSpec> = [];
+        const same = (u : ProfilePoint, v : ProfilePoint) => Math.hypot( u[0] - v[0], u[1] - v[1] ) < 1e-12;
+        let at = corners[0].out;
+        for (let k = 1; k <= n; k++) {
+            const c = corners[k % n];
+            if (!same( at, c.in )) segments.push( { type : "line", to : c.in } );
+            if (c.via != null) segments.push( { type : "arc", via : c.via, to : c.out } );
+            at = c.out;
+        }
+        return { outer : { kind : "path", start : corners[0].out, segments } };
     }
 
     // a prism's outline, resolved: [x, y, r] per point (r 0 for a sharp corner)

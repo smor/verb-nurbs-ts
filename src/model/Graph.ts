@@ -8,6 +8,7 @@ import type { BooleanResult } from "../solid/BrepBoolean.js";
 import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
 import type { TriMesh } from "../solid/TriMesh.js";
+import type { ProfileSpec } from "../solid/Extrusion.js";
 import type { ModelDocument, ModelFeature, ModelResult, ModelValue } from "./Model.js";
 
 // Node graphs for visual programming (docs/visual-programming.md). A graph document is plain JSON: nodes keyed by
@@ -36,9 +37,12 @@ export type GraphPort =
     // a half-section as drawn, from the base up: points "r z; r z; ..." in millimetres, radius from the axis and
     // height, the heights increasing; empty for none where the node allows it
     | { kind : "profile", label : string, value : string, optional : boolean }
-    // a closed outline in a plane: points "x, y; x, y, r; ..." where each coordinate is a number or an expression over
-    // number nodes, and an optional third value rounds that corner
-    | { kind : "outline", label : string, value : string };
+    // a closed outline in a plane as points "x, y; x, y, r; ..." where each coordinate is a number or an expression
+    // over number nodes, and an optional third value rounds that corner
+    | { kind : "points", label : string, value : string }
+    // a planar region as JSON: `{ outer, holes }`, each a path of lines, three-point arcs and cubic Béziers or a
+    // circle (`ProfileSpec`, docs/formats.md, "Profiles"), in millimetres
+    | { kind : "outline", label : string, value : ProfileSpec };
 
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
@@ -57,7 +61,7 @@ export interface GraphNode {
     use? : string;
     // for a component: the content hash the document must have (`Graph.hash`), so a changed component is noticed
     hash? : string;
-    in? : { [port : string] : ModelValue };
+    in? : { [port : string] : ModelValue | ProfileSpec };
     // shown on the canvas; never used in names, so renaming a node keeps its faces' names
     label? : string;
 }
@@ -418,10 +422,30 @@ export class Graph {
                     if (typeof c != "string" || !p.options.includes( c )) throw new Error( `Graph: "${id}.${k}" must be one of ${p.options.join( ", " )}` );
                     return c;
                 }
-                case "text": case "function": case "profile": case "outline":
+                case "text": case "function": case "profile": case "points":
                     if (v != null && typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be text` );
                     return v ?? p.value;
+                case "outline": throw new Error( `Graph: "${id}.${k}" is a profile, not a number or text` );
             }
+        };
+        // an outline input: the region's JSON, its shape checked here and its geometry when it is built
+        const outline = ( id : string, k : string ) : ProfileSpec => {
+            here( { node : id, type : nodes[id].type, port : k } );
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "outline" }>;
+            const v = nodes[id].in?.[k] ?? p.value;
+            const path = ( q : unknown, what : string ) => {
+                const o = q as { kind? : unknown, segments? : unknown, center? : unknown, r? : unknown, start? : unknown };
+                if (o == null || typeof o != "object") throw new Error( `Graph: "${id}.${k}" ${what} must be a path or a circle` );
+                if (o.kind == "circle") { if (!Array.isArray( o.center ) || typeof o.r != "number") throw new Error( `Graph: "${id}.${k}" ${what} is a circle with a center [x, y] and a radius r` ); return; }
+                if (o.kind != "path" || !Array.isArray( o.start ) || !Array.isArray( o.segments ) || o.segments.length == 0)
+                    throw new Error( `Graph: "${id}.${k}" ${what} must be { kind: "path", start: [x, y], segments: [...] } or { kind: "circle", center: [x, y], r }` );
+            };
+            if (v == null || typeof v != "object" || Array.isArray( v )) throw new Error( `Graph: "${id}.${k}" must be a profile { outer, holes }` );
+            const spec = v as ProfileSpec;
+            path( spec.outer, "outer" );
+            if (spec.holes != null && !Array.isArray( spec.holes )) throw new Error( `Graph: "${id}.${k}" holes must be a list of paths` );
+            (spec.holes ?? []).forEach( ( h, i ) => path( h, `hole ${i}` ) );
+            return spec;
         };
         // a function input, as the expression it is at one value of its variable: the variable becomes that number,
         // in parentheses, and the number nodes it names stay names, so the model keeps the parameters
@@ -460,10 +484,10 @@ export class Graph {
             if (pts.length < 2) throw new Error( `Graph: "${id}.${k}" has ${pts.length} point; a profile needs two or more` );
             return pts;
         };
-        // an outline input: its points, each coordinate a number or an expression over number nodes (in parentheses),
+        // a points input: its points, each coordinate a number or an expression over number nodes (in parentheses),
         // split at the semicolons and commas outside parentheses
-        const outline = ( id : string, k : string ) : Array<Array<ModelValue>> => {
-            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "outline" }>;
+        const pointsOf = ( id : string, k : string ) : Array<Array<ModelValue>> => {
+            const p = types[id].inputs[k] as Extract<GraphPort, { kind : "points" }>;
             const v = nodes[id].in?.[k] ?? p.value;
             if (typeof v != "string" || v.trim() == "") throw new Error( `Graph: "${id}.${k}" needs points "x, y; x, y; ..."` );
             const parts = ( text : string, sep : string ) => {
@@ -541,6 +565,10 @@ export class Graph {
                 continue;
             }
             const s = ( k : string ) => at( k ) as string;
+            if (n.type == "profile/extrude") {
+                features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ) };
+                continue;
+            }
             const pt = ( a : string, b : string, c : string ) : [ModelValue, ModelValue, ModelValue] => [asNum( a ), asNum( b ), asNum( c )];
             switch (n.type) {
                 case "transform/move": features[id] = { type : "transform", of : s( "of" ), translate : pt( "x", "y", "z" ) }; break;
@@ -582,10 +610,10 @@ export class Graph {
                     break;
                 }
                 case "freeform/prism": {
-                    const pts = outline( id, "outline" );
+                    const pts = pointsOf( id, "outline" );
                     if (pts.length < 3) throw new Error( `Graph: "${id}.outline" has ${pts.length} points; an outline needs three or more` );
                     // the point the caps fan from: the centroid, unless the outline is star-shaped only about another
-                    const c = typeof (nodes[id].in?.center ?? "") == "string" && String( nodes[id].in?.center ?? "" ).trim() != "" ? outline( id, "center" ) : null;
+                    const c = typeof (nodes[id].in?.center ?? "") == "string" && String( nodes[id].in?.center ?? "" ).trim() != "" ? pointsOf( id, "center" ) : null;
                     if (c != null && (c.length != 1 || c[0].length != 2)) throw new Error( `Graph: "${id}.center" is one point "x, y"` );
                     features[id] = { type : "prism", outline : pts, height : asNum( "height" ), ...(c != null ? { center : [c[0][0], c[0][1]] as [ModelValue, ModelValue] } : {}) };
                     break;
@@ -672,6 +700,7 @@ export class Graph {
                 case "pipe": return { ...f, through : f.through.map( point ), radius : value( f.radius ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "revolve": return { ...f, profile : f.profile.map( pair ), ...(f.divs != null ? { divs : pair( f.divs ) } : {}) };
                 case "prism": return { ...f, outline : f.outline.map( p => p.map( value ) ), height : value( f.height ), ...(f.center != null ? { center : pair( f.center ) } : {}) };
+                case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
@@ -707,9 +736,11 @@ export class Graph {
                 ports[k] = p.kind == "number" ? { ...value, description : p.unit == null ? p.label : `${p.label} (${p.unit})`, default : p.value }
                     : p.kind == "solid" ? { ...wire, description : `${p.label}: a solid, "@node"` }
                     : p.kind == "choice" ? { enum : p.options, description : p.label, default : p.value }
-                    : p.kind == "outline" ? { type : "string", description : `${p.label}: points "x, y; x, y, r; ...", millimetres; each value a number or an expression over number nodes; r rounds that corner`, default : p.value }
+                    : p.kind == "points" ? { type : "string", description : `${p.label}: points "x, y; x, y, r; ...", millimetres; each value a number or an expression over number nodes; r rounds that corner`, default : p.value }
                     : p.kind == "profile" ? { type : "string", description : `${p.label}: points "r z; r z; ...", millimetres, from the base up${p.optional ? "; empty for none" : ""}`, default : p.value }
                     : p.kind == "function" ? { type : "string", description : `${p.label}, an expression of ${p.variable} (0 to 1) and number nodes`, default : p.value }
+                    : p.kind == "outline" ? { type : "object", description : `${p.label}: { outer, holes }, paths of lines, three-point arcs and cubic Béziers, or circles, in millimetres (docs/formats.md, Profiles)`,
+                        required : ["outer"], properties : { outer : { type : "object" }, holes : { type : "array", items : { type : "object" } } }, default : p.value }
                     : { type : "string", description : p.label, default : p.value };
             defs[type.replace( /\//g, "." )] = { title : t.title, description : t.help, type : "object", required : ["type"], additionalProperties : false,
                 properties : { type : { const : type }, label : { type : "string" }, in : { type : "object", additionalProperties : false, properties : ports } } };
@@ -788,9 +819,9 @@ export class Graph {
             outputs : { solid : "solid" } };
         // a straight prism over an outline whose coordinates may be expressions: plates, ribs, tabs
         r["freeform/prism"] = { title : "Prism", category : "freeform",
-            help : "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. The outline must be star-shaped about its centroid, or about the cap centre 'x, y' when given: build other concave shapes from several prisms",
-            inputs : { outline : { kind : "outline", label : "outline", value : "0, 0; 40, 0, 4; 40, 20, 4; 0, 20" }, height : num( "height", 5, 0.1, 400, 0.1, "mm" ),
-                center : { kind : "outline", label : "cap centre", value : "" } },
+            help : "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. Any simple polygon: it is built as an exact extrusion. For curves, arcs and holes, Extrude profile",
+            inputs : { outline : { kind : "points", label : "outline", value : "0, 0; 40, 0, 4; 40, 20, 4; 0, 20" }, height : num( "height", 5, 0.1, 400, 0.1, "mm" ),
+                center : { kind : "points", label : "cap centre (no longer needed)", value : "" } },
             outputs : { solid : "solid" } };
         // a vessel from its drawn section: the archaeologist's half-profile, outside, inside and under the foot
         const prof = ( label : string, v : string, optional : boolean ) : GraphPort => ({ kind : "profile", label : label, value : v, optional : optional });
@@ -798,6 +829,14 @@ export class Graph {
             help : "A pot from its drawn half-section, in millimetres from the base up: the outer profile turned about z, less the cavity (from its floor to above the rim) and the hollow under a foot",
             inputs : { outer : prof( "outer", "30 0; 40 12; 46 30; 40 50; 44 60", false ), cavity : prof( "cavity", "26 5; 36 14; 42 30; 36 50; 40 63", true ),
                 foot : prof( "foot", "", true ) },
+            outputs : { solid : "solid" } };
+        // a planar region extruded along z (507's profiles: lines, three-point arcs, cubic Béziers and circles, with holes)
+        r["profile/extrude"] = { title : "Extrude profile", category : "primitive",
+            help : "A planar profile (an outer path and holes: lines, three-point arcs, cubic Béziers, circles) extruded from z up by height, exact; faces bottom, top, outer.k and hole{i}.k for segment k",
+            inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [0, 0], segments : [
+                    { type : "line", to : [30, 0] }, { type : "arc", via : [38, 10], to : [30, 20] }, { type : "line", to : [0, 20] }, { type : "line", to : [0, 0] }] },
+                    holes : [{ kind : "circle", center : [12, 10], r : 4 }] } },
+                height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ) },
             outputs : { solid : "solid" } };
         const of = { of : solid( "solid" ) };
         r["transform/move"] = { title : "Move", category : "transform", help : "Translate by (x, y, z)",
