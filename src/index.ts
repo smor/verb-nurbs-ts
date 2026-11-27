@@ -68,6 +68,8 @@ export type { BrepFace, FaceCut, FaceTessellation } from "./solid/Brep.js";
 import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { ShellBuilder } from "./solid/BrepShell.js";
+import { MassPropertiesOf } from "./solid/MassProperties.js";
+export type { MassProperties } from "./solid/MassProperties.js";
 import { Extrusion } from "./solid/Extrusion.js";
 import { Lathe } from "./solid/Lathe.js";
 export type { ProfileSpec, ProfilePath, ProfileSegmentSpec, ProfilePoint } from "./solid/Extrusion.js";
@@ -209,6 +211,7 @@ export {
     FaceMesher,
     BrepBoolean,
     ShellBuilder,
+    MassPropertiesOf,
     Extrusion,
     Lathe,
     ShellMesher,
@@ -334,6 +337,7 @@ export const solid = {
     FaceMesher,
     BrepBoolean,
     ShellBuilder,
+    MassPropertiesOf,
     Extrusion,
     Lathe,
     ShellMesher,

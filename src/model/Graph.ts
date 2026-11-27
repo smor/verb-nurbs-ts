@@ -4,6 +4,8 @@ import { Model, ModelError } from "./Model.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
 import { ShellMesher } from "../solid/ShellMesher.js";
 import type { BrepShell } from "../solid/BrepShell.js";
+import { MassPropertiesOf } from "../solid/MassProperties.js";
+import type { MassProperties } from "../solid/MassProperties.js";
 import type { BooleanResult } from "../solid/BrepBoolean.js";
 import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
@@ -278,12 +280,7 @@ export class Graph {
             return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), faceOf : r.result.faceOf, tolerance : null, deviation : null };
         }
         const T = ShellMesher.tolerance( given );
-        let known = this.shells.get( r.result );
-        if (known == null) {
-            // (a result that is one solid's exact shell as it is meshes that shell, #117)
-            known = { shell : r.shell ?? ShellBuilder.fromResult( r.result ), meshes : new Map() };
-            this.shells.set( r.result, known );
-        }
+        const known = this.known( r );
         const key = JSON.stringify( [T.chordal, T.angle ?? null, T.maxEdge ?? null] );
         let m = known.meshes.get( key );
         if (m == null) {
@@ -293,6 +290,30 @@ export class Graph {
             known.meshes.set( key, m );
         }
         return m;
+    }
+
+    /** The exact B-rep shell of a result (built once per result, and shared with its export meshes). */
+    public shellOf( r : ModelResult ) : BrepShell {
+        if (r.lattice != null) throw new Error( "Graph: a lattice has no exact shell" );
+        return this.known( r ).shell;
+    }
+
+    /**
+     * The mass properties of a result, integrated on its exact shell (`MassPropertiesOf.shell`): volume, mass at
+     * `density` (mass per unit volume, 1 by default), centre of mass and inertia tensor about it.
+     */
+    public massProperties( r : ModelResult, density : number = 1 ) : MassProperties {
+        return MassPropertiesOf.shell( this.shellOf( r ), density );
+    }
+
+    private known( r : ModelResult ) : { shell : BrepShell, meshes : Map<string, GraphMesh> } {
+        let known = this.shells.get( r.result );
+        if (known == null) {
+            // (a result that is one solid's exact shell as it is meshes that shell, #117)
+            known = { shell : r.shell ?? ShellBuilder.fromResult( r.result ), meshes : new Map() };
+            this.shells.set( r.result, known );
+        }
+        return known;
     }
 
     // The result with its export mesh. A B-rep result whose export mesh is not closed (its faces meshed apart, #116)
