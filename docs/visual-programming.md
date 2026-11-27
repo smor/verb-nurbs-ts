@@ -366,6 +366,13 @@ Graph.compile( doc );         // the version 1 model document it runs
   parameters of the model: `"a + 2 * sin(pi * t)"` at t = 0.5 is `"(a + 2 * sin(pi * (0.5)))"`. `samples` is a whole
   number written in the document, since it decides how many points the model has. Inside a function, `t` hides a
   number node with the id `t`.
+* **Prisms** (`freeform/prism`) extrude an outline given as *points*: `"x, y; x, y, r; ..."`, whose values may be
+  expressions over number nodes (`"w - 2 * wall, h"`), each kept as a model parameter, so a part drawn this way stays
+  parametric. An optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`, which
+  resolves the expressions and builds a fan-capped prism when the outline is star-shaped about its centroid (or the
+  `center` port's point), and an exact extrusion (`Extrusion`, from #85, lines and arcs) otherwise, so any simple
+  polygon will do. Limits: Booleans on fan-capped prisms can fail near a cap's centre (#99), and one real part still
+  unites only from fan-capped prisms (see #101), hence the choice. For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
   the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its
@@ -391,6 +398,29 @@ Graph.compile( doc );         // the version 1 model document it runs
   solid on display; the side panel has the 3D view, the verdict, the volume, which nodes were rebuilt and which came
   from the cache, and the graph and model documents as JSON. **Save** and **Open** read and write the graph file.
   Evaluation runs in a worker with one `Graph`, so its cache lasts the session.
+* **Parameters** (`editor/controls/`, see its README). Number nodes show as numbers, switches or choices, following
+  `view.params[id]` (`min`, `max`, `step`, `unit`, `default`, `kind`, `presets`, `group`; `view` never changes what is
+  built). In a node, a number is a compact row: drag the label to scrub, with a bar behind the value showing where it
+  sits in its range. The **Customize** tab lists every number node by group with full controls (−, slider, +,
+  presets), and opens first when the graph has any. Without a range, a value gets one at its own scale (a 3 mm wall
+  0–10 by 0.1). Ranges are soft and fixed for the session. Every gesture is one undo step. Previews rebuild live
+  while rebuilds take under 120 ms (the median of the last three) and only on release above 250 ms. A commit that
+  leaves the part unbuildable offers "Back to the last buildable values".
+* **Keeping and sharing** (`editor/storage.ts`). The document is autosaved in the browser (localStorage) with each
+  undo step and reopened on the next visit. **Share link** copies a link holding the whole document, deflated, in its
+  fragment (`#g=...`, never sent to a server): whoever opens it gets this graph with its parameters. **Save** and
+  **Open** use the File System Access API where the browser has it (Save writes back to the file opened), downloads
+  otherwise. **STL** saves the shown part (on the shelf, every output) meshed from the exact faces within 0.02 mm, for
+  printing. A build can open on a document of its own: `EDITOR_START=part.graph.json npm run editor`, for a page made
+  for one project's team; a link or an autosave still comes first. In the claude.ai artifact viewer, where a page
+  cannot download files itself and links keep no fragment, saves go through the viewer's downloads capability (the
+  viewer confirms), STL comes as one zip of every part's STL (the viewer saves no .stl), and Share link is hidden.
+* **The 3D view draws the exact faces** (`editor/meshes.ts`). Each solid comes twice: the Booleans' analysis mesh at
+  once, then the "view" export mesh (within 0.1 mm of the exact shell, about a tenth of the triangles), unless an edit
+  came in between. Every triangle carries its face's persistent name, and every corner the exact normal of its face's
+  surface: from the parameters the Booleans keep for the analysis mesh, by projecting the vertex for the view mesh,
+  at the triangle's middle where a surface collapses to a point. Vertices are split between faces, so shading is
+  smooth within a face and sharp where faces meet. The face under the pointer lights up, with its name.
 * **Several outputs**, by name, each a part (`{ "flywheel": "@flywheel", "connecting-rod": "@rod" }`); `evaluate`
   and `compile` take `{ output, set }` to pick one and to set number nodes from outside. The editor's **Make output**
   adds or removes a solid node from them, and **Show** displays any solid node without changing the outputs.
