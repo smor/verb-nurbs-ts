@@ -63,17 +63,21 @@ function record( key : string | null = null ) {
 }
 
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
-interface Result { seq : number; ok : boolean; pos? : Float32Array; idx? : Uint32Array; ms : number; error? : string; volume? : number; faces? : number;
+// A mesh as the worker sends it: positions, triangles, and per triangle the index of its face's persistent name.
+// The analysis mesh comes first; the view mesh (from the exact shell, within 0.1 mm) replaces it when ready (refine).
+interface Mesh { pos? : Float32Array; idx? : Uint32Array; face? : Uint32Array; names? : Array<string>; normal? : Float32Array; refine? : boolean; deviation? : number | null }
+interface Result extends Mesh { seq : number; ok : boolean; ms : number; error? : string; volume? : number; faces? : number;
     verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean }
-// one output of a shelf evaluation, sent as soon as it is built
-interface Part { seq : number; part : string; pos : Float32Array; idx : Uint32Array; verdict : string }
+// one output of a shelf evaluation, sent as soon as it is built, and again with its view mesh
+interface Part extends Mesh { seq : number; part : string; pos : Float32Array; idx : Uint32Array; verdict : string }
 const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { type : "text/javascript" } ) ) );
 // the camera frames the solid of the first evaluation sent after a document is opened (fitAt), not a stale one
 let fitWanted = true, fitAt = 0;
 // SHELF: every output at once. A shelf request is sent at once, even while one is running: the worker drops a shelf
 // as soon as a newer request arrives, and parts of an older one are ignored here
 let SHELF = false;
-let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {}, partListener : ( p : Part ) => void = () => {};
+let busy = false, pending = false, seq = 0, listener : ( r : Result ) => void = () => {}, partListener : ( p : Part ) => void = () => {},
+    refineListener : ( m : Mesh ) => void = () => {};
 function evaluate() {
     if (busy && !SHELF) { pending = true; return; }
     busy = true;
@@ -84,6 +88,8 @@ function evaluate() {
 worker.onmessage = ( e : MessageEvent<Result | Part> ) => {
     if (e.data.seq != seq && (SHELF || "part" in e.data)) return;
     if ("part" in e.data) { partListener( e.data ); return; }
+    // a finer mesh of the solid on display: not a new evaluation
+    if (e.data.refine) { if (e.data.seq == seq) refineListener( e.data ); return; }
     busy = false;
     listener( e.data );
     if (pending) { pending = false; evaluate(); }
@@ -214,14 +220,58 @@ const shelfSpec = () : ShelfSpec | null => {
     const s = DOC.view?.shelf as ShelfSpec | undefined;
     return s != null && Array.isArray( s.rows ) && Array.isArray( s.columns ) && typeof s.place == "object" ? s : null;
 };
-const toGeometry = ( pos : Float32Array, idx : Uint32Array ) => {
+// A mesh as a geometry shaded face by face: a vertex shared by two faces is split, so normals are smooth within each
+// face (one exact surface) and sharp where faces meet. Keeps, per triangle, its face (userData.face, .names) and a
+// colour per vertex, so a face can be lit up.
+const BASE = new THREE.Color( 1, 1, 1 ), LIT = new THREE.Color( 1.25, 0.78, 0.45 );
+const toGeometry = ( m : Mesh ) => {
+    const pos = m.pos!, idx = m.idx!, face = m.face;
+    if (face == null || face.length * 3 != idx.length) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute( "position", new THREE.BufferAttribute( pos, 3 ) );
+        g.setIndex( new THREE.BufferAttribute( idx, 1 ) );
+        const c = toCreasedNormals( g, Math.PI / 6 );
+        g.dispose(); c.computeBoundingBox();
+        c.setAttribute( "color", new THREE.Float32BufferAttribute( new Float32Array( c.getAttribute( "position" ).count * 3 ).fill( 1 ), 3 ) );
+        return c;
+    }
+    const at = new Map<number, number>(), p : Array<number> = [], vface : Array<number> = [], vn : Array<number> = [];
+    const given = m.normal != null && m.normal.length == idx.length * 3 ? m.normal : null;
+
+    const out = new Uint32Array( idx.length );
+    for (let t = 0; t < face.length; t++) for (let k = 0; k < 3; k++) {
+        const v = idx[3 * t + k], key = face[t] * pos.length + v;
+        let n = at.get( key );
+        if (n == null) {
+            n = vface.length; at.set( key, n ); p.push( pos[3 * v], pos[3 * v + 1], pos[3 * v + 2] ); vface.push( face[t] );
+            const c = 9 * t + 3 * k;
+            if (given) vn.push( given[c], given[c + 1], given[c + 2] ); else vn.push( 0, 0, 0 );
+        }
+        out[3 * t + k] = n;
+    }
     const g = new THREE.BufferGeometry();
-    g.setAttribute( "position", new THREE.BufferAttribute( pos, 3 ) );
-    g.setIndex( new THREE.BufferAttribute( idx, 1 ) );
-    const c = toCreasedNormals( g, Math.PI / 6 );
-    g.dispose();
-    c.computeBoundingBox();
-    return c;
+    g.setAttribute( "position", new THREE.Float32BufferAttribute( p, 3 ) );
+    g.setAttribute( "color", new THREE.Float32BufferAttribute( new Float32Array( vface.length * 3 ).fill( 1 ), 3 ) );
+    g.setIndex( new THREE.BufferAttribute( out, 1 ) );
+    // the exact normals the worker gives, where it could; the triangles' average elsewhere
+    g.computeVertexNormals();
+    const nrm = g.getAttribute( "normal" ) as THREE.BufferAttribute;
+    for (let i = 0; i < vface.length; i++) if (vn[3 * i] != 0 || vn[3 * i + 1] != 0 || vn[3 * i + 2] != 0) nrm.setXYZ( i, vn[3 * i], vn[3 * i + 1], vn[3 * i + 2] );
+    g.computeBoundingBox();
+    g.userData = { face, names : m.names ?? [], vface : Uint32Array.from( vface ), lit : -1 };
+    return g;
+};
+// lights up one face of a geometry (or none: -1)
+const light = ( g : THREE.BufferGeometry, f : number ) => {
+    const u = g.userData as { vface? : Uint32Array, lit? : number };
+    const col = g.getAttribute( "color" ) as THREE.BufferAttribute | undefined;
+    if (u.vface == null || col == null || u.lit == f) return;
+    for (let i = 0; i < u.vface.length; i++) {
+        const c = u.vface[i] == f ? LIT : BASE;
+        col.setXYZ( i, c.r, c.g, c.b );
+    }
+    col.needsUpdate = true;
+    u.lit = f;
 };
 
 interface Three {
@@ -229,7 +279,7 @@ interface Three {
     fit : ( o : THREE.Object3D, front : boolean ) => void, material : THREE.Material, pick : ( x : number, y : number ) => string | null,
 }
 function Viewport( { result, parts, shelfMode, onHover } : { result : Result | null, parts : Map<string, Part>, shelfMode : boolean,
-    onHover : ( name : string | null, x : number, y : number ) => void } ) {
+    onHover : ( name : string | null, x : number, y : number, kind : "piece" | "face" ) => void } ) {
     const host = useRef<HTMLDivElement>( null );
     const three = useRef<Three | null>( null );
     const hover = useRef( onHover );
@@ -248,7 +298,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
         camera.up.set( 0, 0, 1 ); camera.position.set( 110, -150, 110 );
         const controls = new OrbitControls( camera, renderer.domElement );
         const colour = getComputedStyle( document.documentElement ).getPropertyValue( "--solid" ).trim() || "#8fa7bf";
-        const material = new THREE.MeshStandardMaterial( { color : colour, metalness : 0.15, roughness : 0.45 } );
+        const material = new THREE.MeshStandardMaterial( { color : colour, metalness : 0.15, roughness : 0.45, vertexColors : true } );
         const mesh = new THREE.Mesh( new THREE.BufferGeometry(), material );
         const shelf = new THREE.Group(), labels = new THREE.Group();
         scene.add( mesh, shelf, labels );
@@ -281,14 +331,20 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
             controls.update();
         };
         const ray = new THREE.Raycaster();
+        // what is under the pointer: on the shelf, a piece (its output's name); otherwise a face of the solid, lit up
+        // (its persistent name)
         const pick = ( x : number, y : number ) : string | null => {
             const r = renderer.domElement.getBoundingClientRect();
             ray.setFromCamera( new THREE.Vector2( (x - r.left) / r.width * 2 - 1, -(y - r.top) / r.height * 2 + 1 ), camera );
-            const hit = ray.intersectObjects( shelf.children, false )[0];
-            return hit ? hit.object.name : null;
+            if (shelf.visible) { const hit = ray.intersectObjects( shelf.children, false )[0]; return hit ? hit.object.name : null; }
+            const hit = ray.intersectObject( mesh, false )[0], g = mesh.geometry, u = g.userData as { face? : Uint32Array, names? : Array<string> };
+            const f = hit?.faceIndex != null && u.face != null ? u.face[hit.faceIndex] : -1;
+            light( g, f );
+            render();
+            return f >= 0 ? u.names![f] : null;
         };
-        const move = ( e : PointerEvent ) => { if (shelf.visible && e.buttons == 0) hover.current( pick( e.clientX, e.clientY ), e.clientX, e.clientY ); };
-        const leave = () => hover.current( null, 0, 0 );
+        const move = ( e : PointerEvent ) => { if (e.buttons == 0) hover.current( pick( e.clientX, e.clientY ), e.clientX, e.clientY, shelf.visible ? "piece" : "face" ); };
+        const leave = () => { light( mesh.geometry, -1 ); render(); hover.current( null, 0, 0, "face" ); };
         renderer.domElement.addEventListener( "pointermove", move );
         renderer.domElement.addEventListener( "pointerleave", leave );
         three.current = { mesh, shelf, labels, render, fit, material, pick };
@@ -299,7 +355,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
     useEffect( () => {
         const t = three.current;
         if (!t || shelfMode || !result?.ok || !result.pos) return;
-        t.mesh.geometry.dispose(); t.mesh.geometry = toGeometry( result.pos, result.idx! );
+        t.mesh.geometry.dispose(); t.mesh.geometry = toGeometry( result );
         if (fitAt > 0 && result.seq >= fitAt) { fitAt = 0; t.fit( t.mesh, false ); }
         t.render();
     }, [result, shelfMode] );
@@ -314,7 +370,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
             const m = have.get( name );
             if (m != null && m.userData.part === p) continue;
             if (m != null) { m.geometry.dispose(); t.shelf.remove( m ); }
-            const mesh = new THREE.Mesh( toGeometry( p.pos, p.idx ), t.material );
+            const mesh = new THREE.Mesh( toGeometry( p ), t.material );
             mesh.name = name; mesh.userData.part = p;
             t.shelf.add( mesh );
         }
@@ -390,7 +446,7 @@ function App() {
     const [parts, setParts] = useState<Map<string, Part>>( new Map() );
     const [shelfMode, setShelfMode] = useState( false );
     const [big, setBig] = useState( false );
-    const [hovered, setHovered] = useState<{ name : string, x : number, y : number } | null>( null );
+    const [hovered, setHovered] = useState<{ name : string, x : number, y : number, kind : "piece" | "face" } | null>( null );
     // the shelf is on for a document that lays one out, and can be turned on for any document with outputs
     const setShelf = ( on : boolean ) => { SHELF = on; busy = false; setShelfMode( on ); if (!on) setHovered( null ); };
     const flow = useReactFlow();
@@ -411,6 +467,7 @@ function App() {
             if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => DOC.outputs?.[k] != null ) ) );
         };
         partListener = p => setParts( m => new Map( m ).set( p.part, p ) );
+        refineListener = m => setResult( r => r == null ? r : { ...r, ...m } );
         setShelf( DOC.view?.shelf != null ); setBig( DOC.view?.shelf != null );
         evaluate();
         historyListener = () => setTick( x => x + 1 );
@@ -502,8 +559,9 @@ function App() {
             </section>
             <aside className="side">
                 <div className="view3d">
-                    <Viewport result={result} parts={parts} shelfMode={shelfMode} onHover={( name, x, y ) => setHovered( name == null ? null : { name, x, y } )} />
-                    {hovered && <PieceCard name={hovered.name} x={hovered.x} y={hovered.y} />}
+                    <Viewport result={result} parts={parts} shelfMode={shelfMode} onHover={( name, x, y, kind ) => setHovered( name == null ? null : { name, x, y, kind } )} />
+                    {hovered && (hovered.kind == "piece" ? <PieceCard name={hovered.name} x={hovered.x} y={hovered.y} />
+                        : <div className="piece-card face" style={{ left : hovered.x + 14, top : hovered.y + 14 }} role="tooltip">face <b>{hovered.name}</b></div>)}
                 </div>
                 <div className="readout" aria-live="polite">
                     {result == null ? <p className="muted">Building…</p> : result.ok ? <>
@@ -514,6 +572,9 @@ function App() {
                             {result.shelf ? <span className="num">{parts.size} pieces</span> : <span className="num">{result.faces} faces</span>}
                         </div>
                         <p className="muted small">{result.verdict!.reasons.join( "; " )}</p>
+                        {!result.shelf && result.idx && <p className="muted small">{result.refine
+                            ? `View mesh: ${(result.idx.length / 3).toLocaleString()} triangles from the exact faces, within ${result.deviation != null ? result.deviation.toFixed( 2 ) : "0.1"} mm`
+                            : `Analysis mesh: ${(result.idx.length / 3).toLocaleString()} triangles; meshing the exact faces…`}</p>}
                         <p className="small"><b>Rebuilt:</b> {rebuilt.join( ", " ) || "nothing"}{reused.length > 0 && <> · <b>From cache:</b> {reused.join( ", " )}</>}</p>
                     </> : <p className="err" role="alert">{result.error}</p>}
                 </div>
