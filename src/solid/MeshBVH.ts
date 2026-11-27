@@ -87,6 +87,30 @@ export class MeshBVH {
         return v >= 2;
     }
 
+    // Whether any triangle's box meets the box [min, max].
+    public overlaps( min : Point, max : Point ) : boolean {
+        if (this.nodes == 0) return false;
+        const T = this.tri, B = this.box;
+        const stack = [0];
+        while (stack.length > 0) {
+            const id = stack.pop() as number;
+            if (B[6 * id] > max[0] || B[6 * id + 1] > max[1] || B[6 * id + 2] > max[2] ||
+                B[6 * id + 3] < min[0] || B[6 * id + 4] < min[1] || B[6 * id + 5] < min[2]) continue;
+            if (this.child[2 * id] >= 0) { stack.push( this.child[2 * id] ); stack.push( this.child[2 * id + 1] ); continue; }
+            const s = this.span[2 * id], c = this.span[2 * id + 1];
+            for (let k = s; k < s + c; k++) {
+                const t = 9 * this.order[k];
+                let hit = true;
+                for (let a = 0; a < 3 && hit; a++) {
+                    const lo = Math.min( T[t + a], T[t + 3 + a], T[t + 6 + a] ), hi = Math.max( T[t + a], T[t + 3 + a], T[t + 6 + a] );
+                    if (lo > max[a] || hi < min[a]) hit = false;
+                }
+                if (hit) return true;
+            }
+        }
+        return false;
+    }
+
     private walk( o : Point, d : Point, hit : (t : number) => void, limit : () => number ) : void {
         if (this.nodes == 0) return;
         const ix = 1 / d[0], iy = 1 / d[1], iz = 1 / d[2];

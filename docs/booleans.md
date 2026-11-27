@@ -14,7 +14,7 @@ The structure is the one used by CAD kernels (Parasolid, ACIS, Open CASCADE's Bo
 textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7.
 
 1. **Intersect faces** (`SurfaceIntersect.surfaces`). Every pair of faces from different solids whose control-point
-   boxes overlap is intersected. The method follows Patrikalakis and Maekawa, *Shape Interrogation for Computer Aided
+   boxes overlap is intersected, unless no point where they meet can be on the result (below). The method follows Patrikalakis and Maekawa, *Shape Interrogation for Computer Aided
    Design and Manufacturing* (2002), ch. 5, and Barnhill and Kersey, "A marching method for parametric
    surface/surface intersection" (CAGD 7, 1990):
    * **Find every branch.** Intersect two grid triangulations of the faces. This finds every branch the grids
@@ -74,6 +74,35 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
 
    This handles any expression over any number of solids in one pass. `union`, `intersection` and `difference` are
    one-line wrappers, and the mug is `(body || handle) && !cavity`.
+
+### Skipping pairs that cannot reach the result
+
+With three operands or more, a pair of faces is skipped when no point where they meet can be on the result's
+boundary (`BrepBoolean.activeBoxes`, after Rossignac and Voelcker's active zones, ACM TOG 8(1), 1989). A point of a
+face of operand L can be on the boundary only where L matters: where the CSG expression changes when L's membership
+flips. Each face's mesh is tested against every other operand, as groups of triangles split in two while they may
+matter:
+
+* an operand whose box the group misses is outside; one whose mesh comes nowhere near the group (within both
+  meshes' distance from their exact faces) is inside or outside, by its mesh; any other is undecided;
+* the group is kept when some choice of the undecided operands makes L matter, or makes an undecided operand matter.
+  The second case keeps a face that coincides with another operand's (the hub cylinders of windows cut one after
+  another all lie on one cylinder), which the Boolean splits along that operand's edges too;
+* two faces whose boxes of kept triangles miss are not intersected.
+
+The expression is read as a truth table, so this runs for up to 16 operands. `report.facePairs` counts the pairs
+intersected and skipped. On 507's six windows cut one after another from a disc (#66), the faces of different windows
+are no longer paired:
+
+| Windows | pairs intersected (before) | time (before) |
+|---|---|---|
+| 2 | 37 (61) | 2.3 s (2.7 s) |
+| 4 | 110 (238) | 4.5 s (7.4 s) |
+| 6 | 219 (531) | 7.9 s (18.2 s) |
+
+The result is unchanged: the same triangles, closed, the same volume, and the same mesh hashes. The pairs still grow
+faster than the windows because the hubs coincide: each window's hub cylinder lies on all the others, so their faces
+stay paired. 507's flywheel (fixture A: bored disc, six windows and a pin) builds in 3.3 s.
 
 ## Rolling-ball fillets
 

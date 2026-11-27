@@ -348,12 +348,15 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 100 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 101 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
   `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
   comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve`,
-  `freeform/pipe` and `freeform/vessel`.
+  `freeform/pipe` and `freeform/vessel`; `profile/extrude`.
+* **Profiles** (`profile/extrude`) take an *outline* port: a planar region as JSON (507's profiles: lines, three-point
+  arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded exactly from `z` up by `height`.
+  The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
   `freeform/pipe` runs a round tube along the smooth curve through (x(t), y(t), z(t)) (the model's `pipe`). Both
@@ -361,14 +364,13 @@ Graph.compile( doc );         // the version 1 model document it runs
   parameters of the model: `"a + 2 * sin(pi * t)"` at t = 0.5 is `"(a + 2 * sin(pi * (0.5)))"`. `samples` is a whole
   number written in the document, since it decides how many points the model has. Inside a function, `t` hides a
   number node with the id `t`.
-* **Prisms** (`freeform/prism`) extrude an *outline*: points `"x, y; x, y, r; ..."` whose values may be expressions
-  over number nodes (`"w - 2 * wall, h"`), each kept as a model parameter, so a part drawn this way stays
-  parametric; an optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`
-  (`Primitives.prism` over `Profiles.polygon` or `Profiles.rounded`). Limits: the caps are fans from a centre, so the
-  outline must be star-shaped about its centroid or about the `center` port's point; concave parts are built from
-  several prisms and Booleans. Booleans on such prisms are also less robust than on boxes where an operand comes
-  near the cap’s centre (#99). #85 asks for a general profile extrusion (holes, arcs, Bézier curves); this node would
-  then extrude through it.
+* **Prisms** (`freeform/prism`) extrude an outline given as *points*: `"x, y; x, y, r; ..."`, whose values may be
+  expressions over number nodes (`"w - 2 * wall, h"`), each kept as a model parameter, so a part drawn this way stays
+  parametric. An optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`, which
+  resolves the expressions and builds a fan-capped prism when the outline is star-shaped about its centroid (or the
+  `center` port's point), and an exact extrusion (`Extrusion`, from #85, lines and arcs) otherwise, so any simple
+  polygon will do. Limits: Booleans on fan-capped prisms can fail near a cap's centre (#99), and unions of extrusions
+  that share planes fail (#101), hence the choice. For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
   the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its

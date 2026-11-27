@@ -110,7 +110,33 @@ An input value is one of:
 | text | text that is not an expression: edge or face patterns, comma separated (`"box.*\|box.*"`) |
 | function | an expression of the variable `t` (0 to 1) and of number nodes, sampled by the node (`"a + 2 * sin(pi * t)"`); the freeform nodes' radius and coordinates |
 | profile | a half-section, points `"r z; r z; ..."` in millimetres from the base up (`freeform/vessel`); empty for none where the port allows it |
-| outline | a closed outline, points `"x, y; x, y, r; ..."` (`freeform/prism`); each value a number or an expression over number nodes, an optional third value rounding that corner |
+| points | a closed outline, points `"x, y; x, y, r; ..."` (`freeform/prism`); each value a number or an expression over number nodes, an optional third value rounding that corner |
+| outline | a planar region as JSON, `{ "outer": path, "holes": [path, ...] }` (`profile/extrude`; see Profiles below) |
+
+#### Profiles
+
+An outline is 507's profile JSON, taken as it is:
+
+```json
+{ "outer": { "kind": "path", "start": [0, 0], "segments": [
+    { "type": "line", "to": [30, 0] },
+    { "type": "arc", "via": [38, 10], "to": [30, 20] },
+    { "type": "cubic", "c1": [20, 26], "c2": [10, 26], "to": [0, 20] },
+    { "type": "line", "to": [0, 0] } ] },
+  "holes": [ { "kind": "circle", "center": [12, 10], "r": 4 } ] }
+```
+
+A path starts at `start`, and each segment runs from where the last one ended. A `line` goes to `to`. An `arc` goes
+through `via` to `to`, as a circle through three points. A `cubic` is a Bézier curve with control points `c1` and `c2`.
+The last segment ends at `start`. A `circle` has a `center` and a radius `r`. Paths can run either way round. Holes lie
+inside the outer path and don't overlap. Coordinates are millimetres in the x, y plane.
+
+`profile/extrude` makes the solid between `z` and `z + height` over the outline, with every face exact: lines, arcs
+and circles are rational, cubics are Bézier curves, and the sides are ruled surfaces over them (`Extrusion`). Its
+faces are `bottom`, `top`, `outer.k` for the outer path's segment k, and `hole{i}.k` for hole i's, both counted from
+0, so `gear.outer.12` or `plate.hole0.0`. Names follow the segments as written, whichever way round the path runs, so
+they stay put as parameters change. The solid is a shell of trimmed faces, an operand of any Boolean. A round over an
+extrusion is not built yet: rounding the edges of a trimmed solid is step A5 of docs/exact-booleans.md.
 
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is
@@ -245,7 +271,7 @@ The compiled form, and the format of `docs/model.md`, which explains each featur
 |---|---|---|
 | `version` | yes | `1` |
 | `parameters` | no | named numbers or expressions over each other |
-| `features` | yes | features by id: `box`, `cylinder`, `pipe`, `revolve`, `primitive`, `transform`, `union`, `intersection`, `difference`, `round`, `shell`, `lattice` |
+| `features` | yes | features by id: `box`, `cylinder`, `pipe`, `revolve`, `extrude`, `primitive`, `transform`, `union`, `intersection`, `difference`, `round`, `shell`, `lattice` |
 | `output` | yes | the feature the model's solid is |
 | `machine` | no | as in a graph |
 | `certify` | no | prove every Boolean intersection complete (slower) |
@@ -296,5 +322,5 @@ These will be added without breaking version 2 documents:
 * variants (named sets of a component's parameter values);
 * imported parts (meshes pinned by hash);
 * coloured or multi-material regions of a part (likely face-name patterns per output);
-* 2D profiles, extrusion and patterns (gears, cams, slots), and curve and surface nodes;
+* patterns (circular and linear), revolving and twisting profiles, and curve and surface nodes;
 * lists and lacing.

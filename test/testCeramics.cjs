@@ -73,12 +73,15 @@ describe('freeform/prism', function () {
 		two.result.report.volume.should.be.approximately(40 * 20 * 2, 0.5);
 	});
 
-	it('a T, star-shaped only about a point in its bar, builds with that point as its cap centre', function () {
+	it('any simple polygon builds, as an exact extrusion: a T, and an L that is star-shaped about no point of its own', function () {
 		var T = '0, 0; 24, 0; 24, 1.5; 22.5, 1.5; 22.5, 4; 1.5, 4; 1.5, 1.5; 0, 1.5';
-		(function () { new Graph().evaluate(prism({ outline : T, height : 10 })); }).should.throw(/star-shaped/);
-		var r = new Graph().evaluate(prism({ outline : T, height : 10, center : '12, 0.75' }));
+		var r = new Graph().evaluate(prism({ outline : T, height : 10 }));
 		r.result.report.manifold.closedManifold.should.be.true();
 		r.result.report.volume.should.be.approximately((24 * 1.5 + 21 * 2.5) * 10, 0.5);
+		// a U with long thin arms: no point sees all of it
+		var U = new Graph().evaluate(prism({ outline : '0, 0; 30, 0; 30, 30; 28, 30; 28, 2; 2, 2; 2, 30; 0, 30', height : 2 }));
+		U.result.report.manifold.closedManifold.should.be.true();
+		U.result.report.volume.should.be.approximately((30 * 2 + 2 * 28 * 2) * 2, 0.05);
 	});
 
 	it('refuses an outline that is not points, a name that is not a number node, and fewer than three points', function () {
