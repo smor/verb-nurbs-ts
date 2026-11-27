@@ -438,8 +438,13 @@ parts sharing a face. Three things make them work.
   meeting a foot's rounded corner, when the two share their bottom plane) ends at that exact point, and so does the
   crossing. A point that does not settle within a quarter of the chord (the edge's faces meeting tangentially, as a
   blend and a face it rounds) keeps the chord's. An upright on a foot with rounded corners closes, with its exact
-  volume (test "507 regressions", H). An upright made as a rotated extrusion, whose sides are flush with the foot's
-  and touch its corner arcs tangentially, still fails.
+  volume (test "507 regressions", H).
+* **Edges flush along part of their length (#123).** An upright made as an extrusion stands flush with its foot's
+  side, which turns into the foot's corner arcs before the upright's edge ends. The branch of the upright's side and
+  the foot's bottom plane runs along the upright's bottom edge, but keeps only its runs inside both faces' trims:
+  past the foot's corner it is gone. So an edge of a solid made from a shell always cuts its own face, whichever
+  branch runs along it, and a vertex of one solid lying inside an edge of another (the foot's corner on the
+  upright's bottom edge) becomes a vertex of that edge too, so the edge and the branches through the vertex share it.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
