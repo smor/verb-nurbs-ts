@@ -242,6 +242,15 @@ export class BrepBoolean {
         } } );
         // the part of a face a trimmed face covers: a branch keeps only its runs inside the trims of both its faces
         const inTrims = (si : number, fi : number, uv : UV) => { const F = solids[si].faces[fi]; return F.trims == null || BrepSolid.insideTrims( F.trims, uv ); };
+        // a run along a trim of its face, all its points on it (a branch along an edge of the face, where a layer
+        // stacked on another's cap meets the cap at the edge between its side and its bottom) cuts the other face all
+        // the same (#104); a run of two points between crossings of one straight trim does not count
+        const alongTrim = (si : number, fi : number, uvs : Array<UV>) => {
+            const F = solids[si].faces[fi];
+            if (F.trims == null || uvs.length < 3) return false;
+            const d = SurfaceIntersect.domain( F.surface ), eps = 1e-9 * Math.max( d[1] - d[0], d[3] - d[2] );
+            return uvs.every( uv => F.trims!.some( poly => poly.some( (a, i) => BrepBoolean.segDist( uv, a, poly[(i + 1) % poly.length] ) < eps ) ) );
+        };
 
         // where branches cross inside a face, three faces meet at one point: find it exactly and put it in every
         // branch through it, so the faces share it
@@ -277,6 +286,25 @@ export class BrepBoolean {
             }
         }
 
+        // where four faces meet (a layer's edge crossing the rim of the cap it stands on), a branch can end at a point
+        // that the others' crossing put into two branches already, found separately: it ends there exactly (#104)
+        {
+            const count = new Map<Point, number>();
+            for (const e of curves) for (const p of e.curve.points) count.set( p, (count.get( p ) || 0) + 1 );
+            const corners = Array.from( count.keys() ).filter( p => (count.get( p ) as number) > 1 );
+            for (const e of curves) if (!e.curve.closed) for (const k of [0, e.curve.points.length - 1]) {
+                const p = e.curve.points[k];
+                if ((count.get( p ) as number) > 1) continue;
+                let best : Point | null = null, bd = snap;
+                for (const q of corners) { const d = Vec.dist( p, q ); if (d < bd) { bd = d; best = q; } }
+                if (best != null) e.curve.points[k] = best;
+            }
+        }
+        // a branch that runs along an edge of a solid made from a shell (a layer stacked on another's cap: the branch
+        // of the cap and the layer's side lies on the layer's bottom edge) takes that edge's points, so that the face
+        // across the branch and the edge's faces share them (#104)
+        BrepBoolean.alongEdges( solids, curves, snap );
+
         // the edges of the result: runs of each branch between corners, the points where it meets another branch
         const owners = new Map<Point, Set<number>>();
         curves.forEach( (e, ci) => { for (const p of e.curve.points) {
@@ -298,7 +326,8 @@ export class BrepBoolean {
                     const m = run.points.length >> 1;
                     const uvA = closed || run.points.length > 2 ? run.uvA[m] : Vec.lerp( 0.5, run.uvA[0], run.uvA[1] ) as UV;
                     const uvB = closed || run.points.length > 2 ? run.uvB[m] : Vec.lerp( 0.5, run.uvB[0], run.uvB[1] ) as UV;
-                    if (!inTrims( e.solids[0], e.faces[0], uvA ) || !inTrims( e.solids[1], e.faces[1], uvB )) return;
+                    if (!(inTrims( e.solids[0], e.faces[0], uvA ) || alongTrim( e.solids[0], e.faces[0], run.uvA ))
+                        || !(inTrims( e.solids[1], e.faces[1], uvB ) || alongTrim( e.solids[1], e.faces[1], run.uvB ))) return;
                 }
                 runs.push( { ci : ci, curve : run, sides : e.trim ? null : BrepBoolean.sides( solids, meshes, expr, e, mid ), radius : 0 } );
             };
@@ -907,6 +936,9 @@ export class BrepBoolean {
                     if (x.p.some( (c, a) => c < b.min[a] - eps || c > b.max[a] + eps )) continue;
                     const uv = SurfaceIntersect.project( g.surface, x.p );
                     if (Vec.dist( BrepBoolean.eval( g.surface, uv ), x.p ) > eps) continue;
+                    // a trimmed face is its surface only inside its trims: a cap plane runs on past its outline, and
+                    // the region beside a stacked layer is not on it (#104)
+                    if (g.trims != null && g.trims.length > 0 && !BrepSolid.insideTrims( g.trims, uv )) continue;
                     const c = Vec.dot( x.n, BrepBoolean.normal( g, uv ) );
                     if (Math.abs( c ) < 1 - 1e-6) continue; // crossing, not coincident
                     found = c > 0;
@@ -1258,8 +1290,12 @@ export class BrepBoolean {
                         // (edgeCross gives the edge's other face second: here that is H when b is the edge)
                         if (r != null && b.e.trim) r = { point : r.point, uvF : r.uvF, uvG : r.uvH, uvH : r.uvG };
                         if (r == null) continue;
-                        if (found.some( p => Vec.dist( p, r.point ) < same )) continue;
-                        found.push( r.point );
+                        // a point found already, from another pair of the faces meeting there (four faces meet where
+                        // a layer's edge crosses the edge of the cap it stands on, #104): the same point goes into
+                        // these branches too
+                        const prev = found.find( p => Vec.dist( p, r!.point ) < same );
+                        if (prev != null) r = { ...r, point : prev };
+                        else found.push( r.point );
                         // the three branches through the point: F/G (a), F/H (b) and G/H (looked up)
                         const uvOf = (s : number, f : number) => (s == parts[0] && f == parts[1]) ? r.uvF : (s == oa[0] && f == oa[1]) ? r.uvG : r.uvH;
                         const branches = curves.filter( e => {
@@ -1267,7 +1303,9 @@ export class BrepBoolean {
                             const three = [k, key( oa[0], oa[1] ), key( ob[0], ob[1] )];
                             return three.includes( fs[0] ) && three.includes( fs[1] );
                         } );
-                        for (const e of branches) BrepBoolean.insertPoint( e.curve, r.point, uvOf( e.solids[0], e.faces[0] ), uvOf( e.solids[1], e.faces[1] ), same * 20 );
+                        // (a branch that has the point already keeps it where it is)
+                        for (const e of branches) if (!e.curve.points.includes( r.point ))
+                            BrepBoolean.insertPoint( e.curve, r.point, uvOf( e.solids[0], e.faces[0] ), uvOf( e.solids[1], e.faces[1] ), same * 20 );
                     }
                 }
             }
@@ -1282,7 +1320,8 @@ export class BrepBoolean {
         const bx = (q1[0] - q0[0]) / span[0], by = (q1[1] - q0[1]) / span[1];
         const cx = (q0[0] - p0[0]) / span[0], cy = (q0[1] - p0[1]) / span[1];
         const den = ax * by - ay * bx;
-        if (Math.abs( den ) < 1e-18) return null;
+        // (parallel, to rounding: a branch along an edge it runs beside crosses it nowhere, not at every sample)
+        if (Math.abs( den ) < 1e-18 || Math.abs( den ) < 1e-9 * Math.sqrt( (ax * ax + ay * ay) * (bx * bx + by * by) )) return null;
         const s = (cx * by - cy * bx) / den, t = (cx * ay - cy * ax) / den;
         if (s <= eps || s >= 1 - eps || t <= eps || t >= 1 - eps) return null;
         return [s, t];
@@ -1347,6 +1386,81 @@ export class BrepBoolean {
             c = SurfaceIntersect.toDomain( DH, [c[0] + step[4], c[1] + step[5]] );
         }
         return null;
+    }
+
+    // Branches that lie along an edge between two trimmed faces of one solid, on one of those faces: the cap of one
+    // solid and the side of another stacked on it meet along the side's bottom edge. The branch and the edge are
+    // sampled separately, so the cap's cut and the stacked solid's edge would not share their points and the result
+    // would be open there. The branch keeps its ends and the points it shares with other branches (where runs end) and
+    // takes the edge's points between them, with the edge's parameters on the shared face and parameters projected
+    // onto its other face.
+    private static alongEdges( solids : Array<BrepSolid>, curves : BooleanResult["curves"], eps : number ) : void {
+        const owners = new Map<Point, number>();
+        for (const e of curves) for (const p of e.curve.points) owners.set( p, (owners.get( p ) || 0) + 1 );
+        // the distance from p to a polyline, and the arc length along it of the nearest point
+        const onto = (pts : Array<Point>, p : Point) => {
+            let best = Infinity, at = 0, run = 0;
+            for (let i = 0; i + 1 < pts.length; i++) {
+                const a = pts[i], ab = Vec.sub( pts[i + 1], a ), l2 = Vec.dot( ab, ab ), l = Math.sqrt( l2 );
+                const t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) ) : 0;
+                const d = Vec.dist( p, Vec.add( a, Vec.mul( t, ab ) ) );
+                if (d < best) { best = d; at = run + t * l; }
+                run += l;
+            }
+            return { d : best, s : at };
+        };
+        for (const e of curves) {
+            const c = e.curve, n = c.points.length;
+            if (e.trim || c.closed || n < 2 || c.seamA.some( x => x != 0 ) || c.seamB.some( x => x != 0 )) continue;
+            for (let side = 0; side < 2; side++) {
+                const si = e.solids[side], fi = e.faces[side];
+                const edge = curves.find( T => T.trim && T.solids[0] == si && (T.faces[0] == fi || T.faces[1] == fi) && !T.curve.closed
+                    && c.points.every( p => onto( T.curve.points, p ).d < eps ) );
+                if (edge == null) continue;
+                const T = edge.curve, tuv = edge.faces[0] == fi ? T.uvA : T.uvB;
+                const other = solids[e.solids[1 - side]].faces[e.faces[1 - side]];
+                const ouv = side == 0 ? c.uvB : c.uvA;
+                // the branch's own points to keep, by arc length along it
+                const keep : Array<{ s : number, p : Point, uvS : UV, uvO : UV }> = [];
+                for (let k = 0; k < n; k++) if (k == 0 || k == n - 1 || (owners.get( c.points[k] ) || 0) > 1)
+                    keep.push( { s : onto( c.points, c.points[k] ).s, p : c.points[k], uvS : (side == 0 ? c.uvA : c.uvB)[k], uvO : ouv[k] } );
+                const len = keep[keep.length - 1].s;
+                const arc = c.points.map( q => onto( c.points, q ).s );
+                // the edge's points strictly between the branch's ends, away from the kept points
+                const added : typeof keep = [];
+                let ok = true;
+                T.points.forEach( (q, k) => {
+                    if (!ok) return;
+                    const o = onto( c.points, q );
+                    if (o.d > eps || o.s < eps || o.s > len - eps || keep.some( x => Math.abs( x.s - o.s ) < eps )) return;
+                    // the branch's parameters on the other face, interpolated at that arc length, refined onto it
+                    // (from the grid if that strays: Newton from a disc's rim can fall into its pole)
+                    let j = 0;
+                    while (j + 2 < n && arc[j + 1] < o.s) j++;
+                    const f = arc[j + 1] > arc[j] ? Math.max( 0, Math.min( 1, (o.s - arc[j]) / (arc[j + 1] - arc[j]) ) ) : 0;
+                    const seed = SurfaceIntersect.lerpUV( BrepSolid.domainOf( other ), f, ouv[j], ouv[j + 1] );
+                    const p = [q[0], q[1], q[2]] as Point;
+                    let uvO = SurfaceIntersect.project( other.surface, p, 12, seed );
+                    if (Vec.dist( BrepBoolean.eval( other.surface, uvO ), p ) > eps) uvO = SurfaceIntersect.project( other.surface, p, 24 );
+                    if (Vec.dist( BrepBoolean.eval( other.surface, uvO ), p ) > eps) { ok = false; return; }
+                    added.push( { s : o.s, p : p, uvS : [tuv[k][0], tuv[k][1]], uvO : uvO } );
+                } );
+                if (!ok || added.length == 0) continue;
+                const all = keep.concat( added ).sort( (x, y) => x.s - y.s );
+                c.points = all.map( x => x.p );
+                const uvS = all.map( x => x.uvS ), uvO = all.map( x => x.uvO );
+                c.uvA = side == 0 ? uvS : uvO; c.uvB = side == 0 ? uvO : uvS;
+                c.seamA = all.map( () => 0 ); c.seamB = all.map( () => 0 );
+                break;
+            }
+        }
+    }
+
+    // The distance in the plane from p to the segment a-b.
+    private static segDist( p : UV, a : UV, b : UV ) : number {
+        const ab = [b[0] - a[0], b[1] - a[1]], l2 = ab[0] * ab[0] + ab[1] * ab[1];
+        const t = l2 > 0 ? Math.max( 0, Math.min( 1, ((p[0] - a[0]) * ab[0] + (p[1] - a[1]) * ab[1]) / l2 ) ) : 0;
+        return Math.hypot( p[0] - a[0] - t * ab[0], p[1] - a[1] - t * ab[1] );
     }
 
     // Insert an exact point into a branch, in the segment it lies on (or replacing a vertex it coincides with).

@@ -61,6 +61,16 @@ export interface View {
     facts : Array<[string, string]>;
 }
 
+/** What `Inspect.brep` draws on (#90). */
+export interface BrepViewOptions {
+    // a mesh of the result to draw instead of its own (as the export mesh, `GraphMesh`): its triangles, and for each
+    // the index of the result's face it stands for (`GraphMesh.faceOf`)
+    mesh? : { mesh : TriMesh, faceOf? : Array<number>, tolerance? : { chordal : number } | null };
+    // how closely the edges and knot lines follow their curves on such a mesh (default: the mesh's own chordal
+    // tolerance, or 0.1 mm); on the result's own mesh they are sampled densely, as before
+    tolerance? : number;
+}
+
 export interface InspectOptions {
     // samples along a curve, or per direction on a surface (default 200 and 64)
     samples? : number;
@@ -150,17 +160,24 @@ export class Inspect {
     // ---------- B-reps ----------
 
     // A B-rep: a Boolean's result (its trimmed faces, edges, seams and fillets) or a solid, which is shown as the result
-    // of a Boolean of itself alone.
-    public static brep( b : BooleanResult | BrepSolid, title? : string ) : View {
+    // of a Boolean of itself alone. It is drawn on the result's own mesh, or on `options.mesh` (#90): an export mesh,
+    // as `Graph.evaluate( doc, { mesh : "view" } ).export`, many times lighter, with the same faces, facts, nets,
+    // curvature (sampled at its vertices) and picking, its triangles mapped to the result's faces by `faceOf`.
+    public static brep( b : BooleanResult | BrepSolid, title? : string, options : BrepViewOptions = {} ) : View {
         const r : BooleanResult = b instanceof BrepSolid ? BrepBoolean.evaluate( [b], f => f[0] ) : b;
-        const m = r.mesh;
-        const faces = Inspect.exactFaces( r );
+        const given = options.mesh;
+        if (given != null && (given.faceOf == null || given.faceOf.length != given.mesh.triangles.length || given.faceOf.some( f => !(f >= 0 && f < r.faces.length) )))
+            throw new Error( "Inspect.brep: the mesh given needs faceOf, a face of the result for each of its triangles (a Graph export mesh of this result has it)" );
+        const m = given != null ? given.mesh : r.mesh, faceOf = given != null ? given.faceOf as Array<number> : r.faceOf;
+        const faces = Inspect.exactFaces( r, given != null ? { mesh : m, faceOf : faceOf } : undefined );
+        // on a lean mesh, lines follow their curves to its tolerance, with their points shared
+        const lean = given != null ? options.tolerance ?? given.tolerance?.chordal ?? 0.1 : null;
 
         // area per face
         const area = r.faces.map( () => 0 );
         m.triangles.forEach( (t, k) => {
             const a = m.vertices[t[0]], bb = m.vertices[t[1]], c = m.vertices[t[2]];
-            area[r.faceOf[k]] += Vec.norm( Vec.cross( Vec.sub( bb, a ), Vec.sub( c, a ) ) ) / 2;
+            area[faceOf[k]] += Vec.norm( Vec.cross( Vec.sub( bb, a ), Vec.sub( c, a ) ) ) / 2;
         } );
 
         // edges, from each face's boundary loops in (u, v): a segment along a periodic side of the domain is a seam,
@@ -183,6 +200,9 @@ export class Inspect {
             const atPole = (uv : Array<number>) => (poleSide[0] && Math.abs( uv[0] - d[0] ) < tol) || (poleSide[1] && Math.abs( uv[0] - d[1] ) < tol)
                 || (poleSide[2] && Math.abs( uv[1] - d[2] ) < tol) || (poleSide[3] && Math.abs( uv[1] - d[3] ) < tol);
             const edges = { trim : 0, natural : 0, seam : 0 }; // lengths
+            // (lean: each run of one kind as a polyline, thinned to the tolerance)
+            let run : { layer : IndexedLayer, pts : Array<Point> } | null = null;
+            const flush = () => { if (run != null && lean != null) Inspect.polyline( run.layer, Inspect.thin( run.pts, lean ) ); run = null; };
             const step = Math.max( Math.abs( d[1] - d[0] ), Math.abs( d[3] - d[2] ) ) / 96;
             for (const loop of f.loops) for (let k = 0; k < loop.length; k++) {
                 const a = loop[k], c = loop[(k + 1) % loop.length];
@@ -200,10 +220,18 @@ export class Inspect {
                     const t = j / n;
                     const p = Eval.rationalSurfacePoint( s, a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t );
                     const len = Vec.dist( prev, p );
-                    if (len > 1e-12) { Inspect.segment( layer, prev, p ); edges[kind] += len; } // nothing at a pole
+                    if (len > 1e-12) { // nothing at a pole
+                        edges[kind] += len;
+                        if (lean == null) Inspect.segment( layer, prev, p );
+                        else {
+                            if (run == null || run.layer != layer || Vec.dist( run.pts[run.pts.length - 1], prev ) > 1e-9 * (1 + Vec.norm( prev ))) { flush(); run = { layer : layer, pts : [prev] }; }
+                            run.pts.push( p );
+                        }
+                    }
                     prev = p;
                 }
             }
+            flush();
             const facts : Array<[string, string]> = [
                 ["Face", f.name != "" ? f.name : "face " + f.face],
                 ["From", f.solid < 0 ? "a rolling-ball fillet" : "solid " + f.solid + ", face " + f.face],
@@ -213,7 +241,7 @@ export class Inspect {
                 ["Orientation", f.reversed ? "normal reversed" : "normal as dS/du × dS/dv"],
             ].concat( Inspect.surfaceFacts( s ) ) as Array<[string, string]>;
             return { label : f.name != "" ? f.name : "face " + fi, type : f.solid < 0 ? "Fillet face" : "Trimmed face", facts : facts,
-                     overlay : [Inspect.controlNet( s, true ), Inspect.controlPoints( s, true ), Inspect.knotLines( s )] };
+                     overlay : [Inspect.controlNet( s, true ), Inspect.controlPoints( s, true ), Inspect.knotLines( s, lean ?? undefined )] };
         } );
         // the fillets' rails: the contact curves on either side
         for (const fl of r.fillets) {
@@ -234,17 +262,30 @@ export class Inspect {
             ["Genus", rep.manifold.genus != null ? String( rep.manifold.genus ) : "-"],
             ["Volume", Inspect.num( rep.volume )],
         ];
-        return { title : title != null ? title : "B-rep", kind : "brep", layers : [faces, trim, natural, seam, filletEdges], items : items, facts : facts };
+        if (given != null) facts.push( ["Drawn on", m.triangles.length + " triangles (the result's own mesh: " + r.mesh.triangles.length + ")"] );
+        const view : View = { title : title != null ? title : "B-rep", kind : "brep", layers : [faces, trim, natural, seam, filletEdges], items : items, facts : facts };
+        // a lean view's numbers to what can be seen: positions to a micrometre, normals and fields to four digits
+        if (lean != null) {
+            const um = (x : number) => Math.round( x * 1e3 ) / 1e3, four = (x : number) => isFinite( x ) ? Number( x.toPrecision( 4 ) ) : x;
+            for (const l of view.layers.concat( ...items.map( it => it.overlay ) )) {
+                l.positions = l.positions.map( um );
+                if (l.normals != null) l.normals = l.normals.map( four );
+                if (l.fields != null) for (const k in l.fields) l.fields[k].values = l.fields[k].values.map( four );
+            }
+        }
+        return view;
     }
 
     // The faces of a B-rep as one mesh layer with a vertex per triangle corner (a vertex on an edge belongs to two
     // faces, with two normals), carrying each corner's exact normal and its Gaussian and mean curvature. Trimmed faces
     // know their corners' parameters; the meshes of fillets and corners are built in space, so their vertices are
     // projected onto their surfaces.
-    public static exactFaces( r : BooleanResult ) : IndexedLayer {
-        const m = r.mesh;
+    // (On another mesh than the result's, `on`, every corner is projected: the parameters the Boolean kept are its own
+    // mesh's.)
+    public static exactFaces( r : BooleanResult, on? : { mesh : TriMesh, faceOf : Array<number> } ) : IndexedLayer {
+        const m = on != null ? on.mesh : r.mesh, faceOf = on != null ? on.faceOf : r.faceOf;
         const l : IndexedLayer = { name : "Faces", kind : "mesh", color : COLORS.surface, visible : true, positions : [], indices : [] };
-        l.pick = r.faceOf.slice();
+        l.pick = faceOf.slice();
         l.itemColors = true;
         const normals : Array<number> = [], gauss : Array<number> = [], mean : Array<number> = [];
         const projected = new Map<string, UV>();
@@ -276,11 +317,11 @@ export class Inspect {
         const patchOf = new Map<number, Array<Ribbon>>();
         for (const c of r.corners) if (c.ribbons != null) for (const fi of c.faces) patchOf.set( fi, c.ribbons );
         m.triangles.forEach( (t, k) => {
-            const fi = r.faceOf[k], f = r.faces[fi];
+            const fi = faceOf[k], f = r.faces[fi];
             const a = m.vertices[t[0]], b = m.vertices[t[1]], c = m.vertices[t[2]];
             const flat = Vec.normalized( Vec.cross( Vec.sub( b, a ), Vec.sub( c, a ) ) );
-            const cuv = r.cornerUV != null ? r.cornerUV[k] : null;
-            const xy = r.patchXY != null ? r.patchXY[k] : null, ribbons = patchOf.get( fi );
+            const cuv = on == null && r.cornerUV != null ? r.cornerUV[k] : null;
+            const xy = on == null && r.patchXY != null ? r.patchXY[k] : null, ribbons = patchOf.get( fi );
             for (let x = 0; x < 3; x++) {
                 const p = m.vertices[t[x]];
                 l.indices.push( l.positions.length / 3 );
@@ -485,11 +526,55 @@ export class Inspect {
     }
 
     // isocurves at the distinct interior knots: the edges of the surface's polynomial patches
-    public static knotLines( s : NurbsSurfaceData ) : ViewLayer {
+    // (tol: each line sampled to within tol of its curve, its points shared; otherwise 48 points a line)
+    public static knotLines( s : NurbsSurfaceData, tol? : number ) : ViewLayer {
         const l = Inspect.lines( "Knot lines", COLORS.knotLines, true );
         const ku = Analyze.knotMultiplicities( s.knotsU ).map( m => m.knot ), kv = Analyze.knotMultiplicities( s.knotsV ).map( m => m.knot );
-        Inspect.isoLines( l, s, ku, kv, 48 );
+        if (tol == null) { Inspect.isoLines( l, s, ku, kv, 48 ); return l; }
+        for (const u of ku) Inspect.polyline( l, Inspect.adaptive( t => Eval.rationalSurfacePoint( s, u, t ), kv, tol ) );
+        for (const v of kv) Inspect.polyline( l, Inspect.adaptive( t => Eval.rationalSurfacePoint( s, t, v ), ku, tol ) );
         return l;
+    }
+
+    // Points along a curve c(t) over the breaks (in order), each span halved while its chord strays from the curve by
+    // more than tol at its quarters or middle.
+    private static adaptive( c : (t : number) => Point, breaks : Array<number>, tol : number ) : Array<Point> {
+        const out : Array<Point> = [c( breaks[0] )];
+        const split = (a : number, b : number, pa : Point, pb : Point, depth : number) => {
+            let need = false;
+            if (depth < 12) for (const f of [0.25, 0.5, 0.75]) if (Vec.dist( c( a + f * (b - a) ), Vec.lerp( f, pb, pa ) ) > tol) { need = true; break; }
+            if (!need) { out.push( pb ); return; }
+            const m = 0.5 * (a + b), pm = c( m );
+            split( a, m, pa, pm, depth + 1 ); split( m, b, pm, pb, depth + 1 );
+        };
+        for (let k = 0; k + 1 < breaks.length; k++) split( breaks[k], breaks[k + 1], out[out.length - 1], c( breaks[k + 1] ), 0 );
+        return Inspect.thin( out, tol );
+    }
+
+    // A polyline thinned (Douglas and Peucker): the points it can do without, staying within tol of the rest.
+    private static thin( pts : Array<Point>, tol : number ) : Array<Point> {
+        if (pts.length <= 2) return pts;
+        const keep = pts.map( (_, k) => k == 0 || k == pts.length - 1 );
+        const stack : Array<[number, number]> = [[0, pts.length - 1]];
+        while (stack.length > 0) {
+            const [a, b] = stack.pop() as [number, number];
+            const A = pts[a], AB = Vec.sub( pts[b], A ), l2 = Vec.dot( AB, AB );
+            let worst = -1, wd = tol;
+            for (let k = a + 1; k < b; k++) {
+                const AP = Vec.sub( pts[k], A ), t = l2 > 0 ? Math.max( 0, Math.min( 1, Vec.dot( AP, AB ) / l2 ) ) : 0;
+                const dd = Vec.norm( Vec.sub( AP, Vec.mul( t, AB ) ) );
+                if (dd > wd) { wd = dd; worst = k; }
+            }
+            if (worst >= 0) { keep[worst] = true; stack.push( [a, worst], [worst, b] ); }
+        }
+        return pts.filter( (_, k) => keep[k] );
+    }
+
+    // A polyline into a lines layer, each point once.
+    private static polyline( l : IndexedLayer, pts : Array<Point> ) {
+        const k0 = l.positions.length / 3;
+        for (const p of pts) l.positions.push( p[0], p[1], p[2] );
+        for (let k = 1; k < pts.length; k++) l.indices.push( k0 + k - 1, k0 + k );
     }
 
     public static isocurves( s : NurbsSurfaceData, n : number ) : ViewLayer {

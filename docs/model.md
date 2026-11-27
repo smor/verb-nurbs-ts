@@ -47,6 +47,7 @@ the same cache.
 | `revolve` | `profile` (`[radius, height]` pairs, heights increasing), `divs?` | `wall`, `bottom`, `top` |
 | `prism` | `outline` (`[x, y]` or `[x, y, r]` points in z = 0, numbers or expressions; r rounds that corner), `height`; built as an exact extrusion (lines and arcs) | `bottom`, `top`, `outer.k` |
 | `extrude` | `profile` (an outline: `{ outer, holes }`, see [formats.md](formats.md), Profiles), `height`, `z?` | `bottom`, `top`, `outer.k`, `hole{i}.k` |
+| `lathe` | `profile` (an outline in the (r, z) half-plane), `degrees?` (360) | `outer.k` |
 | `primitive` | `shape` (a `Catalog` name, see [primitives.md](primitives.md)), `values?` (its parameters by name; angles in degrees) | the shape's own: `side.k`, `bottom`, `top`, `face.k`, ... |
 | `transform` | `of`, `scale?` (number or per axis; negative mirrors), `rotate?` (`axis`, `degrees`, `about?`), `translate?` | its input's, behind `<transform>/` |
 | `union`, `intersection` | `of` | |
@@ -79,7 +80,8 @@ it cannot prove are named in `result.report.certificate`.
     setback corner);
   * pieces of one face split by a Boolean: `#1`, `#2`, ... by decreasing area, then by centroid.
   Edges are named by their two faces, sorted: `block.+z|peg.tube`. Rules select edges by glob patterns over those
-  names, so the same rules keep selecting the same edges as parameters change.
+  names, so the same rules keep selecting the same edges as parameters change. A pattern `A|B` matches an edge either
+  way round, so `b.*x|b.*y` is every edge between an x face and a y face of `b`, whichever name sorts first (#79).
 * **The verdict** is computed from the result, the same way every time:
 
   | Check | Passes when |
@@ -87,6 +89,7 @@ it cannot prove are named in `result.report.certificate`.
   | `closed` | every edge joins exactly two faces |
   | `outward` | the volume is positive |
   | `fillets` | every requested fillet is in place (none too large, none left sharp at a corner) |
+  | `round rules` | (with a round) every rule selects at least one edge: one that matches nothing, a misspelt face, is named (#79) |
   | `makeable` | (with a machine) `Makeable.check` passes: the surface does not pass through itself, fits, no wall too thin, no sealed void on a machine that drains, and for a moulded process (`Machine.draft`) enough draft and no undercut along the best pull |
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
 

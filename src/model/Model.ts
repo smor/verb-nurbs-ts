@@ -9,6 +9,7 @@ import { BooleanOptions, BooleanResult, BrepBoolean } from "../solid/BrepBoolean
 import { BrepEdges } from "../solid/BrepEdges.js";
 import { ShellBuilder } from "../solid/BrepShell.js";
 import { Extrusion, ProfilePoint, ProfileSegmentSpec, ProfileSpec } from "../solid/Extrusion.js";
+import { Lathe } from "../solid/Lathe.js";
 import { Primitives } from "../solid/primitives/Primitives.js";
 import { Profiles } from "../solid/primitives/Profiles.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
@@ -40,6 +41,8 @@ export type ModelFeature =
     // a planar profile (lines, three-point arcs, circles and cubic Béziers, with holes) extruded from z up by height,
     // exact (`Extrusion`): faces bottom, top, outer.k and hole{i}.k
     | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue }
+    // the same profile drawn in the (r, z) half-plane (x the radius) and turned about the z axis (#87); faces outer.k
+    | { type : "lathe", profile : ProfileSpec, degrees? : ModelValue }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -114,7 +117,11 @@ export interface ModelLattice { mesh : TriMesh, pattern : LatticePattern, cell :
 export interface ModelWall { shell : string, thickness : number, thinnest : number }
 
 // What the rounds of a model's rounded operands left undone, summed (see `ModelVerdict`'s fillets check).
-export interface Fillets { failed : number, skipped : number, reduced : number }
+export interface Fillets {
+    failed : number, skipped : number, reduced : number,
+    // the round rules that selected no edge, as `"round": "pattern"` (#79)
+    unmatched? : Array<string>,
+}
 
 // A shell within a tree: the leaves of its solid and of its inside, and its open faces' names.
 interface Shelled { id : string, thickness : number, outside : [number, number], inside : [number, number], open : Array<string> }
@@ -295,6 +302,7 @@ export class Model {
             switch (f.type) {
                 case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
                 case "extrude": case "prism": throw new Error( `Model: a shell cannot yet offset the extrusion "${id}"` );
+                case "lathe": throw new Error( `Model: a shell cannot yet offset the revolved profile "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -335,7 +343,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "prism":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "lathe": case "prism":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -393,9 +401,17 @@ export class Model {
             const leafName = (si : number, fi : number) => nameOf( t.leaves[si], fi );
 
             let options : BooleanOptions = { certify : doc.certify === true };
+            const rules : Array<{ edges : string, re : RegExp, radius : number, hits : number }> = [];
             if (round != null) {
-                const rules = round.rules.map( r => ({ re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ) }) );
-                const radius = (name : string) => { const r = rules.find( x => x.re.test( name ) ); return r != null ? r.radius : 0; };
+                rules.push( ...round.rules.map( r => ({ edges : r.edges, re : Model.pattern( r.edges ), radius : num( r.radius, `"${solidId}" radius` ), hits : 0 }) ) );
+                // an edge "a|b" (its faces' names sorted) matches a pattern either way round: "b.*x|b.*y" is an x face
+                // and a y face, whichever sorts first (#79); every rule that matches counts the edge, the first rounds it
+                const radius = (name : string) => {
+                    const bar = name.indexOf( "|" ), other = bar < 0 ? name : name.slice( bar + 1 ) + "|" + name.slice( 0, bar );
+                    let r : (typeof rules)[number] | undefined;
+                    for (const x of rules) if (x.re.test( name ) || x.re.test( other )) { x.hits++; r ??= x; }
+                    return r != null ? r.radius : 0;
+                };
                 // (rounding the edges of a rounded operand, or the new edges on it, is step A5 of docs/exact-booleans.md)
                 if (t.leaves.some( l => l.solid.edges != null )) throw new Error( `Model: the round "${solidId}" is over a rounded operand, which cannot be rounded again yet` );
                 const edges : Array<{ solid : number, faces : [number, number], radius : number }> = [];
@@ -409,7 +425,11 @@ export class Model {
                 };
             }
             const r = BrepBoolean.evaluate( t.leaves.map( l => l.solid ), t.expr, options );
-            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : t.fillets };
+            // a rule that selected no edge, of the operands or new, is said (a pattern written the wrong way round, or
+            // naming a face that is not there, would otherwise round nothing in silence)
+            const unmatched = round == null ? [] : rules.filter( x => x.hits == 0 ).map( x => `"${solidId}": "${x.edges}"` );
+            const fillets = unmatched.length == 0 ? t.fillets : Model.addFillets( [t.fillets, { failed : 0, skipped : 0, reduced : 0, unmatched : unmatched }] );
+            return { result : r, names : Model.names( r, leafName ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets };
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
@@ -507,6 +527,7 @@ export class Model {
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
             case "prism": return { outline : Model.outline( f, num ), height : num( f.height, "height" ), center : pair( f.center, "center" ) };
             case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ) };
+            case "lathe": return { profile : f.profile, degrees : f.degrees == null ? 360 : num( f.degrees, "degrees" ) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -538,8 +559,8 @@ export class Model {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
             case "prism": {
                 // a fan-capped prism (`Primitives.prism`) when the outline is star-shaped about its centroid or `center`,
-                // an exact extrusion (`Extrusion`) otherwise: unions of extrusions that share planes still fail (#101),
-                // where the fan-capped prisms hold
+                // an exact extrusion (`Extrusion`) otherwise: a housing united with a beam whose top is in its walls'
+                // plane still fails as extrusions, where the fan-capped prisms hold
                 const pts = Model.outline( f, num ), h = positive( num( f.height, "height" ), "a prism's height" );
                 const c = f.center == null ? undefined : [num( f.center[0], "center" ), num( f.center[1], "center" ), 0];
                 const flat = pts.map( p => [p[0], p[1], 0] ), radii = pts.map( p => p[2] );
@@ -549,6 +570,7 @@ export class Model {
                 return Primitives.prism( profile, h );
             }
             case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ) );
+            case "lathe": return Lathe.solid( f.profile, f.degrees == null ? 360 : num( f.degrees, "degrees" ) );
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
@@ -770,7 +792,8 @@ export class Model {
     private static addFillets( xs : Array<Fillets | undefined> ) : Fillets | undefined {
         const ys = xs.filter( (x) : x is Fillets => x != null );
         if (ys.length == 0) return undefined;
-        return { failed : ys.reduce( (a, x) => a + x.failed, 0 ), skipped : ys.reduce( (a, x) => a + x.skipped, 0 ), reduced : ys.reduce( (a, x) => a + x.reduced, 0 ) };
+        return { failed : ys.reduce( (a, x) => a + x.failed, 0 ), skipped : ys.reduce( (a, x) => a + x.skipped, 0 ), reduced : ys.reduce( (a, x) => a + x.reduced, 0 ),
+                 unmatched : ys.flatMap( x => x.unmatched ?? [] ) };
     }
 
     private static faceName( f : BrepFace, index : number ) : string {
@@ -929,6 +952,10 @@ export class Model {
             { name : "fillets", passed : fFailed == 0 && fSkipped == 0,
               detail : fFailed + fSkipped == 0 ? "every requested fillet is in place" : `${fFailed} fillet(s) too large and ${fSkipped} left sharp at corners` },
         ];
+        // a round rule that selects no edge (#79)
+        const unmatched = inner?.unmatched ?? [];
+        if (unmatched.length > 0) checks.push( { name : "round rules", passed : false,
+            detail : `${unmatched.length == 1 ? "a round rule selects" : unmatched.length + " round rules select"} no edge: ${unmatched.join( ", " )}` } );
         for (const w of walls) {
             const ok = w.thinnest >= w.thickness * (1 - Model.WALL_TOLERANCE);
             checks.push( { name : "wall", passed : ok, detail : `the shell "${w.shell}" is ${Model.round( w.thinnest )} thick at its thinnest (${w.thickness} asked)` } );
