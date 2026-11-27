@@ -40,7 +40,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
     }
     // the shelf: every output, one message each, then a summary, then the view meshes
     const names = Object.keys( doc.outputs ?? {} );
-    const nodes : Record<string, string> = {}, failed : Array<string> = [], built : Array<[string, GraphResult]> = [];
+    const nodes : Record<string, string> = {}, failed : Array<string> = [], off : Array<string> = [], built : Array<[string, GraphResult]> = [];
     let params : Record<string, number> = {};
     let volume = 0, buildable = 0;
     for (const name of names) {
@@ -55,11 +55,13 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
             built.push( [name, r] );
             post( { seq, part : name, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, verdict : r.verdict.kind }, a.transfer );
         } catch (err) {
-            failed.push( `${name}: ${(err as Error).message}` );
+            // an output switched off is left off the shelf, not a failure
+            if (/is switched off/.test( (err as Error).message )) off.push( name ); else failed.push( `${name}: ${(err as Error).message}` );
         }
     }
-    post( { seq, ok : failed.length == 0, shelf : true, ms : performance.now() - t, volume, faces : 0, nodes, params,
-        verdict : { kind : buildable == names.length ? "buildable" : "visual", reasons : [`${buildable} of ${names.length} outputs buildable`, ...failed] },
+    post( { seq, ok : failed.length == 0, shelf : true, off, ms : performance.now() - t, volume, faces : 0, nodes, params,
+        verdict : { kind : buildable == names.length - off.length ? "buildable" : "visual",
+            reasons : [`${buildable} of ${names.length - off.length} outputs buildable`, ...(off.length ? [`switched off: ${off.join( ", " )}`] : []), ...failed] },
         error : failed.length > 0 ? failed.join( "; " ) : undefined } );
     for (const [name, r] of built) {
         if (await superseded( seq )) return;

@@ -168,6 +168,7 @@
             "boolean/union",
             "boolean/intersection",
             "boolean/difference",
+            "logic/switch",
             "finish/round",
             "finish/shell",
             "component"
@@ -1385,6 +1386,18 @@
           },
           "then": {
             "$ref": "#/$defs/boolean.difference"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "logic/switch"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/logic.switch"
           }
         },
         {
@@ -5692,6 +5705,47 @@
               "type": "string",
               "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
               "description": "minus: a solid, \"@node\""
+            }
+          }
+        }
+      }
+    },
+    "logic.switch": {
+      "title": "Switch",
+      "description": "One solid or another, or nothing, as a number is on (not 0) or off (0): a part to include or not, holes to cut or not. Nothing drops out of a union and out of a difference's cutters",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "logic/switch"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "on": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "on",
+              "default": 1
+            },
+            "on_solid": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "when on: a solid, \"@node\""
+            },
+            "off_solid": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "when off: a solid, \"@node\""
             }
           }
         }

@@ -34,7 +34,7 @@
     },
     "feature": {
       "type": "object", "required": ["type"],
-      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "round", "shell", "lattice"] } },
+      "properties": { "type": { "enum": ["box", "cylinder", "pipe", "revolve", "prism", "primitive", "transform", "union", "intersection", "difference", "choose", "round", "shell", "lattice"] } },
       "allOf": [
         { "if": { "properties": { "type": { "const": "box" } } }, "then": { "$ref": "#/$defs/box" } },
         { "if": { "properties": { "type": { "const": "cylinder" } } }, "then": { "$ref": "#/$defs/cylinder" } },
@@ -45,6 +45,7 @@
         { "if": { "properties": { "type": { "const": "transform" } } }, "then": { "$ref": "#/$defs/transform" } },
         { "if": { "properties": { "type": { "enum": ["union", "intersection"] } } }, "then": { "$ref": "#/$defs/boolean" } },
         { "if": { "properties": { "type": { "const": "difference" } } }, "then": { "$ref": "#/$defs/difference" } },
+        { "if": { "properties": { "type": { "const": "choose" } } }, "then": { "$ref": "#/$defs/choose" } },
         { "if": { "properties": { "type": { "const": "round" } } }, "then": { "$ref": "#/$defs/round" } },
         { "if": { "properties": { "type": { "const": "shell" } } }, "then": { "$ref": "#/$defs/shell" } },
         { "if": { "properties": { "type": { "const": "lattice" } } }, "then": { "$ref": "#/$defs/lattice" } }
@@ -75,6 +76,9 @@
       "properties": { "type": true, "of": { "type": "array", "items": { "$ref": "#/$defs/id" }, "minItems": 1 } } },
     "difference": { "type": "object", "required": ["type", "from", "minus"], "additionalProperties": false,
       "properties": { "type": true, "from": { "$ref": "#/$defs/id" }, "minus": { "type": "array", "items": { "$ref": "#/$defs/id" } } } },
+    "choose": { "type": "object", "required": ["type", "when"], "additionalProperties": false,
+      "description": "A switch: then where when is not 0, else where it is; either may be left out, for nothing",
+      "properties": { "type": true, "when": { "$ref": "#/$defs/value" }, "then": { "$ref": "#/$defs/id" }, "else": { "$ref": "#/$defs/id" } } },
     "round": { "type": "object", "required": ["type", "of", "rules"], "additionalProperties": false,
       "properties": { "type": true, "of": { "$ref": "#/$defs/id" },
         "rules": { "type": "array", "items": { "type": "object", "required": ["edges", "radius"], "additionalProperties": false,

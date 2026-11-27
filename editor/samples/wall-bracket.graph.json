@@ -1,0 +1,560 @@
+{
+ "version": 2,
+ "meta": {
+  "name": "Wall bracket",
+  "description": "A printable wall bracket: a base and a back wall, with a front lip, screw holes in the base and in the wall, and a cable notch, each switched on or off in Customize. The screw holes are one component used twice."
+ },
+ "nodes": {
+  "width": {
+   "type": "number",
+   "in": {
+    "value": 60
+   },
+   "label": "Width"
+  },
+  "depth": {
+   "type": "number",
+   "in": {
+    "value": 40
+   },
+   "label": "Depth"
+  },
+  "height": {
+   "type": "number",
+   "in": {
+    "value": 50
+   },
+   "label": "Wall height"
+  },
+  "t": {
+   "type": "number",
+   "in": {
+    "value": 4
+   },
+   "label": "Thickness"
+  },
+  "lip_on": {
+   "type": "number",
+   "in": {
+    "value": 1
+   },
+   "label": "Front lip"
+  },
+  "lip_h": {
+   "type": "number",
+   "in": {
+    "value": 10
+   },
+   "label": "Lip height"
+  },
+  "base_holes_on": {
+   "type": "number",
+   "in": {
+    "value": 1
+   },
+   "label": "Screw holes in the base"
+  },
+  "wall_holes_on": {
+   "type": "number",
+   "in": {
+    "value": 0
+   },
+   "label": "Screw holes in the wall"
+  },
+  "notch_on": {
+   "type": "number",
+   "in": {
+    "value": 1
+   },
+   "label": "Cable notch"
+  },
+  "notch_w": {
+   "type": "number",
+   "in": {
+    "value": 12
+   },
+   "label": "Notch width"
+  },
+  "base": {
+   "type": "primitive/box",
+   "in": {
+    "width": "width",
+    "depth": "depth",
+    "height": "t"
+   },
+   "label": "Base"
+  },
+  "wall0": {
+   "type": "primitive/box",
+   "in": {
+    "width": "width",
+    "depth": "t",
+    "height": "height"
+   },
+   "label": "Back wall"
+  },
+  "wall": {
+   "type": "transform/move",
+   "in": {
+    "of": "@wall0",
+    "y": "depth / 2 - t / 2"
+   },
+   "label": "To the back"
+  },
+  "body": {
+   "type": "boolean/union",
+   "in": {
+    "a": "@base",
+    "b": "@wall"
+   },
+   "label": "Base and wall"
+  },
+  "lip0": {
+   "type": "primitive/box",
+   "in": {
+    "width": "width",
+    "depth": "t",
+    "height": "lip_h"
+   },
+   "label": "Lip"
+  },
+  "lip": {
+   "type": "transform/move",
+   "in": {
+    "of": "@lip0",
+    "y": "t / 2 - depth / 2"
+   },
+   "label": "To the front"
+  },
+  "lip_sw": {
+   "type": "logic/switch",
+   "in": {
+    "on": "lip_on",
+    "on_solid": "@lip"
+   },
+   "label": "Front lip?"
+  },
+  "with_lip": {
+   "type": "boolean/union",
+   "in": {
+    "a": "@body",
+    "b": "@lip_sw"
+   },
+   "label": "With the lip"
+  },
+  "base_holes": {
+   "type": "component",
+   "use": "#Screw_holes",
+   "in": {
+    "spacing": "width * 0.6"
+   },
+   "label": "Base screw holes"
+  },
+  "base_holes_at": {
+   "type": "transform/move",
+   "in": {
+    "of": "@base_holes.holes",
+    "z": "t / 2"
+   },
+   "label": "In the base"
+  },
+  "base_holes_sw": {
+   "type": "logic/switch",
+   "in": {
+    "on": "base_holes_on",
+    "on_solid": "@base_holes_at"
+   },
+   "label": "Base holes?"
+  },
+  "wall_holes": {
+   "type": "component",
+   "use": "#Screw_holes",
+   "in": {
+    "spacing": "width * 0.6"
+   },
+   "label": "Wall screw holes"
+  },
+  "wall_holes_up": {
+   "type": "transform/rotate",
+   "in": {
+    "of": "@wall_holes.holes",
+    "axis": "x",
+    "degrees": 90
+   },
+   "label": "Through the wall"
+  },
+  "wall_holes_at": {
+   "type": "transform/move",
+   "in": {
+    "of": "@wall_holes_up",
+    "y": "depth / 2 - t / 2",
+    "z": "height * 0.65"
+   },
+   "label": "In the wall"
+  },
+  "wall_holes_sw": {
+   "type": "logic/switch",
+   "in": {
+    "on": "wall_holes_on",
+    "on_solid": "@wall_holes_at"
+   },
+   "label": "Wall holes?"
+  },
+  "notch0": {
+   "type": "primitive/box",
+   "in": {
+    "width": "notch_w",
+    "depth": "t * 3",
+    "height": "notch_w"
+   },
+   "label": "Notch"
+  },
+  "notch": {
+   "type": "transform/move",
+   "in": {
+    "of": "@notch0",
+    "y": "depth / 2 - t / 2",
+    "z": "height - notch_w / 2"
+   },
+   "label": "At the top of the wall"
+  },
+  "notch_sw": {
+   "type": "logic/switch",
+   "in": {
+    "on": "notch_on",
+    "on_solid": "@notch"
+   },
+   "label": "Cable notch?"
+  },
+  "cut1": {
+   "type": "boolean/difference",
+   "in": {
+    "from": "@with_lip",
+    "minus": "@base_holes_sw"
+   },
+   "label": "Less the base holes"
+  },
+  "cut2": {
+   "type": "boolean/difference",
+   "in": {
+    "from": "@cut1",
+    "minus": "@wall_holes_sw"
+   },
+   "label": "Less the wall holes"
+  },
+  "bracket": {
+   "type": "boolean/difference",
+   "in": {
+    "from": "@cut2",
+    "minus": "@notch_sw"
+   },
+   "label": "Less the notch"
+  }
+ },
+ "outputs": {
+  "bracket": "@bracket"
+ },
+ "components": {
+  "Screw_holes": {
+   "version": 2,
+   "meta": {
+    "name": "Screw holes",
+    "description": "Two holes for screws, side by side along x, centred on the origin, through 20 mm along z"
+   },
+   "nodes": {
+    "spacing": {
+     "type": "number",
+     "in": {
+      "value": 30
+     },
+     "label": "Spacing"
+    },
+    "r": {
+     "type": "number",
+     "in": {
+      "value": 2.2
+     },
+     "label": "Hole radius"
+    },
+    "c1": {
+     "type": "primitive/cylinder",
+     "in": {
+      "radius": "r",
+      "height": 20
+     }
+    },
+    "c2": {
+     "type": "primitive/cylinder",
+     "in": {
+      "radius": "r",
+      "height": 20
+     }
+    },
+    "m1": {
+     "type": "transform/move",
+     "in": {
+      "of": "@c1",
+      "x": "-spacing / 2",
+      "z": -10
+     }
+    },
+    "m2": {
+     "type": "transform/move",
+     "in": {
+      "of": "@c2",
+      "x": "spacing / 2",
+      "z": -10
+     }
+    },
+    "both": {
+     "type": "boolean/union",
+     "in": {
+      "a": "@m1",
+      "b": "@m2"
+     }
+    }
+   },
+   "outputs": {
+    "holes": "@both"
+   },
+   "view": {
+    "params": {
+     "spacing": {
+      "min": 10,
+      "max": 100,
+      "step": 1,
+      "unit": "mm"
+     },
+     "r": {
+      "min": 1,
+      "max": 5,
+      "step": 0.1,
+      "unit": "mm"
+     }
+    },
+    "nodes": {
+     "spacing": {
+      "x": 0,
+      "y": 0
+     },
+     "r": {
+      "x": 0,
+      "y": 140
+     },
+     "c1": {
+      "x": 300,
+      "y": 0
+     },
+     "c2": {
+      "x": 300,
+      "y": 200
+     },
+     "m1": {
+      "x": 600,
+      "y": 0
+     },
+     "m2": {
+      "x": 600,
+      "y": 260
+     },
+     "both": {
+      "x": 900,
+      "y": 100
+     }
+    }
+   }
+  }
+ },
+ "view": {
+  "groups": [
+   "Size",
+   "Options"
+  ],
+  "params": {
+   "width": {
+    "min": 20,
+    "max": 150,
+    "step": 1,
+    "unit": "mm",
+    "group": "Size"
+   },
+   "depth": {
+    "min": 20,
+    "max": 100,
+    "step": 1,
+    "unit": "mm",
+    "group": "Size"
+   },
+   "height": {
+    "min": 20,
+    "max": 120,
+    "step": 1,
+    "unit": "mm",
+    "group": "Size"
+   },
+   "t": {
+    "min": 2,
+    "max": 8,
+    "step": 0.5,
+    "unit": "mm",
+    "group": "Size"
+   },
+   "lip_on": {
+    "kind": "toggle",
+    "group": "Options"
+   },
+   "lip_h": {
+    "min": 4,
+    "max": 30,
+    "step": 1,
+    "unit": "mm",
+    "group": "Options"
+   },
+   "base_holes_on": {
+    "kind": "toggle",
+    "group": "Options"
+   },
+   "wall_holes_on": {
+    "kind": "toggle",
+    "group": "Options"
+   },
+   "notch_on": {
+    "kind": "toggle",
+    "group": "Options"
+   },
+   "notch_w": {
+    "min": 6,
+    "max": 30,
+    "step": 1,
+    "unit": "mm",
+    "group": "Options"
+   }
+  },
+  "nodes": {
+   "width": {
+    "x": 0,
+    "y": 0
+   },
+   "depth": {
+    "x": 0,
+    "y": 170
+   },
+   "height": {
+    "x": 0,
+    "y": 340
+   },
+   "t": {
+    "x": 0,
+    "y": 510
+   },
+   "lip_on": {
+    "x": 0,
+    "y": 680
+   },
+   "lip_h": {
+    "x": 0,
+    "y": 850
+   },
+   "base_holes_on": {
+    "x": 0,
+    "y": 1020
+   },
+   "wall_holes_on": {
+    "x": 0,
+    "y": 1190
+   },
+   "notch_on": {
+    "x": 0,
+    "y": 1360
+   },
+   "notch_w": {
+    "x": 0,
+    "y": 1530
+   },
+   "base": {
+    "x": 300,
+    "y": 0
+   },
+   "wall0": {
+    "x": 300,
+    "y": 250
+   },
+   "lip0": {
+    "x": 300,
+    "y": 500
+   },
+   "base_holes": {
+    "x": 300,
+    "y": 750
+   },
+   "wall_holes": {
+    "x": 300,
+    "y": 1040
+   },
+   "notch0": {
+    "x": 300,
+    "y": 1330
+   },
+   "wall": {
+    "x": 600,
+    "y": 0
+   },
+   "lip": {
+    "x": 600,
+    "y": 210
+   },
+   "base_holes_at": {
+    "x": 600,
+    "y": 420
+   },
+   "wall_holes_up": {
+    "x": 600,
+    "y": 630
+   },
+   "notch": {
+    "x": 600,
+    "y": 880
+   },
+   "body": {
+    "x": 900,
+    "y": 0
+   },
+   "lip_sw": {
+    "x": 900,
+    "y": 210
+   },
+   "base_holes_sw": {
+    "x": 900,
+    "y": 420
+   },
+   "wall_holes_at": {
+    "x": 900,
+    "y": 630
+   },
+   "notch_sw": {
+    "x": 900,
+    "y": 880
+   },
+   "with_lip": {
+    "x": 1200,
+    "y": 0
+   },
+   "wall_holes_sw": {
+    "x": 1200,
+    "y": 210
+   },
+   "cut1": {
+    "x": 1200,
+    "y": 420
+   },
+   "cut2": {
+    "x": 1500,
+    "y": 0
+   },
+   "bracket": {
+    "x": 1500,
+    "y": 210
+   }
+  }
+ }
+}

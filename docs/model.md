@@ -52,9 +52,18 @@ the same cache.
 | `transform` | `of`, `scale?` (number or per axis; negative mirrors), `rotate?` (`axis`, `degrees`, `about?`), `translate?` | its input's, behind `<transform>/` |
 | `union`, `intersection` | `of` | |
 | `difference` | `from`, `minus` | |
+| `choose` | `when` (a number or expression), `then?`, `else?`: a switch, `then` where `when` is not 0, else `else`; a side left out is nothing | the chosen feature's |
 | `round` | `of`, `rules` (`edges` pattern, `radius`), `shape?` (`circular`, `curvature`, `chamfer`), `corner?` | `round(...)`, `corner(...)` |
 | `shell` | `of`, `thickness`, `open?` (face name patterns) | its input's, and the inside's as `<shell>~<face>` |
 | `lattice` | `of`, `pattern`, `cell`, `wall`, `skin?`, `blend?`, `grade?` (`axis`, `to`), `open?` (face name patterns), `size?` | a mesh: `ModelResult.lattice` |
+
+**Switches.** `choose` features are resolved before anything is hashed or built (`Model.choose`), at the parameters'
+values: a reference to a switch becomes the feature it chose. Nothing (a switch whose chosen side is left out) drops
+out of a union and out of a difference's cutters, and a union left with one solid, or a difference with no cutter, is
+that solid. A transform, round, shell or lattice of nothing, a difference from nothing and an intersection with
+nothing are nothing, and an output that is nothing is refused ("switched off"). `ModelResult.chosen` says what each
+switch the output reached chose. Since only what is chosen is hashed, a part switched off and on again comes back
+from the cache.
 
 Every number may be an expression over the parameters (`Expr`: arithmetic, `^`, `min`, `max`, `sqrt`, trigonometry
 in radians, `rad`, `deg`, `clamp`, `lerp`, `pi`). Parameters may use other parameters; cycles are refused.

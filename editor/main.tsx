@@ -97,7 +97,8 @@ function record( key : string | null = null ) {
 // The analysis mesh comes first; the view mesh (from the exact shell, within 0.1 mm) replaces it when ready (refine).
 interface Mesh { pos? : Float32Array; idx? : Uint32Array; face? : Uint32Array; names? : Array<string>; normal? : Float32Array; refine? : boolean; deviation? : number | null }
 interface Result extends Mesh { seq : number; ok : boolean; ms : number; error? : string; volume? : number; faces? : number;
-    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean; params? : Record<string, number> }
+    verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean; params? : Record<string, number>;
+    off? : Array<string> }
 // one output of a shelf evaluation, sent as soon as it is built, and again with its view mesh
 interface Part extends Mesh { seq : number; part : string; pos : Float32Array; idx : Uint32Array; verdict : string }
 const worker = new Worker( URL.createObjectURL( new Blob( [WORKER_SOURCE], { type : "text/javascript" } ) ) );
@@ -211,7 +212,7 @@ function ParamControl( { id, k, port, full } : { id : string, k : string, port :
     const computed = typeof value == "string" ? edit.params[isParam ? id : `${id}__${k}`] ?? null : null;
     const label = full && isParam ? (G().nodes[id].label ?? id) : port.label;
     const fid = `p-${id}-${k}${full ? "-panel" : ""}`;
-    if (meta.kind == "toggle") return <ToggleField label={label} id={fid} value={Number( value ) || 0} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
+    if (meta.kind == "toggle" || (!isParam && inst == null && port.integer && port.min == 0 && port.max == 1)) return <ToggleField label={label} id={fid} value={Number( value ) || 0} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
     if (meta.kind == "choice" && meta.presets && meta.presets.length > 1)
         return <ChoiceField label={label} id={fid} value={Number( value )} options={meta.presets} segments={full ? 5 : 3} onCommit={( v, key ) => edit.commit( id, k, v, key )} />;
     const n = typeof value == "number" ? value : computed ?? port.value;
@@ -287,7 +288,7 @@ function GraphNodeView( { id } : NodeProps ) {
             : p.kind == "solid" ? <div className="row" key={k}>
                 <Handle type="target" position={Position.Left} id={k} className="h-solid" />
                 <span className="lbl">{p.label}</span>
-                <span className="wired">{ref( nd.in?.[k] ) ? "← " + (G().nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : "connect a solid"}</span></div>
+                <span className="wired">{ref( nd.in?.[k] ) ? "← " + (G().nodes[ref( nd.in?.[k] )![0]]?.label ?? ref( nd.in?.[k] )![0]) : p.optional ? "nothing" : "connect a solid"}</span></div>
             : p.kind == "outline" ? <OutlineInput key={k} id={id} k={k} port={p} />
             : <TextInput key={k} id={id} k={k} port={p} /> )}
         {Object.entries( t.outputs ).map( ([k, ty]) => <div className="row out" key={k}>
@@ -522,7 +523,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
 
 // ---------------------------------------------------------------- palette
 const CATEGORIES : Array<[string, string]> = [["parameter", "Parameters"], ["math", "Math"], ["freeform", "Freeform"], ["primitive", "Primitives"], ["transform", "Transforms"],
-    ["boolean", "Booleans"], ["finish", "Finishing"]];
+    ["boolean", "Booleans"], ["logic", "Switches"], ["finish", "Finishing"]];
 
 function Palette( { add, remove } : { add : ( type : string, use? : string ) => void, remove : ( name : string ) => void } ) {
     const [q, setQ] = useState( "" );
@@ -627,7 +628,7 @@ function App() {
             if (r.ok) noteTime( r.ms );
             if (r.ok && r.verdict?.kind == "buildable" && sent.has( r.seq )) lastGood = sent.get( r.seq )!;
             // a finished shelf: drop pieces of outputs that are gone
-            if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => G().outputs?.[k] != null ) ) );
+            if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => G().outputs?.[k] != null && !(r.off ?? []).includes( k ) ) ) );
         };
         partListener = p => setParts( m => new Map( m ).set( p.part, p ) );
         refineListener = m => setResult( r => r == null ? r : { ...r, ...m } );

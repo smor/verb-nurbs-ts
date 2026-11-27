@@ -47,6 +47,10 @@ export type ModelFeature =
     // rigid or scaling placement of a feature (all of its solids): scale about the origin, then rotate about an axis
     // through `about` (degrees, right-handed), then translate
     | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint }
+    // a switch: `then` where `when` is not 0, `else` where it is; either may be left out, for nothing. Resolved before
+    // anything is built (`Model.choose`): nothing drops out of a union and out of a difference's cutters, and what is
+    // made from nothing alone (a transform, a round, a difference from it, an intersection with it) is nothing
+    | { type : "choose", when : ModelValue, then? : string, else? : string }
     // constructive solid geometry
     | { type : "union", of : Array<string> }
     | { type : "intersection", of : Array<string> }
@@ -102,6 +106,8 @@ export interface ModelResult {
     walls : Array<ModelWall>;
     // for a lattice output: its mesh (the solid it fills is `result`), and its volume against the solid's
     lattice? : ModelLattice;
+    // for each switch (`choose`) the output reached: whether it chose `then`
+    chosen? : { [id : string] : boolean };
     // the result's exact shell, when the result is one solid made from a shell, as it is (an extrusion, a turned
     // profile): its faces are `result.faces`, in order (#117)
     shell? : BrepShell;
@@ -202,8 +208,9 @@ export class Model {
     public evaluate( given : ModelDocument ) : ModelResult {
         if (given.version !== 1) throw new Error( "Model: unknown document version " + String( given.version ) );
         if (given.features?.[given.output] == null) throw new Error( `Model: the output "${given.output}" is not a feature` );
-        const doc = Model.liftRound( given );
-        const params = Model.parameters( doc.parameters ?? {} );
+        const params = Model.parameters( given.parameters ?? {} );
+        const chosen : { [id : string] : boolean } = {};
+        const doc = Model.liftRound( Model.choose( given, params, chosen ) );
         const num = (v : ModelValue, what : string) : number => {
             if (typeof v == "number") { if (!isFinite( v )) throw new Error( `Model: ${what} is not finite` ); return v; }
             if (typeof v == "string") return Expr.evaluate( v, params );
@@ -456,7 +463,71 @@ export class Model {
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
         for (const [id, h] of hashes) report[id] = { hash : h, built : built.has( id ) };
-        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice, shell : solid.shell };
+        return { result : solid.result, faceNames : solid.names, faceIndex : faceIndex, verdict : verdict, features : report, parameters : params, walls : solid.walls, lattice : lattice, shell : solid.shell,
+            ...(Object.keys( chosen ).length ? { chosen : chosen } : {}) };
+    }
+
+    /**
+     * A document with its switches (`choose` features) resolved at the parameters' values: each reference to a switch
+     * becomes the feature it chooses, and nothing (a switch with no feature on the side chosen) drops out of a union
+     * and out of a difference's cutters; a union left with one solid, and a difference left with no cutter, are that
+     * solid. A transform, round, shell or lattice of nothing, a difference from nothing and an intersection with
+     * nothing are nothing; an output that is nothing is refused ("switched off"). `chosen` gets each switch reached:
+     * true for `then`. A document without switches is returned as it is.
+     */
+    public static choose( doc : ModelDocument, params : { [name : string] : number }, chosen : { [id : string] : boolean } = {} ) : ModelDocument {
+        const features = doc.features;
+        if (!Object.values( features ).some( f => f.type == "choose" )) return doc;
+        const out : { [id : string] : ModelFeature } = {};
+        // the feature an id stands for once switches are resolved (itself, another, or null: nothing)
+        const memo = new Map<string, string | null>(), visiting = new Set<string>();
+        const at = ( id : string ) : string | null => {
+            if (memo.has( id )) return memo.get( id )!;
+            const f = features[id];
+            if (f == null) throw new Error( `Model: unknown feature "${id}"` );
+            if (visiting.has( id )) throw new Error( `Model: feature "${id}" depends on itself` );
+            visiting.add( id );
+            let r : string | null = id;
+            switch (f.type) {
+                case "choose": {
+                    let on : boolean;
+                    try {
+                        on = (typeof f.when == "number" ? f.when : Expr.evaluate( f.when, params )) != 0;
+                    } catch (e) { throw new ModelError( e instanceof Error ? e.message : String( e ), { feature : id, type : f.type } ); }
+                    chosen[id] = on;
+                    const next = on ? f.then : f.else;
+                    r = next == null ? null : at( next );
+                    break;
+                }
+                case "transform": case "round": case "shell": case "lattice": {
+                    const of = at( f.of );
+                    if (of == null) r = null; else out[id] = { ...f, of : of };
+                    break;
+                }
+                case "union": {
+                    const of = f.of.map( at ).filter( (x) : x is string => x != null );
+                    if (of.length == 0) r = null; else if (of.length == 1) r = of[0]; else out[id] = { ...f, of : of };
+                    break;
+                }
+                case "intersection": {
+                    const of = f.of.map( at );
+                    if (of.some( x => x == null )) r = null; else out[id] = { ...f, of : of as Array<string> };
+                    break;
+                }
+                case "difference": {
+                    const from = at( f.from ), minus = f.minus.map( at ).filter( (x) : x is string => x != null );
+                    if (from == null) r = null; else if (minus.length == 0) r = from; else out[id] = { ...f, from : from, minus : minus };
+                    break;
+                }
+                default: out[id] = f;
+            }
+            visiting.delete( id );
+            memo.set( id, r );
+            return r;
+        };
+        const output = at( doc.output );
+        if (output == null) throw new ModelError( `Model: the output "${doc.output}" is switched off: nothing is left of it`, { feature : doc.output, type : features[doc.output].type } );
+        return { ...doc, features : out, output : output };
     }
 
     /**
