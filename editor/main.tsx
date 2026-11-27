@@ -706,16 +706,19 @@ function App() {
         const name = await saveFile( JSON.stringify( DOC, null, 1 ) + "\n", docName() + ".graph.json" );
         if (name) tell( `Saved ${name}` );
     };
-    const openText = ( name : string, text : string ) => {
+    // whether the text was a document and replaced this one (Save then forgets the file it wrote to before)
+    const openText = ( name : string, text : string ) : boolean => {
         try {
             const d = JSON.parse( text ) as unknown;
             if (!isGraph( d )) throw new Error( "not a version 2 graph document" );
-            DOC = d; SCOPES.length = 0; reload(); record();
+            DOC = d; SCOPES.length = 0; forgetFile(); reload(); record();
             tell( `Opened ${name}` );
-        } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${name}: ${(e as Error).message}` } ); }
+            return true;
+        } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${name}: ${(e as Error).message}` } ); return false; }
     };
-    const open = async ( f : File ) => { forgetFile(); openText( f.name, await f.text() ); };
-    const openDialog = async () => { const f = await openFile( () => file.current?.click() ); if (f) openText( f.name, f.text ); };
+    const open = async ( f : File ) => { openText( f.name, await f.text() ); };
+    // (from the dialog, Save writes back to the file, once it is known to hold a document)
+    const openDialog = async () => { const f = await openFile( () => file.current?.click() ); if (f && openText( f.name, f.text )) f.keep(); };
     // Share: the document in the link itself, so a colleague opens this exact graph with its parameters
     const share = async () => {
         const url = location.href.split( "#" )[0] + "#" + LINK_KEY + "=" + await encode( DOC );
@@ -754,7 +757,7 @@ function App() {
     };
     // a document in the link (#g=...): opened once decoded
     useEffect( () => {
-        void fromLink( location.hash ).then( d => { if (isGraph( d )) { DOC = d; SCOPES.length = 0; reload(); record(); tell( "Opened the graph in the link" ); } } )
+        void fromLink( location.hash ).then( d => { if (isGraph( d )) { DOC = d; SCOPES.length = 0; forgetFile(); reload(); record(); tell( "Opened the graph in the link" ); } } )
             .catch( () => tell( "The link's graph could not be read" ) );
     }, [] );
 
@@ -811,7 +814,7 @@ function App() {
                 <div className="toolbar">
                     <button onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z or ⌘Z)">Undo</button>
                     <button onClick={redo} disabled={!history.canRedo} title="Redo (Shift+Ctrl+Z, ⌘⇧Z or Ctrl+Y)">Redo</button>
-                    <select aria-label="Open a sample" value="" onChange={e => { const s = e.target.value == "start" ? { doc : START! } : SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); SCOPES.length = 0; reload(); record(); } }}>
+                    <select aria-label="Open a sample" value="" onChange={e => { const s = e.target.value == "start" ? { doc : START! } : SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); SCOPES.length = 0; forgetFile(); reload(); record(); } }}>
                         <option value="" disabled>Open a sample…</option>
                         {START != null && <option value="start">{String( START.meta?.name ?? "This project" )} (as built)</option>}
                         {[...new Set( SAMPLES.map( s => s.group ) )].map( grp => <optgroup key={grp} label={grp}>

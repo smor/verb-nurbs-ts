@@ -100,8 +100,14 @@ export class Make {
         const newSrf = numKnotsToInsert > 0 ? Modify.surfaceKnotRefine( surface, Vec.rep(numKnotsToInsert, u), useV ) : surface;
 
         //obtain the correct index of control points to extract
-        // the last control point before the run of knots at u; at an existing knot, knotSpan lands at the end of its run
-        let span = Eval.knotSpan( degree, u, knots ) - (reqKnotIndex >= 0 ? knotMults[reqKnotIndex].mult : 0);
+        // the last control point before the run of knots at u: the row before the run's first knot. At a new knot that
+        // is the span holding u; at an existing one it is found from the run itself, since knotSpan lands at the run's
+        // end only for u at or just above the knot (just below it, within EPSILON, knotSpan lands before the run)
+        let span = Eval.knotSpan( degree, u, knots );
+        if (reqKnotIndex >= 0) {
+            const k = knotMults[reqKnotIndex].knot;
+            span = knots.findIndex( x => Math.abs( x - k ) < Constants.EPSILON ) - 1;
+        }
 
         if ( Math.abs( u - ArrayExtensions.first(knots) ) < Constants.EPSILON  ){
             span = 0;

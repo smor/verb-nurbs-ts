@@ -143,6 +143,19 @@ describe("Extrusion of profiles (#85)", function () {
 		evaluate(cases[1][0]).result.report.volume.should.be.approximately(cases[1][1], 1e-3 * cases[1][1]);
 	});
 
+	it('keeps a circle\'s side one face, by one name, when the extrusion is moved, turned or mirrored (#122)', function () {
+		var cyl = { type : 'profile/extrude', in : { profile : { outer : circle(0, 0, 4), holes : [] }, height : 6, z : 0 } };
+		[{ type : 'transform/move', in : { of : '@c', x : 3, y : 0, z : 0 } },
+		 { type : 'transform/rotate', in : { of : '@c', axis : 'z', degrees : 30 } },
+		 { type : 'transform/scale', in : { of : '@c', factor : -1 } }].forEach(function (t) {
+			var r = evaluate({ c : cyl, x : t });
+			var sides = Array.from(new Set(r.faceNames.filter(function (n) { return /outer/.test(n); })));
+			sides.should.eql(['x/c.outer.0'], t.type);
+			// both halves are there, under that one name
+			r.faceNames.filter(function (n) { return n == 'x/c.outer.0'; }).length.should.equal(2, t.type);
+		});
+	});
+
 	it('gives a twisted thin bar its exact volume, in closed form, and the shell the same on its faces (#117)', function () {
 		var bar = rect(-10, -1, 10, 1);
 		// 507's sentinel: rect(20, 2) twisted 360 degrees over 10 has a volume within 0.01 % of 400 (it was 402.14)
