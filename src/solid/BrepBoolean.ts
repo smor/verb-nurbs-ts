@@ -307,6 +307,7 @@ export class BrepBoolean {
         BrepBoolean.trimVertices( solids, curves, snap );
         BrepBoolean.alongEdges( solids, curves, snap );
         BrepBoolean.sharedStretches( solids, curves, snap );
+        BrepBoolean.edgesOnFaces( solids, curves, snap );
         BrepBoolean.dropNearSamples( curves, snap );
 
         // the edges of the result: runs of each branch between corners, the points where it meets another branch
@@ -1550,6 +1551,69 @@ export class BrepBoolean {
                 }
             }
         }
+    }
+
+    // An edge of a solid made from a shell lying in a face of another solid (its other face, the one along that face,
+    // flush with it) cuts that face where it runs inside the face's trims, as the branch of the edge's transverse face
+    // with it. The intersection finds that branch unless the stretch is shorter than its grid: an earlier pocket's
+    // edge crossing a later one's floor only near the later one's corner, over a few hundredths (#120). The branch is
+    // made from the edge's own points there.
+    private static edgesOnFaces( solids : Array<BrepSolid>, curves : BooleanResult["curves"], eps : number ) : void {
+        const added : BooleanResult["curves"] = [];
+        const boxOf = (pts : Array<Point>) => {
+            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            for (const p of pts) for (let a = 0; a < 3; a++) { lo[a] = Math.min( lo[a], p[a] ); hi[a] = Math.max( hi[a], p[a] ); }
+            return { min : lo, max : hi };
+        };
+        for (const T of curves) {
+            if (!T.trim || T.curve.closed || T.curve.points.length < 2) continue;
+            const si = T.solids[0], P = T.curve.points, tb = boxOf( P );
+            solids.forEach( (solid, sj) => { if (sj == si) return; solid.faces.forEach( (F, fj) => {
+                const b = BrepSolid.faceBox( F );
+                if ([0, 1, 2].some( a => tb.min[a] > b.max[a] + eps || tb.max[a] < b.min[a] - eps )) return;
+                const uv = P.map( p => SurfaceIntersect.project( F.surface, p ) );
+                const on = P.map( (p, k) => Vec.dist( BrepBoolean.eval( F.surface, uv[k] ), p ) < eps );
+                if (on.filter( x => x ).length < 2) return;
+                const inside = (k : number) => {
+                    if (F.trims == null) return true;
+                    const m = SurfaceIntersect.project( F.surface, Vec.lerp( 0.5, P[k], P[k + 1] ), 12, uv[k] );
+                    return BrepSolid.insideTrims( F.trims, m );
+                };
+                for (let k = 0; k + 1 < P.length; ) {
+                    if (!(on[k] && on[k + 1] && inside( k ))) { k++; continue; }
+                    let m = k + 1;
+                    while (m + 1 < P.length && on[m + 1] && inside( m )) m++;
+                    const k0 = k, mid = Vec.lerp( 0.5, P[k], P[k + 1] );
+                    // (with a point either side, on the face's surface but past its trims, so that a run of two points
+                    // along the edge is seen to run along it; the runs past the trims are dropped)
+                    const idx = Array.from( { length : m - k + 1 }, (_, x) => k + x );
+                    if (k > 0 && on[k - 1]) idx.unshift( k - 1 );
+                    if (m + 1 < P.length && on[m + 1]) idx.push( m + 1 );
+                    k = m;
+                    const nF = BrepBoolean.normal( F, SurfaceIntersect.project( F.surface, mid, 12, uv[k0] ) );
+                    for (let s = 0; s < 2; s++) {
+                        const G = solids[si].faces[T.faces[s]], H = solids[si].faces[T.faces[1 - s]];
+                        const uvG = (s == 0 ? T.curve.uvA : T.curve.uvB), uvH = (s == 0 ? T.curve.uvB : T.curve.uvA);
+                        const mG = SurfaceIntersect.project( G.surface, mid, 12, uvG[k0] ), mH = SurfaceIntersect.project( H.surface, mid, 12, uvH[k0] );
+                        if (Math.abs( Vec.dot( BrepBoolean.normal( G, mG ), nF ) ) < 1 - 1e-6) continue; // G flush with F
+                        if (Math.abs( Vec.dot( BrepBoolean.normal( H, mH ), nF ) ) > 1 - 1e-6) continue; // H across it
+                        // found by the intersection already, or along an edge of F too (edge to edge: no cut)
+                        const found = curves.concat( added ).some( e => !e.trim && e.curve.points.length >= 2
+                            && ((e.solids[0] == si && e.faces[0] == T.faces[1 - s] && e.solids[1] == sj && e.faces[1] == fj)
+                             || (e.solids[1] == si && e.faces[1] == T.faces[1 - s] && e.solids[0] == sj && e.faces[0] == fj))
+                            && BrepBoolean.onto( e.curve.closed ? e.curve.points.concat( [e.curve.points[0]] ) : e.curve.points, mid, eps ).d < eps );
+                        if (found) continue;
+                        if (BrepBoolean.trimsOf( curves, sj, fj ).some( U => idx.every( x => BrepBoolean.onto( U.e.curve.points, P[x], eps ).d < eps ) )) continue;
+                        const first = si < sj;
+                        const uvF = idx.map( x => uv[x] ), uvT = idx.map( x => [uvH[x][0], uvH[x][1]] as UV );
+                        added.push( { solids : first ? [si, sj] : [sj, si], faces : first ? [T.faces[1 - s], fj] : [fj, T.faces[1 - s]],
+                            curve : { points : idx.map( x => P[x] ), uvA : first ? uvT : uvF, uvB : first ? uvF : uvT,
+                                      seamA : idx.map( _ => 0 ), seamB : idx.map( _ => 0 ), closed : false } } );
+                    }
+                }
+            } ); } );
+        }
+        for (const e of added) curves.push( e );
     }
 
     // A sample of a curve within eps of the next or previous point of it, and in no other curve, is dropped: a corner
