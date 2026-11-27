@@ -31,7 +31,7 @@ export type ModelFeature =
     | { type : "revolve", profile : Array<[ModelValue, ModelValue]>, divs? : [ModelValue, ModelValue] }
     // a planar profile (lines, three-point arcs, circles and cubic Béziers, with holes) extruded from z up by height,
     // exact (`Extrusion`): faces bottom, top, outer.k and hole{i}.k
-    | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue }
+    | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue, twist? : ModelValue, scaleTop? : ModelValue }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -497,7 +497,8 @@ export class Model {
             case "pipe": return { through : f.through.map( (p, k) => point( p, "through[" + k + "]" ) ), radius : num( f.radius, "radius" ), divs : pair( f.divs, "divs" ) };
             case "revolve": return { profile : f.profile.map( (p, k) => [num( p[0], `profile[${k}]` ), num( p[1], `profile[${k}]` )] ), divs : pair( f.divs, "divs" ) };
             case "primitive": return { shape : f.shape, values : Model.primitiveValues( f.values, num ) };
-            case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ) };
+            case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ),
+                ...(f.twist != null ? { twist : num( f.twist, "twist" ) } : {}), ...(f.scaleTop != null ? { scaleTop : num( f.scaleTop, "scaleTop" ) } : {}) };
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -527,7 +528,8 @@ export class Model {
         const positive = (x : number, what : string) => { if (!(x > 0)) throw new Error( `Model: ${what} must be positive` ); return x; };
         switch (f.type) {
             case "primitive": return Catalog.build( f.shape, Model.primitiveValues( f.values, num ) );
-            case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ) );
+            case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ),
+                { twist : f.twist == null ? 0 : num( f.twist, "twist" ), scaleTop : f.scaleTop == null ? 1 : num( f.scaleTop, "scaleTop" ) } );
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );

@@ -137,6 +137,12 @@ faces are `bottom`, `top`, `outer.k` for the outer path's segment k, and `hole{i
 they stay put as parameters change. The solid is a shell of trimmed faces, an operand of any Boolean. A round over an
 extrusion is not built yet: rounding the edges of a trimmed solid is step A5 of docs/exact-booleans.md.
 
+`twist` (degrees, default 0) turns the top about the z axis, and `scaleTop` (default 1) scales it about the origin, so a
+worm's tooth is `twist = 360 × height / lead` and a tapered boss is `scaleTop < 1`. Both stay exact: the top is the
+bottom moved by a rotation and scale, so its edges and cap are those of the bottom, moved. Without twist the sides are
+ruled between the two. With twist each side is its segment swept along a cubic path that follows the turn, fitted every
+5° with its ends exact (a twist of 90° gives a volume within 1e-7 of exact; a worm of three turns within 2e-7).
+
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is
 refused.

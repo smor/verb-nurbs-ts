@@ -502,12 +502,14 @@ export class ShellBuilder {
         const g = 16;
         // samples in each direction: a uniform grid, and three in each knot span (a surface whose spans differ in
         // length, as a cap on a rounded rectangle whose long sides take a tenth of its domain, would otherwise be
-        // sampled across a whole side at one point), up to 64 spans
+        // sampled across a whole side at one point), up to 64 spans; one in each span up to 1024 (a worm's side turns
+        // three times in 200 spans: sixteen samples along it left Newton to find its way across a dozen spans each)
         const samples = (knots : Array<number>, a : number, b : number) => {
             const xs : Array<number> = [];
             for (let i = 0; i <= g; i++) xs.push( a + (b - a) * i / g );
             const ks = knots.filter( (k, i) => i == 0 || k > knots[i - 1] );
-            if (ks.length - 1 <= 64) for (let i = 0; i + 1 < ks.length; i++) for (const f of [0.25, 0.5, 0.75]) xs.push( ks[i] + f * (ks[i + 1] - ks[i]) );
+            const fs = ks.length - 1 <= 64 ? [0.25, 0.5, 0.75] : ks.length - 1 <= 1024 ? [0.5] : [];
+            for (let i = 0; i + 1 < ks.length; i++) for (const f of fs) xs.push( ks[i] + f * (ks[i + 1] - ks[i]) );
             return xs.sort( (x, y) => x - y );
         };
         const su = samples( s.knotsU, d[0], d[1] ), sv = samples( s.knotsV, d[2], d[3] );
