@@ -1315,6 +1315,16 @@ export class BrepBoolean {
                             ? BrepBoolean.edgeCross( a.e.trim ? a.e.curve : b.e.curve, a.e.trim ? i : j, a.e.trim ? st[0] : st[1],
                                                      a.e.trim ? H : G, a.e.trim ? uvH : uvG, a.e.trim ? a.onA : b.onA )
                             : BrepBoolean.triple( F, G, H, uvF, uvG, uvH, tol );
+                        // the crossing on the edge's polyline is on a chord, a sag inside a curved edge: where the three
+                        // faces meet transversally it goes onto them, as the branch along H ends there (an upright's side
+                        // crossing a rounded corner of the foot it shares a bottom with, #123); a point that does not
+                        // settle within a fraction of the chord keeps the chord's
+                        if (r != null && (a.e.trim || b.e.trim)) {
+                            const E = a.e.trim ? a.e.curve : b.e.curve, at = a.e.trim ? i : j, nE = E.points.length;
+                            const chord = Vec.dist( E.points[at], E.points[(at + 1) % nE] );
+                            const x = BrepBoolean.triple( F, a.e.trim ? G : H, a.e.trim ? H : G, r.uvF, r.uvG, r.uvH, tol );
+                            if (x != null && Vec.dist( x.point, r.point ) < 0.25 * chord) r = x;
+                        }
                         // (edgeCross gives the edge's other face second: here that is H when b is the edge)
                         if (r != null && b.e.trim) r = { point : r.point, uvF : r.uvF, uvG : r.uvH, uvH : r.uvG };
                         if (r == null) continue;
