@@ -113,9 +113,9 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* parameter controls (editor/controls): compact in nodes, full in the Customize panel */
 .nf{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
-.nf.full{flex-direction:column;align-items:stretch;gap:4px}
+.nf.full{flex-direction:column;align-items:stretch;gap:4px;max-width:760px;--nf-label:clamp(120px,30%,220px)}
 .nf-line{display:flex;align-items:center;gap:6px;min-width:0}
-.nf.full .nf-line{display:grid;grid-template-columns:minmax(120px,36%) 24px minmax(80px,260px) 24px auto auto 24px 24px;align-items:center}
+.nf.full .nf-line{display:grid;grid-template-columns:var(--nf-label) 24px minmax(80px,1fr) 24px auto minmax(24px,auto) 24px 24px;align-items:center}
 .nf-label{min-width:72px;color:var(--muted);user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nf.full .nf-label{color:var(--ink);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
 .nf-label.scrub{cursor:ew-resize;touch-action:none}
@@ -143,7 +143,7 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 .nf-menu:hover,.nf-locate:hover{background:var(--bg);color:var(--ink)}
 .nf-locate{flex:0 0 24px;height:24px;border:0;background:none;color:var(--muted);font:14px/1 var(--sans);cursor:pointer;border-radius:4px}
 .nf-locate:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.nf-presets{display:flex;gap:4px;flex-wrap:wrap;padding-left:calc(36% + 6px)}
+.nf-presets{display:flex;gap:4px;flex-wrap:wrap;padding-left:calc(var(--nf-label,36%) + 6px)}
 .nf-presets button{font:11.5px var(--sans);padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);cursor:pointer}
 .nf-presets button[aria-pressed="true"]{background:var(--num);border-color:var(--num);color:#fff}
 .nf-switch{position:relative;width:34px;height:20px;border-radius:10px;border:1px solid var(--line);background:var(--bg);cursor:pointer;padding:0}
