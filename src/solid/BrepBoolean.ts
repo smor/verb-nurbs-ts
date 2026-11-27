@@ -1565,6 +1565,13 @@ export class BrepBoolean {
         const at = bestT < 1e-6 ? best : bestT > 1 - 1e-6 ? (best + 1) % n : -1;
         if (at >= 0 && c.seamA[at] == 0 && c.seamB[at] == 0) { c.points[at] = p; c.uvA[at] = uvA; c.uvB[at] = uvB; return; }
         const k = best + 1;
+        // between two points on the same isoline (a trim along a face's seam, say) the new point stays on that
+        // isoline: parameters copied from another branch may name the other side of a closed face's seam
+        const iso = (uv : UV, q : Array<UV>) : UV => {
+            const a = q[best], b = q[k % n];
+            return [a[0] == b[0] ? a[0] : uv[0], a[1] == b[1] ? a[1] : uv[1]];
+        };
+        uvA = iso( uvA, c.uvA ); uvB = iso( uvB, c.uvB );
         c.points.splice( k, 0, p ); c.uvA.splice( k, 0, uvA ); c.uvB.splice( k, 0, uvB );
         c.seamA.splice( k, 0, 0 ); c.seamB.splice( k, 0, 0 );
     }

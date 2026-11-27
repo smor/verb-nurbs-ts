@@ -688,7 +688,9 @@ export class SurfaceIntersect {
             for (let side = 0; side < 2; side++) {
                 const S = side == 0 ? A : B;
                 const uvs = side == 0 ? c.uvA : c.uvB;
-                const per = S.periodic != null ? S.periodic : [false, false];
+                // (a face of a solid made from a shell is open, cut at its surface's seam, but a branch across that
+                // seam crosses it all the same: a hole's wall in an extrusion, #104)
+                const per = S.periodic != null ? S.periodic.map( (x, k) => x || SurfaceIntersect.closedness( S.surface )[k] ) : SurfaceIntersect.closedness( S.surface );
                 const d = SurfaceIntersect.domain( S.surface );
                 for (let k = 0; k < 2; k++) {
                     if (!per[k]) continue;
@@ -709,7 +711,19 @@ export class SurfaceIntersect {
                 const d = SurfaceIntersect.domain( S.surface );
                 const uvS = SurfaceIntersect.lerpUV( S, t, (onA ? c.uvA : c.uvB)[i], (onA ? c.uvA : c.uvB)[j] );
                 const uvO = SurfaceIntersect.lerpUV( O, t, (onA ? c.uvB : c.uvA)[i], (onA ? c.uvB : c.uvA)[j] );
-                const r = SurfaceIntersect.isocurveSurface( S.surface, k == 0, d[2 * k], uvS[1 - k], O.surface, uvO, tol );
+                let r = SurfaceIntersect.isocurveSurface( S.surface, k == 0, d[2 * k], uvS[1 - k], O.surface, uvO, tol );
+                // where the curve runs along an edge of one surface lying on the other (a bore's end cap, whose rim lies
+                // on a hole's wall of the same radius: bores that line up through stacked layers, #104), Newton has no
+                // isolated crossing to find: the point on the seam at the estimate is on the other surface too, if its
+                // projection there lands on it (from the grid if the estimate there lies across its own seam)
+                if (r == null) {
+                    const on : UV = k == 0 ? [d[0], uvS[1]] : [uvS[0], d[2]];
+                    const P = Eval.rationalSurfacePoint( S.surface, on[0], on[1] );
+                    let q = SurfaceIntersect.project( O.surface, P, 12, uvO );
+                    if (Vec.dist( Eval.rationalSurfacePoint( O.surface, q[0], q[1] ), P ) >= 1e-7) q = SurfaceIntersect.project( O.surface, P, 24 );
+                    const Q = Eval.rationalSurfacePoint( O.surface, q[0], q[1] );
+                    if (Vec.dist( P, Q ) < 1e-7) r = { t : on[1 - k], uvB : q, point : Vec.lerp( 0.5, P, Q ) };
+                }
                 if (r == null) throw "SurfaceIntersect: could not place the seam crossing of an intersection curve";
                 const uvSeam : UV = k == 0 ? [d[0], r.t] : [r.t, d[2]];
                 const uvOther = SurfaceIntersect.toDomain( O, r.uvB );
