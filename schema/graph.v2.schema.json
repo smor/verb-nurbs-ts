@@ -5205,7 +5205,7 @@
     },
     "freeform.prism": {
       "title": "Prism",
-      "description": "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. Any simple polygon: it is built as an exact extrusion. For curves, arcs and holes, Extrude profile",
+      "description": "An outline in the xy plane, extruded from z = 0 to its height. Points 'x, y' or 'x, y, r' (r rounds the corner), each value a number or an expression over number nodes. Any simple polygon: it is built as an exact extrusion, its caps planes trimmed by the outline. For curves, arcs and holes, Extrude profile",
       "type": "object",
       "required": [
         "type"
@@ -5237,7 +5237,7 @@
             },
             "center": {
               "type": "string",
-              "description": "cap centre (no longer needed): points \"x, y; x, y, r; ...\", millimetres; each value a number or an expression over number nodes; r rounds that corner",
+              "description": "cap centre (not used): points \"x, y; x, y, r; ...\", millimetres; each value a number or an expression over number nodes; r rounds that corner",
               "default": ""
             }
           }

@@ -281,7 +281,7 @@ export class ShellMesher {
         const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
         const S = (uv : UV) => Eval.rationalSurfacePoint( s, uv[0], uv[1] );
         let projector : Projector | null = null;
-        const project = (p : Point, hint? : UV) => { if (projector == null) projector = ShellBuilder.projector( s ); return projector( p, hint ); };
+        const project = (p : Point, hint? : UV, within? : number) => { if (projector == null) projector = ShellBuilder.projector( s ); return projector( p, hint, within ); };
         // the parameter plane scaled to the face's mean lengths, so that triangles are not stretched by it; a planar
         // face is triangulated in its plane instead, where a triangle of its boundary points is exact (in parameters
         // that are not affine, as a disc's polar ones, it need not be)
@@ -375,8 +375,9 @@ export class ShellMesher {
                     // breakpoint between an arc and a straight side), the nearest point is found
                     let e = Vec.dist( S( x.uv ), x.p );
                     // (from the probe's parameters first, a foot nearby; where that is still too far, from the whole face)
-                    if (e > tol) e = Math.min( e, Vec.dist( project( x.p, x.uv ).p, x.p ) );
-                    if (e > tol) e = Math.min( e, Vec.dist( project( x.p ).p, x.p ) );
+                    // (a point of the surface within the tolerance settles it: Newton's method stops there)
+                    if (e > tol) e = Math.min( e, Vec.dist( project( x.p, x.uv, tol ).p, x.p ) );
+                    if (e > 4 * tol) e = Math.min( e, Vec.dist( project( x.p, undefined, tol ).p, x.p ) );
                     worst = Math.max( worst, e );
                     if (e > bd) { bd = e; bad = x.uv; }
                 }
@@ -492,9 +493,11 @@ export class ShellMesher {
         : { lines : Array<number>, at : (t : number) => number, step : (t : number) => number } {
         const ks = (c == 0 ? s.knotsU : s.knotsV).filter( (k, i, a) => i == 0 || k > a[i - 1] );
         const a = d[2 * c], b = d[2 * c + 1];
-        // parameters along: eight in each knot span, at least 64
+        // parameters along: eight in each knot span, at least 64; past 32 spans, two in each, at least 256 (a twisted
+        // side has a span every 5 degrees of its turn, hundreds up a worm, short enough to follow at two, #117)
         const ts : Array<number> = [];
-        const per = Math.max( 8, Math.ceil( 64 / Math.max( 1, ks.length - 1 ) ) );
+        const nk = Math.max( 1, ks.length - 1 );
+        const per = nk <= 32 ? Math.max( 8, Math.ceil( 64 / nk ) ) : Math.max( 2, Math.ceil( 256 / nk ) );
         for (let i = 0; i + 1 < ks.length; i++) for (let k = 0; k < per; k++) ts.push( ks[i] + (ks[i + 1] - ks[i]) * k / per );
         ts.push( b );
         const across = [0.02, 0.25, 0.5, 0.75, 0.98].map( f => d[2 * (1 - c)] + f * (d[2 * (1 - c) + 1] - d[2 * (1 - c)]) );
