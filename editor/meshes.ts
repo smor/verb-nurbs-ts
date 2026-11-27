@@ -61,13 +61,12 @@ export const analysis = ( r : GraphResult ) => {
 export const view = ( graph : Graph, r : GraphResult ) => {
     let e;
     try { e = graph.exportMesh( r, DISPLAY ); } catch { return null; }
-    const surfaceOf = new Map<string, number>();
-    r.faceNames.forEach( ( n, i ) => { if (!surfaceOf.has( n )) surfaceOf.set( n, i ); } );
     const proj = new Map<number, ReturnType<typeof ShellBuilder.projector>>(), last = new Map<number, [number, number]>(), done = new Map<string, Array<number>>();
     const m = e.mesh;
     return { ...pack( m, e.faceNames, ( t, k ) => {
-        const f = surfaceOf.get( e!.faceNames[t] );
-        if (f == null) return null;
+        // by the face itself, not its name: two faces can share one (the halves of a circle's side, #122)
+        const f = e!.faceOf?.[t];
+        if (f == null || r.result.faces[f] == null) return null;
         const v = m.triangles[t][k], key = f + "/" + v;
         const known = done.get( key );
         if (known != null) return known;

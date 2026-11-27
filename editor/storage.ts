@@ -139,19 +139,21 @@ export async function saveBinary( data : ArrayBuffer, suggested : string, type :
     return suggested;
 }
 
-/** Opens a document file: with the open dialog where there is one (and remembers it for Save), else `fallback()`. */
-export async function openFile( fallback : () => void ) : Promise<{ name : string, text : string } | null> {
+/**
+ * Opens a document file: with the open dialog where there is one, else `fallback()`. Save writes to the file only once
+ * `keep()` is called, when the caller has accepted its document: a file that is not one never becomes Save's target.
+ */
+export async function openFile( fallback : () => void ) : Promise<{ name : string, text : string, keep : () => void } | null> {
     const pick = picker( "showOpenFilePicker" );
     if (pick == null) { fallback(); return null; }
     try {
         const [h] = await pick( { types : JSON_TYPES, multiple : false } ) as Array<Handle>;
-        saved = h;
         const f = await h.getFile();
-        return { name : f.name, text : await f.text() };
+        return { name : f.name, text : await f.text(), keep : () => { saved = h; } };
     } catch (e) { if ((e as Error).name != "AbortError") fallback(); return null; }
 }
 
-/** Forgets the file Save writes to (a new document was opened another way). */
+/** Forgets the file Save writes to: call it whenever the document is replaced by anything but that file. */
 export function forgetFile() : void { saved = null; }
 
 function download( blob : Blob, name : string ) : void {

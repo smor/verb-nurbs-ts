@@ -58,6 +58,25 @@ describe('editor meshes (editor/meshes.ts)', function () {
 		});
 	});
 
+	it('an extruded circle\'s view mesh has radial normals on both halves of its side, which share one name (#122)', function () {
+		var doc = { version : 2, nodes : { c : { type : 'profile/extrude', in : { profile : { outer : { kind : 'circle', center : [0, 0], r : 10 } }, height : 20, z : 0 } } },
+			outputs : { c : '@c' } };
+		var g = new Graph(), r = g.evaluate(doc), a = M.view(g, r), side = 0, below = 0, above = 0;
+		should.exist(a);
+		corners(a).forEach(function (c) {
+			if (!/outer/.test(c.face)) return;
+			side++;
+			var rho = Math.hypot(c.p[0], c.p[1]);
+			// the angle between the normal and the direction from the axis, on either half (y < 0 or y > 0)
+			Math.abs(c.n[2]).should.be.below(1e-6);
+			(c.n[0] * c.p[0] / rho + c.n[1] * c.p[1] / rho).should.be.above(Math.cos(2e-3), 'normal at ' + c.p.map(function (x) { return x.toFixed(2); }));
+			if (c.p[1] < -1) below++; else if (c.p[1] > 1) above++;
+		});
+		side.should.be.above(0);
+		below.should.be.above(0);
+		above.should.be.above(0);
+	});
+
 	it('an STL file holds every triangle of the print mesh, with unit normals pointing out of the solid', function () {
 		var doc = { version : 2, nodes : { c : { type : 'primitive/cylinder', in : { radius : 10, height : 20 } } }, outputs : { c : '@c' } };
 		var g = new Graph(), r = g.evaluate(doc), f = M.printStl(g, r, 'cylinder');

@@ -842,6 +842,8 @@ export class Model {
         const faces : Array<BrepFace> = s.faces.map( f => ({
             surface : new NurbsSurfaceData( f.surface.degreeU, f.surface.degreeV, f.surface.knotsU.slice(), f.surface.knotsV.slice(), f.surface.controlPoints.map( row => row.map( move ) ) ),
             periodic : [f.periodic[0], f.periodic[1]], divs : [f.divs[0], f.divs[1]], reversed : false, name : f.name,
+            // (the halves of a circle's side keep sharing its name, #122)
+            ...(f.half === true ? { half : true } : {}),
         }) );
         if (s.edges == null || s.boundary == null) return new BrepSolid( faces ).orient();
         // a solid of trimmed faces (a rounded operand): its trims and its edges' parameters stay, its edges' points and

@@ -121,4 +121,18 @@ describe("verb.eval.Make.surfaceIsocurve", function(){
 			for (var t = 0; t <= 1; t += 0.1) Vec.dist(Eval.rationalCurvePoint(c, t), Eval.rationalSurfacePoint(s, t, v)).should.be.below(1e-9);
 		});
 	});
+
+	it('matches the surface within EPSILON of an existing knot, on either side of it, in u and in v', function(){
+		// degree 2 with a double knot at 0.5 (one short of full multiplicity), in u and in v
+		var K = [0, 0, 0, 0.5, 0.5, 1, 1, 1], cps = [];
+		for (var i = 0; i < 5; i++) { cps.push([]); for (var j = 0; j < 5; j++) cps[i].push([i, j, (i - 2) * (i - 2) + j * j, 1]); }
+		var s = new lib.NurbsSurfaceData(2, 2, K, K, cps);
+		[0.5 - 1e-11, 0.5, 0.5 + 1e-11].forEach(function(a){
+			var cu = Make.surfaceIsocurve(s, a, false), cv = Make.surfaceIsocurve(s, a, true);
+			for (var t = 0; t <= 1; t += 0.1) {
+				Vec.dist(Eval.rationalCurvePoint(cu, t), Eval.rationalSurfacePoint(s, a, t)).should.be.below(1e-9, 'u = ' + a);
+				Vec.dist(Eval.rationalCurvePoint(cv, t), Eval.rationalSurfacePoint(s, t, a)).should.be.below(1e-9, 'v = ' + a);
+			}
+		});
+	});
 });

@@ -62,3 +62,43 @@ describe('editor links (editor/storage.ts)', function () {
 		failed.should.be.true();
 	});
 });
+
+describe('editor files (editor/storage.ts)', function () {
+	// file handles in memory, and the open and save dialogs as the File System Access API gives them
+	var files, picked, chosen;
+	var handle = function (name, text) {
+		var h = { name : name, text : text,
+			getFile : async function () { return { name : name, text : async function () { return h.text; } }; },
+			createWritable : async function () { return { write : async function (b) { h.text = await b.text(); }, close : async function () {} }; } };
+		files[name] = h;
+		return h;
+	};
+	beforeEach(function () {
+		files = {}; picked = 0;
+		globalThis.showOpenFilePicker = async function () { return [chosen]; };
+		globalThis.showSaveFilePicker = async function (o) { picked++; return handle(o.suggestedName, ''); };
+		S.forgetFile();
+	});
+	after(function () { delete globalThis.showOpenFilePicker; delete globalThis.showSaveFilePicker; });
+
+	it('saves back to an opened file only once its document is kept, and never after forgetting it', async function () {
+		chosen = handle('part.graph.json', '{"version":2}');
+		var f = await S.openFile(function () { throw new Error('the dialog is there'); });
+		f.text.should.equal('{"version":2}');
+		// not kept (not a document, say): Save asks where
+		(await S.saveFile('A', 'new.graph.json')).should.equal('new.graph.json');
+		picked.should.equal(1);
+		files['part.graph.json'].text.should.equal('{"version":2}');
+		// kept: Save writes to it without asking
+		// (that Save made new.graph.json the target: start again from the opened file)
+		S.forgetFile(); f.keep();
+		(await S.saveFile('B', 'other.graph.json')).should.equal('part.graph.json');
+		files['part.graph.json'].text.should.equal('B');
+		picked.should.equal(1);
+		// another document replaced it (a sample, a link): Save asks again, and the opened file stays as it was
+		S.forgetFile();
+		(await S.saveFile('C', 'sample.graph.json')).should.equal('sample.graph.json');
+		picked.should.equal(2);
+		files['part.graph.json'].text.should.equal('B');
+	});
+});
