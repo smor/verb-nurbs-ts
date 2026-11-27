@@ -2,6 +2,7 @@ import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { triangulate } from "../eval/Cdt.js";
 import { Eval } from "../eval/Eval.js";
+import { Make } from "../eval/Make.js";
 import { BrepSolid } from "./Brep.js";
 import { BrepShell, Projector, ShellBuilder, ShellFace } from "./BrepShell.js";
 import { TriMesh } from "./TriMesh.js";
@@ -108,6 +109,8 @@ export class ShellMesher {
                 }
                 if (poly.length >= 2) loops.push( poly );
             }
+            // a face with no loops is its whole surface, closed on itself (a sphere, a torus: no edges at all)
+            if (F.loops.length == 0) loops.push( ShellMesher.wholeDomain( F, mesh, tol, angle, maxEdge ) );
             // (the face's edges lie within their own tolerances of it: a triangle on an edge is off by that much more)
             let slack = 0;
             for (const loop of F.loops) for (const [ei] of loop.edges) slack = Math.max( slack, shell.edges[ei].tolerance );
@@ -175,6 +178,35 @@ export class ShellMesher {
             }
             if (split == 0) return;
         }
+    }
+
+    // The boundary of a face's whole domain as one loop, for a face that has no edges: a closed surface, whose sides are
+    // its seams and poles. Opposite sides are sampled at the same parameters (each side's samples, merged), so that a
+    // seam's two sides land on the same points, and those points are one vertex each (as is a pole): the mesh closes
+    // across them as it does across an edge.
+    private static wholeDomain( F : ShellFace, mesh : TriMesh, tol : number, angle : number, maxEdge : number ) : Array<{ uv : UV, id : number }> {
+        const s = F.surface;
+        const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+        const merged = (a : Array<number>, b : Array<number>) => [...new Set( a.concat( b ) )].sort( (x, y) => x - y );
+        // along u at v0 and v1; along v at u0 and u1
+        const us = merged( ShellMesher.sampleCurve( Make.surfaceIsocurve( s, d[2], true ), tol, angle, maxEdge ), ShellMesher.sampleCurve( Make.surfaceIsocurve( s, d[3], true ), tol, angle, maxEdge ) );
+        const vs = merged( ShellMesher.sampleCurve( Make.surfaceIsocurve( s, d[0], false ), tol, angle, maxEdge ), ShellMesher.sampleCurve( Make.surfaceIsocurve( s, d[1], false ), tol, angle, maxEdge ) );
+        const uv : Array<UV> = [];
+        for (const u of us.slice( 0, -1 )) uv.push( [u, d[2]] );
+        for (const v of vs.slice( 0, -1 )) uv.push( [d[1], v] );
+        for (const u of us.slice( 1 ).reverse()) uv.push( [u, d[3]] );
+        for (const v of vs.slice( 1 ).reverse()) uv.push( [d[0], v] );
+        const pts = uv.map( p => Eval.rationalSurfacePoint( s, p[0], p[1] ) );
+        const size = Math.max( ...pts.map( p => Vec.norm( p ) ) );
+        // one vertex per point (a seam's two sides, a pole's points): equal to rounding
+        const ids : Array<number> = [], kept : Array<number> = [];
+        for (const p of pts) {
+            const k = kept.find( i => Vec.dist( mesh.vertices[i], p ) <= 1e-9 * (1 + size) );
+            if (k != null) { ids.push( k ); continue; }
+            const id = mesh.addVertex( p );
+            kept.push( id ); ids.push( id );
+        }
+        return uv.map( (p, k) => ({ uv : p, id : ids[k] }) );
     }
 
     // Parameters along a curve: its knot spans halved, then each span split while its chord strays from the curve at

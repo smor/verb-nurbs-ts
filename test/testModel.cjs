@@ -414,6 +414,21 @@ describe("verb.model.Model fillets that run out onto a face", function(){
 		r.result.report.volume.should.be.approximately(24000 - 4 * quarter(4) * 20, 1e-3 * 24000);
 	});
 
+	it('matches an edge pattern either way round, and says when a rule selects no edge (#79)', function(){
+		// box faces are named +x, -x, ...: "+" sorts before "-", so the (-x, +y) edge is "block.+y|block.-x"
+		var four = 24000 - 4 * quarter(3) * 20, one = 24000 - quarter(3) * 20;
+		[['block.*x|block.*y', four], ['block.*y|block.*x', four], ['block.-x|block.+y', one], ['block.+y|block.-x', one]].forEach(function(c){
+			var r = evaluate({ block : block(), out : 'block' }, [{ edges : c[0], radius : 3 }]);
+			r.verdict.kind.should.equal('buildable', c[0]);
+			r.result.report.volume.should.be.approximately(c[1], 1e-3 * c[1]);
+		});
+		// a misspelt face: the rule rounds nothing, and the verdict names it (the other rule still rounds its edges)
+		var r = evaluate({ block : block(), out : 'block' }, [{ edges : 'block.+w|*', radius : 3 }, { edges : 'block.*x|block.*y', radius : 3 }]);
+		r.verdict.kind.should.equal('visual');
+		r.verdict.reasons.should.eql(['a round rule selects no edge: "r": "block.+w|*"']);
+		r.result.report.volume.should.be.approximately(four, 1e-3 * four);
+	});
+
 	it('rounds a slot: rims cut off where they leave the block, the bottom filled in on the block\'s sides', function(){
 		var f = function(){ return { block : block(), slot : slot(), d : { type : 'difference', from : 'block', minus : ['slot'] }, out : 'd' }; };
 		var rims = evaluate(f(), [{ edges : 'block.+z|slot.*', radius : 2 }]);
