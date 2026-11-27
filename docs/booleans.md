@@ -458,6 +458,13 @@ parts sharing a face. Three things make them work.
   both have them all. Overlapping pockets, rotated or in a row, close with their exact volume (test "507
   regressions", K); a slot cut as a run of overlapping pockets closes too. (Rotated pockets, whose floors share a
   plane but whose sides cross, closed with #123's edges flush along part of their length.)
+* **Short runs along an edge (#120).** Three pockets along an arc, each overlapping the next: where the third one's
+  floor meets the first one's side, two corners (the second's and the third's edges crossing that side) lie close
+  together, and the branch of the first one's side with the third one's floor has a run of two points between them,
+  along the side's top edge. A run of two points along a trim did not count as inside it (a chord between two
+  crossings of a straight trim by a curved branch lies along it too), so it was dropped and the sliver of floor it
+  bounds went with the region beside it. Such a run now counts when the branch's points on either side of it lie on
+  the trim too. Test "507 regressions", K, checks three such pockets against their exact volume.
 * **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
   has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
   shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface

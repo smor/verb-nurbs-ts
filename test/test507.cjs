@@ -231,5 +231,37 @@ describe("507 regressions (test/fixtures/507)", function () {
 		pockets(20, 1, 2); // F1
 		pockets(0, 1, 2); // their sides in one plane
 		pockets(0, 1.5, 4); // a row of four
+		// three turned squares along an arc, each overlapping the next: two corners where one square's edge crosses
+		// another's lie close together on the floor (2-point runs of a branch along an edge); the union's area by
+		// inclusion and exclusion, the squares' overlaps clipped exactly (convex polygons)
+		var corners = function (t) {
+			var c = [9 * Math.cos(t) - 4, 9 * Math.sin(t)];
+			return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + 1.5 * (q[0] * Math.cos(t) - q[1] * Math.sin(t)), c[1] + 1.5 * (q[0] * Math.sin(t) + q[1] * Math.cos(t))]; });
+		};
+		var clip = function (P, Q) { // P inside the convex, counter-clockwise Q
+			Q.forEach(function (a, i) {
+				var b = Q[(i + 1) % Q.length], side = function (p) { return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]); }, out = [];
+				P.forEach(function (p, j) {
+					var q = P[(j + 1) % P.length], sp = side(p), sq = side(q);
+					if (sp >= 0) out.push(p);
+					if (sp * sq < 0) out.push([p[0] + (q[0] - p[0]) * sp / (sp - sq), p[1] + (q[1] - p[1]) * sp / (sp - sq)]);
+				});
+				P = out;
+			});
+			return P;
+		};
+		var area = function (P) { var s = 0; P.forEach(function (p, i) { var q = P[(i + 1) % P.length]; s += p[0] * q[1] - q[0] * p[1]; }); return Math.abs(s) / 2; };
+		var sq3 = [-1.1, -0.985, -0.87].map(corners);
+		var union = 3 * 9 - area(clip(sq3[0], sq3[1])) - area(clip(sq3[0], sq3[2])) - area(clip(sq3[1], sq3[2])) + area(clip(clip(sq3[0], sq3[1]), sq3[2]));
+		var nodes = { p : ex(square(30, [0, 0], 0), 6) }, prev = 'p';
+		[-1.1, -0.985, -0.87].forEach(function (t, i) {
+			nodes['m' + i] = ex(square(3, [9 * Math.cos(t) - 4, 9 * Math.sin(t)], t * 180 / PI), 3.01, -0.01);
+			nodes['d' + i] = { type : 'boolean/difference', in : { from : '@' + prev, minus : '@m' + i } };
+			prev = 'd' + i;
+		});
+		var r = new Graph().evaluate({ version : 2, meta : { name : 'slot' }, nodes : nodes, outputs : { s : '@' + prev } }, { output : 's', mesh : 'print' });
+		r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		r.result.report.volume.should.be.approximately(30 * 30 * 6 - union * 3, 1e-9 * 5400);
 	});
 });

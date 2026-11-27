@@ -329,8 +329,12 @@ export class BrepBoolean {
                     const m = run.points.length >> 1;
                     const uvA = closed || run.points.length > 2 ? run.uvA[m] : Vec.lerp( 0.5, run.uvA[0], run.uvA[1] ) as UV;
                     const uvB = closed || run.points.length > 2 ? run.uvB[m] : Vec.lerp( 0.5, run.uvB[0], run.uvB[1] ) as UV;
-                    if (!(inTrims( e.solids[0], e.faces[0], uvA ) || alongTrim( e.solids[0], e.faces[0], run.uvA ))
-                        || !(inTrims( e.solids[1], e.faces[1], uvB ) || alongTrim( e.solids[1], e.faces[1], run.uvB ))) return;
+                    // a run of two points along a trim, between corners close together (where pockets cut one after
+                    // another meet on its edge, #120), counts with its branch's points on either side on the trim too
+                    const wide = run.points.length == 2 && !closed
+                        ? [idx[0] - 1].concat( idx, [idx[1] + 1] ).map( k => c.closed ? (k + n) % n : k ).filter( k => k >= 0 && k < n ) : idx;
+                    if (!(inTrims( e.solids[0], e.faces[0], uvA ) || alongTrim( e.solids[0], e.faces[0], wide.map( k => c.uvA[k] ) ))
+                        || !(inTrims( e.solids[1], e.faces[1], uvB ) || alongTrim( e.solids[1], e.faces[1], wide.map( k => c.uvB[k] ) ))) return;
                 }
                 runs.push( { ci : ci, curve : run, sides : e.trim ? null : BrepBoolean.sides( solids, meshes, expr, e, mid ), radius : 0 } );
             };
