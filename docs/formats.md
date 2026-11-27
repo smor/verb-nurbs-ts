@@ -110,6 +110,7 @@ An input value is one of:
 | text | text that is not an expression: edge or face patterns, comma separated (`"box.*\|box.*"`) |
 | function | an expression of the variable `t` (0 to 1) and of number nodes, sampled by the node (`"a + 2 * sin(pi * t)"`); the freeform nodes' radius and coordinates |
 | profile | a half-section, points `"r z; r z; ..."` in millimetres from the base up (`freeform/vessel`); empty for none where the port allows it |
+| points | a closed outline, points `"x, y; x, y, r; ..."` (`freeform/prism`); each value a number or an expression over number nodes, an optional third value rounding that corner |
 | outline | a planar region as JSON, `{ "outer": path, "holes": [path, ...] }` (`profile/extrude`; see Profiles below) |
 
 #### Profiles

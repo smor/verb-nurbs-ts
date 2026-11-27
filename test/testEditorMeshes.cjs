@@ -58,6 +58,25 @@ describe('editor meshes (editor/meshes.ts)', function () {
 		});
 	});
 
+	it('an STL file holds every triangle of the print mesh, with unit normals pointing out of the solid', function () {
+		var doc = { version : 2, nodes : { c : { type : 'primitive/cylinder', in : { radius : 10, height : 20 } } }, outputs : { c : '@c' } };
+		var g = new Graph(), r = g.evaluate(doc), f = M.printStl(g, r, 'cylinder');
+		var v = new DataView(f.data), n = v.getUint32(80, true);
+		n.should.equal(f.triangles);
+		f.data.byteLength.should.equal(84 + 50 * n);
+		f.deviation.should.be.below(0.021);
+		var vol = 0;
+		for (var i = 0; i < n; i++) {
+			var o = 84 + 50 * i, q = [];
+			for (var k = 0; k < 12; k++) q.push(v.getFloat32(o + 4 * k, true));
+			Math.hypot(q[0], q[1], q[2]).should.be.approximately(1, 1e-5);
+			// the signed volume of the tetrahedron from the origin: the triangles wind outward when the sum is positive
+			var a = q.slice(3, 6), b = q.slice(6, 9), c = q.slice(9, 12);
+			vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+		}
+		vol.should.be.approximately(Math.PI * 100 * 20, 0.005 * Math.PI * 100 * 20);
+	});
+
 	it('the vase\'s view mesh is a tenth of its analysis mesh, every corner has its face\'s normal, close to its triangle\'s', function () {
 		var doc = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'editor', 'samples', 'art-nouveau-vase.graph.json'), 'utf8'));
 		var g = new Graph(), r = g.evaluate(doc), a = M.analysis(r), v = M.view(g, r);

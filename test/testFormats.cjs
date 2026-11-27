@@ -157,6 +157,7 @@ describe("Document formats (docs/formats.md)", function () {
 				c : { type : 'cylinder', from : [10, 10, -1], to : [10, 10, 11], radius : 3, divs : [8, 2] },
 				p : { type : 'pipe', through : [[0, 0, 0], [0, 0, 10]], radius : 1 },
 				r : { type : 'revolve', profile : [[0, 0], [5, 0], [5, 5], [0, 5]] },
+				z : { type : 'prism', outline : [[0, 0], ['w', 0, 2], ['w', 'h'], [0, 'h']], height : 3, center : [5, 5] },
 				q : { type : 'primitive', shape : 'torus', values : { 'major radius' : 10 } },
 				t : { type : 'transform', of : 'q', scale : 2, rotate : { axis : [0, 0, 1], degrees : 30, about : [0, 0, 0] }, translate : [1, 2, 3] },
 				u : { type : 'union', of : ['b', 'c'] },

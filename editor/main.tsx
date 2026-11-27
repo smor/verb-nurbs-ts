@@ -15,9 +15,12 @@ import type { GraphDocument, GraphPort, ModelValue } from "../src/index.js";
 import { SAMPLES } from "./samples.js";
 import { History } from "./history.js";
 import { layout } from "./shelf.js";
+import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY, inViewer, zip } from "./storage.js";
 import type { ShelfSpec, Box } from "./shelf.js";
 
 declare const WORKER_SOURCE : string;
+// a document the build opens on (EDITOR_START), or ""
+declare const START_DOC : string;
 
 const REGISTRY = Graph.REGISTRY;
 const REF = /^@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_ ]*))?$/;
@@ -28,7 +31,12 @@ const ref = ( v : ModelValue | object | undefined ) : [string, string] | null =>
 };
 const clone = <T,>( x : T ) : T => JSON.parse( JSON.stringify( x ) ) as T;
 
-let DOC : GraphDocument = clone( SAMPLES[0].doc );
+const isGraph = ( d : unknown ) : d is GraphDocument => typeof d == "object" && d != null && (d as GraphDocument).version === 2 && typeof (d as GraphDocument).nodes == "object";
+// the document the editor opens with: the last one autosaved in this browser, else the first sample (a document in the
+// link, #g=..., replaces it as soon as it is decoded)
+const SAVED = restore();
+const START = (() => { try { const d = START_DOC ? JSON.parse( START_DOC ) as unknown : null; return isGraph( d ) ? d : null; } catch { return null; } })();
+let DOC : GraphDocument = isGraph( SAVED ) ? SAVED : START != null ? clone( START ) : clone( SAMPLES[0].doc );
 // the solid node the 3D view shows: the one asked for with Show, else the document's first output
 const shownNode = () : string => {
     const s = DOC.view?.show;
@@ -49,6 +57,7 @@ const view = () => { DOC.view = DOC.view ?? {}; DOC.view.nodes = DOC.view.nodes 
 // snapshot is taken once, after the current event, from everything recorded during it. A key names a stream of edits
 // that merge into one step (one slider); edits with different keys in the same event do not merge.
 const history = new History<GraphDocument>();
+const history_ = window.history;
 history.reset( DOC );
 let recordQueued = false, recordKey : string | null = null, historyListener = () => {};
 function record( key : string | null = null ) {
@@ -57,7 +66,7 @@ function record( key : string | null = null ) {
     recordQueued = true;
     queueMicrotask( () => {
         recordQueued = false;
-        if (history.commit( DOC, recordKey, performance.now() )) historyListener();
+        if (history.commit( DOC, recordKey, performance.now() )) { historyListener(); autosave( DOC ); }
         recordKey = null;
     } );
 }
@@ -85,7 +94,8 @@ function evaluate() {
     worker.postMessage( { seq : ++seq, doc : DOC, output : shown == "" ? undefined : "@" + shown, shelf : SHELF } );
     if (fitWanted) { fitWanted = false; fitAt = seq; }
 }
-worker.onmessage = ( e : MessageEvent<Result | Part> ) => {
+worker.onmessage = ( e : MessageEvent<Result | Part | StlReply> ) => {
+    if ("stl" in e.data) { stlReplies.get( e.data.stl )?.( e.data ); stlReplies.delete( e.data.stl ); return; }
     if (e.data.seq != seq && (SHELF || "part" in e.data)) return;
     if ("part" in e.data) { partListener( e.data ); return; }
     // a finer mesh of the solid on display: not a new evaluation
@@ -94,6 +104,17 @@ worker.onmessage = ( e : MessageEvent<Result | Part> ) => {
     listener( e.data );
     if (pending) { pending = false; evaluate(); }
 };
+
+// ---------------------------------------------------------------- print files
+// The STL of an output (or of any solid node, "@id"), meshed by the worker from the exact faces within 0.02 mm.
+interface StlReply { stl : string; ok : boolean; data? : ArrayBuffer; triangles? : number; deviation? : number | null; verdict? : string; error? : string }
+const stlReplies = new Map<string, ( r : StlReply ) => void>();
+let stlSeq = 0;
+function requestStl( output : string, name : string ) : Promise<StlReply> {
+    const key = `${name}#${++stlSeq}`;
+    return new Promise( res => { stlReplies.set( key, res ); worker.postMessage( { stl : key, doc : DOC, output } ); } );
+}
+const fileName = ( s : string ) => s.normalize( "NFD" ).replace( /[\u0300-\u036f]/g, "" ).replace( /[^A-Za-z0-9_-]+/g, "-" ).replace( /^-|-$/g, "" ) || "graph";
 
 // ---------------------------------------------------------------- nodes
 const Ctx = createContext<{ status : Record<string, string>, shown : string, changed : ( key? : string ) => void }>( { status : {}, shown : "", changed : () => {} } );
@@ -122,7 +143,7 @@ function NumberInput( { id, k, port } : { id : string, k : string, port : Extrac
     </div>;
 }
 
-function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" | "profile" }> } ) {
+function TextInput( { id, k, port } : { id : string, k : string, port : Extract<GraphPort, { kind : "text" | "choice" | "function" | "profile" | "points" }> } ) {
     const { changed } = useContext( Ctx );
     const v = String( DOC.nodes[id].in?.[k] ?? port.value );
     const [text, setText] = useState( v );
@@ -325,7 +346,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
             const half = THREE.MathUtils.degToRad( camera.fov / 2 );
             const d = s.radius / Math.sin( Math.min( half, Math.atan( Math.tan( half ) * camera.aspect ) ) ) * (front ? 0.95 : 1.08);
             controls.target.copy( s.center );
-            const dir = front ? new THREE.Vector3( 0.08, -1, 0.12 ) : new THREE.Vector3( 0.55, -0.75, 0.42 );
+            const dir = front ? new THREE.Vector3( 0.1, -1, 0.7 ) : new THREE.Vector3( 0.55, -0.75, 0.42 );
             camera.position.copy( s.center ).addScaledVector( dir.normalize(), d );
             camera.near = Math.max( 0.1, d / 200 ); camera.far = d * 20; camera.updateProjectionMatrix();
             controls.update();
@@ -516,18 +537,65 @@ function App() {
         for (const n of moved) view()[n.id] = { x : Math.round( n.position.x ), y : Math.round( n.position.y ) };
         setTick( x => x + 1 ); record();
     };
-    const save = () => {
-        const a = document.createElement( "a" );
-        a.href = URL.createObjectURL( new Blob( [JSON.stringify( DOC, null, 2 )], { type : "application/json" } ) );
-        a.download = "graph.json"; a.click();
+    const [note, setNote] = useState( "" );
+    const tell = ( text : string ) => { setNote( text ); setTimeout( () => setNote( n => n == text ? "" : n ), 4000 ); };
+    const docName = () => fileName( String( DOC.meta?.name ?? "graph" ) );
+    // Save: to the file the document came from or was last saved to, where the browser can write files back
+    const save = async () => {
+        const name = await saveFile( JSON.stringify( DOC, null, 1 ) + "\n", docName() + ".graph.json" );
+        if (name) tell( `Saved ${name}` );
     };
-    const open = async ( f : File ) => {
+    const openText = ( name : string, text : string ) => {
         try {
-            const d = JSON.parse( await f.text() ) as GraphDocument;
-            if (d.version !== 2 || typeof d.nodes != "object") throw new Error( "not a version 2 graph document" );
+            const d = JSON.parse( text ) as unknown;
+            if (!isGraph( d )) throw new Error( "not a version 2 graph document" );
             DOC = d; reload(); record();
-        } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${f.name}: ${(e as Error).message}` } ); }
+            tell( `Opened ${name}` );
+        } catch (e) { setResult( { seq : 0, ok : false, ms : 0, error : `Could not open ${name}: ${(e as Error).message}` } ); }
     };
+    const open = async ( f : File ) => { forgetFile(); openText( f.name, await f.text() ); };
+    const openDialog = async () => { const f = await openFile( () => file.current?.click() ); if (f) openText( f.name, f.text ); };
+    // Share: the document in the link itself, so a colleague opens this exact graph with its parameters
+    const share = async () => {
+        const url = location.href.split( "#" )[0] + "#" + LINK_KEY + "=" + await encode( DOC );
+        history_.replaceState( null, "", url );
+        try { await navigator.clipboard.writeText( url ); tell( `Link copied (${(url.length / 1024).toFixed( 1 )} kB): it holds the whole graph` ); }
+        catch { tell( "The link is in the address bar: copy it from there" ); }
+    };
+    // STL: the shown part, or on the shelf every output, each its own file
+    const downloadStl = async () => {
+        const outs = shelfMode ? Object.keys( DOC.outputs ) : [shownNode() == "" ? Object.keys( DOC.outputs )[0] : "@" + shownNode()];
+        if (inViewer()) {
+            // the viewer saves no .stl: every part's STL in one zip
+            const files : Array<{ name : string, data : Uint8Array }> = [];
+            for (const o of outs) {
+                const label = o.startsWith( "@" ) ? o.slice( 1 ) : o;
+                tell( `Meshing ${label} for printing…` );
+                const r = await requestStl( o, label );
+                if (r.ok && r.data != null) files.push( { name : `${docName()}-${fileName( label )}.stl`, data : new Uint8Array( r.data ) } );
+                else tell( `Could not mesh ${label}: ${r.error}` );
+            }
+            if (files.length == 0) return;
+            try {
+                const name = await saveBinary( zip( files ), `${docName()}-stl.zip`, "application/zip" );
+                if (name) tell( `${name}: ${files.length} STL file${files.length > 1 ? "s" : ""}, within 0.02 mm` );
+            } catch (e) { tell( `Could not save: ${(e as Error).message}` ); }
+            return;
+        }
+        for (const o of outs) {
+            const label = o.startsWith( "@" ) ? o.slice( 1 ) : o;
+            tell( `Meshing ${label} for printing…` );
+            const r = await requestStl( o, label );
+            if (!r.ok || r.data == null) { tell( `Could not mesh ${label}: ${r.error}` ); continue; }
+            const name = await saveBinary( r.data, `${docName()}-${fileName( label )}.stl`, "model/stl" );
+            if (name) tell( `${name}: ${r.triangles!.toLocaleString()} triangles, within ${r.deviation != null ? r.deviation.toFixed( 3 ) : "0.02"} mm${r.verdict == "buildable" ? "" : " (verdict: " + r.verdict + ")"}` );
+        }
+    };
+    // a document in the link (#g=...): opened once decoded
+    useEffect( () => {
+        void fromLink( location.hash ).then( d => { if (isGraph( d )) { DOC = d; reload(); record(); tell( "Opened the graph in the link" ); } } )
+            .catch( () => tell( "The link's graph could not be read" ) );
+    }, [] );
 
     const shown = shownNode();
     const status = result?.nodes ?? {};
@@ -539,16 +607,20 @@ function App() {
                 <div className="toolbar">
                     <button onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z or ⌘Z)">Undo</button>
                     <button onClick={redo} disabled={!history.canRedo} title="Redo (Shift+Ctrl+Z, ⌘⇧Z or Ctrl+Y)">Redo</button>
-                    <select aria-label="Open a sample" value="" onChange={e => { const s = SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); reload(); record(); } }}>
+                    <select aria-label="Open a sample" value="" onChange={e => { const s = e.target.value == "start" ? { doc : START! } : SAMPLES[+e.target.value]; if (s) { DOC = clone( s.doc ); reload(); record(); } }}>
                         <option value="" disabled>Open a sample…</option>
+                        {START != null && <option value="start">{String( START.meta?.name ?? "This project" )} (as built)</option>}
                         {[...new Set( SAMPLES.map( s => s.group ) )].map( grp => <optgroup key={grp} label={grp}>
                             {SAMPLES.map( ( s, i ) => s.group == grp && <option key={i} value={i}>{s.title}</option> )}</optgroup> )}
                     </select>
-                    <button onClick={() => file.current?.click()}>Open…</button>
-                    <button onClick={save}>Save graph.json</button>
+                    <button onClick={() => void openDialog()}>Open…</button>
+                    <button onClick={() => void save()} title="Save the graph file (it is also kept in this browser as you work)">Save</button>
+                    {!inViewer() && <button onClick={() => void share()} title="Copy a link that holds the whole graph: whoever opens it gets this graph and its parameters">Share link</button>}
+                    <button onClick={() => void downloadStl()} title="Download the shown part as STL for printing (on the shelf: every part), meshed within 0.02 mm of its exact faces">STL</button>
                     <button aria-pressed={shelfMode} onClick={() => { setShelf( !shelfMode ); fitWanted = true; evaluate(); }}
                         title="Show every output of the graph at once, side by side">Shelf</button>
                     <button aria-pressed={big} onClick={() => setBig( !big )} title="A larger 3D view">Large view</button>
+                    {note && <span className="note" role="status">{note}</span>}
                     <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void open( f ); e.target.value = ""; }} />
                 </div>
                 <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
