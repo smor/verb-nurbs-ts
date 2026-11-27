@@ -117,6 +117,7 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 .pill.built{background:var(--built-bg);color:var(--accent)} .pill.cached{background:var(--cache-bg);color:var(--cache)}
 .pill.idle{background:var(--cache-bg);color:var(--muted)} .pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.warn{background:var(--warn-bg);color:var(--warn)}
 .pill.big{font-size:12px;padding:2px 9px}
+.pill.on{background:var(--ok-bg);color:var(--ok)} .pill.off{background:var(--cache-bg);color:var(--muted)}
 @media (max-width:760px){
   .layout{grid-template-columns:1fr;grid-template-rows:160px 56vh auto}
   .palette{border-right:0;border-bottom:1px solid var(--line)}
@@ -180,6 +181,10 @@ body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
 .param-panel h3 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pp-count{font:11px var(--mono);color:var(--muted);letter-spacing:0}
 .pp-row{padding:4px 0;border-radius:4px}
+/* a switch or a choice in the panel lines up with the sliders: label, the "−" column, then the control */
+.pp-row>.nf.toggle,.pp-row>.nf.choice{display:grid;grid-template-columns:clamp(120px,30%,220px) 24px auto;gap:6px;max-width:760px;justify-items:start}
+.pp-row>.nf.toggle>:last-child,.pp-row>.nf.choice>:last-child{grid-column:3}
+.pp-row>.nf.toggle .nf-label,.pp-row>.nf.choice .nf-label{color:var(--ink);white-space:normal}
 .pp-row:hover{background:color-mix(in srgb,var(--num) 7%,transparent)}
 .pp-empty{padding:12px 16px}
 .react-flow__node.lit{outline:2px solid var(--num);outline-offset:3px;border-radius:6px}

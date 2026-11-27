@@ -25,8 +25,8 @@ export type GraphWire = "number" | "solid";
 export type GraphPort =
     // a number: a literal, an expression over number nodes, or a wire from a number output
     | { kind : "number", label : string, value : number, min : number, max : number, step : number, unit? : string, integer? : boolean }
-    // a solid: always a wire
-    | { kind : "solid", label : string }
+    // a solid: always a wire; an optional one may be left unconnected, for nothing (a switch's sides)
+    | { kind : "solid", label : string, optional? : boolean }
     // a word chosen from a list (a fillet's shape, an axis)
     | { kind : "choice", label : string, value : string, options : Array<string> }
     // free text that is not an expression (an edge or face name pattern)
@@ -47,7 +47,7 @@ export type GraphPort =
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
     title : string;
-    category : "parameter" | "math" | "primitive" | "freeform" | "transform" | "boolean" | "finish" | "component";
+    category : "parameter" | "math" | "primitive" | "freeform" | "transform" | "boolean" | "finish" | "logic" | "component";
     help : string;
     inputs : { [port : string] : GraphPort };
     outputs : { [port : string] : GraphWire };
@@ -156,8 +156,8 @@ export interface GraphResult extends ModelResult {
     // the output evaluated: its name, or the reference asked for
     output : string;
     // "built": computed by this evaluation; "cached": taken from an earlier one; "parameter": a number node;
-    // "unused": not upstream of the output
-    nodes : { [id : string] : "built" | "cached" | "parameter" | "unused" };
+    // "unused": not upstream of the output; "on" and "off": a switch the output reached, and the side it chose
+    nodes : { [id : string] : "built" | "cached" | "parameter" | "unused" | "on" | "off" };
     // the export mesh, when `mesh` was asked for
     export? : GraphMesh;
 }
@@ -233,6 +233,8 @@ export class Graph {
                 nodes[id] = mine.length == 0 ? "unused" : mine.some( k => r.features[k].built ) ? "built" : "cached";
                 continue;
             }
+            // a switch the output reached: the side it chose
+            if (doc.nodes[id].type == "logic/switch" && r.chosen?.[id] != null) { nodes[id] = r.chosen[id] ? "on" : "off"; continue; }
             nodes[id] = Graph.isNumber( t ) ? "parameter" : f == null ? "unused" : f.built ? "built" : "cached";
         }
         return this.withMesh( { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes }, options );
@@ -612,6 +614,12 @@ export class Graph {
                 case "boolean/union": features[id] = { type : "union", of : [s( "a" ), s( "b" )] }; break;
                 case "boolean/intersection": features[id] = { type : "intersection", of : [s( "a" ), s( "b" )] }; break;
                 case "boolean/difference": features[id] = { type : "difference", from : s( "from" ), minus : [s( "minus" )] }; break;
+                case "logic/switch": {
+                    // either side may be left unconnected: nothing
+                    const side = ( k : string ) => { const v = nodes[id].in?.[k]; return typeof v == "string" && v.trim() != "" ? { [k == "on_solid" ? "then" : "else"] : wire( id, k, v, "solid" ) } : {}; };
+                    features[id] = { type : "choose", when : asNum( "on" ), ...side( "on_solid" ), ...side( "off_solid" ) };
+                    break;
+                }
                 case "finish/round": {
                     const shape = s( "shape" ) as "circular" | "curvature" | "chamfer";
                     const rules = s( "edges" ).split( "," ).map( e => e.trim() ).filter( e => e != "" ).map( e => ({ edges : e, radius : asNum( "radius" ) }) );
@@ -743,6 +751,7 @@ export class Graph {
                     ...(f.translate != null ? { translate : point( f.translate ) } : {}) };
                 case "union": case "intersection": return { ...f, of : f.of.map( ref ) };
                 case "difference": return { ...f, from : ref( f.from ), minus : f.minus.map( ref ) };
+                case "choose": return { ...f, when : value( f.when ), ...(f.then != null ? { then : ref( f.then ) } : {}), ...(f.else != null ? { else : ref( f.else ) } : {}) };
                 case "round": return { ...f, of : ref( f.of ), rules : f.rules.map( r => ({ edges : pattern( r.edges ), radius : value( r.radius ) }) ) };
                 case "shell": return { ...f, of : ref( f.of ), thickness : value( f.thickness ), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
                 case "lattice": return { ...f, of : ref( f.of ), cell : value( f.cell ), wall : value( f.wall ),
@@ -894,6 +903,11 @@ export class Graph {
         r["boolean/union"] = { title : "Union", category : "boolean", help : "a ∪ b", inputs : { a : solid( "a" ), b : solid( "b" ) }, outputs : { solid : "solid" } };
         r["boolean/intersection"] = { title : "Intersection", category : "boolean", help : "a ∩ b", inputs : { a : solid( "a" ), b : solid( "b" ) }, outputs : { solid : "solid" } };
         r["boolean/difference"] = { title : "Difference", category : "boolean", help : "from − minus", inputs : { from : solid( "from" ), minus : solid( "minus" ) },
+            outputs : { solid : "solid" } };
+        r["logic/switch"] = { title : "Switch", category : "logic",
+            help : "One solid or another, or nothing, as a number is on (not 0) or off (0): a part to include or not, holes to cut or not. Nothing drops out of a union and out of a difference's cutters",
+            inputs : { on : { kind : "number", label : "on", value : 1, min : 0, max : 1, step : 1, integer : true },
+                on_solid : { kind : "solid", label : "when on", optional : true }, off_solid : { kind : "solid", label : "when off", optional : true } },
             outputs : { solid : "solid" } };
         r["finish/round"] = { title : "Round edges", category : "finish", help : "Fillets or chamfers on the edges named by patterns, comma separated: box.*|box.*",
             inputs : { ...of, radius : num( "radius", 2, 0.1, 20, 0.1, "mm" ), edges : { kind : "text", label : "edges", value : "*" },

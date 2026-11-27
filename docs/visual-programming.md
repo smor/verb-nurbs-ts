@@ -439,6 +439,13 @@ Graph.compile( doc );         // the version 1 model document it runs
     the instance wired to an outer number node becomes that node again.
   * The palette lists the document's components, with how many instances use each, and removes one nothing uses.
     The Customize panel shows each instance's inputs that are not wired, as the component shows them.
+* **Switches** (`logic/switch`): one solid or another, or nothing, as a number is on (not 0) or off (0). This is how
+  a part is included or not, or holes are cut or not. Both sides are optional solids, and nothing drops out of a
+  union and out of a difference's cutters, so a switched part needs no rewiring. It compiles to the model's `choose`,
+  so a switch inside a component follows each instance's inputs. The node shows ON or OFF, a 0/1 input shows as a
+  switch, and a number node with `view.params[id].kind: "toggle"` shows as one in the Customize panel. On the
+  shelf, an output switched off is left out, not reported as a failure. The sample "Wall bracket, with options"
+  switches a front lip, a cable notch, and screw holes in the base and in the wall (one component used twice).
 * **Undo and redo** (`editor/history.ts`): a snapshot of the graph document after each edit, so an undone document is
   byte for byte the earlier one, and the evaluator's cache rebuilds nothing for it. Everything one action does (a
   node deleted with its wires) is one step, a slider drag is one step while it keeps moving (`COALESCE_MS`), moving
