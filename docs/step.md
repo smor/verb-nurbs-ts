@@ -54,6 +54,8 @@ see [exact-booleans.md](exact-booleans.md), step A2). `Step.writeShell` writes a
    (an outer loop that turns the way the largest loop does, with the holes inside it) is then written as a face of its
    own, and the seam stretches between them become ordinary edges between two faces on one surface. Without that,
    OpenCascade found the shelled mug's two rings round its handle's bore not closed.
+   A surface closed in both directions (a torus) is cut along the one seam its face's loops go round, if only one: a
+   belt groove's band round a pulley's axis (#116). A face whose loops go round both, or neither, is not cut.
 
 The faces' own surfaces do not quite meet everywhere: a setback corner's parts are B-spline fits of a transfinite
 patch, within 1e-3 of the largest radius. Its sides follow the neighbouring fillets' section curves (their exact

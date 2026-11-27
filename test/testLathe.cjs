@@ -77,6 +77,25 @@ describe("Revolved profiles (#87)", function () {
 		r.result.report.volume.should.be.approximately(turned(pts) - PI * 4 * 2 * PI * (20 - 8 / (3 * PI)) / 2, 5e-3 * turned(pts));
 	});
 
+	it('a belt groove cut through a pulley\'s side: the export mesh closed, of the exact volume (#116)', function () {
+		// the torus's band in the pulley goes round the axis: its face is cut along the seam it goes round
+		var groove = { type : 'profile/revolve', in : { profile : { outer : { kind : 'circle', center : [35, 3.5], r : 1.8 } } } };
+		// the part of the groove's circle inside r = 35.9 (all but the segment 0.9 beyond its centre), by Pappus
+		var R = 1.8, th = 2 * Math.acos(0.9 / R), seg = R * R / 2 * (th - Math.sin(th)), xs = 35 + 4 * R * Math.pow(Math.sin(th / 2), 3) / (3 * (th - Math.sin(th)));
+		var cut = 2 * PI * (PI * R * R * 35 - seg * xs);
+		var pts = [[2.5, 0], [35.9, 0], [35.9, 7], [2.5, 7]];
+		[[{ type : 'primitive/cylinder', in : { radius : 35.9, height : 7 } }, PI * 35.9 * 35.9 * 7],
+		 [{ type : 'profile/revolve', in : { profile : path(pts[0], pts.slice(1).concat([pts[0]]).map(line)) } }, turned(pts)]].forEach(function (c) {
+			var r = new Graph().evaluate({ version : 2, meta : { name : 'groove' }, nodes : { p : c[0], g : groove, x : { type : 'boolean/difference', in : { from : '@p', minus : '@g' } } },
+				outputs : { s : '@x' } }, { output : 's', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable', r.verdict.reasons.join('; '));
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			// the verdict judges the export mesh too
+			r.verdict.checks.filter(function (k) { return k.name == 'export mesh' && k.passed; }).length.should.equal(1);
+			r.export.mesh.signedVolume().should.be.approximately(c[1] - cut, 1e-3 * c[1]);
+			r.export.mesh.signedVolume().should.be.approximately(r.result.report.volume, 5e-3 * c[1]);
+		});
+	});
 	it('refuses a path across the axis, two runs along it, a part turn and holes', function () {
 		var bad = function (profile, re, degrees) {
 			(function () { evaluate({ x : { type : 'profile/revolve', in : { profile : profile, degrees : degrees == null ? 360 : degrees } } }); }).should.throw(re);

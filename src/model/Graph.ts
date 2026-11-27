@@ -9,7 +9,7 @@ import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
 import type { TriMesh } from "../solid/TriMesh.js";
 import type { ProfileSpec } from "../solid/Extrusion.js";
-import type { ModelDocument, ModelFeature, ModelResult, ModelValue } from "./Model.js";
+import type { ModelDocument, ModelFeature, ModelResult, ModelValue, ModelVerdict } from "./Model.js";
 
 // Node graphs for visual programming (docs/visual-programming.md). A graph document is plain JSON: nodes keyed by
 // id, each with a type from `Graph.REGISTRY` and its input values under `in`. An input is a literal, an expression
@@ -260,8 +260,20 @@ export class Graph {
         return m;
     }
 
+    // The result with its export mesh. A B-rep result whose export mesh is not closed (its faces meshed apart, #116)
+    // is judged visual: the "export mesh" check says how many edges are open.
     private withMesh( r : GraphResult, options : GraphOptions ) : GraphResult {
-        return options.mesh == null ? r : { ...r, export : this.exportMesh( r, options.mesh ) };
+        if (options.mesh == null) return r;
+        const ex = this.exportMesh( r, options.mesh );
+        if (r.lattice != null || options.mesh == "analysis") return { ...r, export : ex };
+        const m = ex.mesh.checkClosedManifold();
+        const check = { name : "export mesh", passed : m.closedManifold,
+            detail : m.closedManifold ? "the export mesh is closed" : `the export mesh is not closed (${m.boundaryEdges} open and ${m.badEdges} non-manifold edges)` };
+        const checks = r.verdict.checks.concat( [check] );
+        const failed = checks.filter( c => !c.passed );
+        const verdict : ModelVerdict = { ...r.verdict, checks : checks, kind : failed.length == 0 ? "buildable" : "visual",
+            reasons : failed.length == 0 ? r.verdict.reasons : failed.map( c => c.detail ) };
+        return { ...r, verdict : verdict, export : ex };
     }
 
     /**
