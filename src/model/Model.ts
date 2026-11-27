@@ -544,9 +544,9 @@ export class Model {
      *   offset. Shrunk, the cylinder of radius r - |d|, |d| shorter at each end.
      * * An extrusion offsets its profile in its plane (`ProfileOffset`) and its height by d at each end, its twist
      *   scaled to keep its pitch. Straight, that is the exact offset when shrunk, and when grown away from the rims of
-     *   its caps, which stay sharp (the exact offset rounds them by d; the sharp rim contains it). Twisted, the section is
-     *   offset in its plane, not along the sides' normals, which lean by the helix angle: the side moves d cos(angle) to
-     *   d along its normal.
+     *   its caps, which stay sharp (the exact offset rounds them by d; the sharp rim contains it). Twisted, its sides are
+     *   screw surfaces, whose offsets are screw surfaces of the same pitch: the section is the offset surface's section
+     *   in the base plane (`ProfileOffset.region` with the twist rate), within 1e-4.
      * * A rigid or uniformly scaled transform carries the offset (scaled back by the scale).
      * * A union grown is the union of the parts grown (exact); shrunk, the union of the parts shrunk, which can be
      *   smaller than the exact offset where parts meet. An intersection shrunk is the intersection of the parts shrunk
