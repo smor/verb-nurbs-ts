@@ -89,6 +89,37 @@ describe("Extrusion of profiles (#85)", function () {
 		(Date.now() - t).should.be.below(budget(10000));
 	});
 
+	it('twists and tapers the top (#86): helical sides of the exact volume, conical ones towards the apex', function () {
+		var sq = rect(-5, -5, 5, 5);
+		// a twist keeps every section the profile turned: the volume is the area times the height (Cavalieri)
+		var v = ShellBuilder.volume(Extrusion.shell({ outer : sq }, 20, 0, { twist : 90 }).shell);
+		v.should.be.approximately(2000, 1e-6 * 2000);
+		// a taper is a frustum: h (A0 + sqrt(A0 A1) + A1) / 3, exactly, and with a twist as well (to the helix's fit)
+		var frustum = 20 * (100 + 50 + 25) / 3;
+		ShellBuilder.volume(Extrusion.shell({ outer : sq }, 20, 0, { scaleTop : 0.5 }).shell).should.be.approximately(frustum, 1e-9 * frustum);
+		ShellBuilder.volume(Extrusion.shell({ outer : sq }, 20, 0, { scaleTop : 0.5, twist : 45 }).shell).should.be.approximately(frustum, 1e-6 * frustum);
+		// the top's corner is the bottom's, turned and scaled
+		var s = Extrusion.solid({ outer : sq }, 20, 0, { twist : 90, scaleTop : 0.5 });
+		s.faces.map(function (f) { return f.name; }).should.eql(['bottom', 'top', 'outer.0', 'outer.1', 'outer.2', 'outer.3']);
+		(function () { Extrusion.shell({ outer : sq }, 20, 0, { scaleTop : 0 }); }).should.throw(/scale is a positive/);
+	});
+
+	it('builds a worm through the graph: a tooth profile turned three times up its length, closed, in seconds rather than minutes', function () {
+		// a rounded tooth on a core, as 507's worms: twist = 360 x length / lead
+		var profile = { outer : { kind : 'path', start : P(-4, -9), segments : [line(P(4, -9)), line(P(4, 6)), arc(P(0, 10), P(-4, 6)), line(P(-4, -9))] } };
+		var t = Date.now();
+		var r = evaluate({ x : { type : 'profile/extrude', in : { profile : profile, height : 30, twist : 1080 } } }, { mesh : 'print' });
+		r.verdict.kind.should.equal('buildable');
+		r.result.report.manifold.closedManifold.should.be.true();
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		var area = 8 * 15 + PI * 16 / 2;
+		r.export.mesh.signedVolume().should.be.approximately(area * 30, 3e-3 * area * 30);
+		(Date.now() - t).should.be.below(budget(20000));
+		var names = {};
+		r.export.faceNames.forEach(function (n) { names[n] = true; });
+		Object.keys(names).sort().should.eql(['x.bottom', 'x.outer.0', 'x.outer.1', 'x.outer.2', 'x.outer.3', 'x.top']);
+	});
+
 	it('refuses an open path, an arc on a line, and a profile that is not one', function () {
 		var bad = function (profile, re) {
 			(function () { evaluate({ x : { type : 'profile/extrude', in : { profile : profile } } }); }).should.throw(re);

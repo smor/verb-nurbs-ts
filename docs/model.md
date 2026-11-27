@@ -45,8 +45,8 @@ the same cache.
 | `cylinder` | `from`, `to`, `radius`, `divs?` | `tube`, `start cap`, `end cap` |
 | `pipe` | `through` (points of the rail), `radius`, `divs?` | `tube`, `start cap`, `end cap` |
 | `revolve` | `profile` (`[radius, height]` pairs, heights increasing), `divs?` | `wall`, `bottom`, `top` |
-| `prism` | `outline` (`[x, y]` or `[x, y, r]` points in z = 0, numbers or expressions; r rounds that corner), `height`; built as an exact extrusion (lines and arcs) | `bottom`, `top`, `outer.k` |
-| `extrude` | `profile` (an outline: `{ outer, holes }`, see [formats.md](formats.md), Profiles), `height`, `z?` | `bottom`, `top`, `outer.k`, `hole{i}.k` |
+| `prism` | `outline` (`[x, y]` or `[x, y, r]` points in z = 0, numbers or expressions; r rounds that corner), `height`, `center?`; fan-capped when the outline is star-shaped about its centroid or `center`, an exact extrusion (lines and arcs) otherwise | `bottom`, `top`, and `side.k` (fan-capped) or `outer.k` (extruded) |
+| `extrude` | `profile` (an outline: `{ outer, holes }`, see [formats.md](formats.md), Profiles), `height`, `z?`, `twist?` (degrees), `scaleTop?` | `bottom`, `top`, `outer.k`, `hole{i}.k` |
 | `lathe` | `profile` (an outline in the (r, z) half-plane), `degrees?` (360) | `outer.k` |
 | `primitive` | `shape` (a `Catalog` name, see [primitives.md](primitives.md)), `values?` (its parameters by name; angles in degrees) | the shape's own: `side.k`, `bottom`, `top`, `face.k`, ... |
 | `transform` | `of`, `scale?` (number or per axis; negative mirrors), `rotate?` (`axis`, `degrees`, `about?`), `translate?` | its input's, behind `<transform>/` |

@@ -181,6 +181,25 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 		r.report.volume.should.be.approximately(1000 + P * 9 * 20, 2e-3 * (1000 + P * 9 * 20));
 		r.report.manifold.closedManifold.should.be.false();
 	});
+	it('a countersink whose cone meets its hole in the plate\'s top plane: three branches on one circle (#92)', function(){
+		// the cone (radius 5.5 at z = -1, 45 degrees) meets the hole (radius 1.5) at z = 3, the plate's top; and 0.2 below
+		var doc = function (r) { return { version : 2, meta : { name : 'countersink' }, nodes : {
+			plate : { type : 'primitive/box', in : { width : 30, depth : 30, height : 3 } },
+			cS : { type : 'primitive/cone', in : { radius : r, height : r - 1.2, top_radius : 1.2 } }, c : { type : 'transform/move', in : { of : '@cS', x : 0, y : 0, z : -1 } },
+			hS : { type : 'primitive/cylinder', in : { radius : 1.5, height : 5 } }, h : { type : 'transform/move', in : { of : '@hS', x : 0, y : 0, z : 0.5 } },
+			cut : { type : 'boolean/union', in : { a : '@c', b : '@h' } }, t : { type : 'boolean/difference', in : { from : '@plate', minus : '@cut' } } },
+			outputs : { t : '@t' } }; };
+		[[5.5, 0], [5.3, 0.2]].forEach(function (x) {
+			var r = new lib.Graph().evaluate(doc(x[0]), { output : 't', mesh : 'print' });
+			r.verdict.kind.should.equal('buildable');
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			// the plate less the frustum of the cone within it, and the hole above where they meet
+			var R = x[0] - 1, top = 3 - x[1], rt = R - top;
+			var cone = P * top / 3 * (R * R + R * rt + rt * rt) + P * 2.25 * x[1];
+			r.result.report.volume.should.be.approximately(2700 - cone, 2e-3 * 2700);
+		});
+	});
 	it('equal boxes (difference) leave nothing', function(){
 		var r = BrepBoolean.difference(B([0,0,0],[10,10,10]), [B([0,0,0],[10,10,10])]);
 		r.mesh.triangles.length.should.be.equal(0);
