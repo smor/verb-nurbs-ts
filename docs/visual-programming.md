@@ -369,10 +369,10 @@ Graph.compile( doc );         // the version 1 model document it runs
 * **Prisms** (`freeform/prism`) extrude an outline given as *points*: `"x, y; x, y, r; ..."`, whose values may be
   expressions over number nodes (`"w - 2 * wall, h"`), each kept as a model parameter, so a part drawn this way stays
   parametric. An optional third value rounds the corner by a tangent arc. It compiles to the model's `prism`, which
-  resolves the expressions and builds a fan-capped prism when the outline is star-shaped about its centroid (or the
-  `center` port's point), and an exact extrusion (`Extrusion`, from #85, lines and arcs) otherwise, so any simple
-  polygon will do. Limits: Booleans on fan-capped prisms can fail near a cap's centre (#99), and one real part still
-  unites only from fan-capped prisms (see #101), hence the choice. For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
+  resolves the expressions and builds an exact extrusion (`Extrusion`, from #85, lines and arcs), its caps planes
+  trimmed by the outline, so any simple polygon will do. (Its caps were fans from a centre while the outline was
+  star-shaped, and Booleans then failed or held depending on where that centre fell, #99. The `center` port is still
+  accepted, and no longer read.) For holes, Bézier curves and 507's profile JSON, `profile/extrude`.
 * **Vessels** (`freeform/vessel`) take *profile* ports: a half-section as an archaeologist draws it, points
   `"r z; r z; ..."` in millimetres from the base up. The outer profile is turned about z (the model's `revolve`), less
   the cavity (from its floor to above the rim, so the mouth is open) and the hollow under a foot, each a revolve of its
