@@ -22,6 +22,8 @@ import { layout } from "./shelf.js";
 import { encode, fromLink, restore, autosave, saveFile, saveBinary, openFile, forgetFile, LINK_KEY, inViewer, zip } from "./storage.js";
 import type { ShelfSpec, Box } from "./shelf.js";
 import { typeOf, makeComponent, unpack, usage } from "./components.js";
+import { dress, PRESETS } from "./looks.js";
+import type { Look } from "./looks.js";
 
 declare const WORKER_SOURCE : string;
 // a document the build opens on (EDITOR_START), or ""
@@ -95,7 +97,8 @@ function record( key : string | null = null ) {
 // ---------------------------------------------------------------- evaluation: one job in flight, the latest edit wins
 // A mesh as the worker sends it: positions, triangles, and per triangle the index of its face's persistent name.
 // The analysis mesh comes first; the view mesh (from the exact shell, within 0.1 mm) replaces it when ready (refine).
-interface Mesh { pos? : Float32Array; idx? : Uint32Array; face? : Uint32Array; names? : Array<string>; normal? : Float32Array; refine? : boolean; deviation? : number | null }
+interface Mesh { pos? : Float32Array; idx? : Uint32Array; face? : Uint32Array; names? : Array<string>; normal? : Float32Array; refine? : boolean; deviation? : number | null;
+    looks? : Array<Look> }
 interface Result extends Mesh { seq : number; ok : boolean; ms : number; error? : string; volume? : number; faces? : number;
     verdict? : { kind : string, reasons : string[] }; nodes? : Record<string, string>; model? : unknown; shelf? : boolean; params? : Record<string, number>;
     off? : Array<string> }
@@ -247,6 +250,8 @@ function TextInput( { id, k, port } : { id : string, k : string, port : Extract<
                 {port.options.map( o => <option key={o}>{o}</option> )}</select>
             : <input className="nodrag val wide" aria-label={port.label} value={text} onChange={e => setText( e.target.value )}
                 onBlur={() => set( text )} onKeyDown={e => { if (e.key == "Enter") (e.target as HTMLInputElement).blur(); }} />}
+        {k == "color" && /^#[0-9a-fA-F]{6}$/.test( text ) && <input type="color" className="nodrag swatch" aria-label={`${port.label}: pick`} value={text.toLowerCase()}
+            onChange={e => { setText( e.target.value ); set( e.target.value ); }} />}
     </div>;
 }
 
@@ -281,6 +286,8 @@ function GraphNodeView( { id } : NodeProps ) {
             {state != "parameter" && <span className={"pill " + state}>{state}</span>}
         </div>
         <div className="gn-type">{nd.type == "component" ? "Component" : t.title} · <code>{id}</code></div>
+        {nd.type == "look/material" && <div className="row gn-presets">{PRESETS.map( pr => <button key={pr.name} className="nodrag show" title={`${pr.name}: ${pr.values.color}, roughness ${pr.values.roughness}`}
+            style={{ borderLeft : `10px solid ${pr.values.color}` }} onClick={() => { nd.in = { ...nd.in, ...pr.values }; changed(); }}>{pr.name}</button> )}</div>}
         {nd.type == "component" && comp && <div className="row gn-comp">
             <button className="nodrag show" onClick={() => comp.open( id )} title="Open the component to edit it: every instance of it changes">Edit component</button>
             <button className="nodrag show" onClick={() => comp.unpack( id )} title="Put the component's nodes in place of this instance">Unpack</button></div>}
@@ -379,6 +386,10 @@ const toGeometry = ( m : Mesh ) => {
     g.userData = { face, names : m.names ?? [], vface : Uint32Array.from( vface ), lit : -1 };
     return g;
 };
+// a geometry and the materials its looks made
+const drop = ( g : THREE.BufferGeometry ) => { for (const m of (g.userData.looks ?? []) as Array<THREE.Material>) m.dispose(); g.dispose(); };
+// what a face without a material wears: the view's own colour
+const plainLook = () => ({ color : getComputedStyle( document.documentElement ).getPropertyValue( "--solid" ).trim() || "#8fa7bf", roughness : 0.45, metalness : 0.15 });
 // lights up one face of a geometry (or none: -1)
 const light = ( g : THREE.BufferGeometry, f : number ) => {
     const u = g.userData as { vface? : Uint32Array, lit? : number };
@@ -406,6 +417,9 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
         const el = host.current!;
         const renderer = new THREE.WebGLRenderer( { antialias : true, alpha : true } );
         renderer.setPixelRatio( Math.min( devicePixelRatio, 2 ) );
+        // physical materials (looks) read best through a filmic curve
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
         el.appendChild( renderer.domElement );
         const css = new CSS2DRenderer();
         css.domElement.className = "labels";
@@ -473,7 +487,8 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
     useEffect( () => {
         const t = three.current;
         if (!t || shelfMode || !result?.ok || !result.pos) return;
-        t.mesh.geometry.dispose(); t.mesh.geometry = toGeometry( result );
+        drop( t.mesh.geometry ); t.mesh.geometry = toGeometry( result );
+        t.mesh.material = dress( t.mesh.geometry, result.looks, t.material, plainLook() );
         if (fitAt > 0 && result.seq >= fitAt) { fitAt = 0; t.fit( t.mesh, false ); }
         t.render();
     }, [result, shelfMode] );
@@ -487,12 +502,13 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
         for (const [name, p] of parts) {
             const m = have.get( name );
             if (m != null && m.userData.part === p) continue;
-            if (m != null) { m.geometry.dispose(); t.shelf.remove( m ); }
-            const mesh = new THREE.Mesh( toGeometry( p ), t.material );
+            if (m != null) { drop( m.geometry ); t.shelf.remove( m ); }
+            const g = toGeometry( p );
+            const mesh = new THREE.Mesh( g, dress( g, p.looks, t.material, plainLook() ) );
             mesh.name = name; mesh.userData.part = p;
             t.shelf.add( mesh );
         }
-        for (const [name, m] of have) if (!parts.has( name )) { m.geometry.dispose(); t.shelf.remove( m ); }
+        for (const [name, m] of have) if (!parts.has( name )) { drop( m.geometry ); t.shelf.remove( m ); }
         const boxes : { [name : string] : Box } = {};
         for (const c of t.shelf.children) {
             const b = (c as THREE.Mesh).geometry.boundingBox!;
@@ -508,6 +524,8 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
             div.textContent = text;
             if (note) { const s = document.createElement( "small" ); s.textContent = note; div.appendChild( s ); }
             const o = new CSS2DObject( div );
+            // a row's label ends at its anchor, left of the first column, so it covers no piece
+            if (cls == "row") o.center.set( 1, 0.5 );
             o.position.set( x, 0, z );
             t.labels.add( o );
         };
@@ -523,7 +541,7 @@ function Viewport( { result, parts, shelfMode, onHover } : { result : Result | n
 
 // ---------------------------------------------------------------- palette
 const CATEGORIES : Array<[string, string]> = [["parameter", "Parameters"], ["math", "Math"], ["freeform", "Freeform"], ["primitive", "Primitives"], ["transform", "Transforms"],
-    ["boolean", "Booleans"], ["logic", "Switches"], ["finish", "Finishing"]];
+    ["boolean", "Booleans"], ["logic", "Switches"], ["finish", "Finishing"], ["look", "Looks"]];
 
 function Palette( { add, remove } : { add : ( type : string, use? : string ) => void, remove : ( name : string ) => void } ) {
     const [q, setQ] = useState( "" );

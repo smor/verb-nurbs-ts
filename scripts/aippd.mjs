@@ -9,6 +9,7 @@
 // holds its documented capacity (within CAPACITY_TOLERANCE) becomes a `freeform/vessel` node, its documentation and
 // source in `meta.items`, its place in a period × form grid in `view.shelf`. Run after `npm run build`.
 import { readFileSync, writeFileSync } from "node:fs";
+import { dress } from "./ceramic-looks.mjs";
 import { execFileSync } from "node:child_process";
 import { profile } from "./aippd-profile.mjs";
 
@@ -123,5 +124,5 @@ const doc = {
         },
     },
 };
-writeFileSync( out, JSON.stringify( doc, null, 1 ) + "\n" );
+writeFileSync( out, JSON.stringify( dress( doc ), null, 1 ) + "\n" );
 console.log( `wrote ${out}: ${built} vessels` );

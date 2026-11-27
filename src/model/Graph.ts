@@ -47,7 +47,7 @@ export type GraphPort =
 /** A node type: its ports, and how it compiles into model parameters or features. */
 export interface GraphNodeType {
     title : string;
-    category : "parameter" | "math" | "primitive" | "freeform" | "transform" | "boolean" | "finish" | "logic" | "component";
+    category : "parameter" | "math" | "primitive" | "freeform" | "transform" | "boolean" | "finish" | "logic" | "look" | "component";
     help : string;
     inputs : { [port : string] : GraphPort };
     outputs : { [port : string] : GraphWire };
@@ -117,7 +117,26 @@ export interface GraphMesh {
 // A document compiled whole: every parameter and feature, the feature each output names, and the node type of each
 // feature (an instance's features under their prefixed ids).
 interface Compiled { parameters : { [name : string] : ModelValue }, features : { [id : string] : ModelFeature }, outputs : { [name : string] : string },
-                     types : { [feature : string] : string } }
+                     types : { [feature : string] : string }, looks : Array<GraphLook>, via : { [look : string] : string } }
+
+/** How a solid looks, set by a `look/*` node: it changes nothing that is built (docs/visual-programming.md, "Looks"). */
+export interface GraphLook {
+    // the node (a path through instances: "plate/glaze"), its kind, and the feature whose faces it covers
+    id : string;
+    kind : "material" | "band" | "motif";
+    of : string;
+    // how many looks it is applied over on the same wire (a band over a material: 1), so it comes after them
+    depth : number;
+    // its inputs: numbers or expressions over the parameters, colours as "#rrggbb", a motif's name
+    values : { [k : string] : ModelValue };
+}
+/** A look as evaluated: its values as numbers (colours and names as they are), and the faces of the result it covers. */
+export interface GraphLookResult {
+    id : string;
+    kind : GraphLook["kind"];
+    values : { [k : string] : number | string };
+    faces : Array<number>;
+}
 
 // Where a graph failed: the node (a path of ids through component instances: "crank1/disc"), its type and the port, or
 // the output, when the failure is theirs.
@@ -160,6 +179,9 @@ export interface GraphResult extends ModelResult {
     nodes : { [id : string] : "built" | "cached" | "parameter" | "unused" | "on" | "off" };
     // the export mesh, when `mesh` was asked for
     export? : GraphMesh;
+    // the looks reaching the output, innermost first (a later one covers an earlier one's faces): a material per
+    // face, and paint over it (docs/visual-programming.md, "Looks")
+    looks? : Array<GraphLookResult>;
 }
 
 // the top-level keys of a graph document
@@ -221,7 +243,7 @@ export class Graph {
             for (const [id, f] of Object.entries( r.features )) nodes[id] = f.built ? "built" : "cached";
             return this.withMesh( { ...r, model : doc, output : doc.output, nodes : nodes }, options );
         }
-        const { model, types } = Graph.compileTyped( doc, options );
+        const { model, types, looks } = Graph.compileTyped( doc, options );
         const r = Graph.build( () => this.model.evaluate( model ), types );
         const nodes : GraphResult["nodes"] = {};
         for (const id of Object.keys( doc.nodes )) {
@@ -237,7 +259,8 @@ export class Graph {
             if (doc.nodes[id].type == "logic/switch" && r.chosen?.[id] != null) { nodes[id] = r.chosen[id] ? "on" : "off"; continue; }
             nodes[id] = Graph.isNumber( t ) ? "parameter" : f == null ? "unused" : f.built ? "built" : "cached";
         }
-        return this.withMesh( { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes }, options );
+        const looked = looks.length == 0 ? {} : { looks : Graph.looksOf( looks, model, r.faceNames, r.parameters ) };
+        return this.withMesh( { ...r, model : model, output : options.output ?? Object.keys( doc.outputs )[0], nodes : nodes, ...looked }, options );
     }
 
     /**
@@ -314,14 +337,14 @@ export class Graph {
     }
 
     // `compile`, with each feature's node type.
-    private static compileTyped( doc : GraphDocument, options : GraphOptions ) : { model : ModelDocument, types : { [feature : string] : string } } {
+    private static compileTyped( doc : GraphDocument, options : GraphOptions ) : { model : ModelDocument, types : { [feature : string] : string }, looks : Array<GraphLook> } {
         const c = Graph.compileAll( doc, options, [], doc.components ?? {} );
         const names = Object.keys( doc.outputs );
         const want = options.output ?? names[0];
         let output : string;
         if (want.startsWith( "@" )) {
             const m = REF.exec( want.trim() );
-            const f = m == null ? null : m[2] == null ? m[1] : c.features[m[1] + "/" + (c.outputs[`${m[1]}.${m[2]}`] ?? "")] != null ? m[1] + "/" + c.outputs[`${m[1]}.${m[2]}`] : null;
+            const f = m == null ? null : m[2] == null ? c.via[m[1]] ?? m[1] : c.features[m[1] + "/" + (c.outputs[`${m[1]}.${m[2]}`] ?? "")] != null ? m[1] + "/" + c.outputs[`${m[1]}.${m[2]}`] : null;
             if (f == null || c.features[f] == null) throw new GraphError( `Graph: the output "${want}" is ${JSON.stringify( want )}, not a reference to a solid node`, "document", { output : want } );
             output = f;
         } else {
@@ -330,7 +353,41 @@ export class Graph {
         }
         const model : ModelDocument = { version : 1, parameters : c.parameters, features : c.features, output : output };
         if (doc.machine != null) model.machine = doc.machine;
-        return { model : model, types : c.types };
+        return { model : model, types : c.types, looks : c.looks };
+    }
+
+    /**
+     * The looks that reach a model's output, with their values at the parameters' values and the faces they cover: a
+     * face is a look's when it comes from a feature upstream of the look's solid (its name's path ends at one: "b.tube",
+     * "bm/b.tube", "inst/b.side"). Innermost first: a look over fewer features comes before one over more, so a look
+     * applied later in the graph covers an earlier one.
+     */
+    private static looksOf( looks : Array<GraphLook>, model : ModelDocument, faceNames : Array<string>, params : { [name : string] : number } ) : Array<GraphLookResult> {
+        const inputs = ( f : ModelFeature ) : Array<string> => {
+            const x = f as { of? : string | Array<string>, from? : string, minus? : Array<string>, then? : string, else? : string };
+            return ([] as Array<string | undefined>).concat( x.of ?? [], x.from ?? [], x.minus ?? [], x.then, x.else ).filter( (v) : v is string => typeof v == "string" );
+        };
+        const memo = new Map<string, Set<string>>();
+        const upstream = ( id : string ) : Set<string> => {
+            const known = memo.get( id );
+            if (known != null) return known;
+            const out = new Set<string>( [id] );
+            memo.set( id, out );
+            const f = model.features[id];
+            if (f != null) for (const i of inputs( f )) for (const u of upstream( i )) out.add( u );
+            return out;
+        };
+        const reach = upstream( model.output );
+        // each face's path: the feature ids before its name's first "." (inside "round(" and the like, the first name)
+        const paths = faceNames.map( n => { const m = /[A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)*(?=\.)/.exec( n ); return m ? m[0] : ""; } );
+        const num = ( v : ModelValue ) => typeof v == "number" ? v : Expr.evaluate( v, params );
+        return looks.filter( l => reach.has( l.of ) ).map( l => ({ l, up : upstream( l.of ) }) ).sort( (a, b) => a.up.size - b.up.size || a.l.depth - b.l.depth ).map( ({ l, up }) => {
+            const faces : Array<number> = [];
+            paths.forEach( ( p, i ) => { for (const u of up) if (p == u || p.endsWith( "/" + u )) { faces.push( i ); return; } } );
+            const values : { [k : string] : number | string } = {};
+            for (const [k, v] of Object.entries( l.values )) values[k] = typeof v == "string" && (/^#/.test( v ) || /^[a-z]+$/.test( v ) && l.kind == "motif" && k == "motif") ? v : num( v );
+            return { id : l.id, kind : l.kind, values : values, faces : faces };
+        } );
     }
 
     /**
@@ -410,6 +467,8 @@ export class Graph {
                 numbers.add( id );
             }
         }
+        // the looks wired through, while one wire is followed (a cycle of looks is refused)
+        const seen = new Set<string>();
         // "@id" or "@id.port", checked against the node's outputs and the wire's kind
         const wire = ( id : string, k : string, v : string, want : GraphWire ) : string => {
             here( { node : id, type : nodes[id].type, port : k } );
@@ -421,6 +480,14 @@ export class Graph {
             const port = m[2] ?? Object.keys( outs )[0];
             if (outs[port] == null) throw new Error( `Graph: "${id}.${k}" refers to "${m[1]}.${port}", which is not an output` );
             if (outs[port] != want) throw new Error( `Graph: "${id}.${k}" takes a ${want}, but "${m[1]}.${port}" is a ${outs[port]}` );
+            // a look passes its solid through
+            if (src.type.startsWith( "look/" )) {
+                const of = src.in?.of;
+                if (typeof of != "string" || of.trim() == "") throw new Error( `Graph: "${id}.${k}" goes through "${m[1]}", which is given no solid` );
+                if (seen.has( m[1] )) throw new Error( `Graph: "${m[1]}" goes through itself` );
+                seen.add( m[1] );
+                try { return wire( m[1], "of", of, want ); } finally { seen.delete( m[1] ); }
+            }
             // an instance's output is a feature inside it
             return inner[m[1]] != null ? m[1] + "/" + inner[m[1]].compiled.outputs[port] : m[1];
         };
@@ -547,6 +614,7 @@ export class Graph {
 
         const parameters : { [name : string] : ModelValue } = {};
         const features : { [id : string] : ModelFeature } = {};
+        const looks : Array<GraphLook> = [], via : { [look : string] : string } = {};
         for (const [id, n] of Object.entries( nodes )) {
             here( { node : id, type : n.type } );
             const t = types[id];
@@ -562,10 +630,28 @@ export class Graph {
                     parameters[own( name )] = n.in?.[name] != null ? number( id, name ) : rename.value( v );
                 }
                 for (const [fid, f] of Object.entries( c.features )) features[id + "/" + fid] = rename.feature( f );
+                for (const l of c.looks) looks.push( { id : id + "/" + l.id, kind : l.kind, of : id + "/" + l.of, depth : l.depth,
+                    values : Object.fromEntries( Object.entries( l.values ).map( ([k, v]) => [k, typeof v == "string" && /^#|^[a-z]+$/.test( v ) ? v : rename.value( v )] ) ) } );
                 continue;
             }
             const asNum = at;
             if (n.type == "number") { parameters[id] = asNum( "value" ); continue; }
+            if (n.type.startsWith( "look/" )) {
+                // a look: no feature; the solid it is given passes through it (`wire`), and it covers that solid's faces
+                const values : { [k : string] : ModelValue } = {};
+                for (const [k, p] of Object.entries( t.inputs )) {
+                    if (p.kind == "solid") continue;
+                    const v = at( k );
+                    if (k == "color" && !/^#[0-9a-fA-F]{6}$/.test( String( v ) )) throw new Error( `Graph: "${id}.color" must be a colour "#rrggbb", not "${String( v )}"` );
+                    values[k] = v;
+                }
+                let depth = 0;
+                for (let k = REF.exec( String( n.in?.of ?? "" ).trim() ); k != null && nodes[k[1]]?.type.startsWith( "look/" ); k = REF.exec( String( nodes[k[1]].in?.of ?? "" ).trim() ))
+                    if (++depth > 1000) break;
+                looks.push( { id : id, kind : n.type.slice( 5 ) as GraphLook["kind"], of : at( "of" ) as string, depth : depth, values : values } );
+                via[id] = at( "of" ) as string;
+                continue;
+            }
             if (n.type == "expression") {
                 const text = String( at( "expr" ) );
                 for (const name of Expr.names( text ))
@@ -676,6 +762,7 @@ export class Graph {
             here( { output : name } );
             const m = typeof ref == "string" ? REF.exec( ref.trim() ) : null;
             const sub = m == null ? null : inner[m[1]];
+            if (m != null && m[2] == null && via[m[1]] != null) return via[m[1]];
             const f = m == null ? null : sub != null ? (m[2] != null && sub.compiled.outputs[m[2]] != null ? m[1] + "/" + sub.compiled.outputs[m[2]] : null)
                 : m[2] == null || types[m[1]]?.outputs[m[2]] == "solid" ? m[1] : null;
             if (f == null || features[f] == null) throw new Error( `Graph: the output "${name}" is ${JSON.stringify( ref )}, not a reference to a solid node` );
@@ -701,7 +788,7 @@ export class Graph {
             const slash = fid.indexOf( "/" ), owner = slash < 0 ? fid : fid.slice( 0, slash );
             typeOf[fid] = inner[owner] != null ? inner[owner].compiled.types[fid.slice( slash + 1 )] : nodes[owner].type;
         }
-        return { parameters : parameters, features : features, outputs : resolved, types : typeOf };
+        return { parameters : parameters, features : features, outputs : resolved, types : typeOf, looks : looks, via : via };
     }
 
     /**
@@ -908,6 +995,21 @@ export class Graph {
             help : "One solid or another, or nothing, as a number is on (not 0) or off (0): a part to include or not, holes to cut or not. Nothing drops out of a union and out of a difference's cutters",
             inputs : { on : { kind : "number", label : "on", value : 1, min : 0, max : 1, step : 1, integer : true },
                 on_solid : { kind : "solid", label : "when on", optional : true }, off_solid : { kind : "solid", label : "when off", optional : true } },
+            outputs : { solid : "solid" } };
+        // looks: what the solid is made of and how it is painted; nothing built changes (glTF's metallic-roughness)
+        const frac = ( label : string, value : number ) : GraphPort => ({ kind : "number", label : label, value : value, min : 0, max : 1, step : 0.01 });
+        const colour = ( value : string ) : GraphPort => ({ kind : "text", label : "colour", value : value });
+        r["look/material"] = { title : "Material", category : "look",
+            help : "What the solid looks made of: a base colour, how rough (0 polished to 1 matt) and how metallic it is, a clear glossy coat over it (a glaze), and grain (the speckle of a coarse clay). Changes nothing that is built",
+            inputs : { of : { kind : "solid", label : "solid" }, color : colour( "#b5653a" ), roughness : frac( "roughness", 0.85 ), metalness : frac( "metalness", 0 ),
+                clearcoat : frac( "glaze", 0 ), grain : frac( "grain", 0.3 ) }, outputs : { solid : "solid" } };
+        r["look/band"] = { title : "Painted band", category : "look",
+            help : "A band of paint round the solid, between two heights given as fractions of its own height (0 the foot, 1 the top)",
+            inputs : { of : { kind : "solid", label : "solid" }, color : colour( "#1c1613" ), from : frac( "from", 0.45 ), to : frac( "to", 0.5 ) }, outputs : { solid : "solid" } };
+        r["look/motif"] = { title : "Painted motif", category : "look",
+            help : "A frieze painted round the solid between two heights (fractions of its height): a meander, waves, a zigzag, dots, rays or a chequer, repeated `count` times round",
+            inputs : { of : { kind : "solid", label : "solid" }, motif : { kind : "choice", label : "motif", value : "meander", options : ["meander", "wave", "zigzag", "dots", "rays", "checker"] },
+                color : colour( "#1c1613" ), from : frac( "from", 0.55 ), to : frac( "to", 0.65 ), count : { kind : "number", label : "repeats", value : 12, min : 1, max : 60, step : 1, integer : true } },
             outputs : { solid : "solid" } };
         r["finish/round"] = { title : "Round edges", category : "finish", help : "Fillets or chamfers on the edges named by patterns, comma separated: box.*|box.*",
             inputs : { ...of, radius : num( "radius", 2, 0.1, 20, 0.1, "mm" ), edges : { kind : "text", label : "edges", value : "*" },

@@ -8,6 +8,8 @@ import type { GraphDocument, GraphResult } from "../src/index.js";
 import { analysis, view as viewOf, printStl } from "./meshes.js";
 
 const graph = new Graph();
+// the looks of a result, each with the names of the faces it covers (a mesh's faces are named, in any order)
+const looksOf = ( r : GraphResult ) => r.looks?.map( l => ({ ...l, faces : l.faces.map( i => r.faceNames[i] ) }) );
 let latest = 0;
 
 const post = ( msg : object, transfer : Array<ArrayBuffer> = [] ) => (self as unknown as Worker).postMessage( msg, transfer );
@@ -32,7 +34,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
         catch (err) { post( { seq, ok : false, error : (err as Error).message, ms : performance.now() - t } ); return; }
         const a = analysis( r );
         post( { seq, ok : true, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, ms : performance.now() - t, volume : r.result.report.volume,
-            faces : r.faceNames.length, verdict : { kind : r.verdict.kind, reasons : r.verdict.reasons }, nodes : r.nodes, model : r.model, params : r.parameters }, a.transfer );
+            faces : r.faceNames.length, verdict : { kind : r.verdict.kind, reasons : r.verdict.reasons }, nodes : r.nodes, model : r.model, params : r.parameters, looks : looksOf( r ) }, a.transfer );
         if (await superseded( seq )) return;
         const v = viewOf( graph, r );
         if (v != null) post( { seq, refine : true, pos : v.pos, idx : v.idx, face : v.face, names : v.names, normal : v.normal, deviation : v.deviation }, v.transfer );
@@ -53,7 +55,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
             params = { ...params, ...r.parameters };
             if (r.verdict.kind == "buildable") buildable++;
             built.push( [name, r] );
-            post( { seq, part : name, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, verdict : r.verdict.kind }, a.transfer );
+            post( { seq, part : name, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, verdict : r.verdict.kind, looks : looksOf( r ) }, a.transfer );
         } catch (err) {
             // an output switched off is left off the shelf, not a failure
             if (/is switched off/.test( (err as Error).message )) off.push( name ); else failed.push( `${name}: ${(err as Error).message}` );
@@ -66,6 +68,6 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
     for (const [name, r] of built) {
         if (await superseded( seq )) return;
         const v = viewOf( graph, r );
-        if (v != null) post( { seq, part : name, refine : true, pos : v.pos, idx : v.idx, face : v.face, names : v.names, normal : v.normal, verdict : r.verdict.kind }, v.transfer );
+        if (v != null) post( { seq, part : name, refine : true, pos : v.pos, idx : v.idx, face : v.face, names : v.names, normal : v.normal, verdict : r.verdict.kind, looks : looksOf( r ) }, v.transfer );
     }
 };

@@ -446,6 +446,28 @@ Graph.compile( doc );         // the version 1 model document it runs
   switch, and a number node with `view.params[id].kind: "toggle"` shows as one in the Customize panel. On the
   shelf, an output switched off is left out, not reported as a failure. The sample "Wall bracket, with options"
   switches a front lip, a cable notch, and screw holes in the base and in the wall (one component used twice).
+* **Looks** (`look/*`, #137): what a solid is made of and how it is painted, after glTF's metallic-roughness
+  materials. They change nothing that is built: a look passes its solid through, adds no feature, and leaves the model
+  document, its hash and the cache as they were. The result (`GraphResult.looks`) lists each look that reaches the
+  output, with its values at the parameters' values and the faces it covers: those that come from features upstream
+  of its solid. A cutter's look so colours the faces it cuts, and a component's looks follow each instance. Innermost
+  first, so a look applied later covers an earlier one, and on one wire a band comes after the material it is
+  painted over.
+  * **Material**: a base colour (`"#rrggbb"`), roughness (0 polished to 1 matt), metalness, a clear glossy coat (a
+    glaze) and grain (a coarse clay's speckle, in colour and roughness). The node offers presets: terracotta,
+    impasto, black gloss, red slip, white slip, glaze, bronze.
+  * **Painted band** and **Painted motif**: paint between two heights given as fractions of the solid's own height (0
+    the foot, 1 the top), round its vertical axis. A motif is a meander, waves, a zigzag, dots, rays or a chequer,
+    repeated `count` times round.
+  * The 3D view (`editor/looks.ts`) groups each mesh's triangles by what they wear, gives each group a physical
+    material, and draws paint and grain in its shader, in the solid's own coordinates (its angle round the axis, its
+    height). The view is tone-mapped (ACES filmic). The pottery collection is dressed by
+    `scripts/ceramic-looks.mjs`: a material for each vessel's ware as AIPPD records it (impasto, fine clay,
+    bucchero), varied a little as firing varies it, and paint after its period's styles (white-filled incised
+    friezes on Early Iron Age impasto, bands and rays on fine wheelmade ware). AIPPD's profiles were drawn without
+    their decoration, so the decoration illustrates the period, not the vessel.
+  * Not yet: depth (a normal map for incised and stamped decoration, displacement for embossing), image textures,
+    and glTF export with the materials.
 * **Undo and redo** (`editor/history.ts`): a snapshot of the graph document after each edit, so an undone document is
   byte for byte the earlier one, and the evaluator's cache rebuilds nothing for it. Everything one action does (a
   node deleted with its wires) is one step, a slider drag is one step while it keeps moving (`COALESCE_MS`), moving

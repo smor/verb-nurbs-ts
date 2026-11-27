@@ -2,7 +2,7 @@
  "version": 2,
  "meta": {
   "name": "Pottery of ancient Italy, one vessel of each form per period",
-  "description": "Vessels of continental Italy from the Early Bronze Age to the Archaic period (2300–480 BC), each turned from its drawn section at its real size. Handles and decoration are not in the data: the profiles were drawn without them.",
+  "description": "Vessels of continental Italy from the Early Bronze Age to the Archaic period (2300–480 BC), each turned from its drawn section at its real size. Handles and decoration are not in the data: the profiles were drawn without them. Materials follow each vessel's ware as AIPPD records it; the decoration illustrates its period's styles, not the vessel's own.",
   "source": "AIPPD, Ancient Italy Pottery Profiles Dataset v0.1 (Cardarelli 2024, Appendix A), doi:10.5281/zenodo.24249544, Apache License 2.0",
   "book": "Cardarelli, L. 2024. Morphological variability and standardisation of vessel shapes in the 2nd and first half of the 1st millennium BC in continental Italy. Adrias 18. Bari: Edipuglia. doi:10.4475/0840",
   "items": {
@@ -2198,82 +2198,1601 @@
     "cavity": "3.7 6.5; 18 9.7; 27.2 12.8; 36.1 16.2; 42.5 19.2; 49 22.3; 53.1 25.4; 56.8 28.4; 63.3 31.8; 66 34.9; 71.1 38; 73.9 41; 76.2 44.1; 77.6 47.1; 79 50.5; 79 53.6; 77.6 56.7; 77.6 59.7; 77.6 62.8; 76.2 66.2; 76.2 69.3; 76.2 75.5",
     "foot": ""
    }
+  },
+  "EBA_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_cup",
+    "color": "#3c312d",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_bowl",
+    "color": "#5e4029",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_mug",
+    "color": "#634227",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_jug",
+    "color": "#302621",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_jar",
+    "color": "#2c2421",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_necked_jar",
+    "color": "#2f2827",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "EBA_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EBA_amphora",
+    "color": "#5b3c23",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_cup",
+    "color": "#372c26",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_bowl",
+    "color": "#372d2a",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_mug",
+    "color": "#3a3130",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_jug",
+    "color": "#583c27",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_jar",
+    "color": "#583e2b",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_necked_jar",
+    "color": "#614025",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_amphora",
+    "color": "#322721",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "MBA_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@MBA_lid",
+    "color": "#332b2b",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_cup",
+    "color": "#372a23",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_bowl",
+    "color": "#3f322d",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_footed_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_footed_cup",
+    "color": "#d1a87f",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "RBA_footed_cup_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_footed_cup_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "RBA_footed_cup_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_footed_cup_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "RBA_footed_cup_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_footed_cup_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "RBA_footed_cup_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@RBA_footed_cup_paint3",
+    "motif": "wave",
+    "color": "#7a3520",
+    "from": 0.64,
+    "to": 0.74,
+    "count": 10
+   }
+  },
+  "RBA_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_mug",
+    "color": "#423229",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_mug_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_mug_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "RBA_mug_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_mug_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "RBA_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_jug",
+    "color": "#644125",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_jug_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_jug_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "RBA_jug_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_jug_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "RBA_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_jar",
+    "color": "#392c24",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_jar_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_jar_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "RBA_jar_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_jar_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "RBA_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_necked_jar",
+    "color": "#332823",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_necked_jar_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_necked_jar_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "RBA_necked_jar_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_necked_jar_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "RBA_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@RBA_amphora",
+    "color": "#664730",
+    "roughness": 0.9,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.6
+   }
+  },
+  "RBA_amphora_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_amphora_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "RBA_amphora_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@RBA_amphora_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_cup",
+    "color": "#64452d",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_bowl",
+    "color": "#433329",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_mug",
+    "color": "#5f432e",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_mug_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_mug_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "FBA_mug_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_mug_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_jug",
+    "color": "#3b2f2a",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_jug_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_jug_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "FBA_jug_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_jug_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_jar",
+    "color": "#3a2f2a",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_jar_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_jar_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "FBA_jar_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_jar_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_necked_jar",
+    "color": "#6c492e",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_necked_jar_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_necked_jar_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "FBA_necked_jar_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_necked_jar_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_amphora",
+    "color": "#342b27",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "FBA_amphora_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_amphora_ware",
+    "color": "#2a201a",
+    "from": 0.62,
+    "to": 0.64
+   }
+  },
+  "FBA_amphora_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@FBA_amphora_paint1",
+    "color": "#2a201a",
+    "from": 0.66,
+    "to": 0.68
+   }
+  },
+  "FBA_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@FBA_lid",
+    "color": "#2e2522",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_cup",
+    "color": "#332b29",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_cup_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_cup_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA1_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_bowl",
+    "color": "#5b3e29",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_bowl_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_bowl_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA1_footed_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_footed_cup",
+    "color": "#2e2624",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_footed_cup_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_footed_cup_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA1_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_mug",
+    "color": "#734d2f",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_mug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_mug_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA1_mug_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_mug_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA1_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_jug",
+    "color": "#362a24",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_jug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_jug_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA1_jug_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_jug_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA1_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_jar",
+    "color": "#342b28",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_jar_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_jar_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA1_jar_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_jar_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA1_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_necked_jar",
+    "color": "#3f3026",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_necked_jar_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_necked_jar_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA1_necked_jar_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_necked_jar_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA1_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_amphora",
+    "color": "#3f312a",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_amphora_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_amphora_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA1_amphora_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_amphora_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA1_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA1_lid",
+    "color": "#694529",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA1_lid_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA1_lid_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA2_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_cup",
+    "color": "#2b2627",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_cup_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_cup_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA2_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_bowl",
+    "color": "#674832",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_bowl_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_bowl_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA2_footed_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_footed_cup",
+    "color": "#cba47d",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "EIA2_footed_cup_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_footed_cup_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "EIA2_footed_cup_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_footed_cup_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "EIA2_footed_cup_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_footed_cup_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "EIA2_footed_cup_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_footed_cup_paint3",
+    "motif": "wave",
+    "color": "#7a3520",
+    "from": 0.64,
+    "to": 0.74,
+    "count": 10
+   }
+  },
+  "EIA2_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_mug",
+    "color": "#5f4027",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_mug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_mug_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA2_mug_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_mug_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA2_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_jug",
+    "color": "#2c2422",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_jug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_jug_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA2_jug_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_jug_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA2_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_jar",
+    "color": "#c29e79",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "EIA2_jar_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_jar_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "EIA2_jar_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_jar_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "EIA2_jar_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_jar_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "EIA2_jar_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_jar_paint3",
+    "motif": "wave",
+    "color": "#7a3520",
+    "from": 0.64,
+    "to": 0.74,
+    "count": 10
+   }
+  },
+  "EIA2_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_necked_jar",
+    "color": "#684831",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_necked_jar_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_necked_jar_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA2_necked_jar_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_necked_jar_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA2_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_amphora",
+    "color": "#60432e",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_amphora_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_amphora_ware",
+    "motif": "meander",
+    "color": "#cfc4ae",
+    "from": 0.58,
+    "to": 0.7,
+    "count": 14
+   }
+  },
+  "EIA2_amphora_paint2": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_amphora_paint1",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.44,
+    "to": 0.5,
+    "count": 24
+   }
+  },
+  "EIA2_krater_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_krater",
+    "color": "#deb58d",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "EIA2_krater_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_krater_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "EIA2_krater_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_krater_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "EIA2_krater_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@EIA2_krater_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "EIA2_krater_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_krater_paint3",
+    "motif": "wave",
+    "color": "#7a3520",
+    "from": 0.64,
+    "to": 0.74,
+    "count": 10
+   }
+  },
+  "EIA2_kothon_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_kothon",
+    "color": "#3b2d25",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_kothon_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_kothon_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "EIA2_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@EIA2_lid",
+    "color": "#57391f",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "EIA2_lid_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@EIA2_lid_ware",
+    "motif": "zigzag",
+    "color": "#cfc4ae",
+    "from": 0.72,
+    "to": 0.84,
+    "count": 18
+   }
+  },
+  "OP_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_cup",
+    "color": "#382b22",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_bowl",
+    "color": "#543a24",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_footed_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_footed_cup",
+    "color": "#65462f",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_mug",
+    "color": "#523722",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_jug",
+    "color": "#101012",
+    "roughness": 0.28,
+    "metalness": 0,
+    "clearcoat": 0.3,
+    "grain": 0.04
+   }
+  },
+  "OP_jug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@OP_jug_ware",
+    "motif": "dots",
+    "color": "#2b2420",
+    "from": 0.6,
+    "to": 0.66,
+    "count": 30
+   }
+  },
+  "OP_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_jar",
+    "color": "#5a3e29",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_necked_jar",
+    "color": "#3e332f",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_amphora",
+    "color": "#60422b",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_krater_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_krater",
+    "color": "#4f3623",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "OP_kothon_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_kothon",
+    "color": "#bc693e",
+    "roughness": 0.85,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.35
+   }
+  },
+  "OP_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@OP_lid",
+    "color": "#332b2a",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "AP_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_cup",
+    "color": "#45352e",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "AP_bowl_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_bowl",
+    "color": "#cea67e",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "AP_bowl_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_bowl_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "AP_bowl_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_bowl_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "AP_bowl_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_bowl_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "AP_bowl_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@AP_bowl_paint3",
+    "motif": "rays",
+    "color": "#7a3520",
+    "from": 0.06,
+    "to": 0.3,
+    "count": 16
+   }
+  },
+  "AP_footed_cup_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_footed_cup",
+    "color": "#1d150d",
+    "roughness": 0.28,
+    "metalness": 0,
+    "clearcoat": 0.3,
+    "grain": 0.04
+   }
+  },
+  "AP_mug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_mug",
+    "color": "#614228",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "AP_jug_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_jug",
+    "color": "#0f0f11",
+    "roughness": 0.28,
+    "metalness": 0,
+    "clearcoat": 0.3,
+    "grain": 0.04
+   }
+  },
+  "AP_jug_paint1": {
+   "type": "look/motif",
+   "in": {
+    "of": "@AP_jug_ware",
+    "motif": "dots",
+    "color": "#2b2420",
+    "from": 0.6,
+    "to": 0.66,
+    "count": 30
+   }
+  },
+  "AP_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_jar",
+    "color": "#c9703f",
+    "roughness": 0.85,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.35
+   }
+  },
+  "AP_necked_jar_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_necked_jar",
+    "color": "#3a2e29",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "AP_amphora_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_amphora",
+    "color": "#c56d3c",
+    "roughness": 0.85,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.35
+   }
+  },
+  "AP_krater_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_krater",
+    "color": "#d6ab80",
+    "roughness": 0.8,
+    "metalness": 0,
+    "clearcoat": 0,
+    "grain": 0.15
+   }
+  },
+  "AP_krater_paint1": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_krater_ware",
+    "color": "#7a3520",
+    "from": 0.86,
+    "to": 1
+   }
+  },
+  "AP_krater_paint2": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_krater_paint1",
+    "color": "#7a3520",
+    "from": 0.5,
+    "to": 0.53
+   }
+  },
+  "AP_krater_paint3": {
+   "type": "look/band",
+   "in": {
+    "of": "@AP_krater_paint2",
+    "color": "#7a3520",
+    "from": 0.56,
+    "to": 0.58
+   }
+  },
+  "AP_krater_paint4": {
+   "type": "look/motif",
+   "in": {
+    "of": "@AP_krater_paint3",
+    "motif": "rays",
+    "color": "#7a3520",
+    "from": 0.06,
+    "to": 0.3,
+    "count": 16
+   }
+  },
+  "AP_kothon_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_kothon",
+    "color": "#5d3e26",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
+  },
+  "AP_lid_ware": {
+   "type": "look/material",
+   "in": {
+    "of": "@AP_lid",
+    "color": "#40332b",
+    "roughness": 0.6,
+    "metalness": 0,
+    "clearcoat": 0.08,
+    "grain": 0.35
+   }
   }
  },
  "outputs": {
-  "EBA_cup": "@EBA_cup",
-  "EBA_bowl": "@EBA_bowl",
-  "EBA_mug": "@EBA_mug",
-  "EBA_jug": "@EBA_jug",
-  "EBA_jar": "@EBA_jar",
-  "EBA_necked_jar": "@EBA_necked_jar",
-  "EBA_amphora": "@EBA_amphora",
-  "MBA_cup": "@MBA_cup",
-  "MBA_bowl": "@MBA_bowl",
-  "MBA_mug": "@MBA_mug",
-  "MBA_jug": "@MBA_jug",
-  "MBA_jar": "@MBA_jar",
-  "MBA_necked_jar": "@MBA_necked_jar",
-  "MBA_amphora": "@MBA_amphora",
-  "MBA_lid": "@MBA_lid",
-  "RBA_cup": "@RBA_cup",
-  "RBA_bowl": "@RBA_bowl",
-  "RBA_footed_cup": "@RBA_footed_cup",
-  "RBA_mug": "@RBA_mug",
-  "RBA_jug": "@RBA_jug",
-  "RBA_jar": "@RBA_jar",
-  "RBA_necked_jar": "@RBA_necked_jar",
-  "RBA_amphora": "@RBA_amphora",
-  "FBA_cup": "@FBA_cup",
-  "FBA_bowl": "@FBA_bowl",
-  "FBA_mug": "@FBA_mug",
-  "FBA_jug": "@FBA_jug",
-  "FBA_jar": "@FBA_jar",
-  "FBA_necked_jar": "@FBA_necked_jar",
-  "FBA_amphora": "@FBA_amphora",
-  "FBA_lid": "@FBA_lid",
-  "EIA1_cup": "@EIA1_cup",
-  "EIA1_bowl": "@EIA1_bowl",
-  "EIA1_footed_cup": "@EIA1_footed_cup",
-  "EIA1_mug": "@EIA1_mug",
-  "EIA1_jug": "@EIA1_jug",
-  "EIA1_jar": "@EIA1_jar",
-  "EIA1_necked_jar": "@EIA1_necked_jar",
-  "EIA1_amphora": "@EIA1_amphora",
-  "EIA1_lid": "@EIA1_lid",
-  "EIA2_cup": "@EIA2_cup",
-  "EIA2_bowl": "@EIA2_bowl",
-  "EIA2_footed_cup": "@EIA2_footed_cup",
-  "EIA2_mug": "@EIA2_mug",
-  "EIA2_jug": "@EIA2_jug",
-  "EIA2_jar": "@EIA2_jar",
-  "EIA2_necked_jar": "@EIA2_necked_jar",
-  "EIA2_amphora": "@EIA2_amphora",
-  "EIA2_krater": "@EIA2_krater",
-  "EIA2_kothon": "@EIA2_kothon",
-  "EIA2_lid": "@EIA2_lid",
-  "OP_cup": "@OP_cup",
-  "OP_bowl": "@OP_bowl",
-  "OP_footed_cup": "@OP_footed_cup",
-  "OP_mug": "@OP_mug",
-  "OP_jug": "@OP_jug",
-  "OP_jar": "@OP_jar",
-  "OP_necked_jar": "@OP_necked_jar",
-  "OP_amphora": "@OP_amphora",
-  "OP_krater": "@OP_krater",
-  "OP_kothon": "@OP_kothon",
-  "OP_lid": "@OP_lid",
-  "AP_cup": "@AP_cup",
-  "AP_bowl": "@AP_bowl",
-  "AP_footed_cup": "@AP_footed_cup",
-  "AP_mug": "@AP_mug",
-  "AP_jug": "@AP_jug",
-  "AP_jar": "@AP_jar",
-  "AP_necked_jar": "@AP_necked_jar",
-  "AP_amphora": "@AP_amphora",
-  "AP_krater": "@AP_krater",
-  "AP_kothon": "@AP_kothon",
-  "AP_lid": "@AP_lid"
+  "EBA_cup": "@EBA_cup_ware",
+  "EBA_bowl": "@EBA_bowl_ware",
+  "EBA_mug": "@EBA_mug_ware",
+  "EBA_jug": "@EBA_jug_ware",
+  "EBA_jar": "@EBA_jar_ware",
+  "EBA_necked_jar": "@EBA_necked_jar_ware",
+  "EBA_amphora": "@EBA_amphora_ware",
+  "MBA_cup": "@MBA_cup_ware",
+  "MBA_bowl": "@MBA_bowl_ware",
+  "MBA_mug": "@MBA_mug_ware",
+  "MBA_jug": "@MBA_jug_ware",
+  "MBA_jar": "@MBA_jar_ware",
+  "MBA_necked_jar": "@MBA_necked_jar_ware",
+  "MBA_amphora": "@MBA_amphora_ware",
+  "MBA_lid": "@MBA_lid_ware",
+  "RBA_cup": "@RBA_cup_ware",
+  "RBA_bowl": "@RBA_bowl_ware",
+  "RBA_footed_cup": "@RBA_footed_cup_paint4",
+  "RBA_mug": "@RBA_mug_paint2",
+  "RBA_jug": "@RBA_jug_paint2",
+  "RBA_jar": "@RBA_jar_paint2",
+  "RBA_necked_jar": "@RBA_necked_jar_paint2",
+  "RBA_amphora": "@RBA_amphora_paint2",
+  "FBA_cup": "@FBA_cup_ware",
+  "FBA_bowl": "@FBA_bowl_ware",
+  "FBA_mug": "@FBA_mug_paint2",
+  "FBA_jug": "@FBA_jug_paint2",
+  "FBA_jar": "@FBA_jar_paint2",
+  "FBA_necked_jar": "@FBA_necked_jar_paint2",
+  "FBA_amphora": "@FBA_amphora_paint2",
+  "FBA_lid": "@FBA_lid_ware",
+  "EIA1_cup": "@EIA1_cup_paint1",
+  "EIA1_bowl": "@EIA1_bowl_paint1",
+  "EIA1_footed_cup": "@EIA1_footed_cup_paint1",
+  "EIA1_mug": "@EIA1_mug_paint2",
+  "EIA1_jug": "@EIA1_jug_paint2",
+  "EIA1_jar": "@EIA1_jar_paint2",
+  "EIA1_necked_jar": "@EIA1_necked_jar_paint2",
+  "EIA1_amphora": "@EIA1_amphora_paint2",
+  "EIA1_lid": "@EIA1_lid_paint1",
+  "EIA2_cup": "@EIA2_cup_paint1",
+  "EIA2_bowl": "@EIA2_bowl_paint1",
+  "EIA2_footed_cup": "@EIA2_footed_cup_paint4",
+  "EIA2_mug": "@EIA2_mug_paint2",
+  "EIA2_jug": "@EIA2_jug_paint2",
+  "EIA2_jar": "@EIA2_jar_paint4",
+  "EIA2_necked_jar": "@EIA2_necked_jar_paint2",
+  "EIA2_amphora": "@EIA2_amphora_paint2",
+  "EIA2_krater": "@EIA2_krater_paint4",
+  "EIA2_kothon": "@EIA2_kothon_paint1",
+  "EIA2_lid": "@EIA2_lid_paint1",
+  "OP_cup": "@OP_cup_ware",
+  "OP_bowl": "@OP_bowl_ware",
+  "OP_footed_cup": "@OP_footed_cup_ware",
+  "OP_mug": "@OP_mug_ware",
+  "OP_jug": "@OP_jug_paint1",
+  "OP_jar": "@OP_jar_ware",
+  "OP_necked_jar": "@OP_necked_jar_ware",
+  "OP_amphora": "@OP_amphora_ware",
+  "OP_krater": "@OP_krater_ware",
+  "OP_kothon": "@OP_kothon_ware",
+  "OP_lid": "@OP_lid_ware",
+  "AP_cup": "@AP_cup_ware",
+  "AP_bowl": "@AP_bowl_paint4",
+  "AP_footed_cup": "@AP_footed_cup_ware",
+  "AP_mug": "@AP_mug_ware",
+  "AP_jug": "@AP_jug_paint1",
+  "AP_jar": "@AP_jar_ware",
+  "AP_necked_jar": "@AP_necked_jar_ware",
+  "AP_amphora": "@AP_amphora_ware",
+  "AP_krater": "@AP_krater_paint4",
+  "AP_kothon": "@AP_kothon_ware",
+  "AP_lid": "@AP_lid_ware"
  },
  "view": {
   "nodes": {
@@ -2282,292 +3801,872 @@
     "y": 0
    },
    "EBA_bowl": {
-    "x": 300,
-    "y": 0
-   },
-   "EBA_mug": {
-    "x": 900,
-    "y": 0
-   },
-   "EBA_jug": {
-    "x": 1200,
-    "y": 0
-   },
-   "EBA_jar": {
     "x": 1500,
     "y": 0
    },
+   "EBA_mug": {
+    "x": 4500,
+    "y": 0
+   },
+   "EBA_jug": {
+    "x": 6000,
+    "y": 0
+   },
+   "EBA_jar": {
+    "x": 7500,
+    "y": 0
+   },
    "EBA_necked_jar": {
-    "x": 1800,
+    "x": 9000,
     "y": 0
    },
    "EBA_amphora": {
-    "x": 2100,
+    "x": 10500,
     "y": 0
    },
    "MBA_cup": {
     "x": 0,
-    "y": 200
+    "y": 320
    },
    "MBA_bowl": {
-    "x": 300,
-    "y": 200
+    "x": 1500,
+    "y": 320
    },
    "MBA_mug": {
-    "x": 900,
-    "y": 200
+    "x": 4500,
+    "y": 320
    },
    "MBA_jug": {
-    "x": 1200,
-    "y": 200
+    "x": 6000,
+    "y": 320
    },
    "MBA_jar": {
-    "x": 1500,
-    "y": 200
+    "x": 7500,
+    "y": 320
    },
    "MBA_necked_jar": {
-    "x": 1800,
-    "y": 200
+    "x": 9000,
+    "y": 320
    },
    "MBA_amphora": {
-    "x": 2100,
-    "y": 200
+    "x": 10500,
+    "y": 320
    },
    "MBA_lid": {
-    "x": 3000,
-    "y": 200
+    "x": 15000,
+    "y": 320
    },
    "RBA_cup": {
     "x": 0,
-    "y": 400
+    "y": 640
    },
    "RBA_bowl": {
-    "x": 300,
-    "y": 400
+    "x": 1500,
+    "y": 640
    },
    "RBA_footed_cup": {
-    "x": 600,
-    "y": 400
+    "x": 3000,
+    "y": 640
    },
    "RBA_mug": {
-    "x": 900,
-    "y": 400
+    "x": 4500,
+    "y": 640
    },
    "RBA_jug": {
-    "x": 1200,
-    "y": 400
+    "x": 6000,
+    "y": 640
    },
    "RBA_jar": {
-    "x": 1500,
-    "y": 400
+    "x": 7500,
+    "y": 640
    },
    "RBA_necked_jar": {
-    "x": 1800,
-    "y": 400
+    "x": 9000,
+    "y": 640
    },
    "RBA_amphora": {
-    "x": 2100,
-    "y": 400
+    "x": 10500,
+    "y": 640
    },
    "FBA_cup": {
     "x": 0,
-    "y": 600
+    "y": 960
    },
    "FBA_bowl": {
-    "x": 300,
-    "y": 600
+    "x": 1500,
+    "y": 960
    },
    "FBA_mug": {
-    "x": 900,
-    "y": 600
+    "x": 4500,
+    "y": 960
    },
    "FBA_jug": {
-    "x": 1200,
-    "y": 600
+    "x": 6000,
+    "y": 960
    },
    "FBA_jar": {
-    "x": 1500,
-    "y": 600
+    "x": 7500,
+    "y": 960
    },
    "FBA_necked_jar": {
-    "x": 1800,
-    "y": 600
+    "x": 9000,
+    "y": 960
    },
    "FBA_amphora": {
-    "x": 2100,
-    "y": 600
+    "x": 10500,
+    "y": 960
    },
    "FBA_lid": {
-    "x": 3000,
-    "y": 600
+    "x": 15000,
+    "y": 960
    },
    "EIA1_cup": {
     "x": 0,
-    "y": 800
+    "y": 1280
    },
    "EIA1_bowl": {
-    "x": 300,
-    "y": 800
+    "x": 1500,
+    "y": 1280
    },
    "EIA1_footed_cup": {
-    "x": 600,
-    "y": 800
+    "x": 3000,
+    "y": 1280
    },
    "EIA1_mug": {
-    "x": 900,
-    "y": 800
+    "x": 4500,
+    "y": 1280
    },
    "EIA1_jug": {
-    "x": 1200,
-    "y": 800
+    "x": 6000,
+    "y": 1280
    },
    "EIA1_jar": {
-    "x": 1500,
-    "y": 800
+    "x": 7500,
+    "y": 1280
    },
    "EIA1_necked_jar": {
-    "x": 1800,
-    "y": 800
+    "x": 9000,
+    "y": 1280
    },
    "EIA1_amphora": {
-    "x": 2100,
-    "y": 800
+    "x": 10500,
+    "y": 1280
    },
    "EIA1_lid": {
-    "x": 3000,
-    "y": 800
+    "x": 15000,
+    "y": 1280
    },
    "EIA2_cup": {
     "x": 0,
-    "y": 1000
+    "y": 1600
    },
    "EIA2_bowl": {
-    "x": 300,
-    "y": 1000
+    "x": 1500,
+    "y": 1600
    },
    "EIA2_footed_cup": {
-    "x": 600,
-    "y": 1000
+    "x": 3000,
+    "y": 1600
    },
    "EIA2_mug": {
-    "x": 900,
-    "y": 1000
+    "x": 4500,
+    "y": 1600
    },
    "EIA2_jug": {
-    "x": 1200,
-    "y": 1000
+    "x": 6000,
+    "y": 1600
    },
    "EIA2_jar": {
-    "x": 1500,
-    "y": 1000
+    "x": 7500,
+    "y": 1600
    },
    "EIA2_necked_jar": {
-    "x": 1800,
-    "y": 1000
+    "x": 9000,
+    "y": 1600
    },
    "EIA2_amphora": {
-    "x": 2100,
-    "y": 1000
+    "x": 10500,
+    "y": 1600
    },
    "EIA2_krater": {
-    "x": 2400,
-    "y": 1000
+    "x": 12000,
+    "y": 1600
    },
    "EIA2_kothon": {
-    "x": 2700,
-    "y": 1000
+    "x": 13500,
+    "y": 1600
    },
    "EIA2_lid": {
-    "x": 3000,
-    "y": 1000
+    "x": 15000,
+    "y": 1600
    },
    "OP_cup": {
     "x": 0,
-    "y": 1200
+    "y": 1920
    },
    "OP_bowl": {
-    "x": 300,
-    "y": 1200
+    "x": 1500,
+    "y": 1920
    },
    "OP_footed_cup": {
-    "x": 600,
-    "y": 1200
+    "x": 3000,
+    "y": 1920
    },
    "OP_mug": {
-    "x": 900,
-    "y": 1200
+    "x": 4500,
+    "y": 1920
    },
    "OP_jug": {
-    "x": 1200,
-    "y": 1200
+    "x": 6000,
+    "y": 1920
    },
    "OP_jar": {
-    "x": 1500,
-    "y": 1200
+    "x": 7500,
+    "y": 1920
    },
    "OP_necked_jar": {
-    "x": 1800,
-    "y": 1200
+    "x": 9000,
+    "y": 1920
    },
    "OP_amphora": {
-    "x": 2100,
-    "y": 1200
+    "x": 10500,
+    "y": 1920
    },
    "OP_krater": {
-    "x": 2400,
-    "y": 1200
+    "x": 12000,
+    "y": 1920
    },
    "OP_kothon": {
-    "x": 2700,
-    "y": 1200
+    "x": 13500,
+    "y": 1920
    },
    "OP_lid": {
-    "x": 3000,
-    "y": 1200
+    "x": 15000,
+    "y": 1920
    },
    "AP_cup": {
     "x": 0,
-    "y": 1400
+    "y": 2240
    },
    "AP_bowl": {
-    "x": 300,
-    "y": 1400
+    "x": 1500,
+    "y": 2240
    },
    "AP_footed_cup": {
-    "x": 600,
-    "y": 1400
+    "x": 3000,
+    "y": 2240
    },
    "AP_mug": {
-    "x": 900,
-    "y": 1400
+    "x": 4500,
+    "y": 2240
    },
    "AP_jug": {
-    "x": 1200,
-    "y": 1400
+    "x": 6000,
+    "y": 2240
    },
    "AP_jar": {
-    "x": 1500,
-    "y": 1400
+    "x": 7500,
+    "y": 2240
    },
    "AP_necked_jar": {
-    "x": 1800,
-    "y": 1400
+    "x": 9000,
+    "y": 2240
    },
    "AP_amphora": {
-    "x": 2100,
-    "y": 1400
+    "x": 10500,
+    "y": 2240
    },
    "AP_krater": {
-    "x": 2400,
-    "y": 1400
+    "x": 12000,
+    "y": 2240
    },
    "AP_kothon": {
-    "x": 2700,
-    "y": 1400
+    "x": 13500,
+    "y": 2240
    },
    "AP_lid": {
+    "x": 15000,
+    "y": 2240
+   },
+   "EBA_cup_ware": {
+    "x": 300,
+    "y": 0
+   },
+   "EBA_bowl_ware": {
+    "x": 1800,
+    "y": 0
+   },
+   "EBA_mug_ware": {
+    "x": 4800,
+    "y": 0
+   },
+   "EBA_jug_ware": {
+    "x": 6300,
+    "y": 0
+   },
+   "EBA_jar_ware": {
+    "x": 7800,
+    "y": 0
+   },
+   "EBA_necked_jar_ware": {
+    "x": 9300,
+    "y": 0
+   },
+   "EBA_amphora_ware": {
+    "x": 10800,
+    "y": 0
+   },
+   "MBA_cup_ware": {
+    "x": 300,
+    "y": 320
+   },
+   "MBA_bowl_ware": {
+    "x": 1800,
+    "y": 320
+   },
+   "MBA_mug_ware": {
+    "x": 4800,
+    "y": 320
+   },
+   "MBA_jug_ware": {
+    "x": 6300,
+    "y": 320
+   },
+   "MBA_jar_ware": {
+    "x": 7800,
+    "y": 320
+   },
+   "MBA_necked_jar_ware": {
+    "x": 9300,
+    "y": 320
+   },
+   "MBA_amphora_ware": {
+    "x": 10800,
+    "y": 320
+   },
+   "MBA_lid_ware": {
+    "x": 15300,
+    "y": 320
+   },
+   "RBA_cup_ware": {
+    "x": 300,
+    "y": 640
+   },
+   "RBA_bowl_ware": {
+    "x": 1800,
+    "y": 640
+   },
+   "RBA_footed_cup_ware": {
+    "x": 3300,
+    "y": 640
+   },
+   "RBA_footed_cup_paint1": {
+    "x": 3600,
+    "y": 640
+   },
+   "RBA_footed_cup_paint2": {
+    "x": 3900,
+    "y": 640
+   },
+   "RBA_footed_cup_paint3": {
+    "x": 4200,
+    "y": 640
+   },
+   "RBA_footed_cup_paint4": {
+    "x": 4500,
+    "y": 640
+   },
+   "RBA_mug_ware": {
+    "x": 4800,
+    "y": 640
+   },
+   "RBA_mug_paint1": {
+    "x": 5100,
+    "y": 640
+   },
+   "RBA_mug_paint2": {
+    "x": 5400,
+    "y": 640
+   },
+   "RBA_jug_ware": {
+    "x": 6300,
+    "y": 640
+   },
+   "RBA_jug_paint1": {
+    "x": 6600,
+    "y": 640
+   },
+   "RBA_jug_paint2": {
+    "x": 6900,
+    "y": 640
+   },
+   "RBA_jar_ware": {
+    "x": 7800,
+    "y": 640
+   },
+   "RBA_jar_paint1": {
+    "x": 8100,
+    "y": 640
+   },
+   "RBA_jar_paint2": {
+    "x": 8400,
+    "y": 640
+   },
+   "RBA_necked_jar_ware": {
+    "x": 9300,
+    "y": 640
+   },
+   "RBA_necked_jar_paint1": {
+    "x": 9600,
+    "y": 640
+   },
+   "RBA_necked_jar_paint2": {
+    "x": 9900,
+    "y": 640
+   },
+   "RBA_amphora_ware": {
+    "x": 10800,
+    "y": 640
+   },
+   "RBA_amphora_paint1": {
+    "x": 11100,
+    "y": 640
+   },
+   "RBA_amphora_paint2": {
+    "x": 11400,
+    "y": 640
+   },
+   "FBA_cup_ware": {
+    "x": 300,
+    "y": 960
+   },
+   "FBA_bowl_ware": {
+    "x": 1800,
+    "y": 960
+   },
+   "FBA_mug_ware": {
+    "x": 4800,
+    "y": 960
+   },
+   "FBA_mug_paint1": {
+    "x": 5100,
+    "y": 960
+   },
+   "FBA_mug_paint2": {
+    "x": 5400,
+    "y": 960
+   },
+   "FBA_jug_ware": {
+    "x": 6300,
+    "y": 960
+   },
+   "FBA_jug_paint1": {
+    "x": 6600,
+    "y": 960
+   },
+   "FBA_jug_paint2": {
+    "x": 6900,
+    "y": 960
+   },
+   "FBA_jar_ware": {
+    "x": 7800,
+    "y": 960
+   },
+   "FBA_jar_paint1": {
+    "x": 8100,
+    "y": 960
+   },
+   "FBA_jar_paint2": {
+    "x": 8400,
+    "y": 960
+   },
+   "FBA_necked_jar_ware": {
+    "x": 9300,
+    "y": 960
+   },
+   "FBA_necked_jar_paint1": {
+    "x": 9600,
+    "y": 960
+   },
+   "FBA_necked_jar_paint2": {
+    "x": 9900,
+    "y": 960
+   },
+   "FBA_amphora_ware": {
+    "x": 10800,
+    "y": 960
+   },
+   "FBA_amphora_paint1": {
+    "x": 11100,
+    "y": 960
+   },
+   "FBA_amphora_paint2": {
+    "x": 11400,
+    "y": 960
+   },
+   "FBA_lid_ware": {
+    "x": 15300,
+    "y": 960
+   },
+   "EIA1_cup_ware": {
+    "x": 300,
+    "y": 1280
+   },
+   "EIA1_cup_paint1": {
+    "x": 600,
+    "y": 1280
+   },
+   "EIA1_bowl_ware": {
+    "x": 1800,
+    "y": 1280
+   },
+   "EIA1_bowl_paint1": {
+    "x": 2100,
+    "y": 1280
+   },
+   "EIA1_footed_cup_ware": {
+    "x": 3300,
+    "y": 1280
+   },
+   "EIA1_footed_cup_paint1": {
+    "x": 3600,
+    "y": 1280
+   },
+   "EIA1_mug_ware": {
+    "x": 4800,
+    "y": 1280
+   },
+   "EIA1_mug_paint1": {
+    "x": 5100,
+    "y": 1280
+   },
+   "EIA1_mug_paint2": {
+    "x": 5400,
+    "y": 1280
+   },
+   "EIA1_jug_ware": {
+    "x": 6300,
+    "y": 1280
+   },
+   "EIA1_jug_paint1": {
+    "x": 6600,
+    "y": 1280
+   },
+   "EIA1_jug_paint2": {
+    "x": 6900,
+    "y": 1280
+   },
+   "EIA1_jar_ware": {
+    "x": 7800,
+    "y": 1280
+   },
+   "EIA1_jar_paint1": {
+    "x": 8100,
+    "y": 1280
+   },
+   "EIA1_jar_paint2": {
+    "x": 8400,
+    "y": 1280
+   },
+   "EIA1_necked_jar_ware": {
+    "x": 9300,
+    "y": 1280
+   },
+   "EIA1_necked_jar_paint1": {
+    "x": 9600,
+    "y": 1280
+   },
+   "EIA1_necked_jar_paint2": {
+    "x": 9900,
+    "y": 1280
+   },
+   "EIA1_amphora_ware": {
+    "x": 10800,
+    "y": 1280
+   },
+   "EIA1_amphora_paint1": {
+    "x": 11100,
+    "y": 1280
+   },
+   "EIA1_amphora_paint2": {
+    "x": 11400,
+    "y": 1280
+   },
+   "EIA1_lid_ware": {
+    "x": 15300,
+    "y": 1280
+   },
+   "EIA1_lid_paint1": {
+    "x": 15600,
+    "y": 1280
+   },
+   "EIA2_cup_ware": {
+    "x": 300,
+    "y": 1600
+   },
+   "EIA2_cup_paint1": {
+    "x": 600,
+    "y": 1600
+   },
+   "EIA2_bowl_ware": {
+    "x": 1800,
+    "y": 1600
+   },
+   "EIA2_bowl_paint1": {
+    "x": 2100,
+    "y": 1600
+   },
+   "EIA2_footed_cup_ware": {
+    "x": 3300,
+    "y": 1600
+   },
+   "EIA2_footed_cup_paint1": {
+    "x": 3600,
+    "y": 1600
+   },
+   "EIA2_footed_cup_paint2": {
+    "x": 3900,
+    "y": 1600
+   },
+   "EIA2_footed_cup_paint3": {
+    "x": 4200,
+    "y": 1600
+   },
+   "EIA2_footed_cup_paint4": {
+    "x": 4500,
+    "y": 1600
+   },
+   "EIA2_mug_ware": {
+    "x": 4800,
+    "y": 1600
+   },
+   "EIA2_mug_paint1": {
+    "x": 5100,
+    "y": 1600
+   },
+   "EIA2_mug_paint2": {
+    "x": 5400,
+    "y": 1600
+   },
+   "EIA2_jug_ware": {
+    "x": 6300,
+    "y": 1600
+   },
+   "EIA2_jug_paint1": {
+    "x": 6600,
+    "y": 1600
+   },
+   "EIA2_jug_paint2": {
+    "x": 6900,
+    "y": 1600
+   },
+   "EIA2_jar_ware": {
+    "x": 7800,
+    "y": 1600
+   },
+   "EIA2_jar_paint1": {
+    "x": 8100,
+    "y": 1600
+   },
+   "EIA2_jar_paint2": {
+    "x": 8400,
+    "y": 1600
+   },
+   "EIA2_jar_paint3": {
+    "x": 8700,
+    "y": 1600
+   },
+   "EIA2_jar_paint4": {
+    "x": 9000,
+    "y": 1600
+   },
+   "EIA2_necked_jar_ware": {
+    "x": 9300,
+    "y": 1600
+   },
+   "EIA2_necked_jar_paint1": {
+    "x": 9600,
+    "y": 1600
+   },
+   "EIA2_necked_jar_paint2": {
+    "x": 9900,
+    "y": 1600
+   },
+   "EIA2_amphora_ware": {
+    "x": 10800,
+    "y": 1600
+   },
+   "EIA2_amphora_paint1": {
+    "x": 11100,
+    "y": 1600
+   },
+   "EIA2_amphora_paint2": {
+    "x": 11400,
+    "y": 1600
+   },
+   "EIA2_krater_ware": {
+    "x": 12300,
+    "y": 1600
+   },
+   "EIA2_krater_paint1": {
+    "x": 12600,
+    "y": 1600
+   },
+   "EIA2_krater_paint2": {
+    "x": 12900,
+    "y": 1600
+   },
+   "EIA2_krater_paint3": {
+    "x": 13200,
+    "y": 1600
+   },
+   "EIA2_krater_paint4": {
+    "x": 13500,
+    "y": 1600
+   },
+   "EIA2_kothon_ware": {
+    "x": 13800,
+    "y": 1600
+   },
+   "EIA2_kothon_paint1": {
+    "x": 14100,
+    "y": 1600
+   },
+   "EIA2_lid_ware": {
+    "x": 15300,
+    "y": 1600
+   },
+   "EIA2_lid_paint1": {
+    "x": 15600,
+    "y": 1600
+   },
+   "OP_cup_ware": {
+    "x": 300,
+    "y": 1920
+   },
+   "OP_bowl_ware": {
+    "x": 1800,
+    "y": 1920
+   },
+   "OP_footed_cup_ware": {
+    "x": 3300,
+    "y": 1920
+   },
+   "OP_mug_ware": {
+    "x": 4800,
+    "y": 1920
+   },
+   "OP_jug_ware": {
+    "x": 6300,
+    "y": 1920
+   },
+   "OP_jug_paint1": {
+    "x": 6600,
+    "y": 1920
+   },
+   "OP_jar_ware": {
+    "x": 7800,
+    "y": 1920
+   },
+   "OP_necked_jar_ware": {
+    "x": 9300,
+    "y": 1920
+   },
+   "OP_amphora_ware": {
+    "x": 10800,
+    "y": 1920
+   },
+   "OP_krater_ware": {
+    "x": 12300,
+    "y": 1920
+   },
+   "OP_kothon_ware": {
+    "x": 13800,
+    "y": 1920
+   },
+   "OP_lid_ware": {
+    "x": 15300,
+    "y": 1920
+   },
+   "AP_cup_ware": {
+    "x": 300,
+    "y": 2240
+   },
+   "AP_bowl_ware": {
+    "x": 1800,
+    "y": 2240
+   },
+   "AP_bowl_paint1": {
+    "x": 2100,
+    "y": 2240
+   },
+   "AP_bowl_paint2": {
+    "x": 2400,
+    "y": 2240
+   },
+   "AP_bowl_paint3": {
+    "x": 2700,
+    "y": 2240
+   },
+   "AP_bowl_paint4": {
     "x": 3000,
-    "y": 1400
+    "y": 2240
+   },
+   "AP_footed_cup_ware": {
+    "x": 3300,
+    "y": 2240
+   },
+   "AP_mug_ware": {
+    "x": 4800,
+    "y": 2240
+   },
+   "AP_jug_ware": {
+    "x": 6300,
+    "y": 2240
+   },
+   "AP_jug_paint1": {
+    "x": 6600,
+    "y": 2240
+   },
+   "AP_jar_ware": {
+    "x": 7800,
+    "y": 2240
+   },
+   "AP_necked_jar_ware": {
+    "x": 9300,
+    "y": 2240
+   },
+   "AP_amphora_ware": {
+    "x": 10800,
+    "y": 2240
+   },
+   "AP_krater_ware": {
+    "x": 12300,
+    "y": 2240
+   },
+   "AP_krater_paint1": {
+    "x": 12600,
+    "y": 2240
+   },
+   "AP_krater_paint2": {
+    "x": 12900,
+    "y": 2240
+   },
+   "AP_krater_paint3": {
+    "x": 13200,
+    "y": 2240
+   },
+   "AP_krater_paint4": {
+    "x": 13500,
+    "y": 2240
+   },
+   "AP_kothon_ware": {
+    "x": 13800,
+    "y": 2240
+   },
+   "AP_lid_ware": {
+    "x": 15300,
+    "y": 2240
    }
   },
   "shelf": {
