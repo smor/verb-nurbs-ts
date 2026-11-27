@@ -249,7 +249,8 @@ export class Graph {
         const T = ShellMesher.tolerance( given );
         let known = this.shells.get( r.result );
         if (known == null) {
-            known = { shell : ShellBuilder.fromResult( r.result ), meshes : new Map() };
+            // (a result that is one solid's exact shell as it is meshes that shell, #117)
+            known = { shell : r.shell ?? ShellBuilder.fromResult( r.result ), meshes : new Map() };
             this.shells.set( r.result, known );
         }
         const key = JSON.stringify( [T.chordal, T.angle ?? null, T.maxEdge ?? null] );
