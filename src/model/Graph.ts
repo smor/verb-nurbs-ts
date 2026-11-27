@@ -81,6 +81,10 @@ export interface GraphDocument {
     meta? : { name? : string, description? : string, [key : string] : unknown };
     // the machine the solids are checked against for the verdict (`Makeable.MACHINES` key, or a machine), as in a model
     machine? : string | Machine;
+    // the document's own components, by name: a component node with `use: "#name"` is an instance of one. Kept in the
+    // document, so a file, a link or a browser's copy carries them; a component in it has no library of its own, and
+    // its own "#name" instances are of the same library
+    components? : { [name : string] : GraphDocument };
 }
 
 /** How to evaluate a graph: which output, and number nodes set from outside (a part's parameters in an assembly). */
@@ -159,7 +163,9 @@ export interface GraphResult extends ModelResult {
 }
 
 // the top-level keys of a graph document
-const TOP = ["version", "nodes", "outputs", "view", "meta", "machine"];
+const TOP = ["version", "nodes", "outputs", "view", "meta", "machine", "components"];
+// the library a document's "#name" instances are of, passed down to the components compiled within it
+type Library = { [name : string] : GraphDocument };
 const ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // an output's name: an id that may also hold "-" (a part's name, "axle-washer"); never used in expressions
 const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
@@ -308,7 +314,7 @@ export class Graph {
 
     // `compile`, with each feature's node type.
     private static compileTyped( doc : GraphDocument, options : GraphOptions ) : { model : ModelDocument, types : { [feature : string] : string } } {
-        const c = Graph.compileAll( doc, options, [] );
+        const c = Graph.compileAll( doc, options, [], doc.components ?? {} );
         const names = Object.keys( doc.outputs );
         const want = options.output ?? names[0];
         let output : string;
@@ -331,16 +337,17 @@ export class Graph {
      * moving a node or renaming the document does not change it.
      */
     public static hash( doc : GraphDocument ) : string {
-        return Model.hash( Model.canonical( { version : doc.version, nodes : doc.nodes, outputs : doc.outputs, machine : doc.machine } ) );
+        const lib = doc.components == null ? undefined : Object.fromEntries( Object.entries( doc.components ).map( ([k, d]) => [k, Graph.hash( d )] ) );
+        return Model.hash( Model.canonical( { version : doc.version, nodes : doc.nodes, outputs : doc.outputs, machine : doc.machine, components : lib } ) );
     }
 
     // Compiles a whole document: every parameter, every feature, and the feature of each output (plus, for each
     // instance's output, "instance.output" to the feature inside it, without the instance's prefix). `stack`: the
     // components being compiled, outermost first, to refuse a component that uses itself.
-    private static compileAll( doc : GraphDocument, options : GraphOptions, stack : Array<string> ) : Compiled {
+    private static compileAll( doc : GraphDocument, options : GraphOptions, stack : Array<string>, library : Library ) : Compiled {
         const where : Where = {};
         try {
-            return Graph.compileIn( doc, options, stack, where );
+            return Graph.compileIn( doc, options, stack, where, library );
         } catch (e) {
             if (e instanceof GraphError) throw e;
             throw new GraphError( e instanceof Error ? e.message : String( e ), where.node != null ? "node" : "document", where );
@@ -348,10 +355,11 @@ export class Graph {
     }
 
     // `compileAll`'s work, keeping in `where` the node, port or output it is at, for the error if it fails.
-    private static compileIn( doc : GraphDocument, options : GraphOptions, stack : Array<string>, where : Where ) : Compiled {
+    private static compileIn( doc : GraphDocument, options : GraphOptions, stack : Array<string>, where : Where, library : Library ) : Compiled {
         const here = ( w : Where ) => { delete where.node; delete where.type; delete where.port; delete where.output; Object.assign( where, w ); };
         if (doc.version !== 2) throw new Error( `Graph: unknown document version ${String( ( doc as { version? : unknown } ).version )}` );
         for (const k of Object.keys( doc )) if (!TOP.includes( k )) throw new Error( `Graph: "${k}" is not a key of a graph document (${TOP.join( ", " )})` );
+        if (stack.length > 0 && doc.components != null) throw new Error( `Graph: the component "${stack[stack.length - 1]}" has a library of its own; components are kept in the top document's "components"` );
         let nodes = doc.nodes ?? {};
         if (options.set != null) {
             nodes = { ...nodes };
@@ -370,14 +378,17 @@ export class Graph {
             if (!ID.test( id )) throw new Error( `Graph: "${id}" is not a valid node id (letters, digits and _, not starting with a digit)` );
             if (n.type == "component") {
                 if (typeof n.use != "string" || n.use == "") throw new Error( `Graph: component "${id}" has no "use"` );
-                if (options.resolve == null) throw new Error( `Graph: component "${id}" uses "${n.use}", but nothing was given to resolve components` );
+                const own = n.use.startsWith( "#" );
+                if (own && library[n.use.slice( 1 )] == null)
+                    throw new Error( `Graph: component "${id}" uses "${n.use}", which is not in the document's components (${Object.keys( library ).join( ", " ) || "none"})` );
+                if (!own && options.resolve == null) throw new Error( `Graph: component "${id}" uses "${n.use}", but nothing was given to resolve components` );
                 if (stack.includes( n.use )) throw new Error( `Graph: component "${id}" uses "${n.use}", which uses itself (${[...stack, n.use].join( " → " )})` );
-                const used = options.resolve( n.use, from );
+                const used = own ? library[n.use.slice( 1 )] : options.resolve!( n.use, from );
                 if (n.hash != null && Graph.hash( used ) != n.hash)
                     throw new Error( `Graph: component "${id}" pins "${n.use}" at ${n.hash}, but it is now ${Graph.hash( used )}` );
                 let compiled : Compiled;
                 try {
-                    compiled = Graph.compileAll( used, { resolve : options.resolve }, [...stack, n.use] );
+                    compiled = Graph.compileAll( used, { resolve : options.resolve }, [...stack, n.use], library );
                 } catch (e) {
                     // inside the instance: its path goes through the instance (the component's own document at fault
                     // is the instance node)
@@ -687,9 +698,11 @@ export class Graph {
         return { parameters : parameters, features : features, outputs : resolved, types : typeOf };
     }
 
-    // The node type of a component: its `number` nodes are its inputs (with their values, when numbers, as defaults),
-    // its outputs its solid outputs.
-    private static componentType( use : string, doc : GraphDocument ) : GraphNodeType {
+    /**
+     * The node type of a component: its `number` nodes are its inputs (with their values, when numbers, as defaults),
+     * its outputs its solid outputs. `use` names it in the title when the document has no `meta.name`.
+     */
+    public static componentType( use : string, doc : GraphDocument ) : GraphNodeType {
         const inputs : { [port : string] : GraphPort } = {};
         for (const [id, n] of Object.entries( doc.nodes ?? {} )) {
             if (n.type != "number") continue;
@@ -790,6 +803,7 @@ export class Graph {
                 view : { type : "object" },
                 meta : { type : "object" },
                 machine : { anyOf : [{ type : "string" }, { type : "object" }] },
+                components : { type : "object", description : "The document's own components, by name; \"#name\" uses one", additionalProperties : { $ref : "#" } },
             },
             $defs : {
                 node : { type : "object", required : ["type"], properties : { type : { enum : types } },
