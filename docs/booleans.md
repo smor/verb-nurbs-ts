@@ -188,6 +188,12 @@ past each end. Then:
   boundary the contact points shared with the faces' cuts and the mitre points shared with the other blend, so the
   result stays watertight.
 
+The sharp edge is found as a side of each of a1's and a2's domains that the corner lies on. At a corner of a face's
+domain (a box's vertex) the corner lies on two sides; the one taken is not the one along the blend's own
+edge, so that a ring of chamfers or fillets round one face of a box (each corner two rounded edges and a sharp third)
+is mitred at every corner (#93). A prism's side face is not done yet: its caps are fans from the cap's centre, whose
+rim is one side of the domain, so the sharp edge between two side faces is not a side of the cap's domain (#99).
+
 Where three rounded edges of one radius meet, all convex or all concave, the corner is a **ball corner**: the ball
 that touches all three faces (its centre found by Newton's method on the three faces' offsets, six unknowns) stops
 each blend at the section through its centre. The corner is the spherical triangle on that ball between the three
@@ -425,7 +431,14 @@ parts sharing a face. Three things make them work.
   other, is dropped: no face is cut there. The hub's rim runs along the arm's round edge, then on across its top: the
   arm's vertices that lie on a branch are put into it, so its runs end there, and each stretch of a branch between
   its corners (seam points among them) that lies along an edge takes that edge's points. Lying along a curved edge
-  allows for the sag of its chords, as `traced` does. Bores that line up through stacked layers are not closed yet.
+  allows for the sag of its chords, as `traced` does.
+* **Bores that line up (#104).** A borer standing above a bored hub, under an arm whose hole lines up with the bore,
+  has its end cap meet the hole's wall along a rim of the same radius. That wall is a face of a solid made from a
+  shell: closed, but cut at its surface's seam, so it is not periodic. A branch across the seam of a closed surface
+  still gets its seam point, and where the rim lies on the wall Newton has no isolated crossing to find: the point on
+  the seam at the estimate is taken, if its projection lands on the other surface. A vertex put into a branch between
+  two points on one isoline (the seam's trim, on its own side) stays on that isoline, since parameters copied from
+  another branch may name the other side of the seam.
 * **Branches along one curve do not cross (#92).** A countersink's cone meeting its hole exactly in the plate's top
   plane gives three branches on one circle: plate and cone, plate and hole, cone and hole. Their chord polylines cross
   each other at shallow angles all along it, and each crossing was taken as a point where three faces meet. Two

@@ -458,16 +458,22 @@ export class BrepBoolean {
                         if (tk.includes( a1k ) && tk.includes( a2k ) && a1k != a2k)
                             third = { kind : "curve", curve : t.curve, a1IsA : tk[0] == a1k, a1 : face( a1k ), a2 : face( a2k ), atStart : others[0].end == 0 };
                     } else if (a1k.split( ":" )[0] == a2k.split( ":" )[0]) {
-                        // an edge between two faces of one solid: the side of each face's domain that P lies on
+                        // an edge between two faces of one solid: the side of each face's domain that P lies on (at
+                        // a corner of the domain, as at a box's vertex, the side other than the one the blend's own
+                        // edge runs along, #93)
                         const sideOf = (x : { g : number, end : number }, bSide : number) => {
                             const c = runs[x.g].curve, k = x.end == 0 ? 0 : c.points.length - 1;
                             const F = bSide == 0 ? runs[x.g].sides![1].face : runs[x.g].sides![0].face;
-                            const uv = bSide == 0 ? c.uvB[k] : c.uvA[k];
+                            const uvs = bSide == 0 ? c.uvB : c.uvA, uv = uvs[k], mid = uvs[Math.floor( (uvs.length - 1) / 2 )];
                             const d = SurfaceIntersect.domain( F.surface );
                             for (let ax = 0; ax < 2; ax++) {
                                 if (F.periodic[ax]) continue;
                                 const span = d[2 * ax + 1] - d[2 * ax];
-                                for (const v of [d[2 * ax], d[2 * ax + 1]]) if (Math.abs( uv[ax] - v ) < 1e-9 * span) return { axis : ax, value : v };
+                                for (const v of [d[2 * ax], d[2 * ax + 1]]) {
+                                    if (Math.abs( uv[ax] - v ) >= 1e-9 * span) continue;
+                                    if (uvs.length > 2 && Math.abs( mid[ax] - v ) < 1e-9 * span) continue;
+                                    return { axis : ax, value : v };
+                                }
                             }
                             return null;
                         };
@@ -1585,6 +1591,13 @@ export class BrepBoolean {
         const at = bestT < 1e-6 ? best : bestT > 1 - 1e-6 ? (best + 1) % n : -1;
         if (at >= 0 && c.seamA[at] == 0 && c.seamB[at] == 0) { c.points[at] = p; c.uvA[at] = uvA; c.uvB[at] = uvB; return; }
         const k = best + 1;
+        // between two points on the same isoline (a trim along a face's seam, say) the new point stays on that
+        // isoline: parameters copied from another branch may name the other side of a closed face's seam
+        const iso = (uv : UV, q : Array<UV>) : UV => {
+            const a = q[best], b = q[k % n];
+            return [a[0] == b[0] ? a[0] : uv[0], a[1] == b[1] ? a[1] : uv[1]];
+        };
+        uvA = iso( uvA, c.uvA ); uvB = iso( uvB, c.uvB );
         c.points.splice( k, 0, p ); c.uvA.splice( k, 0, uvA ); c.uvB.splice( k, 0, uvB );
         c.seamA.splice( k, 0, 0 ); c.seamB.splice( k, 0, 0 );
     }
