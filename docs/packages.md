@@ -26,7 +26,7 @@ Dependencies only point down this table: no folder imports from one below it.
    `eval`), as they did upstream, so they belong in one package.
 2. **mesh**: `TriMesh`, `MeshBVH`, `Makeable`, `Implicit`, `Growth`. These depend only on `core/Data`, `core/Vec` and each other, so they
    can serve any mesh, not just ours.
-3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `BrepShell` (with `Seams`), `ShellMesher`, `Extrusion`, `Lathe`, `Fillet`, `Shell`, and the primitives (`solid/primitives/`). Depends on nurbs and mesh.
+3. **brep**: `Brep`, `SurfaceIntersect`, `BrepBoolean`, `BrepShell` (with `Seams`), `ShellMesher`, `MassProperties`, `Extrusion`, `Lathe`, `Fillet`, `Shell`, and the primitives (`solid/primitives/`). Depends on nurbs and mesh.
 4. **recipes**: depends on nurbs and brep.
 5. **model**: `model/`. Depends on nurbs and brep. The modelling front end that recipes and apps build on.
 6. **io**: `io/Step.ts`. Depends on nurbs and brep. It could live in brep; on its own it keeps file formats out of the
