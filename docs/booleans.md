@@ -65,7 +65,10 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
      the seam into the region. The step is taken in the tangent plane of the region's face, across the seam. The
      region is inside the other solid when that step points against the other face's outward normal. This does not
      depend on how finely either solid is tessellated, which matters when two solids overlap by less than the
-     tessellation's chord error. Every seam edge votes, and a clear majority (90%) decides.
+     tessellation's chord error. Every seam edge votes, weighed by the sine of the angle the faces cross at (the
+     step's side is less sure the closer they are to tangent), and a clear majority (90% of the weight) decides. A
+     seam along an edge of the other solid does not vote: which side of one of that edge's faces the step is says
+     nothing about the solid (a cone placed at a sweep's end crosses the end cap just at its rim, #163).
    * **Elsewhere, by ray parity** (`TriMesh.containsPoint`) against the other solid's tessellation. Three rays in
      unrelated directions vote, from each of the region's five largest triangles.
 6. **Evaluate the expression.** This is CSG boundary evaluation (Requicha and Voelcker, "Boolean operations in solid
@@ -595,7 +598,12 @@ parts joined), is [exact-booleans.md](exact-booleans.md).
 
 * **Branches through a vertex of a solid.** A branch may cross an edge between two faces, and two branches may cross
   inside a face. A branch that passes exactly through a corner where three faces of one solid meet is not handled.
-* **More than two branches crossing at one point** (four or more faces meeting) is not handled.
+* **More than two branches crossing at one point** (four or more faces meeting) is not handled in general. Where
+  branches end at a point another passes through (a cone's flat tip on a sweep's floor, the end cap's rim through
+  the tip's centre), the one passing through takes that point, within the snapping distance, and a branch that runs
+  into a pole of its face's parameters (a disc's centre) ends at the pole when it lies on the other face (#163).
+* **A revolved part's seam in a sweep's end section** (the seam meridian along the section's outline) leaves the
+  Boolean open: the seam and the branches coincide.
 * **Tangent faces.** A branch along which the two faces' normals stay parallel (a cylinder lying on a plane) is a
   line of contact, not of crossing. It is left out of the branches and counted in `report.tangentContacts`. The two
   solids then touch along that line: the volume is right, but the result is not a manifold there (it is not, in

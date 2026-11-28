@@ -126,12 +126,16 @@ function hullOfCones(rail, closed) {
 // The signed distance from p to the exact union of the cutter cones along a rail on the drum (negative inside), the
 // cone at each of `stations` (dense: their spacing well below the distances measured), those within `window`
 // stations of p's angle: a cone's distance is that of its axial section, the trapezoid, in the (radius, axis) plane.
-function coneUnion(stations, window, near) {
-	var K = stations.length, poly = [[0, -4.1], [FLOOR, -4.1], [TOP, 1], [0, 1]];
+// (`poly`: another axial section, convex, counter-clockwise in (radius, axis))
+function coneUnion(stations, window, near, poly) {
+	var K = stations.length, own = poly != null;
+	poly = poly || [[0, -4.1], [FLOOR, -4.1], [TOP, 1], [0, 1]];
+	var inside = function (r, a) { for (var i = 0; i < poly.length; i++) { var p = poly[i], q = poly[(i + 1) % poly.length];
+		if ((q[0] - p[0]) * (a - p[1]) - (q[1] - p[1]) * (r - p[0]) < 0) return false; } return true; };
 	var seg = function (px, py, a, b) { var dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / (dx * dx + dy * dy)));
 		return Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy); };
-	var trap = function (r, a) { var d = Infinity; for (var i = 0; i < 4; i++) d = Math.min(d, seg(r, a, poly[i], poly[(i + 1) % 4]));
-		return a >= -4.1 && a <= 1 && r <= FLOOR + a + 4.1 ? -d : d; };
+	var trap = function (r, a) { var d = Infinity; for (var i = 0; i < poly.length; i++) d = Math.min(d, seg(r, a, poly[i], poly[(i + 1) % poly.length]));
+		return (own ? inside(r, a) : a >= -4.1 && a <= 1 && r <= FLOOR + a + 4.1) ? -d : d; };
 	return function (p) {
 		var k0 = near != null ? near(p) : Math.round(((Math.atan2(p[1], p[0]) / (2 * PI)) % 1 + 1) % 1 * K), best = Infinity;
 		for (var dk = -window; dk <= window; dk++) {
@@ -253,6 +257,45 @@ describe("Profile sweep (#134)", function () {
 			if (Math.hypot(p[0], p[1]) > 16 - 1e-3 || p[2] < -10 + 1e-6 || p[2] > 30 - 1e-6) return;
 			worst = Math.max(worst, Math.abs(sd(p)));
 		});
+		worst.should.be.below(0.05);
+	});
+
+	it("unites a cone placed at a groove's end with the groove, and cuts both ends' cones and the groove from the drum: closed (#163)", function () {
+		// 507's cutter section and cone on a flat arc (the cone's flat tip on the groove's floor, the end cap through
+		// the tip's centre), its seam turned 90°, 30° or after the groove, or the union the other way round
+		var arc = {"version":2,"meta":{"name":"sweep-end-cone","description":"kernel #134 follow-up: 507 groove section swept along an open arc, its cutter cone placed at the start from the end frame (transform/place), united: open edges"},"nodes":{"g":{"type":"profile/sweep","in":{"profile":{"outer":{"kind":"path","start":[-2.4242640687119286,-4.1],"segments":[{"type":"line","to":[2.4242640687119286,-4.1]},{"type":"line","to":[2.4242640687119286,-3.5]},{"type":"line","to":[6.924264068711928,1]},{"type":"line","to":[-6.924264068711928,1]},{"type":"line","to":[-2.4242640687119286,-3.5]},{"type":"line","to":[-2.4242640687119286,-4.1]}]}},"x":"16 * cos(2 * pi * t / 3)","y":"16 * sin(2 * pi * t / 3)","z":"40","rail":"open","frame":"radial","axis":"z","samples":128}},"c":{"type":"profile/revolve","in":{"profile":{"outer":{"kind":"path","start":[0,-4.1],"segments":[{"type":"line","to":[2.4242640687119286,-4.1]},{"type":"line","to":[2.4242640687119286,-3.5]},{"type":"line","to":[7.924264068711928,2]},{"type":"line","to":[0,2]},{"type":"line","to":[0,-4.1]}]}}}},"turned_start":{"type":"transform/rotate","in":{"of":"@c","axis":"z","degrees":90}},"upright_start":{"type":"transform/rotate","in":{"of":"@turned_start","axis":"x","degrees":-90}},"a":{"type":"transform/place","in":{"of":"@upright_start","x":"@g.start_x","y":"@g.start_y","z":"@g.start_z","ux":"@g.start_ux","uy":"@g.start_uy","uz":"@g.start_uz","vx":"@g.start_vx","vy":"@g.start_vy","vz":"@g.start_vz"}},"ga":{"type":"boolean/union","in":{"a":"@g","b":"@a"}}},"outputs":{"groove":"@ga"}};
+		var variant = function (degrees, swap) {
+			var d = JSON.parse(JSON.stringify(arc));
+			d.nodes.turned_start.in.degrees = degrees;
+			if (swap) d.nodes.ga.in = { a : '@a', b : '@g' };
+			return d;
+		};
+		[variant(90, false), variant(30, false), variant(90, true)].forEach(function (doc) {
+			var res = new Graph().evaluate(doc, { mesh : 'print' });
+			res.verdict.kind.should.not.equal('visual');
+			res.result.mesh.checkClosedManifold().closedManifold.should.be.true();
+			res.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		});
+		// ~167's open groove on a helix, the convex section, a cone at each end, cut from the bored drum: on the union
+		// of the cutter's cones within 0.05 mm, inside the drum
+		var doc = {"version":2,"meta":{"name":"sweep-end-cone-drum","description":"kernel: ~167 open groove: the convex cutter section swept along a helix (rail open, flat caps), the cone placed at each end from the end frames, united (closed), cut from the bored drum: open edges"},"nodes":{"g":{"type":"profile/sweep","in":{"profile":{"outer":{"kind":"path","start":[-2.4242640687119286,-4.1],"segments":[{"type":"line","to":[2.4242640687119286,-4.1]},{"type":"line","to":[6.924264068711928,1]},{"type":"line","to":[-6.924264068711928,1]},{"type":"line","to":[-2.4242640687119286,-4.1]}]}},"x":"16 * cos(pi / 3 - 2 * pi * t / 3)","y":"16 * sin(pi / 3 - 2 * pi * t / 3)","z":"37.970588235294116 + 19.05882352941176 * t","rail":"open","frame":"radial","axis":"z","samples":128}},"c":{"type":"profile/revolve","in":{"profile":{"outer":{"kind":"path","start":[0,-4.1],"segments":[{"type":"line","to":[2.4242640687119286,-4.1]},{"type":"line","to":[7.806617009888398,2]},{"type":"line","to":[0,2]},{"type":"line","to":[0,-4.1]}]}}}},"turned_start":{"type":"transform/rotate","in":{"of":"@c","axis":"z","degrees":90}},"turned_end":{"type":"transform/rotate","in":{"of":"@c","axis":"z","degrees":-90}},"upright_start":{"type":"transform/rotate","in":{"of":"@turned_start","axis":"x","degrees":-90}},"upright_end":{"type":"transform/rotate","in":{"of":"@turned_end","axis":"x","degrees":-90}},"a":{"type":"transform/place","in":{"of":"@upright_start","x":"@g.start_x","y":"@g.start_y","z":"@g.start_z","ux":"@g.start_ux","uy":"@g.start_uy","uz":"@g.start_uz","vx":"@g.start_vx","vy":"@g.start_vy","vz":"@g.start_vz"}},"b":{"type":"transform/place","in":{"of":"@upright_end","x":"@g.end_x","y":"@g.end_y","z":"@g.end_z","ux":"@g.end_ux","uy":"@g.end_uy","uz":"@g.end_uz","vx":"@g.end_vx","vy":"@g.end_vy","vz":"@g.end_vz"}},"ga":{"type":"boolean/union","in":{"a":"@g","b":"@a"}},"groove":{"type":"boolean/union","in":{"a":"@ga","b":"@b"}},"blank":{"type":"profile/extrude","in":{"profile":{"outer":{"kind":"circle","center":[0,0],"r":16},"holes":[{"kind":"circle","center":[0,0],"r":2.5}]},"height":95}},"drum":{"type":"boolean/difference","in":{"from":"@blank","minus":"@groove"}}},"outputs":{"drum":"@drum"}};
+		var res = new Graph().evaluate(doc, { mesh : 'print' });
+		res.verdict.kind.should.not.equal('visual');
+		res.result.mesh.checkClosedManifold().closedManifold.should.be.true();
+		var mine = res.export.mesh;
+		mine.checkClosedManifold().closedManifold.should.be.true();
+		var rail = function (t) { var a = PI / 3 - 2 * PI * t / 3; return [16 * Math.cos(a), 16 * Math.sin(a), 37.970588235294116 + 19.05882352941176 * t]; };
+		var dense = Array.from({ length : 1801 }, function (_, i) { return rail(i / 1800); });
+		var sd = coneUnion(dense, 300, function (p) {
+			var t = (PI / 3 - Math.atan2(p[1], p[0])) / (2 * PI / 3);
+			return Math.max(0, Math.min(1800, Math.round(t * 1800)));
+		}, [[0, -4.1], [2.4242640687119286, -4.1], [6.924264068711928, 1], [0, 1]]), worst = 0, n = 0;
+		mine.vertices.forEach(function (p) {
+			var r = Math.hypot(p[0], p[1]);
+			if (r > 16 - 1e-3 || r < 3 || p[2] < 1e-6 || p[2] > 95 - 1e-6) return;
+			n++; worst = Math.max(worst, Math.abs(sd(p)));
+		});
+		n.should.be.above(100);
 		worst.should.be.below(0.05);
 	});
 
