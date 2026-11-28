@@ -217,7 +217,7 @@ describe("Extrusion of profiles (#85)", function () {
 			c : { type : 'primitive/cylinder', in : { radius : 2.5, height : 26 } }, m : { type : 'transform/move', in : { of : '@c', x : 0, y : 0, z : -1 } },
 			x : { type : 'boolean/difference', in : { from : '@e', minus : '@m' } } }, { mesh : 'print' });
 		var took = Date.now() - t;
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		var V = (w.area - PI * 2.5 * 2.5) * 24;
 		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 		r.export.mesh.signedVolume().should.be.approximately(V, 3e-3 * V);
