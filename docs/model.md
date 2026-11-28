@@ -104,7 +104,7 @@ it cannot prove are named in `result.report.certificate`.
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
   | `intersections` | (a Boolean of two solids or more) passes always; **proven** only when evaluated with `certify: true` and the certificate proves every pair of faces (docs/exact-booleans.md) |
   | `fold` | (with a sweep) no sweep folds over in a tight bend of its rail, proven on the exact sweep; each fold is also in `verdict.defects` (`ModelDefect`: the feature, where, the bend's radius, how far the section reaches), for a program to read (formats.md, Sweeps) |
-  | `self-contact` | (with a sweep) passes always, **not proven**: the fold check is local, and nothing yet proves that a sweep does not pass through itself further along its rail |
+  | `self-contact` | (with a sweep) passes always; **proven** only where every sweep has its sections in parallel planes that its rail rises through (a box, a frustum, a loft between parallel planes: sections at different t are then apart, and with no fold each is one-to-one), otherwise **not proven**: the fold check is local, and nothing yet proves that a sweep whose sections turn does not pass through itself further along its rail |
   | `export mesh` | (in a graph evaluated with `mesh: "print"` or `"view"`) the export mesh is closed: the faces are meshed from the exact shell apart from the result's own mesh, and an open one names how many edges are open (#116) |
 
   Any failed check makes the model **visual**: fine to look at and render, not to fabricate. The reasons say why.

@@ -48,8 +48,11 @@ export type ModelFeature =
     // `origin` along `axis` ("radial", default the z axis), along `axis` ("up"), or rotation-minimizing from `axis` at
     // the start ("rmf"). A closed rail (its first point not repeated) makes a ring; an open one is capped flat, its
     // ends' derivatives d/dt `tangents` when given (`ProfileSweep`). Faces outer.k, hole{i}.k, start and end
+    // With `rail2`, the section rides on two rails (Sweep2, #159): drawn with the first rail at u = 0 and the second
+    // at the rails' distance at the start, stretched along u to their distance, its v scaled the same (`height`
+    // "scale") or kept ("keep"); `tangents2` the second rail's end derivatives; `frame`, `axis` and `origin` unused
     | { type : "sweep", profile : ProfileSpec, rail : Array<ModelPoint>, closed? : boolean, frame? : SweepFrame, axis? : ModelPoint, origin? : ModelPoint,
-        tangents? : [ModelPoint, ModelPoint] }
+        tangents? : [ModelPoint, ModelPoint], rail2? : Array<ModelPoint>, height? : "scale" | "keep", tangents2? : [ModelPoint, ModelPoint] }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
@@ -156,7 +159,8 @@ interface Shelled { id : string, thickness : number, outside : [number, number],
 export interface ModelDefect { kind : "fold", feature : string, at : Point, radius : number, reach : number, proven : boolean }
 
 // The sweeps in a model, and their defects (`ModelDefect`).
-export interface Sweeps { ids : Array<string>, defects : Array<ModelDefect> }
+// (`touching`: the sweeps not proven free of passing through themselves, `ProfileSweep.build`'s `separate`)
+export interface Sweeps { ids : Array<string>, defects : Array<ModelDefect>, touching? : Array<string> }
 
 // A check of a verdict: passed or not, why, and whether its passing is proven (false: it passed as far as it was
 // checked, but that is not a proof, `ModelVerdict`).
@@ -392,7 +396,7 @@ export class Model {
                     // a sweep that folds is built as it is, and said (the model is then visual)
                     const o = Model.sweepOptions( f, num, point ), b = ProfileSweep.build( f.profile, o.rail, o.options );
                     const defects = b.folds.map( x => ({ kind : "fold" as const, feature : id, at : x.at, radius : x.radius, reach : x.reach, proven : x.proven }) );
-                    return { leaves : [{ name : id, solid : b.solid }], expr : (x : Array<boolean>) => x[0], shells : [], sweeps : { ids : [id], defects : defects } };
+                    return { leaves : [{ name : id, solid : b.solid }], expr : (x : Array<boolean>) => x[0], shells : [], sweeps : { ids : [id], defects : defects, touching : b.separate ? [] : [id] } };
                 }
                 case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "lathe": case "prism":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
@@ -401,7 +405,7 @@ export class Model {
                     const M = Model.matrix( f, num, point );
                     return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ), path : l.path != null ? id + "/" + l.path : undefined }) ),
                              expr : t.expr, shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ), fillets : t.fillets,
-                             sweeps : t.sweeps == null ? undefined : { ids : t.sweeps.ids, defects : t.sweeps.defects.map( d => ({ ...d, at : [0, 1, 2].map( i => M[i][0] * d.at[0] + M[i][1] * d.at[1] + M[i][2] * d.at[2] + M[i][3] ) }) ) } };
+                             sweeps : t.sweeps == null ? undefined : { ids : t.sweeps.ids, touching : t.sweeps.touching, defects : t.sweeps.defects.map( d => ({ ...d, at : [0, 1, 2].map( i => M[i][0] * d.at[0] + M[i][1] * d.at[1] + M[i][2] * d.at[2] + M[i][3] ) }) ) } };
                 }
                 case "union": case "intersection": case "difference": {
                     const ids = f.type == "difference" ? [f.from].concat( f.minus ) : f.of;
@@ -968,6 +972,11 @@ export class Model {
         if (frame == "radial") options.axis = { point : f.origin == null ? [0, 0, 0] : point( f.origin, "origin" ), direction : axis ?? [0, 0, 1] };
         else if (axis != null) options.up = axis;
         if (f.tangents != null) { options.startTangent = point( f.tangents[0], "tangents[0]" ); options.endTangent = point( f.tangents[1], "tangents[1]" ); }
+        if (f.rail2 != null) {
+            options.rail2 = f.rail2.map( (p, k) => point( p, `rail2[${k}]` ) );
+            if (f.height != null) options.height = f.height;
+            if (f.tangents2 != null) { options.startTangent2 = point( f.tangents2[0], "tangents2[0]" ); options.endTangent2 = point( f.tangents2[1], "tangents2[1]" ); }
+        }
         return { rail : f.rail.map( (p, k) => point( p, `rail[${k}]` ) ), options : options };
     }
 
@@ -1048,7 +1057,7 @@ export class Model {
     // The sweeps of several trees, and their defects (null when none has a sweep).
     private static addSweeps( xs : Array<Sweeps | undefined> ) : Sweeps | undefined {
         const ys = xs.filter( (x) : x is Sweeps => x != null );
-        return ys.length == 0 ? undefined : { ids : ys.flatMap( x => x.ids ), defects : ys.flatMap( x => x.defects ) };
+        return ys.length == 0 ? undefined : { ids : ys.flatMap( x => x.ids ), defects : ys.flatMap( x => x.defects ), touching : ys.flatMap( x => x.touching ?? x.ids ) };
     }
 
     // The sum of what several rounds left undone (null when none of them is a round).
@@ -1220,10 +1229,13 @@ export class Model {
         // a fold proven fails the check; one only not ruled out leaves it passed, unproven
         const fold : ModelCheck = { name : "fold", passed : folds.length == 0, proven : ds.length == 0,
             detail : ds.length == 0 ? `no sweep folds (proven: ${ids})` : ds.map( say ).join( "; " ) };
-        // the fold check is local: a sweep's rail coming back near itself is not looked for yet
-        const one = sweeps.ids.length == 1;
-        const contact : ModelCheck = { name : "self-contact", passed : true, proven : false,
-            detail : `${one ? "the sweep" : "the sweeps"} ${ids} ${one ? "is" : "are"} not proven free of passing through ${one ? "itself" : "themselves"} further along the rail (only folds in the rail's bends are proven)` };
+        // the fold check is local: a sweep's rail coming back near itself is ruled out only where its sections lie in
+        // parallel planes that the rail rises through (`ProfileSweep.build`'s `separate`)
+        const touching = sweeps.touching ?? sweeps.ids, one = touching.length == 1, tids = touching.map( x => `"${x}"` ).join( ", " );
+        const contact : ModelCheck = touching.length == 0
+            ? { name : "self-contact", passed : true, proven : true, detail : `no sweep passes through itself (proven: ${ids}, its sections in parallel planes along the rail)` }
+            : { name : "self-contact", passed : true, proven : false,
+                detail : `${one ? "the sweep" : "the sweeps"} ${tids} ${one ? "is" : "are"} not proven free of passing through ${one ? "itself" : "themselves"} further along the rail (only folds in the rail's bends are proven)` };
         return { ...Model.judge( v.checks.concat( [fold, contact] ), v.reasons ), notes : v.notes, makeable : v.makeable, defects : v.defects.concat( ds ) };
     }
 
