@@ -881,6 +881,20 @@ export class Graph {
                     ...(closed ? {} : { tangents : ends.tangents }) };
                 continue;
             }
+            if (n.type == "profile/sweep2") {
+                const x = sampler( id, "x" ), y = sampler( id, "y" ), z = sampler( id, "z" );
+                const x2 = sampler( id, "x2" ), y2 = sampler( id, "y2" ), z2 = sampler( id, "z2" );
+                const closed = s( "rail" ) == "closed", height = s( "height" ) as "scale" | "keep";
+                const n = count( id, "samples" );
+                const f = ( t : number ) => [x( t ), y( t ), z( t )] as [ModelValue, ModelValue, ModelValue];
+                const g = ( t : number ) => [x2( t ), y2( t ), z2( t )] as [ModelValue, ModelValue, ModelValue];
+                const at = ( h : typeof f ) => Array.from( { length : closed ? n : n + 1 }, ( _, i ) => h( i / n ) );
+                const ends = Graph.sweep2Ends( id, f, g );
+                Object.assign( parameters, ends.parameters );
+                features[id] = { type : "sweep", profile : outline( id, "profile" ), rail : at( f ), rail2 : at( g ), closed : closed, height : height,
+                    ...(closed ? {} : { tangents : ends.tangents, tangents2 : ends.tangents2 }) };
+                continue;
+            }
             if (n.type == "profile/revolve") {
                 features[id] = { type : "lathe", profile : outline( id, "profile" ), degrees : asNum( "degrees" ) };
                 continue;
@@ -1032,7 +1046,9 @@ export class Graph {
                     ...(f.twist != null ? { twist : value( f.twist ) } : {}), ...(f.scaleTop != null ? { scaleTop : value( f.scaleTop ) } : {}) };
                 case "lathe": return { ...f, ...(f.degrees != null ? { degrees : value( f.degrees ) } : {}) };
                 case "sweep": return { ...f, rail : f.rail.map( point ), ...(f.axis != null ? { axis : point( f.axis ) } : {}), ...(f.origin != null ? { origin : point( f.origin ) } : {}),
-                    ...(f.tangents != null ? { tangents : [point( f.tangents[0] ), point( f.tangents[1] )] as [ModelPoint, ModelPoint] } : {}) };
+                    ...(f.tangents != null ? { tangents : [point( f.tangents[0] ), point( f.tangents[1] )] as [ModelPoint, ModelPoint] } : {}),
+                    ...(f.rail2 != null ? { rail2 : f.rail2.map( point ) } : {}),
+                    ...(f.tangents2 != null ? { tangents2 : [point( f.tangents2[0] ), point( f.tangents2[1] )] as [ModelPoint, ModelPoint] } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
@@ -1170,6 +1186,48 @@ export class Graph {
         return { parameters : parameters, tangents : tangents as [[ModelValue, ModelValue, ModelValue], [ModelValue, ModelValue, ModelValue]] };
     }
 
+    // A two-rail sweep's ends as parameters (`id_start_x` ... `id_end_vz`, and the second rail's points
+    // `id_start_x2` ... `id_end_z2`), as expressions of the rails': the point on the first rail, the unit mean of the
+    // rails' unit tangents, u along the line from the first rail to the second, v = t × u made unit (`ProfileSweep`);
+    // and the rails' end derivatives (`tangents`, `tangents2`).
+    private static sweep2Ends( id : string, f : ( t : number ) => [ModelValue, ModelValue, ModelValue], g : ( t : number ) => [ModelValue, ModelValue, ModelValue] ) {
+        const parameters : { [name : string] : ModelValue } = {};
+        const tangents : Array<[ModelValue, ModelValue, ModelValue]> = [], tangents2 : Array<[ModelValue, ModelValue, ModelValue]> = [];
+        const h = 1e-3, c = [-25, 48, -36, 16, -3];
+        const P = ( v : ModelValue ) => `(${String( v )})`;
+        const xyz = ["x", "y", "z"];
+        for (const end of ["start", "end"]) {
+            const t0 = end == "start" ? 0 : 1, sgn = end == "start" ? 1 : -1;
+            const name = ( k : string ) => `${id}_${end}_${k}`, hid = ( k : string ) => `${id}__${end}_${k}`;
+            for (const [rail, tag, out] of [[f, "", tangents], [g, "2", tangents2]] as const) {
+                const p = rail( t0 ), samples = c.map( ( _, k ) => rail( t0 + sgn * k * h ) );
+                xyz.forEach( ( a, i ) => {
+                    parameters[name( a + tag )] = p[i];
+                    parameters[hid( "d" + a + tag )] = `(${c.map( ( w, k ) => `${w} * ${P( samples[k][i] )}` ).join( " + " )}) / ${sgn * 12 * h}`;
+                } );
+                out.push( [hid( "dx" + tag ), hid( "dy" + tag ), hid( "dz" + tag )] );
+                parameters[hid( "dn" + tag )] = `sqrt(${xyz.map( a => `${hid( "d" + a + tag )}^2` ).join( " + " )})`;
+            }
+            // the mean of the unit tangents, made unit
+            xyz.forEach( a => { parameters[hid( "m" + a )] = `${hid( "d" + a )} / ${hid( "dn" )} + ${hid( "d" + a + "2" )} / ${hid( "dn2" )}`; } );
+            parameters[hid( "mn" )] = `sqrt(${xyz.map( a => `${hid( "m" + a )}^2` ).join( " + " )})`;
+            xyz.forEach( a => { parameters[name( "t" + a )] = `${hid( "m" + a )} / ${hid( "mn" )}`; } );
+            // u: the line from the first rail to the second
+            xyz.forEach( a => { parameters[hid( "c" + a )] = `${name( a + "2" )} - ${name( a )}`; } );
+            parameters[hid( "cn" )] = `sqrt(${xyz.map( a => `${hid( "c" + a )}^2` ).join( " + " )})`;
+            xyz.forEach( a => { parameters[name( "u" + a )] = `${hid( "c" + a )} / ${hid( "cn" )}`; } );
+            // v = t × u, made unit
+            const t = ( a : string ) => name( "t" + a ), u = ( a : string ) => name( "u" + a );
+            parameters[hid( "wx" )] = `${t( "y" )} * ${u( "z" )} - ${t( "z" )} * ${u( "y" )}`;
+            parameters[hid( "wy" )] = `${t( "z" )} * ${u( "x" )} - ${t( "x" )} * ${u( "z" )}`;
+            parameters[hid( "wz" )] = `${t( "x" )} * ${u( "y" )} - ${t( "y" )} * ${u( "x" )}`;
+            parameters[hid( "wn" )] = `sqrt(${xyz.map( a => `${hid( "w" + a )}^2` ).join( " + " )})`;
+            xyz.forEach( a => { parameters[name( "v" + a )] = `${hid( "w" + a )} / ${hid( "wn" )}`; } );
+        }
+        type P3 = [ModelValue, ModelValue, ModelValue];
+        return { parameters : parameters, tangents : tangents as [P3, P3], tangents2 : tangents2 as [P3, P3] };
+    }
+
     // the Catalog shape a primitive node type builds
     private static shapeOf( type : string ) : string {
         const e = Catalog.ENTRIES.find( x => "primitive/" + slug( x.name ) == type );
@@ -1242,6 +1300,19 @@ export class Graph {
                 axis : { kind : "choice", label : "axis", value : "z", options : ["z", "x", "y"] },
                 samples : { kind : "number", label : "samples", value : 128, min : 4, max : 4096, step : 1, integer : true } },
             outputs : { solid : "solid", ...ends } };
+        // the same profile on two rails (#159): a lever tapering along a curved spine, a ruled surface between two edges
+        const ends2 : { [port : string] : GraphWire } = { ...ends };
+        for (const e of ["start", "end"]) for (const k of ["x2", "y2", "z2"]) ends2[`${e}_${k}`] = "number";
+        r["profile/sweep2"] = { title : "Sweep profile on two rails", category : "primitive",
+            help : "A planar profile drawn in the section's (u, v) plane, the first rail at u = 0 and the second at u = the rails' distance at the start, swept along both rails through (x, y, z) and (x2, y2, z2) at the samples of t from 0 to 1, exact: the section stretched along u to the rails' distance, its v scaled the same (height scale) or kept (keep), in the plane of the line between the rails and the direction square to it and to the rails' mean tangent. A closed rail (t = 1 back at t = 0) makes a ring; an open one is capped flat at both ends. Outputs: the solid, and each end's point on the first rail, unit tangent, u and v axes (start_x ... end_vz) and point on the second rail (start_x2 ... end_z2), to place a part there with Place. Faces outer.k, hole{i}.k, start, end",
+            inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [0, -2], segments : [
+                    { type : "line", to : [10, -2] }, { type : "line", to : [10, 2] }, { type : "line", to : [0, 2] }, { type : "line", to : [0, -2] }] } } },
+                x : fn( "x", "60 * t" ), y : fn( "y", "0" ), z : fn( "z", "10 * sin(pi * t)" ),
+                x2 : fn( "x2", "60 * t" ), y2 : fn( "y2", "10 - 6 * t" ), z2 : fn( "z2", "10 * sin(pi * t)" ),
+                rail : { kind : "choice", label : "rail", value : "open", options : ["open", "closed"] },
+                height : { kind : "choice", label : "height", value : "scale", options : ["scale", "keep"] },
+                samples : { kind : "number", label : "samples", value : 64, min : 4, max : 4096, step : 1, integer : true } },
+            outputs : { solid : "solid", ...ends2 } };
         // the same profile in the (r, z) half-plane turned about z (507's pulleys, eccentrics and hand wheels)
         r["profile/revolve"] = { title : "Revolve profile", category : "primitive",
             help : "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",

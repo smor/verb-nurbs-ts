@@ -185,6 +185,19 @@ points are the segment's and the splines'. So every section along the rail is th
   planes they give. A rotation-minimizing frame at the end is carried along the whole rail, so it is not an expression,
   and the node does not give `end_u*` or `end_v*` then.
 
+**Two rails** (`profile/sweep2`, #159, Grasshopper's Sweep2). The section rides on two rails, (x, y, z) and (x2, y2,
+z2) of t, sampled at the same t. It is drawn with the first rail at u = 0 and the second at u = the rails' distance at
+the start (so at the start it is as drawn), and stretched along u to the rails' distance as it goes; across, v is
+scaled the same (`height` `scale`, the default: the section grows as a whole) or kept (`keep`: only its width
+follows the rails). Its plane is spanned by the line from the first rail to the second and the direction square to
+that line and to the mean of the rails' unit tangents (v = t × u). It is the same tensor product, C(t) + x U(t) +
+y V(t), with C the first rail, U the line to the second over the start's distance and V the scaled v axis, so the
+faces, the caps, the volume in closed form and the fold check are those above: a rectangle on parallel straight
+rails is a box, a circle on diverging straight rails a frustum (or with its height kept a truncated elliptic cone),
+to rounding. Its end outputs are the first rail's point, the unit mean tangent, u and v at each end, and the second
+rail's point (`start_x2` ... `end_z2`). The rails have as many samples each, and may not meet. `ProfileSweep` takes
+the second rail as `rail2` (and `height`, `startTangent2`, `endTangent2`).
+
 **Limits.**
 
 * **Folds.** A section that reaches further towards the centre of a bend than the bend's radius folds over there:
@@ -201,8 +214,12 @@ points are the segment's and the splines'. So every section along the rail is th
   6.9 mm wide on each side of the rail). 13° still folds; 14° and 15° are proven free of folds. A cutter's swept
   volume there is wider than its section swept.
 * **Passing through itself further along.** The fold check is local. A sweep whose rail comes back near itself (a
-  helix whose pitch is less than the section's height) passes through itself without folding, and nothing proves it
-  does not yet: with a machine, `Makeable.check` finds it on the mesh (`selfIntersections`).
+  helix whose pitch is less than the section's height) passes through itself without folding. That is proven not to
+  happen only where every section lies in one of a family of parallel planes that the rail rises through (the frame's
+  U and V square to one direction for every t, and the rail's rate along it positive on every knot span by its
+  Bernstein coefficients): a box, a frustum, a loft between parallel planes, which are then buildable. Elsewhere the
+  `self-contact` check passes unproven: with a machine, `Makeable.check` finds a crossing on the mesh
+  (`selfIntersections`).
 * **Cutters turning with a drum.** A cone turning with a drum also reaches further than its section past the rim: the
   cone's sides, ahead and behind, are further from the drum's axis than its axial section. Inside the drum, the
   section's sweep is the cones' union: within 0.035 mm for ~167's groove with 15° blends, against the exact union.

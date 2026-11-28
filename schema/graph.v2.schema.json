@@ -162,6 +162,7 @@
             "freeform/vessel",
             "profile/extrude",
             "profile/sweep",
+            "profile/sweep2",
             "profile/revolve",
             "transform/move",
             "transform/rotate",
@@ -1320,6 +1321,18 @@
           },
           "then": {
             "$ref": "#/$defs/profile.sweep"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "profile/sweep2"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/profile.sweep2"
           }
         },
         {
@@ -5571,6 +5584,140 @@
               ],
               "description": "samples",
               "default": 128
+            }
+          }
+        }
+      }
+    },
+    "profile.sweep2": {
+      "title": "Sweep profile on two rails",
+      "description": "A planar profile drawn in the section's (u, v) plane, the first rail at u = 0 and the second at u = the rails' distance at the start, swept along both rails through (x, y, z) and (x2, y2, z2) at the samples of t from 0 to 1, exact: the section stretched along u to the rails' distance, its v scaled the same (height scale) or kept (keep), in the plane of the line between the rails and the direction square to it and to the rails' mean tangent. A closed rail (t = 1 back at t = 0) makes a ring; an open one is capped flat at both ends. Outputs: the solid, and each end's point on the first rail, unit tangent, u and v axes (start_x ... end_vz) and point on the second rail (start_x2 ... end_z2), to place a part there with Place. Faces outer.k, hole{i}.k, start, end",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "profile/sweep2"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "type": "object",
+              "description": "profile: { outer, holes }, paths of lines, three-point arcs and cubic Béziers, or circles, in millimetres (docs/formats.md, Profiles)",
+              "required": [
+                "outer"
+              ],
+              "properties": {
+                "outer": {
+                  "type": "object"
+                },
+                "holes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              },
+              "default": {
+                "outer": {
+                  "kind": "path",
+                  "start": [
+                    0,
+                    -2
+                  ],
+                  "segments": [
+                    {
+                      "type": "line",
+                      "to": [
+                        10,
+                        -2
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        10,
+                        2
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        0,
+                        2
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        0,
+                        -2
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "x": {
+              "type": "string",
+              "description": "x, an expression of t (0 to 1) and number nodes",
+              "default": "60 * t"
+            },
+            "y": {
+              "type": "string",
+              "description": "y, an expression of t (0 to 1) and number nodes",
+              "default": "0"
+            },
+            "z": {
+              "type": "string",
+              "description": "z, an expression of t (0 to 1) and number nodes",
+              "default": "10 * sin(pi * t)"
+            },
+            "x2": {
+              "type": "string",
+              "description": "x2, an expression of t (0 to 1) and number nodes",
+              "default": "60 * t"
+            },
+            "y2": {
+              "type": "string",
+              "description": "y2, an expression of t (0 to 1) and number nodes",
+              "default": "10 - 6 * t"
+            },
+            "z2": {
+              "type": "string",
+              "description": "z2, an expression of t (0 to 1) and number nodes",
+              "default": "10 * sin(pi * t)"
+            },
+            "rail": {
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "description": "rail",
+              "default": "open"
+            },
+            "height": {
+              "enum": [
+                "scale",
+                "keep"
+              ],
+              "description": "height",
+              "default": "scale"
+            },
+            "samples": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "samples",
+              "default": 64
             }
           }
         }

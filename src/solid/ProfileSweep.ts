@@ -36,6 +36,16 @@ export interface ProfileSweepOptions {
     endTangent? : Vector;
     // an open rail: flat caps at both ends (default true). Without them the shell is open, a surface, not a solid
     caps? : boolean;
+    // a second rail (Sweep2, #159): the section rides on both, its u axis from the first rail to the second. It is
+    // drawn with the first rail at u = 0 and the second at u = the rails' distance at the start, and stretched along u
+    // to the rails' distance; across (v) it is scaled the same (`height` "scale", the default) or kept ("keep"). Its
+    // plane is spanned by the line between the rails and the direction square to that line and to the rails' mean
+    // tangent. The second rail's points match the first's (one per t); `frame`, `axis` and `up` do not apply
+    rail2? : Array<Point>;
+    height? : "scale" | "keep";
+    // the second rail's derivatives d/dt at its ends, as `startTangent` and `endTangent` for the first
+    startTangent2? : Vector;
+    endTangent2? : Vector;
 }
 
 /** A rail's end: its point, its unit tangent (the way the rail runs), and the section's u and v axes there. */
@@ -95,14 +105,18 @@ export class ProfileSweep {
         return ProfileSweep.build( section, rail, options ).solid;
     }
 
-    /** The swept solid (`solid`), with the folds of the sweep (`SweepFold`, none when it does not fold) and its ends. */
-    public static build( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { solid : BrepSolid, folds : Array<SweepFold>, ends : { start : SweepEnd, end : SweepEnd } } {
+    /**
+     * The swept solid (`solid`), with the folds of the sweep (`SweepFold`, none when it does not fold), its ends, and
+     * whether it is proven not to pass through itself anywhere (`separate`: no fold, and an open rail whose sections lie
+     * in parallel planes it rises through).
+     */
+    public static build( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { solid : BrepSolid, folds : Array<SweepFold>, ends : { start : SweepEnd, end : SweepEnd }, separate : boolean } {
         if (!(options.closed ?? false) && options.caps === false) throw new Error( "ProfileSweep: an open rail without caps sweeps a surface, not a solid" );
         const s = ProfileSweep.shell( section, rail, options );
         const solid = ShellBuilder.solid( s.shell, s.mesh );
         const names = s.shell.faces.map( f => f.name );
         solid.faces.forEach( (f, k) => { if (names.indexOf( names[k] ) != names.lastIndexOf( names[k] )) f.half = true; } );
-        return { solid : solid, folds : s.folds, ends : s.ends };
+        return { solid : solid, folds : s.folds, ends : s.ends, separate : s.separate };
     }
 
     /**
@@ -111,7 +125,7 @@ export class ProfileSweep {
      * cannot be taken (the rail along the axis or the up direction) and a section that is not a profile. A sweep that folds
      * is built as it is, its folds said (`SweepFold`).
      */
-    public static shell( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { shell : BrepShell, mesh : TriMesh, ends : { start : SweepEnd, end : SweepEnd }, folds : Array<SweepFold> } {
+    public static shell( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { shell : BrepShell, mesh : TriMesh, ends : { start : SweepEnd, end : SweepEnd }, folds : Array<SweepFold>, separate : boolean } {
         const closed = options.closed ?? false, caps = !closed && (options.caps ?? true);
         const R = ProfileSweep.rail( rail, options );
         const loops = Extrusion.loops( section ).map( l => ({ ...l, pieces : l.pieces as Array<Piece> }) );
@@ -200,7 +214,8 @@ export class ProfileSweep {
             }
         }
         const shell : BrepShell = { vertices : vertices, edges : edges, faces : faces, tolerance : 0, volume : ProfileSweep.volume( loops.map( l => l.pieces ), parts ) };
-        return { shell : shell, mesh : ProfileSweep.mesh( loops.map( l => l.pieces ), parts, closed, caps ), ends : R.ends, folds : folds };
+        return { shell : shell, mesh : ProfileSweep.mesh( loops.map( l => l.pieces ), parts, closed, caps ), ends : R.ends, folds : folds,
+                 separate : folds.length == 0 && ProfileSweep.separate( parts, closed ) };
     }
 
     /**
@@ -264,14 +279,40 @@ export class ProfileSweep {
         const curve = new NurbsCurveData( DEGREE, C.knots.slice(), C.points.map( p => [...p, 1] ) );
         const derivative = (t : number) => Eval.rationalCurveDerivatives( curve, t, 1 )[1];
         const point = (t : number) => Eval.rationalCurvePoint( curve, t );
-        // the frame at a parameter
+        // the frame at a parameter (with two rails, its u and v scaled, and their unit directions for the ends)
         let rmf : RotationMinimizingFrames | null = null;
-        if (mode == "rmf") {
+        let two : ((t : number) => { tangent : Vector, u : Vector, v : Vector, unitU : Vector, unitV : Vector }) | null = null;
+        if (options.rail2 != null) {
+            const r2 = options.rail2;
+            if (!Array.isArray( r2 ) || r2.length != rail.length) throw new Error( `ProfileSweep: the second rail has as many points as the first (${rail.length})` );
+            r2.forEach( (p, i) => { if (!Array.isArray( p ) || p.length != 3 || !p.every( isFinite )) throw new Error( `ProfileSweep: the second rail's point ${i} is not a point [x, y, z]` ); } );
+            const height = options.height ?? "scale";
+            if (height != "scale" && height != "keep") throw new Error( `ProfileSweep: the height is "scale" or "keep", not "${String( height )}"` );
+            const e0 = options.startTangent2 ?? [0, 1, 2].map( i => (-3 * r2[0][i] + 4 * r2[1][i] - r2[2][i]) / (2 * h) );
+            const e1 = options.endTangent2 ?? [0, 1, 2].map( i => (3 * r2[m][i] - 4 * r2[m - 1][i] + r2[m - 2][i]) / (2 * h) );
+            const C2 = ProfileSweep.interpolate( idx.map( i => r2[wrap( i )] ), params, closed ? null : [e0, e1] );
+            const curve2 = new NurbsCurveData( DEGREE, C2.knots.slice(), C2.points.map( p => [...p, 1] ) );
+            const w0 = Vec.dist( Eval.rationalCurvePoint( curve2, 0 ), point( 0 ) );
+            if (!(w0 > 0)) throw new Error( "ProfileSweep: the two rails start at one point; the section's u axis runs from the first to the second" );
+            two = (t : number) => {
+                const a = Eval.rationalCurveDerivatives( curve, t, 1 ), b = Eval.rationalCurveDerivatives( curve2, t, 1 );
+                const chord = Vec.sub( b[0], a[0] ), w = Vec.norm( chord );
+                if (!(Vec.norm( a[1] ) > 0) || !(Vec.norm( b[1] ) > 0)) throw new Error( "ProfileSweep: a rail stops (its derivative is zero)" );
+                if (!(w > 1e-9 * w0)) throw new Error( "ProfileSweep: the two rails meet, where the section has no width" );
+                const T = Vec.normalized( Vec.add( Vec.normalized( a[1] ), Vec.normalized( b[1] ) ) );
+                const n = Vec.cross( T, chord );
+                if (!(Vec.norm( n ) > 1e-9 * w)) throw new Error( "ProfileSweep: the rails run along the line between them, where the section's plane is not defined" );
+                const unitU = Vec.mul( 1 / w, chord ), unitV = Vec.normalized( n );
+                return { tangent : T, u : Vec.mul( 1 / w0, chord ), v : Vec.mul( height == "scale" ? w / w0 : 1, unitV ), unitU : unitU, unitV : unitV };
+            };
+        }
+        if (two == null && mode == "rmf") {
             const ring = closed ? ProfileSweep.cut( C, [0, 1] )[0] : C;
             rmf = new RotationMinimizingFrames( new NurbsCurveData( DEGREE, ring.knots.slice(), ring.points.map( p => [...p, 1] ) ),
                 { closed : closed, samples : Math.max( 512, 16 * n ), ...(options.up != null ? { initialNormal : options.up } : {}) } );
         }
-        const frameAt = (t : number) : { tangent : Vector, u : Vector, v : Vector } => {
+        const frameAt = (t : number) : { tangent : Vector, u : Vector, v : Vector, unitU? : Vector, unitV? : Vector } => {
+            if (two != null) return two( closed ? ((t % 1) + 1) % 1 : t );
             if (rmf == null) return ProfileSweep.frame( point( t ), derivative( t ), mode as "radial" | "up", options );
             const f = rmf.frameAt( closed ? ((t % 1) + 1) % 1 : t );
             return { tangent : f.tangent, u : Vec.cross( f.normal, f.tangent ), v : f.normal };
@@ -297,7 +338,7 @@ export class ProfileSweep {
             ub.points[ub.points.length - 1] = ua.points[0].slice();
         }
         const parts = Cs.map( (c, r) => ({ C : c, U : { knots : c.knots, points : UVs[r].points.map( p => p.slice( 0, 3 ) ) }, V : { knots : c.knots, points : UVs[r].points.map( p => p.slice( 3, 6 ) ) } }) );
-        const end = (f : { tangent : Vector, u : Vector, v : Vector }, p : Point) : SweepEnd => ({ point : p, tangent : f.tangent, u : f.u, v : f.v });
+        const end = (f : { tangent : Vector, u : Vector, v : Vector, unitU? : Vector, unitV? : Vector }, p : Point) : SweepEnd => ({ point : p, tangent : f.tangent, u : f.unitU ?? f.u, v : f.unitV ?? f.v });
         const last = parts[parts.length - 1];
         return { parts : parts, ends : { start : end( F[0], parts[0].C.points[0].slice() ), end : end( closed ? F[0] : F[n], last.C.points[last.C.points.length - 1].slice() ) } };
     }
@@ -492,6 +533,41 @@ export class ProfileSweep {
             const reach = Math.max( ...points.map( ([x, y]) => Vec.dot( Vec.add( Vec.mul( x, U ), Vec.mul( y, V ) ), toward ) ) );
             return { at : d[0], radius : k > 0 ? Math.pow( speed, 3 ) / k : Infinity, reach : reach, proven : run.some( x => x.proven ) };
         } );
+    }
+
+    // Whether the sweep is proven not to pass through itself further along the rail (beyond the folds, which `folds`
+    // looks for): an open rail whose sections all lie in parallel planes, square to a direction D (the frame's U and V
+    // splines have every control point square to D, so U(t) and V(t) are, for every t), along which the rail rises
+    // (D . C'(t) > 0: its Bernstein coefficients on each knot span positive, halved down to 2^-8 of a span). The
+    // section at t then lies in the plane at height D . C(t), so sections at different t are apart, and where the
+    // sweep does not fold each is a one-to-one image of the section. A box, a frustum, a loft between parallel planes;
+    // a sweep whose sections turn is left unproven.
+    private static separate( parts : Array<{ C : Spline, U : Spline, V : Spline }>, closed : boolean ) : boolean {
+        if (closed) return false;
+        const first = parts[0];
+        const D = Vec.cross( first.U.points[0], first.V.points[0] );
+        if (!(Vec.norm( D ) > 0)) return false;
+        const n = Vec.normalized( D );
+        const square = (sp : Spline) => { const scale = Math.max( ...sp.points.map( q => Vec.norm( q ) ) );
+            return sp.points.every( q => Math.abs( Vec.dot( n, q ) ) <= 1e-12 * scale ); };
+        if (!parts.every( part => square( part.U ) && square( part.V ) )) return false;
+        const halves = (row0 : Array<number>) : [Array<number>, Array<number>] => {
+            const lo = [row0[0]], hi = [row0[row0.length - 1]];
+            let row = row0.slice();
+            while (row.length > 1) { row = row.slice( 1 ).map( (x, i) => 0.5 * (row[i] + x) ); lo.push( row[0] ); hi.unshift( row[row.length - 1] ); }
+            return [lo, hi];
+        };
+        const rises = (A : Array<number>, scale : number, depth : number) : boolean => {
+            if (A.every( a => a > 1e-9 * scale )) return true;
+            if (depth == 8 || Math.min( A[0], A[A.length - 1] ) <= 0) return false;
+            const [lo, hi] = halves( A );
+            return rises( lo, scale, depth + 1 ) && rises( hi, scale, depth + 1 );
+        };
+        return parts.every( part => Modify.decomposeCurveIntoBeziers( new NurbsCurveData( DEGREE, part.C.knots.slice(), part.C.points.map( q => [...q, 1] ) ) ).every( b => {
+            const pts = b.controlPoints.map( q => q.slice( 0, 3 ) ), d = pts.slice( 1 ).map( (q, i) => Vec.sub( q, pts[i] ) );
+            const scale = Math.max( ...d.map( q => Vec.norm( q ) ) );
+            return scale > 0 && rises( d.map( q => Vec.dot( n, q ) ), scale, 0 );
+        } ) );
     }
 
     // A region's area and first moments (the integrals of 1, x and y over it), its loops oriented outer
