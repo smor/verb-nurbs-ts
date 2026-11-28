@@ -464,6 +464,22 @@ parts sharing a face. Three things make them work.
   so the branch did not take the rim's points and the faces did not share their vertices. A branch's point now also
   counts as on an edge when it lies within eps of the face's surface at parameters interpolated between two of the
   edge's samples (test "507 regressions", M).
+* **Curves of two solids along each other (#166).** Five closed 507 parts exported open. Two rings of one profile
+  stacked, or a wall on a base plate with its sides flush, have their walls in one surface, and the lower one's top
+  edge is the upper one's bottom edge. Each edge was sampled for its own solid (134 points against 133), and the
+  walls' meshes did not share their vertices at the joint. Edges of two solids made from shells now take each other's
+  points where they run along each other (within their chords' sag, measured on one of their faces, and parallel to
+  them). The edge also lies in the other solid's cap plane. `edgesOnFaces` made a branch from it there, since the
+  check that the edge ran along an edge of that face too allowed no sag; that check now allows for it. A jaw and a
+  boss with flush caps, bored through, had the bore's tube meet both caps' planes on one circle, found twice. The
+  second was dropped as traced by the first, but the first lay outside its cap's trims, so neither cut the tube. A
+  branch now traces another only with the runs it keeps. A pin across a bar's end, its cap flush with the bar's side
+  and its centre on the bar's end edge, has the bar's edge run along the cap's diameter, through the pole of the cap's
+  parameters. The projection onto the cap stuck at the pole, where Newton's step is singular, and split the diameter
+  in two with a gap. The projection now starts again just off a pole, round it, and keeps the nearest point. The four
+  close with their volumes (test "507 regressions", N to Q, from test/fixtures/export-open). The fifth, a plate whose
+  bore stands on a bored ring's, still exports open: the plate's bore rim is sampled a few points round, the branches
+  on it finely, and the slivers between them do not mesh.
 * **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
   found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
   transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side

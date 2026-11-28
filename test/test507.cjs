@@ -342,4 +342,28 @@ describe("507 regressions (test/fixtures/507)", function () {
 		// pocket's floor over a few hundredths only
 		arc(15, 0.05, 13, 2.5, 40);
 	});
+
+	it('N to Q: solids meeting along a shared edge or flush faces close, their print meshes too (#166)', function () {
+		// (in test/fixtures/export-open: their circles' sides are two halves that keep one name, #122, which the face
+		// names' sweep of the 507 fixtures does not expect)
+		var open = path.join(__dirname, 'fixtures', 'export-open');
+		var closes = function (prefix, volume, rel) {
+			var f = fs.readdirSync(open).find(function (x) { return x.startsWith(prefix + '-'); });
+			var r = new Graph().evaluate(JSON.parse(fs.readFileSync(path.join(open, f), 'utf8')), { output : 'solid', mesh : 'print' });
+			made(r.verdict, prefix + ': ' + (r.verdict.reasons || []).join('; '));
+			r.result.report.manifold.closedManifold.should.be.true();
+			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			r.result.report.volume.should.be.approximately(volume, rel * volume);
+		};
+		// two rings stacked: the walls' edges at the joint, sampled each for its own solid
+		closes('N', (PI * 81 - 8.3 * 8.3) * 7.5, 1e-3);
+		// a wall on a base plate, flush with its sides
+		var corners = 4 - PI;
+		closes('O', (122 * 10.2 - corners) * 2.5 + (122 * 7 - corners - 2 * PI * 1.4 * 1.4) * 10.3, 2e-3);
+		// a boss's caps flush with a jaw's, bored through: the bore's rim lies on both caps' planes (Manifold's volume,
+		// to its polygons)
+		closes('P', 2820.839, 5e-3);
+		// a pin's cap flush with a bar's side, its centre on the bar's end edge: the cap's diameter runs through its pole
+		closes('Q', 85 * 4 * 10 + PI * 25 * (4 / 2 + 2.65), 1e-3);
+	});
 });
