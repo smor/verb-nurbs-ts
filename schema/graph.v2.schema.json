@@ -175,6 +175,7 @@
             "look/band",
             "look/motif",
             "finish/round",
+            "finish/offset",
             "finish/shell",
             "component"
           ]
@@ -1475,6 +1476,18 @@
           },
           "then": {
             "$ref": "#/$defs/finish.round"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "finish/offset"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/finish.offset"
           }
         },
         {
@@ -6273,6 +6286,42 @@
               ],
               "description": "shape",
               "default": "circular"
+            }
+          }
+        }
+      }
+    },
+    "finish.offset": {
+      "title": "Offset",
+      "description": "Grow the solid by a distance (shrink it when negative), every face moved along its normal: a mating part's clearance",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "finish/offset"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "distance": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "distance (mm)",
+              "default": 0.25
             }
           }
         }

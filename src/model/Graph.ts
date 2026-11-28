@@ -948,6 +948,7 @@ export class Graph {
                         radius : asNum( "radius" ) };
                     break;
                 }
+                case "finish/offset": features[id] = { type : "offset", of : s( "of" ), distance : asNum( "distance" ) }; break;
                 case "finish/shell": {
                     const open = s( "open" ).split( "," ).map( e => e.trim() ).filter( e => e != "" );
                     features[id] = { type : "shell", of : s( "of" ), thickness : asNum( "thickness" ), open : open };
@@ -1043,6 +1044,7 @@ export class Graph {
                 case "choose": return { ...f, when : value( f.when ), ...(f.then != null ? { then : ref( f.then ) } : {}), ...(f.else != null ? { else : ref( f.else ) } : {}) };
                 case "round": return { ...f, of : ref( f.of ), rules : f.rules.map( r => ({ edges : pattern( r.edges ), radius : value( r.radius ) }) ) };
                 case "shell": return { ...f, of : ref( f.of ), thickness : value( f.thickness ), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
+                case "offset": return { ...f, of : ref( f.of ), distance : value( f.distance ) };
                 case "lattice": return { ...f, of : ref( f.of ), cell : value( f.cell ), wall : value( f.wall ),
                     ...(f.skin != null ? { skin : value( f.skin ) } : {}), ...(f.blend != null ? { blend : value( f.blend ) } : {}), ...(f.size != null ? { size : value( f.size ) } : {}),
                     ...(f.grade != null ? { grade : { axis : f.grade.axis, to : value( f.grade.to ) } } : {}), ...(f.open != null ? { open : f.open.map( pattern ) } : {}) };
@@ -1288,6 +1290,8 @@ export class Graph {
         r["finish/round"] = { title : "Round edges", category : "finish", help : "Fillets or chamfers on the edges named by patterns, comma separated: box.*|box.*",
             inputs : { ...of, radius : num( "radius", 2, 0.1, 20, 0.1, "mm" ), edges : { kind : "text", label : "edges", value : "*" },
                 shape : { kind : "choice", label : "shape", value : "circular", options : ["circular", "curvature", "chamfer"] } }, outputs : { solid : "solid" } };
+        r["finish/offset"] = { title : "Offset", category : "finish", help : "Grow the solid by a distance (shrink it when negative), every face moved along its normal: a mating part's clearance",
+            inputs : { ...of, distance : num( "distance", 0.25, -20, 20, 0.05, "mm" ) }, outputs : { solid : "solid" } };
         r["finish/shell"] = { title : "Shell", category : "finish", help : "Hollow the solid; faces named by patterns are left open",
             inputs : { ...of, thickness : num( "thickness", 2, 0.2, 20, 0.1, "mm" ), open : { kind : "text", label : "open faces", value : "" } }, outputs : { solid : "solid" } };
         return r;

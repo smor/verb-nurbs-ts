@@ -17,6 +17,7 @@ import { Implicit, LatticePattern } from "../solid/Implicit.js";
 import { Machine, Makeable, MakeableReport } from "../solid/Makeable.js";
 import { TriMesh } from "../solid/TriMesh.js";
 import { Expr } from "./Expr.js";
+import { ProfileOffset } from "../solid/ProfileOffset.js";
 import { Wall } from "./Wall.js";
 
 // A number in a model document: a literal, or an expression over the document's parameters (see `Expr`).
@@ -71,6 +72,8 @@ export type ModelFeature =
     // hollowing: the solid less its inside, `thickness` in from every face but the `open` ones (patterns over the face
     // names of `of`, as for edges), which the inside goes through; see `Model` on how the inside is built
     | { type : "shell", of : string, thickness : ModelValue, open? : Array<string> }
+    // the solid grown by `distance` (shrunk when it is negative), every face moved along its normal (`Model.expandOffsets`)
+    | { type : "offset", of : string, distance : ModelValue }
     // lightweighting: the solid's inside as a lattice (a TPMS sheet or struts, `wall` thick, in cubic cells of side
     // `cell`) within a skin `skin` thick (0: none), fused to it with a smooth joint of radius `blend`; the wall may be
     // graded, linearly along an axis of the solid's bounding box to `grade.to`. Meshed on a grid of side `size`
@@ -243,7 +246,7 @@ export class Model {
         if (given.features?.[given.output] == null) throw new Error( `Model: the output "${given.output}" is not a feature` );
         const params = Model.parameters( given.parameters ?? {} );
         const chosen : { [id : string] : boolean } = {};
-        const doc = Model.liftRound( Model.choose( given, params, chosen ) );
+        const doc = Model.liftRound( Model.expandOffsets( Model.choose( given, params, chosen ), params ) );
         const num = (v : ModelValue, what : string) : number => {
             if (typeof v == "number") { if (!isFinite( v )) throw new Error( `Model: ${what} is not finite` ); return v; }
             if (typeof v == "string") return Expr.evaluate( v, params );
@@ -540,7 +543,7 @@ export class Model {
                     r = next == null ? null : at( next );
                     break;
                 }
-                case "transform": case "round": case "shell": case "lattice": {
+                case "transform": case "round": case "shell": case "lattice": case "offset": {
                     const of = at( f.of );
                     if (of == null) r = null; else out[id] = { ...f, of : of };
                     break;
@@ -569,6 +572,118 @@ export class Model {
         const output = at( doc.output );
         if (output == null) throw new ModelError( `Model: the output "${doc.output}" is switched off: nothing is left of it`, { feature : doc.output, type : features[doc.output].type } );
         return { ...doc, features : out, output : output };
+    }
+
+    /**
+     * A document with each "offset" feature written out as the features that build it (#150, ask 3): the solid grown by
+     * d (shrunk when d is negative), every face moved d along its outward normal, after Rossignac and Requicha
+     * ("Offsetting operations in solid modelling", Computer Aided Geometric Design 3(2), 1986).
+     *
+     * * A box grown is the box larger by d on every side with all its edges rounded by d: its planes moved out,
+     *   cylinders of radius d along its edges and spheres at its corners, the exact offset. Shrunk, the smaller box.
+     * * A cylinder grown is the cylinder of radius r + d and d longer at each end, its rims rounded by d (tori), the exact
+     *   offset. Shrunk, the cylinder of radius r - |d|, |d| shorter at each end.
+     * * An extrusion offsets its profile in its plane (`ProfileOffset`) and its height by d at each end, its twist
+     *   scaled to keep its pitch. Straight, that is the exact offset when shrunk, and when grown away from the rims of
+     *   its caps, which stay sharp (the exact offset rounds them by d; the sharp rim contains it). Twisted, its sides are
+     *   screw surfaces, whose offsets are screw surfaces of the same pitch: the section is the offset surface's section
+     *   in the base plane (`ProfileOffset.region` with the twist rate), within 1e-4.
+     * * A rigid or uniformly scaled transform carries the offset (scaled back by the scale).
+     * * A union grown is the union of the parts grown (exact); shrunk, the union of the parts shrunk, which can be
+     *   smaller than the exact offset where parts meet. An intersection shrunk is the intersection of the parts shrunk
+     *   (exact); grown, the intersection of the parts grown, which can be larger. A difference A - B offset by d is
+     *   (A offset by d) - (B offset by -d): exact when shrunk, larger than the exact offset when grown, at most where
+     *   the cut meets A's faces.
+     *
+     * Other features (catalogue primitives, revolves, pipes, rounds, shells, lattices) are refused for now, and so is
+     * an offset of an offset the other way. The new features take the offset's id followed by "~" and a number.
+     */
+    public static expandOffsets( doc : ModelDocument, params : { [name : string] : number } ) : ModelDocument {
+        if (!Object.values( doc.features ).some( f => f.type == "offset" )) return doc;
+        const features : { [id : string] : ModelFeature } = { ...doc.features };
+        const num = (v : ModelValue, what : string) : number => {
+            const x = typeof v == "number" ? v : typeof v == "string" ? Expr.evaluate( v, params ) : NaN;
+            if (!isFinite( x )) throw new Error( `Model: ${what} must be a finite number or an expression` );
+            return x;
+        };
+        const point = (p : ModelPoint, what : string) : Point => [num( p[0], what ), num( p[1], what ), num( p[2], what )];
+        const P = (p : Point) : ModelPoint => [p[0], p[1], p[2]];
+        let count = 0;
+        const fresh = (owner : string) : string => { let n : string; do { n = owner + "~" + (++count); } while (features[n] != null); return n; };
+        const add = (owner : string, f : ModelFeature) : string => { const n = fresh( owner ); features[n] = f; return n; };
+        // the feature `id` offset by d, as the id of a new feature, or null when nothing is left of it
+        const grow = (id : string, d : number, owner : string) : string | null => {
+            // (an offset met again keeps its own definition, whether or not it is written out yet)
+            const f = doc.features[id]?.type == "offset" ? doc.features[id] : features[id];
+            if (f == null) throw new ModelError( `Model: unknown feature "${id}"`, { feature : owner, type : "offset" } );
+            if (d == 0) return id;
+            switch (f.type) {
+                case "box": {
+                    const a = point( f.min, `"${id}" min` ), b = point( f.max, `"${id}" max` );
+                    const lo = a.map( x => x - d ), hi = b.map( x => x + d );
+                    if ([0, 1, 2].some( k => !(hi[k] > lo[k]) )) return null;
+                    const box = add( owner, { type : "box", min : P( lo ), max : P( hi ), ...(f.divs != null ? { divs : f.divs } : {}) } );
+                    return d > 0 ? add( owner, { type : "round", of : box, rules : [{ edges : "*", radius : d }], corner : "ball" } ) : box;
+                }
+                case "cylinder": {
+                    const a = point( f.from, `"${id}" from` ), b = point( f.to, `"${id}" to` ), r = num( f.radius, `"${id}" radius` ) + d;
+                    const len = Vec.dist( a, b ), u = Vec.mul( 1 / len, Vec.sub( b, a ) );
+                    if (!(r > 0) || !(len + 2 * d > 0)) return null;
+                    const cyl = add( owner, { type : "cylinder", from : P( Vec.sub( a, Vec.mul( d, u ) ) ), to : P( Vec.add( b, Vec.mul( d, u ) ) ), radius : r, ...(f.divs != null ? { divs : f.divs } : {}) } );
+                    return d > 0 ? add( owner, { type : "round", of : cyl, rules : [{ edges : "*", radius : d }] } ) : cyl;
+                }
+                case "extrude": {
+                    if (f.scaleTop != null && num( f.scaleTop, `"${id}" scaleTop` ) != 1)
+                        throw new ModelError( `Model: an offset cannot yet take the tapered extrusion "${id}"`, { feature : owner, type : "offset" } );
+                    const h = num( f.height, `"${id}" height` ), z = f.z == null ? 0 : num( f.z, `"${id}" z` );
+                    if (!(h + 2 * d > 0)) return null;
+                    // a twisted side is a screw surface: its offset is one too, of the same pitch, whose section is the
+                    // profile's offset along the sides' normals brought back down the screw (`ProfileOffset.region`); the
+                    // offset starts d lower, where that section is turned back by the twist over d
+                    const rate = f.twist == null ? 0 : num( f.twist, `"${id}" twist` ) * Math.PI / 180 / h;
+                    let profile : ProfileSpec | null;
+                    try { profile = ProfileOffset.region( f.profile, d, 1e-4, rate ); if (profile != null && rate != 0) profile = ProfileOffset.rotated( profile, -rate * d ); }
+                    catch (e) { throw new ModelError( `Model: the offset "${owner}" of "${id}": ${e instanceof Error ? e.message : String( e )}`, { feature : owner, type : "offset" }, e ); }
+                    if (profile == null) return null;
+                    const twist = f.twist == null ? null : num( f.twist, `"${id}" twist` ) * (h + 2 * d) / h;
+                    return add( owner, { type : "extrude", profile : profile, height : h + 2 * d, z : z - d, ...(twist != null ? { twist : twist } : {}) } );
+                }
+                case "transform": {
+                    const M = Model.matrix( f, num, point ), sc = Model.similarity( M );
+                    if (sc == null) throw new ModelError( `Model: an offset can only go through a rigid or uniformly scaled transform, not "${id}"`, { feature : owner, type : "offset" } );
+                    const inner = grow( f.of, d / sc, owner );
+                    return inner == null ? null : add( owner, { ...f, of : inner } );
+                }
+                case "union": {
+                    const parts = f.of.map( k => grow( k, d, owner ) ).filter( (x) : x is string => x != null );
+                    return parts.length == 0 ? null : add( owner, { type : "union", of : parts } );
+                }
+                case "intersection": {
+                    const parts = f.of.map( k => grow( k, d, owner ) );
+                    return parts.some( x => x == null ) ? null : add( owner, { type : "intersection", of : parts as Array<string> } );
+                }
+                case "difference": {
+                    const from = grow( f.from, d, owner );
+                    if (from == null) return null;
+                    const minus = f.minus.map( k => grow( k, -d, owner ) ).filter( (x) : x is string => x != null );
+                    return minus.length == 0 ? from : add( owner, { type : "difference", from : from, minus : minus } );
+                }
+                case "offset": {
+                    const e = num( f.distance, `"${id}" distance` );
+                    if (e * d < 0) throw new ModelError( `Model: an offset cannot yet take the offset "${id}" the other way`, { feature : owner, type : "offset" } );
+                    return grow( f.of, d + e, owner );
+                }
+                default: throw new ModelError( `Model: an offset cannot yet take the ${f.type} "${id}"`, { feature : owner, type : "offset" } );
+            }
+        };
+        for (const id of Object.keys( doc.features )) {
+            const f = doc.features[id];
+            if (f.type != "offset") continue;
+            const r = grow( f.of, num( f.distance, `"${id}" distance` ), id );
+            if (r == null) throw new ModelError( `Model: the offset "${id}" leaves nothing of "${f.of}"`, { feature : id, type : "offset" } );
+            features[id] = { type : "transform", of : r };
+        }
+        return { ...doc, features : features };
     }
 
     /**
@@ -658,6 +773,7 @@ export class Model {
             case "difference": return { n : f.minus.length };
             case "round": return { rules : f.rules.map( r => [r.edges, num( r.radius, "radius" )] ), shape : f.shape ?? "circular", corner : f.corner ?? "auto" };
             case "shell": return { thickness : num( f.thickness, "thickness" ), open : f.open ?? [] };
+            case "offset": return { distance : num( f.distance, "distance" ) };
             case "lattice": return { pattern : f.pattern, cell : num( f.cell, "cell" ), wall : num( f.wall, "wall" ), skin : num( f.skin ?? 0, "skin" ),
                                      blend : num( f.blend ?? 0, "blend" ), size : f.size == null ? null : num( f.size, "size" ),
                                      grade : f.grade == null ? null : [f.grade.axis, num( f.grade.to, "grade" )], open : f.open ?? [] };
@@ -667,7 +783,7 @@ export class Model {
 
     private static inputs( f : ModelFeature ) : Array<string> {
         switch (f.type) {
-            case "transform": case "round": case "shell": case "lattice": return [f.of];
+            case "transform": case "round": case "shell": case "lattice": case "offset": return [f.of];
             case "union": case "intersection": return f.of;
             case "difference": return [f.from].concat( f.minus );
             default: return [];
