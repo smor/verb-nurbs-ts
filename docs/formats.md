@@ -209,10 +209,13 @@ points are the segment's and the splines'. So every section along the rail is th
   507's hull-of-cones build is itself up to 0.025 mm off the exact union, so the two builds differ by up to 0.075 mm
   at the reversals.
 * **Parts placed at an end.** A part placed at an end that carries the sweep's faces on exactly (the cutter cone
-  itself) meets them along the end section. Its flat ends lie in the sweep's top and floor, almost tangent, and the
-  Booleans can fail there. Give the part a runout of its own beyond the section's (the test's cone runs out to v = 2
-  where the section stops at 1). Keep a revolved part's seam out of the end section's plane, too: turn it about its
-  axis first.
+  itself) meets them along the end section: the end cap's rim lies on the cone, the cone's flat tip on the sweep's
+  floor, and the cone crosses the sweep's sides at a grazing angle beside it. The Booleans close this (#163: 507's
+  cutter on an arc, and ~167's open groove with a cone at each end cut from the drum, within 0.05 mm of the cones'
+  union). Give the part a runout of its own beyond the section's (the test's cone runs out to v = 2 where the
+  section stops at 1). Keep a revolved part's seam out of the end section's plane: turn it about its axis first
+  (90° or 30° closes; a seam in the plane, 0° or 180°, does not yet). A part moved off the end by a few hundredths
+  does not close either: its faces then cross the sweep's within that distance.
 
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is

@@ -299,6 +299,31 @@ export class BrepBoolean {
                 for (const q of corners) { const d = Vec.dist( p, q ); if (d < bd) { bd = d; best = q; } }
                 if (best != null) e.curve.points[k] = best;
             }
+            // and a branch can pass through, between its ends, the point where another ends on its face: where the
+            // faces touch along it (a cone's flat tip on a sweep's floor, the sweep's end cap through the tip's pole),
+            // its points are found only to within about the square root of the tolerance across it. It takes that
+            // point (#163)
+            const onFace = new Map<Point, Set<string>>();
+            for (const e of curves) for (const p of e.curve.points) {
+                let set = onFace.get( p );
+                if (set == null) onFace.set( p, set = new Set() );
+                set.add( e.solids[0] + "/" + e.faces[0] ); set.add( e.solids[1] + "/" + e.faces[1] );
+            }
+            const targets = new Set<Point>( corners );
+            for (const e of curves) if (!e.curve.closed) { targets.add( e.curve.points[0] ); targets.add( e.curve.points[e.curve.points.length - 1] ); }
+            for (const e of curves) {
+                const n = e.curve.points.length, mine = [e.solids[0] + "/" + e.faces[0], e.solids[1] + "/" + e.faces[1]];
+                for (let k = e.curve.closed ? 0 : 1; k < (e.curve.closed ? n : n - 1); k++) {
+                    const p = e.curve.points[k];
+                    if ((count.get( p ) as number) > 1) continue;
+                    let best : Point | null = null, bd = snap;
+                    for (const q of targets) {
+                        const d = Vec.dist( p, q );
+                        if (d < bd && mine.some( f => onFace.get( q )!.has( f ) ) && !e.curve.points.includes( q )) { bd = d; best = q; }
+                    }
+                    if (best != null) e.curve.points[k] = best;
+                }
+            }
         }
         // a branch that runs along an edge of a solid made from a shell (a layer stacked on another's cap: the branch
         // of the cap and the layer's side lies on the layer's bottom edge) takes that edge's points, so that the face
@@ -708,7 +733,7 @@ export class BrepBoolean {
                 const inside = BrepBoolean.classify( t, reg, si, meshes );
                 // next to a seam with another solid, the side is exact: it does not depend on how finely that solid is
                 // tessellated, which matters when the two barely overlap
-                for (const [k, x] of BrepBoolean.seamSides( t, reg, si, solids, runs, curves )) inside[k] = x;
+                for (const [k, x] of BrepBoolean.seamSides( t, reg, si, solids, runs, curves, weldTol * 50 )) inside[k] = x;
                 // on a face of another solid (coincident faces): just behind the region, that solid is inside where
                 // its face points the same way, outside where it points against; just in front, the reverse
                 const on = BrepBoolean.coincident( face, t, reg, si, solids, weldTol * 50 );
@@ -882,7 +907,7 @@ export class BrepBoolean {
     // of the other face that is (its outward normal). Exact for transversal seams, whatever the tessellation.
     private static seamSides( t : FaceTessellation, region : Array<number>, own : number, solids : Array<BrepSolid>,
                               runs : Array<{ ci : number, curve : IntersectionCurve, own? : boolean }>,
-                              curves : BooleanResult["curves"] ) : Map<number, boolean> {
+                              curves : BooleanResult["curves"], eps : number ) : Map<number, boolean> {
         // votes per other solid: [inside, outside], one per seam edge; a side is decided by a clear majority (a sliver
         // triangle at the end of a seam can vote wrong), otherwise left to the ray test
         const votes = new Map<number, [number, number]>();
@@ -900,6 +925,9 @@ export class BrepBoolean {
                 if (e.solids[mine] != own) continue;
                 const myFace = solids[own].faces[e.faces[mine]], otherFace = solids[e.solids[other]].faces[e.faces[other]];
                 const mid = Vec.lerp( 0.5, t.points[a], t.points[b] );
+                // a seam along an edge of the other solid (a cone placed at a sweep's end crosses the end cap just at
+                // its rim): which side of that one face it is says nothing about the solid (#163)
+                if (BrepBoolean.trimsOf( curves, e.solids[other], e.faces[other] ).some( T => BrepBoolean.onto( T.e.curve.points, mid, eps ).on )) continue;
                 let best = 0, bd = Infinity;
                 run.points.forEach( (p, i) => { const d = Vec.distSquared( p, mid ); if (d < bd) { bd = d; best = i; } } );
                 const uvMine = mine == 0 ? run.uvA[best] : run.uvB[best], uvOther = mine == 0 ? run.uvB[best] : run.uvA[best];
@@ -916,8 +944,10 @@ export class BrepBoolean {
                 d = Vec.sub( d, Vec.mul( Vec.dot( d, T ), T ) );
                 const s = Vec.dot( d, nb );
                 if (Math.abs( s ) < 1e-12 * Math.max( 1, Vec.norm( d ) )) continue;
-                const v = votes.get( e.solids[other] );
-                if (v == null) votes.set( e.solids[other], s < 0 ? [1, 0] : [0, 1] ); else v[s < 0 ? 0 : 1]++;
+                // (each vote weighs the sine of the angle the faces cross at: the step's side is the less sure the
+                // closer they are to tangent, as where a cone placed at a sweep's end crosses its side, #163)
+                const w = Vec.norm( along ), v = votes.get( e.solids[other] );
+                if (v == null) votes.set( e.solids[other], s < 0 ? [w, 0] : [0, w] ); else v[s < 0 ? 0 : 1] += w;
             }
         }
         const out = new Map<number, boolean>();

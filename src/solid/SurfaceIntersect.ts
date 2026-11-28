@@ -671,7 +671,12 @@ export class SurfaceIntersect {
                     if (per[a]) continue;
                     for (let e = 0; e < 2; e++) {
                         const value = d[2 * a + e];
-                        const r = SurfaceIntersect.isocurveSurface( S.surface, a == 0, value, uvS[1 - a], O.surface, uvO, tol );
+                        // a side that is one point (a disc's centre, a cone's apex) has no direction to step along:
+                        // the branch ends there when the point is on the other face (a cap's edge through the pole of
+                        // a cone's flat tip, #163), keeping its own parameter along the side
+                        const pole = SurfaceIntersect.pole( S.surface, a, value );
+                        const r = pole == null ? SurfaceIntersect.isocurveSurface( S.surface, a == 0, value, uvS[1 - a], O.surface, uvO, tol )
+                            : SurfaceIntersect.onPole( O.surface, pole, uvO, uvS[1 - a], reach );
                         if (r == null) continue;
                         const dist = Vec.dist( r.point, p );
                         if (dist > reach || (best != null && dist >= best.d)) continue;
@@ -699,6 +704,23 @@ export class SurfaceIntersect {
             else { pts.push( last.point ); ua.push( last.uvA ); ub.push( last.uvB ); }
         }
         return { points : pts, uvA : ua, uvB : ub, seamA : pts.map( _ => 0 ), seamB : pts.map( _ => 0 ), closed : false };
+    }
+
+    // The point that a side of a surface's domain is (`axis` 0: the side u = value), or null if the side is a curve.
+    private static pole( s : NurbsSurfaceData, axis : number, value : number ) : Point | null {
+        const d = SurfaceIntersect.domain( s ), lo = d[2 * (1 - axis)], hi = d[2 * (1 - axis) + 1];
+        const at = (t : number) => axis == 0 ? Eval.rationalSurfacePoint( s, value, t ) : Eval.rationalSurfacePoint( s, t, value );
+        const pts = [0, 0.25, 0.5, 0.75, 1].map( f => at( lo + (hi - lo) * f ) );
+        const box = SurfaceIntersect.box( s, 0 ), size = Vec.dist( box.min, box.max );
+        return pts.every( q => Vec.dist( q, pts[0] ) <= 1e-12 * size ) ? pts[0] : null;
+    }
+
+    // A pole as the end of a branch: its parameters on the other surface b, if it lies on b (within a millionth of
+    // `reach`); `t` is the parameter along the side kept.
+    private static onPole( b : NurbsSurfaceData, pole : Point, uvB0 : UV, t : number, reach : number ) : { t : number, uvB : UV, point : Point } | null {
+        let uv = SurfaceIntersect.project( b, pole, 12, uvB0 );
+        if (Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), pole ) > 1e-6 * reach) uv = SurfaceIntersect.project( b, pole );
+        return Vec.dist( Eval.rationalSurfacePoint( b, uv[0], uv[1] ), pole ) <= 1e-6 * reach ? { t : t, uvB : uv, point : pole } : null;
     }
 
     // Insert refined midpoints wherever two consecutive vertices are more than `step` apart.
