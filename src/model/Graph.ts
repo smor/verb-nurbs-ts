@@ -6,6 +6,11 @@ import { ShellMesher } from "../solid/ShellMesher.js";
 import type { BrepShell } from "../solid/BrepShell.js";
 import { MassPropertiesOf } from "../solid/MassProperties.js";
 import type { MassProperties } from "../solid/MassProperties.js";
+import { Clearance } from "../solid/Clearance.js";
+import type { ClearanceBody } from "../solid/Clearance.js";
+import { Vec } from "../core/Vec.js";
+import type { ClearanceMotion, ClearanceResult, ClosestApproach } from "../solid/Clearance.js";
+import type { Point } from "../core/Data.js";
 import type { BooleanResult } from "../solid/BrepBoolean.js";
 import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
@@ -173,6 +178,56 @@ export class GraphError extends Error {
 }
 
 /** A graph evaluated: the model's result, the model document it compiled into, and each node's state. */
+/**
+ * A solid's pose: turned about an axis (through `about`, the origin by default) by `degrees`, then moved by
+ * `translate`. The same transform as a model's "transform" feature, without its scale.
+ */
+export interface GraphPose {
+    rotate? : { axis : [number, number, number], degrees : number, about? : [number, number, number] };
+    translate? : [number, number, number];
+}
+
+/** What `Graph.clearance` measures between two posed solids of a graph document. */
+export interface GraphClearanceOptions {
+    poseA? : GraphPose;
+    poseB? : GraphPose;
+    // the search meshes' chordal tolerance (`ClearanceOptions.chordal`)
+    chordal? : number;
+}
+
+/**
+ * The clearance between two posed solids (`ClearanceResult`) and, when they overlap, their interference: its volume
+ * (on its exact shell), its box and its deepest point, the centre of the largest ball inside it, with that ball's
+ * radius (`depth`, measured on its print mesh).
+ */
+export interface GraphClearance extends ClearanceResult {
+    interference : { volume : number, box : { min : Point, max : Point }, deepest : Point | null, depth : number } | null;
+}
+
+/**
+ * A solid's motion over time: turned about an axis (through `about`, the origin by default) by `degrees(t)`, then
+ * moved by `at(t)`. Each part gives a bound on its rate (`rate` ≥ |d degrees / dt| in degrees per unit of time, and
+ * ≥ |d at / dt| in length per unit of time), on which the closest approach's guarantee rests: for a turn at a steady
+ * speed or a move along a line, the rate is the speed itself.
+ */
+export interface GraphMotion {
+    rotate? : { axis : [number, number, number], about? : [number, number, number], degrees : (t : number) => number, rate : number };
+    translate? : { at : (t : number) => [number, number, number], rate : number };
+}
+
+/** What `Graph.closestApproach` measures: two solids' motions over [from, to], to within `tol`. */
+export interface GraphApproachOptions {
+    motionA? : GraphMotion;
+    motionB? : GraphMotion;
+    from : number;
+    to : number;
+    // how close the bound must come to the least distance found (default 1e-3)
+    tol? : number;
+    // the most clearances measured (default 400)
+    evaluations? : number;
+    chordal? : number;
+}
+
 export interface GraphResult extends ModelResult {
     model : ModelDocument;
     // the output evaluated: its name, or the reference asked for
@@ -310,6 +365,88 @@ export class Graph {
      */
     public massProperties( r : ModelResult, density : number = 1 ) : MassProperties {
         return MassPropertiesOf.shell( this.shellOf( r ), density );
+    }
+
+    /**
+     * The clearance between two solids of a graph document, each under its pose (#150, ask 1). `a` and `b` name an
+     * output of the document or one of its nodes (with or without "@"). The distance and its witnesses are measured
+     * on the solids' exact shells (`Clearance.between`); when the solids overlap, their intersection is built and
+     * measured.
+     */
+    public clearance( doc : GraphDocument, a : string, b : string, options : GraphClearanceOptions = {} ) : GraphClearance {
+        const run = this.posedPair( doc, a, b, options.poseA, options.poseB );
+        const ra = run( "clearance:a" ), rb = run( "clearance:b" );
+        const c = Clearance.between( this.shellOf( ra ), this.shellOf( rb ), options.chordal != null ? { chordal : options.chordal } : {} );
+        if (!c.overlap) return { ...c, interference : null };
+        const ri = run( "clearance:both" );
+        const shell = this.shellOf( ri ), mesh = this.exportMesh( ri, "print" ).mesh;
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const v of mesh.vertices) for (let k = 0; k < 3; k++) { lo[k] = Math.min( lo[k], v[k] ); hi[k] = Math.max( hi[k], v[k] ); }
+        const deep = Clearance.deepest( mesh );
+        return { ...c, interference : { volume : shell.volume ?? MassPropertiesOf.shell( shell ).volume, box : { min : lo, max : hi },
+            deepest : deep?.point ?? null, depth : deep?.depth ?? 0 } };
+    }
+
+    /**
+     * The closest approach of two solids of a graph document over an interval of time, each moving as given (#150,
+     * ask 1): the least distance and the time it happens, with a lower bound on the distance at every time of the
+     * interval (`Clearance.along`). The bound rests on the motions' rates: each solid's points move no faster than its
+     * turn's rate times their farthest distance from the axis, plus its move's rate.
+     */
+    public closestApproach( doc : GraphDocument, a : string, b : string, options : GraphApproachOptions ) : ClosestApproach {
+        const run = this.posedPair( doc, a, b, undefined, undefined );
+        const chordal = options.chordal != null ? { chordal : options.chordal } : {};
+        const A = Clearance.body( this.shellOf( run( "clearance:a" ) ), chordal ), B = Clearance.body( this.shellOf( run( "clearance:b" ) ), chordal );
+        const motion = (X : ClearanceBody, m : GraphMotion | undefined) : ClearanceMotion => {
+            if (m == null) return { at : () => null, speed : 0 };
+            let speed = m.translate != null ? m.translate.rate : 0;
+            if (m.rotate != null) {
+                // the farthest point from the axis: the mesh's vertices lie on the faces, and no face strays from the
+                // mesh by more than its deviation
+                const o = m.rotate.about ?? [0, 0, 0], u = Vec.normalized( m.rotate.axis );
+                let R = 0;
+                for (const p of X.mesh.mesh.vertices) { const w = Vec.sub( p, o ); R = Math.max( R, Vec.norm( Vec.sub( w, Vec.mul( Vec.dot( w, u ), u ) ) ) ); }
+                speed += Math.abs( m.rotate.rate ) * Math.PI / 180 * (R + X.mesh.deviation);
+            }
+            return { at : (t : number) => Graph.poseMatrix( {
+                ...(m.rotate != null ? { rotate : { axis : m.rotate.axis, degrees : m.rotate.degrees( t ), ...(m.rotate.about != null ? { about : m.rotate.about } : {}) } } : {}),
+                ...(m.translate != null ? { translate : m.translate.at( t ) } : {}) } ), speed : speed };
+        };
+        return Clearance.along( A, motion( A, options.motionA ), B, motion( B, options.motionB ), options.from, options.to, options.tol ?? 1e-3, options.evaluations ?? 400 );
+    }
+
+    // The two solids of a clearance, each under its pose, and their intersection: a function that builds one of
+    // "clearance:a", "clearance:b" and "clearance:both".
+    private posedPair( doc : GraphDocument, a : string, b : string, poseA : GraphPose | undefined, poseB : GraphPose | undefined ) : (output : string) => ModelResult {
+        const { model, types } = Graph.compileTyped( doc, {} );
+        const ref = (x : string) => {
+            const out = doc.outputs[x];
+            const id = (out != null ? out : x).replace( /^@/, "" );
+            if (model.features[id] == null) throw new GraphError( `Graph: "${x}" is neither an output nor a node of the document`, "document", {} );
+            return id;
+        };
+        const pose = (of : string, p : GraphPose | undefined) : ModelFeature => ({ type : "transform", of : of,
+            ...(p?.rotate != null ? { rotate : { axis : p.rotate.axis, degrees : p.rotate.degrees, ...(p.rotate.about != null ? { about : p.rotate.about } : {}) } } : {}),
+            ...(p?.translate != null ? { translate : p.translate } : {}) });
+        const features = { ...model.features, "clearance:a" : pose( ref( a ), poseA ), "clearance:b" : pose( ref( b ), poseB ),
+            "clearance:both" : { type : "intersection", of : ["clearance:a", "clearance:b"] } as ModelFeature };
+        return (output : string) => Graph.build( () => this.model.evaluate( { ...model, features : features, output : output } ), types );
+    }
+
+    // A pose's rigid transform, 3 by 4: the turn about its axis through its point, then the move (as a model's
+    // transform feature makes it).
+    private static poseMatrix( p : GraphPose ) : Array<Array<number>> {
+        let M = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
+        if (p.rotate != null) {
+            const len = Vec.norm( p.rotate.axis );
+            if (len == 0) throw new GraphError( "Graph: a rotation's axis must not be zero", "document", {} );
+            const [x, y, z] = Vec.mul( 1 / len, p.rotate.axis ), a = p.rotate.degrees * Math.PI / 180;
+            const c = Math.cos( a ), s = Math.sin( a ), t = 1 - c, o = p.rotate.about ?? [0, 0, 0];
+            const R = [[t * x * x + c, t * x * y - s * z, t * x * z + s * y], [t * x * y + s * z, t * y * y + c, t * y * z - s * x], [t * x * z - s * y, t * y * z + s * x, t * z * z + c]];
+            M = R.map( (row, i) => [row[0], row[1], row[2], o[i] - (row[0] * o[0] + row[1] * o[1] + row[2] * o[2])] );
+        }
+        if (p.translate != null) for (let i = 0; i < 3; i++) M[i][3] += p.translate[i];
+        return M;
     }
 
     private known( r : ModelResult ) : { shell : BrepShell, meshes : Map<string, GraphMesh> } {

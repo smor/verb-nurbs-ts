@@ -70,6 +70,8 @@ export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoo
 import { ShellBuilder } from "./solid/BrepShell.js";
 import { MassPropertiesOf } from "./solid/MassProperties.js";
 export type { MassProperties } from "./solid/MassProperties.js";
+import { Clearance } from "./solid/Clearance.js";
+export type { ClearanceResult, ClearanceWitness, ClearanceOptions } from "./solid/Clearance.js";
 import { Extrusion } from "./solid/Extrusion.js";
 import { ProfileSweep } from "./solid/ProfileSweep.js";
 import { Lathe } from "./solid/Lathe.js";
@@ -127,7 +129,7 @@ import { Model, ModelError } from "./model/Model.js";
 export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelDefect, ModelCheck, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 import { Graph, GraphError } from "./model/Graph.js";
-export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult, GraphOptions, GraphMesh } from "./model/Graph.js";
+export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult, GraphOptions, GraphMesh, GraphPose, GraphClearance, GraphClearanceOptions } from "./model/Graph.js";
 export type { StepOptions, StepTopology, StepModel } from "./io/Step.js";
 import { registerSerializable } from "./core/Serialization.js";
 
@@ -214,6 +216,7 @@ export {
     BrepBoolean,
     ShellBuilder,
     MassPropertiesOf,
+    Clearance,
     Extrusion,
     ProfileSweep,
     Lathe,
@@ -341,6 +344,7 @@ export const solid = {
     BrepBoolean,
     ShellBuilder,
     MassPropertiesOf,
+    Clearance,
     Extrusion,
     Lathe,
     ShellMesher,
