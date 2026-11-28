@@ -236,7 +236,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 			d : cyl(25, 6), b : cyl(2.5, 8), bm : mv('b', -1), disc : { type : 'boolean/difference', in : { from : '@d', minus : '@bm' } },
 			s : cyl(3, 5.5), sm : mv('s', 6, 18), h : cyl(1.4, 7.5), hm : mv('h', 5, 18), boss : { type : 'boolean/difference', in : { from : '@sm', minus : '@hm' } },
 			u : { type : 'boolean/union', in : { a : '@disc', b : '@boss' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-		r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+		made(r.verdict, (r.verdict.reasons || []).join('; '));
 		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 		var exact = PI * (25 * 25 - 2.5 * 2.5) * 6 + PI * (9 - 1.96) * 5.5;
 		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
@@ -255,7 +255,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 				p : { type : 'profile/extrude', in : { profile : { outer : outer, holes : holes }, height : 6, z : 0 } },
 				c : { type : 'primitive/cylinder', in : { radius : r, height : h } }, cm : { type : 'transform/move', in : { of : '@c', x : 0, y : 0, z : z } },
 				u : { type : 'boolean/union', in : { a : '@p', b : '@cm' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-			res.verdict.kind.should.equal('buildable', (res.verdict.reasons || []).join('; '));
+			made(res.verdict, (res.verdict.reasons || []).join('; '));
 			res.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			return res;
 		};
