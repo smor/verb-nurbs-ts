@@ -319,6 +319,29 @@ describe("Profile sweep (#134)", function () {
 		norm(sub(v.defects[0].at, [16, 0, 44])).should.be.below(0.01);
 	});
 
+	it("cuts the folded groove into its drum: open, and with mesh print still a visual verdict with both folds, its own mesh as the export (#162)", function () {
+		var doc = { version : 2, nodes : {
+			blank : { type : 'profile/extrude', in : { profile : { outer : circle(0, 0, 16), holes : [circle(0, 0, 2.5)] }, height : 95 } },
+			groove : { type : 'profile/sweep', in : { profile : cutter, x : '16 * cos(2 * pi * t)', y : '16 * sin(2 * pi * t)', z : '34 + ' + heartExpr(10, 't'),
+				rail : 'closed', frame : 'radial', axis : 'z', samples : 256 } },
+			drum : { type : 'boolean/difference', in : { from : '@blank', minus : '@groove' } },
+		}, outputs : { drum : '@drum' } };
+		var g = new Graph(), plain = g.evaluate(doc);
+		plain.verdict.kind.should.equal('visual');
+		plain.result.mesh.checkClosedManifold().closedManifold.should.be.false();
+		['print', 'view'].forEach(function (mesh) {
+			var res = g.evaluate(doc, { mesh : mesh });
+			res.verdict.kind.should.equal('visual');
+			res.verdict.defects.length.should.equal(2);
+			res.verdict.defects.forEach(function (d) { d.should.containDeep({ kind : 'fold', feature : 'groove', proven : true }); });
+			var ex = res.verdict.checks.filter(function (c) { return c.name == 'export mesh'; })[0];
+			ex.passed.should.be.false(); ex.detail.should.match(/not closed \(\d+ open/);
+			res.export.mesh.should.equal(res.result.mesh);
+			(res.export.tolerance === null).should.be.true();
+			res.export.faceNames.length.should.equal(res.result.mesh.triangles.length);
+		});
+	});
+
 	it('refuses the end frame of a rotation-minimizing sweep, and a node named like an output', function () {
 		var sweep = { type : 'profile/sweep', in : { profile : cutter, frame : 'rotation-minimizing' } };
 		var base = { version : 2, nodes : { g : sweep, m : { type : 'transform/move', in : { of : '@g', x : '@g.end_ux' } } }, outputs : { m : '@m' } };
