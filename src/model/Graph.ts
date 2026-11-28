@@ -9,7 +9,8 @@ import type { Machine } from "../solid/Makeable.js";
 import type { MeshTolerance } from "../solid/ShellMesher.js";
 import type { TriMesh } from "../solid/TriMesh.js";
 import type { ProfileSpec } from "../solid/Extrusion.js";
-import type { ModelDocument, ModelFeature, ModelResult, ModelValue, ModelVerdict } from "./Model.js";
+import type { SweepFrame } from "../solid/ProfileSweep.js";
+import type { ModelDocument, ModelFeature, ModelPoint, ModelResult, ModelValue, ModelVerdict } from "./Model.js";
 
 // Node graphs for visual programming (docs/visual-programming.md). A graph document is plain JSON: nodes keyed by
 // id, each with a type from `Graph.REGISTRY` and its input values under `in`. An input is a literal, an expression
@@ -219,6 +220,9 @@ const MATH : { [type : string] : { title : string, inputs : Array<string>, expr 
     "math/clamp" : { title : "Clamp", inputs : ["a", "min", "max"], expr : x => `clamp(${x[0]}, ${x[1]}, ${x[2]})`, help : "a held between min and max" },
 };
 
+// the sweep's frame choices, as `ProfileSweep` names them
+const FRAMES : { [choice : string] : SweepFrame } = { "radial" : "radial", "up" : "up", "rotation-minimizing" : "rmf" };
+
 // "box", "rounded rectangle prism", "truncatedCube" -> "box", "rounded-rectangle-prism", "truncated-cube"
 const slug = ( name : string ) => name.replace( /([a-z])([A-Z])/g, "$1-$2" ).toLowerCase().replace( /[^a-z0-9]+/g, "-" ).replace( /^-|-$/g, "" );
 
@@ -304,10 +308,7 @@ export class Graph {
         const m = ex.mesh.checkClosedManifold();
         const check = { name : "export mesh", passed : m.closedManifold,
             detail : m.closedManifold ? "the export mesh is closed" : `the export mesh is not closed (${m.boundaryEdges} open and ${m.badEdges} non-manifold edges)` };
-        const checks = r.verdict.checks.concat( [check] );
-        const failed = checks.filter( c => !c.passed );
-        const verdict : ModelVerdict = { ...r.verdict, checks : checks, kind : failed.length == 0 ? "buildable" : "visual",
-            reasons : failed.length == 0 ? r.verdict.reasons : failed.map( c => c.detail ) };
+        const verdict : ModelVerdict = { ...r.verdict, ...Model.judge( r.verdict.checks.concat( [check] ), r.verdict.reasons ) };
         return { ...r, verdict : verdict, export : ex };
     }
 
@@ -468,6 +469,24 @@ export class Graph {
                 numbers.add( id );
             }
         }
+        // the number outputs of nodes that also give a solid (a sweep's ends, #134): parameters named id_port
+        const outputsOf : { [name : string] : string } = {};
+        for (const [id, n] of Object.entries( nodes )) {
+            const t = types[id];
+            if (Graph.isNumber( t )) continue;
+            for (const [port, w] of Object.entries( t.outputs )) {
+                if (w != "number" || !Graph.offers( n, port )) continue;
+                const name = `${id}_${port}`;
+                here( { node : id, type : n.type } );
+                if (nodes[name] != null) throw new Error( `Graph: the node "${name}" has the name of "${id}"'s output ${port} in expressions; give it another id` );
+                numbers.add( name );
+                outputsOf[name] = id;
+            }
+        }
+        // "@id" or "@id.value" in an expression is the number node id; "@id.port" a number output of a node that
+        // gives a solid too, id_port
+        const deref = ( text : string ) => text.replace( /@([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?/g,
+            ( _all : string, id : string, port? : string ) => port == null || port == "value" ? id : `${id}_${port}` );
         // the looks wired through, while one wire is followed (a cycle of looks is refused)
         const seen = new Set<string>();
         // "@id" or "@id.port", checked against the node's outputs and the wire's kind
@@ -481,6 +500,10 @@ export class Graph {
             const port = m[2] ?? Object.keys( outs )[0];
             if (outs[port] == null) throw new Error( `Graph: "${id}.${k}" refers to "${m[1]}.${port}", which is not an output` );
             if (outs[port] != want) throw new Error( `Graph: "${id}.${k}" takes a ${want}, but "${m[1]}.${port}" is a ${outs[port]}` );
+            if (want == "number" && !Graph.isNumber( types[m[1]] )) {
+                if (!numbers.has( `${m[1]}_${port}` )) throw new Error( `Graph: "${id}.${k}" refers to "${m[1]}.${port}", which ${Graph.why( src, port )}` );
+                return `${m[1]}_${port}`;
+            }
             // a look passes its solid through
             if (src.type.startsWith( "look/" )) {
                 const of = src.in?.of;
@@ -500,7 +523,7 @@ export class Graph {
             if (typeof v == "number") return v;
             if (typeof v != "string") throw new Error( `Graph: "${id}.${k}" must be a number or an expression` );
             if (REF.test( v.trim() )) return wire( id, k, v, "number" );
-            const text = v.replace( /@([A-Za-z_][A-Za-z0-9_]*)(\.value)?/g, "$1" );
+            const text = deref( v );
             for (const name of Expr.names( text ))
                 if (!numbers.has( name )) throw new Error( `Graph: "${id}.${k}" uses "${name}", which is not a number node` );
             return `(${text})`;
@@ -551,7 +574,7 @@ export class Graph {
             const v = nodes[id].in?.[k] ?? p.value;
             if (typeof v == "number") return () => v;
             if (typeof v != "string" || v.trim() == "") throw new Error( `Graph: "${id}.${k}" must be an expression of ${p.variable}` );
-            const text = v.replace( /@([A-Za-z_][A-Za-z0-9_]*)(\.value)?/g, "$1" );
+            const text = deref( v );
             for (const name of Expr.names( text ))
                 if (name != p.variable && !numbers.has( name )) throw new Error( `Graph: "${id}.${k}" uses "${name}", which is neither ${p.variable} nor a number node` );
             return ( t : number ) => `(${text.replace( WORD, w => w == p.variable ? `(${t})` : w )})`;
@@ -603,7 +626,7 @@ export class Graph {
                 if (xy.length != 2 && xy.length != 3) throw new Error( `Graph: "${id}.${k}" point ${i + 1} is "${pt}", not "x, y" or "x, y, r"` );
                 return xy.map( c => {
                     if (c != "" && !isNaN( +c )) return +c;
-                    const text = c.replace( /@([A-Za-z_][A-Za-z0-9_]*)(\.value)?/g, "$1" );
+                    const text = deref( c );
                     for (const name of Expr.names( text ))
                         if (!numbers.has( name )) throw new Error( `Graph: "${id}.${k}" point ${i + 1} uses "${name}", which is not a number node` );
                     return `(${text})`;
@@ -685,6 +708,19 @@ export class Graph {
                 features[id] = { type : "extrude", profile : outline( id, "profile" ), height : asNum( "height" ), z : asNum( "z" ), twist : asNum( "twist" ), scaleTop : asNum( "scaleTop" ) };
                 continue;
             }
+            if (n.type == "profile/sweep") {
+                const x = sampler( id, "x" ), y = sampler( id, "y" ), z = sampler( id, "z" );
+                const closed = s( "rail" ) == "closed", frame = FRAMES[s( "frame" )], axis = s( "axis" );
+                const e : [ModelValue, ModelValue, ModelValue] = [axis == "x" ? 1 : 0, axis == "y" ? 1 : 0, axis == "z" ? 1 : 0];
+                const n = count( id, "samples" );
+                const f = ( t : number ) => [x( t ), y( t ), z( t )] as [ModelValue, ModelValue, ModelValue];
+                const rail = Array.from( { length : closed ? n : n + 1 }, ( _, i ) => f( i / n ) );
+                const ends = Graph.sweepEnds( id, f, frame, e );
+                Object.assign( parameters, ends.parameters );
+                features[id] = { type : "sweep", profile : outline( id, "profile" ), rail : rail, closed : closed, frame : frame, axis : e,
+                    ...(closed ? {} : { tangents : ends.tangents }) };
+                continue;
+            }
             if (n.type == "profile/revolve") {
                 features[id] = { type : "lathe", profile : outline( id, "profile" ), degrees : asNum( "degrees" ) };
                 continue;
@@ -698,6 +734,7 @@ export class Graph {
                     break;
                 }
                 case "transform/scale": features[id] = { type : "transform", of : s( "of" ), scale : asNum( "factor" ) }; break;
+                case "transform/place": features[id] = { type : "transform", of : s( "of" ), frame : { origin : pt( "x", "y", "z" ), x : pt( "ux", "uy", "uz" ), y : pt( "vx", "vy", "vz" ) } }; break;
                 case "boolean/union": features[id] = { type : "union", of : [s( "a" ), s( "b" )] }; break;
                 case "boolean/intersection": features[id] = { type : "intersection", of : [s( "a" ), s( "b" )] }; break;
                 case "boolean/difference": features[id] = { type : "difference", from : s( "from" ), minus : [s( "minus" )] }; break;
@@ -833,11 +870,14 @@ export class Graph {
                 case "extrude": return { ...f, height : value( f.height ), ...(f.z != null ? { z : value( f.z ) } : {}),
                     ...(f.twist != null ? { twist : value( f.twist ) } : {}), ...(f.scaleTop != null ? { scaleTop : value( f.scaleTop ) } : {}) };
                 case "lathe": return { ...f, ...(f.degrees != null ? { degrees : value( f.degrees ) } : {}) };
+                case "sweep": return { ...f, rail : f.rail.map( point ), ...(f.axis != null ? { axis : point( f.axis ) } : {}), ...(f.origin != null ? { origin : point( f.origin ) } : {}),
+                    ...(f.tangents != null ? { tangents : [point( f.tangents[0] ), point( f.tangents[1] )] as [ModelPoint, ModelPoint] } : {}) };
                 case "primitive": return { ...f, ...(f.values != null ? { values : Object.fromEntries( Object.entries( f.values ).map( ([k, v]) => [k, value( v )] ) ) } : {}) };
                 case "transform": return { ...f, of : ref( f.of ),
                     ...(f.scale != null ? { scale : Array.isArray( f.scale ) ? point( f.scale ) : value( f.scale ) } : {}),
                     ...(f.rotate != null ? { rotate : { axis : point( f.rotate.axis ), degrees : value( f.rotate.degrees ), ...(f.rotate.about != null ? { about : point( f.rotate.about ) } : {}) } } : {}),
-                    ...(f.translate != null ? { translate : point( f.translate ) } : {}) };
+                    ...(f.translate != null ? { translate : point( f.translate ) } : {}),
+                    ...(f.frame != null ? { frame : { origin : point( f.frame.origin ), x : point( f.frame.x ), y : point( f.frame.y ) } } : {}) };
                 case "union": case "intersection": return { ...f, of : f.of.map( ref ) };
                 case "difference": return { ...f, from : ref( f.from ), minus : f.minus.map( ref ) };
                 case "choose": return { ...f, when : value( f.when ), ...(f.then != null ? { then : ref( f.then ) } : {}), ...(f.else != null ? { else : ref( f.else ) } : {}) };
@@ -909,9 +949,63 @@ export class Graph {
         };
     }
 
-    /** Whether a node type gives a number (and so compiles into a parameter). */
+    /** Whether a node type gives numbers only (and so compiles into a parameter). */
     public static isNumber( t : GraphNodeType ) : boolean {
-        return Object.values( t.outputs ).includes( "number" );
+        const w = Object.values( t.outputs );
+        return w.length > 0 && w.every( x => x == "number" );
+    }
+
+    // Whether a node gives this number output: a rotation-minimizing sweep's frame at its end is not an expression
+    // (it is carried along the whole rail), so it has none there.
+    private static offers( n : GraphNode, port : string ) : boolean {
+        return !(n.type == "profile/sweep" && (n.in?.frame ?? "radial") == "rotation-minimizing" && /^end_[uv][xyz]$/.test( port ));
+    }
+
+    private static why( n : GraphNode, port : string ) : string {
+        return !Graph.offers( n, port ) ? `a rotation-minimizing sweep does not give (its frame at the end is carried along the whole rail; choose "radial" or "up")` : "is not an output";
+    }
+
+    /**
+     * A sweep's ends as parameters (#134): for each end (`start`, `end`), its point (`_x`, `_y`, `_z`), its unit tangent
+     * (`_tx`...) and the section's u and v axes (`_ux`..., `_vx`...), named `id_end_port`, expressions over the rail's
+     * functions, so that they follow the rail when it changes. The tangent is the derivative d/dt by one-sided
+     * differences of fourth order with a step of 1e-3 (truncation about 1e-12 of the rail's fifth derivative, rounding
+     * about 1e-13 of its size: well within 1e-9 of its direction); the open sweep is given the same derivatives, so the
+     * section at an end is in the plane those outputs give. The frame is `ProfileSweep.frame`'s, written as
+     * expressions: v the axis's outward direction (`radial`, the axis through the origin) or the axis (`up`, and
+     * `rmf` at the start) less its part along the tangent, normalized; u = v × t.
+     */
+    private static sweepEnds( id : string, f : ( t : number ) => [ModelValue, ModelValue, ModelValue], frame : SweepFrame,
+                              axis : [ModelValue, ModelValue, ModelValue] ) {
+        const parameters : { [name : string] : ModelValue } = {};
+        const tangents : Array<[ModelValue, ModelValue, ModelValue]> = [];
+        const h = 1e-3, c = [-25, 48, -36, 16, -3];
+        const P = ( v : ModelValue ) => `(${String( v )})`;
+        for (const end of ["start", "end"]) {
+            const t0 = end == "start" ? 0 : 1, sgn = end == "start" ? 1 : -1;
+            const name = ( k : string ) => `${id}_${end}_${k}`, hid = ( k : string ) => `${id}__${end}_${k}`;
+            const p = f( t0 ), samples = c.map( ( _, k ) => f( t0 + sgn * k * h ) );
+            const xyz = ["x", "y", "z"];
+            xyz.forEach( ( a, i ) => {
+                parameters[name( a )] = p[i];
+                parameters[hid( "d" + a )] = `(${c.map( ( w, k ) => `${w} * ${P( samples[k][i] )}` ).join( " + " )}) / ${sgn * 12 * h}`;
+            } );
+            tangents.push( [hid( "dx" ), hid( "dy" ), hid( "dz" )] );
+            parameters[hid( "dn" )] = `sqrt(${xyz.map( a => `${hid( "d" + a )}^2` ).join( " + " )})`;
+            xyz.forEach( a => { parameters[name( "t" + a )] = `${hid( "d" + a )} / ${hid( "dn" )}`; } );
+            if (frame == "rmf" && end == "end") continue;
+            // r: the point's outward direction from the axis, or the axis
+            const r = xyz.map( ( a, i ) => frame == "radial" ? (axis[i] == 1 ? "0" : name( a )) : String( axis[i] ) );
+            parameters[hid( "rt" )] = xyz.map( ( a, i ) => `${r[i]} * ${name( "t" + a )}` ).join( " + " );
+            xyz.forEach( ( a, i ) => { parameters[hid( "w" + a )] = `${r[i]} - ${hid( "rt" )} * ${name( "t" + a )}`; } );
+            parameters[hid( "wn" )] = `sqrt(${xyz.map( a => `${hid( "w" + a )}^2` ).join( " + " )})`;
+            xyz.forEach( a => { parameters[name( "v" + a )] = `${hid( "w" + a )} / ${hid( "wn" )}`; } );
+            const v = ( a : string ) => name( "v" + a ), t = ( a : string ) => name( "t" + a );
+            parameters[name( "ux" )] = `${v( "y" )} * ${t( "z" )} - ${v( "z" )} * ${t( "y" )}`;
+            parameters[name( "uy" )] = `${v( "z" )} * ${t( "x" )} - ${v( "x" )} * ${t( "z" )}`;
+            parameters[name( "uz" )] = `${v( "x" )} * ${t( "y" )} - ${v( "y" )} * ${t( "x" )}`;
+        }
+        return { parameters : parameters, tangents : tangents as [[ModelValue, ModelValue, ModelValue], [ModelValue, ModelValue, ModelValue]] };
     }
 
     // the Catalog shape a primitive node type builds
@@ -973,6 +1067,19 @@ export class Graph {
                 height : num( "height", 6, 0.1, 400, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ),
                 twist : num( "twist", 0, -3600, 3600, 1, "°" ), scaleTop : num( "scaleTop", 1, 0.05, 4, 0.01 ) },
             outputs : { solid : "solid" } };
+        // the same profile swept along a rail (#134): a barrel cam's groove, a slot along a path
+        const ends : { [port : string] : GraphWire } = {};
+        for (const e of ["start", "end"]) for (const k of ["x", "y", "z", "tx", "ty", "tz", "ux", "uy", "uz", "vx", "vy", "vz"]) ends[`${e}_${k}`] = "number";
+        r["profile/sweep"] = { title : "Sweep profile", category : "primitive",
+            help : "A planar profile drawn in the section's (u, v) plane (lines, three-point arcs, cubic Béziers, circles; holes) swept along the rail through (x, y, z) at the samples of t from 0 to 1, exact: the section normal to the rail, its v axis held radial from the axis (a barrel cam's groove), along the axis (up), or rotation-minimizing from it. A closed rail (t = 1 back at t = 0) makes a ring; an open one is capped flat at both ends. Outputs: the solid, and each end's point, unit tangent and u and v axes (start_x ... end_vz) to place a part there with Place. Faces outer.k, hole{i}.k, start, end",
+            inputs : { profile : { kind : "outline", label : "profile", value : { outer : { kind : "path", start : [-1.5, -2], segments : [
+                    { type : "line", to : [1.5, -2] }, { type : "line", to : [3, 1] }, { type : "line", to : [-3, 1] }, { type : "line", to : [-1.5, -2] }] } } },
+                x : fn( "x", "20 * cos(2 * pi * t)" ), y : fn( "y", "20 * sin(2 * pi * t)" ), z : fn( "z", "30 * t" ),
+                rail : { kind : "choice", label : "rail", value : "open", options : ["open", "closed"] },
+                frame : { kind : "choice", label : "frame", value : "radial", options : Object.keys( FRAMES ) },
+                axis : { kind : "choice", label : "axis", value : "z", options : ["z", "x", "y"] },
+                samples : { kind : "number", label : "samples", value : 128, min : 4, max : 4096, step : 1, integer : true } },
+            outputs : { solid : "solid", ...ends } };
         // the same profile in the (r, z) half-plane turned about z (507's pulleys, eccentrics and hand wheels)
         r["profile/revolve"] = { title : "Revolve profile", category : "primitive",
             help : "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",
@@ -987,6 +1094,11 @@ export class Graph {
         r["transform/rotate"] = { title : "Rotate", category : "transform", help : "Rotate about an axis through the origin",
             inputs : { ...of, axis : { kind : "choice", label : "axis", value : "z", options : ["x", "y", "z"] }, degrees : num( "degrees", 0, -180, 180, 1, "°" ) },
             outputs : { solid : "solid" } };
+        r["transform/place"] = { title : "Place", category : "transform",
+            help : "Place a solid drawn about the origin in a frame: its x along u, its y along v (less its part along u), its z along u × v, the origin at (x, y, z). Wire a sweep's end outputs to put a part at the end of a rail",
+            inputs : { ...of, x : num( "x", 0, -200, 200, 0.5, "mm" ), y : num( "y", 0, -200, 200, 0.5, "mm" ), z : num( "z", 0, -200, 200, 0.5, "mm" ),
+                ux : num( "ux", 1, -1, 1, 0.01 ), uy : num( "uy", 0, -1, 1, 0.01 ), uz : num( "uz", 0, -1, 1, 0.01 ),
+                vx : num( "vx", 0, -1, 1, 0.01 ), vy : num( "vy", 1, -1, 1, 0.01 ), vz : num( "vz", 0, -1, 1, 0.01 ) }, outputs : { solid : "solid" } };
         r["transform/scale"] = { title : "Scale", category : "transform", help : "Scale about the origin; negative mirrors",
             inputs : { ...of, factor : num( "factor", 1, -4, 4, 0.05 ) }, outputs : { solid : "solid" } };
         r["boolean/union"] = { title : "Union", category : "boolean", help : "a ∪ b", inputs : { a : solid( "a" ), b : solid( "b" ) }, outputs : { solid : "solid" } };

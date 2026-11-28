@@ -18,7 +18,7 @@ interface Report {
     filletsSkipped? : number;
 }
 
-interface Check { makeable : boolean; machine : string; issues : Array<string>; wall : number; fits : boolean; notes : Array<string>; kind? : "buildable" | "visual" }
+interface Check { makeable : boolean; machine : string; issues : Array<string>; wall : number; fits : boolean; notes : Array<string>; kind? : "buildable" | "unproven" | "visual"; unproven? : Array<string> }
 
 interface Built {
     mesh : TriMesh;
@@ -274,8 +274,11 @@ function judge( r : Built, machine : string ) : Check {
     if (verdicts.length > 0) {
         const label = (name : string, s : string) => verdicts.length > 1 ? name + ": " + s : s;
         const mks = verdicts.map( x => x.v.makeable ).filter( m => m != null );
-        const issues = verdicts.flatMap( x => x.v.kind == "buildable" ? [] : x.v.reasons.map( s => label( x.name, s.charAt( 0 ).toUpperCase() + s.slice( 1 ) ) ) );
-        return { makeable : verdicts.every( x => x.v.kind == "buildable" ), kind : verdicts.every( x => x.v.kind == "buildable" ) ? "buildable" : "visual",
+        const issues = verdicts.flatMap( x => x.v.kind != "visual" ? [] : x.v.reasons.map( s => label( x.name, s.charAt( 0 ).toUpperCase() + s.slice( 1 ) ) ) );
+        // unproven: every check passed, some without a proof; it can be made, said as not proven
+        const unproven = verdicts.flatMap( x => x.v.kind != "unproven" ? [] : x.v.unproven.map( s => label( x.name, s.charAt( 0 ).toUpperCase() + s.slice( 1 ) ) ) );
+        return { makeable : verdicts.every( x => x.v.kind != "visual" ), unproven,
+                 kind : verdicts.some( x => x.v.kind == "visual" ) ? "visual" : verdicts.some( x => x.v.kind == "unproven" ) ? "unproven" : "buildable",
                  machine : Makeable.MACHINES[machine].name, issues,
                  wall : mks.length > 0 ? Math.min( ...mks.map( m => m.wall.p01 ) ) : Infinity, fits : mks.every( m => m.fits ),
                  notes : (r.notes ?? []).concat( verdicts.flatMap( x => x.v.notes.map( s => label( x.name, s.charAt( 0 ).toUpperCase() + s.slice( 1 ) ) ) ) ) };

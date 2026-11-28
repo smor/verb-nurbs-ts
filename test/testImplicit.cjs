@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
@@ -191,7 +192,7 @@ describe("verb.model.Model lattices", function(){
 		var r = model.evaluate(doc({}));
 		r.lattice.mesh.checkClosedManifold().closedManifold.should.be.true();
 		r.lattice.fraction.should.be.within(0.3, 0.8);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.verdict.checks.map(function(c){ return c.name; }).should.eql(['closed', 'outward', 'resolution', 'one piece', 'drains', 'lattice wall', 'makeable']);
 		r.lattice.bodies.should.be.equal(1);
 		r.lattice.voids.should.be.equal(0);
