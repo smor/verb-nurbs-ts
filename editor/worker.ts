@@ -44,7 +44,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
     const names = Object.keys( doc.outputs ?? {} );
     const nodes : Record<string, string> = {}, failed : Array<string> = [], off : Array<string> = [], built : Array<[string, GraphResult]> = [];
     let params : Record<string, number> = {};
-    let volume = 0, buildable = 0;
+    let volume = 0, buildable = 0, unproven = 0;
     for (const name of names) {
         if (await superseded( seq )) return;
         try {
@@ -53,7 +53,7 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
             for (const [k, v] of Object.entries( r.nodes )) if (v != "unused" && nodes[k] != "built") nodes[k] = v;
             volume += r.result.report.volume;
             params = { ...params, ...r.parameters };
-            if (r.verdict.kind == "buildable") buildable++;
+            if (r.verdict.kind == "buildable") buildable++; else if (r.verdict.kind == "unproven") unproven++;
             built.push( [name, r] );
             post( { seq, part : name, pos : a.pos, idx : a.idx, face : a.face, names : a.names, normal : a.normal, verdict : r.verdict.kind, looks : looksOf( r ) }, a.transfer );
         } catch (err) {
@@ -62,8 +62,8 @@ self.onmessage = async ( e : MessageEvent<{ seq : number, doc : GraphDocument, o
         }
     }
     post( { seq, ok : failed.length == 0, shelf : true, off, ms : performance.now() - t, volume, faces : 0, nodes, params,
-        verdict : { kind : buildable == names.length - off.length ? "buildable" : "visual",
-            reasons : [`${buildable} of ${names.length - off.length} outputs buildable`, ...(off.length ? [`switched off: ${off.join( ", " )}`] : []), ...failed] },
+        verdict : { kind : buildable == names.length - off.length ? "buildable" : buildable + unproven == names.length - off.length ? "unproven" : "visual",
+            reasons : [`${buildable} of ${names.length - off.length} outputs buildable` + (unproven > 0 ? `, ${unproven} unproven` : ""), ...(off.length ? [`switched off: ${off.join( ", " )}`] : []), ...failed] },
         error : failed.length > 0 ? failed.join( "; " ) : undefined } );
     for (const [name, r] of built) {
         if (await superseded( seq )) return;

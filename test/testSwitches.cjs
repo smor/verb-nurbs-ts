@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var verb = require('../dist/index.js');
 var Graph = verb.Graph, Model = verb.Model;
 
@@ -82,7 +83,7 @@ describe('switches: a part included or not (Model.choose, logic/switch)', functi
 		[[1, 1, 0, 1], [0, 0, 0, 0], [1, 1, 1, 1], [0, 1, 1, 0]].forEach(function (o) {
 			d.nodes.lip_on.in.value = o[0]; d.nodes.base_holes_on.in.value = o[1]; d.nodes.wall_holes_on.in.value = o[2]; d.nodes.notch_on.in.value = o[3];
 			var r = g.evaluate(d);
-			r.verdict.kind.should.equal('buildable', o.join(''));
+			made(r.verdict, o.join(''));
 			vols[o.join('')] = r.result.report.volume;
 		});
 		// the same holes in the base and in the wall, both through 4 mm: the same volume each

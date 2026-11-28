@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
@@ -186,7 +187,7 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 		var mv = function (of, x, y, z) { return { type : 'transform/move', in : { of : '@' + of, x : x, y : y, z : z } }; };
 		var build = function (nodes) {
 			var r = new lib.Graph().evaluate({ version : 2, meta : { name : 'seams' }, nodes : nodes, outputs : { s : '@u' } }, { output : 's', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			return r.result.report.volume;
@@ -218,7 +219,7 @@ describe("verb.solid.BrepBoolean degenerate configurations", function(){
 			outputs : { t : '@t' } }; };
 		[[5.5, 0], [5.3, 0.2]].forEach(function (x) {
 			var r = new lib.Graph().evaluate(doc(x[0]), { output : 't', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable');
+			made(r.verdict);
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			// the plate less the frustum of the cone within it, and the hole above where they meet
@@ -315,7 +316,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		big.report.manifold.genus.should.be.equal(1);
 		// still buildable, and the verdict says the fillets were made smaller
 		var v = lib.Model.verdict(big);
-		v.kind.should.be.equal('buildable');
+		made(v);
 		v.notes.some(function(n){ return /2 fillet\(s\) made smaller/.test(n); }).should.be.true();
 		lib.Model.verdict(small).notes.some(function(n){ return /made smaller/.test(n); }).should.be.false();
 	});
@@ -512,7 +513,7 @@ describe("verb.recipes.BooleanObjectsRecipe", function(){
 		proven.result.mesh.triangles.length.should.be.equal(plain.result.mesh.triangles.length);
 		// the Model verdict on a recipe's result: buildable, with the certificate in its notes and the machine's report
 		var v = lib.Model.verdict(proven.result, 'fdm');
-		v.kind.should.be.equal('buildable');
+		made(v);
 		v.notes.some(function(n){ return /pairs of faces/.test(n); }).should.be.true();
 		v.makeable.machine.name.should.be.equal(lib.Makeable.MACHINES.fdm.name);
 		// the wall is the vessel's 3 mm, measured on the mesh

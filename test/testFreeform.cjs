@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var fs = require('fs');
 var path = require('path');
 var Ajv2020 = require('ajv/dist/2020').default;
@@ -13,7 +14,7 @@ var PI = Math.PI;
 var doc = function (nodes, out) { return { version : 2, nodes : nodes, outputs : { solid : '@' + out } }; };
 var build = function (d, options) {
 	var r = new Graph().evaluate(d, options);
-	r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+	made(r.verdict, (r.verdict.reasons || []).join('; '));
 	r.result.report.manifold.closedManifold.should.be.true();
 	return r;
 };

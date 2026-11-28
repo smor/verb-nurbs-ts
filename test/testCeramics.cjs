@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var fs = require('fs');
 var path = require('path');
 var esbuild = require('esbuild');
@@ -13,7 +14,7 @@ var Graph = lib.Graph;
 var PI = Math.PI;
 var vessel = function (inputs) { return { version : 2, nodes : { v : { type : 'freeform/vessel', in : inputs } }, outputs : { v : '@v' } }; };
 var buildable = function (r) {
-	r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+	made(r.verdict, (r.verdict.reasons || []).join('; '));
 	r.result.report.manifold.closedManifold.should.be.true();
 	r.result.report.manifold.genus.should.equal(0);
 	return r;
@@ -54,7 +55,7 @@ describe('freeform/prism', function () {
 
 	it('extrudes its outline: a rectangle with two rounded corners has area w h - 2 (1 - pi / 4) r^2', function () {
 		var r = new Graph().evaluate(prism({ outline : '0, 0; 40, 0, 4; 40, 20, 4; 0, 20', height : 5 }));
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		r.result.report.manifold.closedManifold.should.be.true();
 		var area = 40 * 20 - 2 * (1 - PI / 4) * 16;
 		r.result.report.volume.should.be.approximately(area * 5, 1e-3 * area * 5);
@@ -106,7 +107,7 @@ describe('freeform/prism', function () {
 				padS : { type : 'primitive/box', in : { width : 12.2, depth : 31, height : 3.1 } },
 				pad : { type : 'transform/move', in : { of : '@padS', x : 24.1, y : 15.8, z : 2 } },
 				t : { type : 'boolean/union', in : { a : '@p', b : '@pad' } } }, 't'), { mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', c);
+			made(r.verdict, c);
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			// (a Boolean's volume is its mesh's, whose chords cut the rounded corners a little short)
@@ -122,7 +123,7 @@ describe('freeform/prism', function () {
 			b0 : { type : 'freeform/prism', in : { outline : '-3, 12; 43, 12; 43, 18; -3, 18', height : 4 } },
 			b : { type : 'transform/move', in : { of : '@b0', x : 0, y : 0, z : 6 } },
 			t : { type : 'boolean/union', in : { a : '@housing', b : '@b' } } }, 't'), { mesh : 'print' });
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 		// the housing (40 x 30 less two corners rounded 2, 10 high, less a 36 x 26 pocket 8 deep), the beam's 3 out each side
 		var housing = (1200 - 2 * 4 * (1 - PI / 4)) * 10 - 36 * 26 * 8;

@@ -1471,6 +1471,31 @@ export class BrepBoolean {
         return { d : best, s : at, on : best < eps + 0.05 * len };
     }
 
+    // Whether p lies on an edge of face F, given by its samples and their parameters on F. A point within the chords'
+    // allowance is on it (see `onto`); otherwise it is measured to the face's surface between two samples, at
+    // parameters interpolated between theirs (golden-section search along the segment), within eps. Interpolating
+    // parameters follows the edge where a chord cuts across it: a small hole's rim sampled a sixteenth of a turn per
+    // chord sags from its chords by 5 % of their length, and the branch's points on the true rim fell outside (#133 B).
+    private static ontoEdge( F : BrepFace, pts : Array<Point>, uv : Array<UV>, p : Point, eps : number ) : boolean {
+        if (BrepBoolean.onto( pts, p, eps ).on) return true;
+        const D = BrepSolid.domainOf( F ), g = 0.5 * (Math.sqrt( 5 ) - 1);
+        for (let i = 0; i + 1 < pts.length; i++) {
+            const a = pts[i], ab = Vec.sub( pts[i + 1], a ), l2 = Vec.dot( ab, ab );
+            if (l2 == 0) continue;
+            const t0 = Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, a ), ab ) / l2 ) );
+            // (only segments whose chord passes within a quarter of its length: a sag beyond that is no chord of the edge)
+            if (Vec.dist( p, Vec.add( a, Vec.mul( t0, ab ) ) ) > eps + 0.25 * Math.sqrt( l2 )) continue;
+            const dist = (t : number) => Vec.dist( BrepBoolean.eval( F.surface, SurfaceIntersect.lerpUV( D, t, uv[i], uv[i + 1] ) ), p );
+            let lo = 0, hi = 1;
+            for (let it = 0; it < 40; it++) {
+                const x = hi - g * (hi - lo), y = lo + g * (hi - lo);
+                if (dist( x ) < dist( y )) hi = y; else lo = x;
+            }
+            if (dist( 0.5 * (lo + hi) ) < eps) return true;
+        }
+        return false;
+    }
+
     // The edges of a solid made from a shell that bound a face of it: the trim branches on that face, open ones.
     private static trimsOf( curves : BooleanResult["curves"], si : number, fi : number ) : Array<{ e : BooleanResult["curves"][0], uv : Array<UV> }> {
         return curves.filter( T => T.trim && T.solids[0] == si && (T.faces[0] == fi || T.faces[1] == fi) && !T.curve.closed )
@@ -1739,8 +1764,9 @@ export class BrepBoolean {
                             if (!F.periodic[a]) continue;
                             const lo = d[2 * a], hi = d[2 * a + 1], w = 1e-9 * (hi - lo);
                             uv.forEach( (q, k) => { if (Math.abs( q[a] - lo ) <= w || Math.abs( q[a] - hi ) <= w) { q[a] = lo; flags[k] |= 1 << a; } } );
-                            const wraps = uv.some( (q, k) => Math.abs( q[a] - uv[(k + 1) % uv.length][a] ) > 0.5 * (hi - lo) );
-                            if (wraps && !flags.some( f => (f & (1 << a)) != 0 )) return null;
+                            const unflagged = uv.some( (q, k) => { const k1 = (k + 1) % uv.length;
+                                return Math.abs( q[a] - uv[k1][a] ) > 0.5 * (hi - lo) && (flags[k] & (1 << a)) == 0 && (flags[k1] & (1 << a)) == 0; } );
+                            if (unflagged) return null;
                         }
                         return flags;
                     };
@@ -1768,7 +1794,8 @@ export class BrepBoolean {
                 if (P.length < 2 || len < 2 * eps) return own;
                 for (let side = 0; side < 2; side++) {
                     const si = e.solids[side], fi = e.faces[side];
-                    const edge = BrepBoolean.trimsOf( curves, si, fi ).find( T => P.every( p => onto( T.e.curve.points, p, eps ).on ) );
+                    const F = solids[si].faces[fi];
+                    const edge = BrepBoolean.trimsOf( curves, si, fi ).find( T => P.every( p => BrepBoolean.ontoEdge( F, T.e.curve.points, T.uv, p, eps ) ) );
                     if (edge == null) continue;
                     const T = edge.e.curve, tuv = edge.uv;
                     const other = solids[e.solids[1 - side]].faces[e.faces[1 - side]];
