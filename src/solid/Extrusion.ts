@@ -97,30 +97,7 @@ export class Extrusion {
         // a point's path up the side (a vertical edge)
         const up = (p : Point) : NurbsCurveData => G == null ? line3( [p[0], p[1], z], [ca * p[0] - sa * p[1], sa * p[0] + ca * p[1], zt] )
             : new NurbsCurveData( G.degree, G.knots.slice(), G.controlPoints.map( g => [p[0] * g[0] - p[1] * g[1], p[0] * g[1] + p[1] * g[0], g[2], 1] ) );
-        if (profile == null || profile.outer == null) throw new Error( "Extrusion: a profile has an outer path" );
-        const paths = [{ path : profile.outer, name : "outer", outer : true }]
-            .concat( (profile.holes ?? []).map( (h, i) => ({ path : h, name : "hole" + i, outer : false }) ) );
-        // the pieces of each path, counter-clockwise for the outer path and clockwise for holes
-        const loops = paths.map( p => {
-            let pieces = Extrusion.pieces( p.path, p.name );
-            const area = Extrusion.area( pieces );
-            if (!(Math.abs( area ) > 0)) throw new Error( `Extrusion: the ${p.name} path encloses no area` );
-            if ((area > 0) != p.outer) pieces = pieces.slice().reverse().map( q => ({ curve : Modify.curveReverse( q.curve ), index : q.index }) );
-            // a path of one piece (a circle) is split in two halves, exactly: a side face round the whole of it would
-            // meet itself along its seam, which the Booleans do not cut against (#122); both halves keep its name
-            if (pieces.length == 1) {
-                // (at the middle of the knot span nearest the middle of the domain: never at a knot, where the split
-                // would leave a knot too many)
-                const c = pieces[0].curve, a = c.knots[0], b = c.knots[c.knots.length - 1], ks = Array.from( new Set( c.knots ) );
-                let u = 0.5 * (ks[0] + ks[1]);
-                for (let i = 0; i + 1 < ks.length; i++) {
-                    const m = 0.5 * (ks[i] + ks[i + 1]);
-                    if (Math.abs( m - 0.5 * (a + b) ) < Math.abs( u - 0.5 * (a + b) )) u = m;
-                }
-                pieces = Divide.curveSplit( c, u ).map( h => ({ curve : Extrusion.unit( h ), index : pieces[0].index }) );
-            }
-            return { name : p.name, outer : p.outer, pieces : pieces };
-        } );
+        const loops = Extrusion.loops( profile );
 
         // the caps' plane patch: the profile's box, a little larger
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -185,6 +162,38 @@ export class Extrusion {
         return { shell : shell, mesh : Extrusion.mesh( loops.map( l => l.pieces ), z, zt, at, steps ) };
     }
 
+    /**
+     * The paths of a profile as loops of exact pieces over [0, 1] in the plane z = 0: the outer path counter-clockwise
+     * and the holes clockwise, a path of one piece (a circle) split into two halves that keep its name (#122). The
+     * extrusion's, and the sweep's (`ProfileSweep`).
+     */
+    public static loops( profile : ProfileSpec ) : Array<{ name : string, outer : boolean, pieces : Array<{ curve : NurbsCurveData, index : number }> }> {
+        if (profile == null || profile.outer == null) throw new Error( "Extrusion: a profile has an outer path" );
+        const paths = [{ path : profile.outer, name : "outer", outer : true }]
+            .concat( (profile.holes ?? []).map( (h, i) => ({ path : h, name : "hole" + i, outer : false }) ) );
+        // the pieces of each path, counter-clockwise for the outer path and clockwise for holes
+        return paths.map( p => {
+            let pieces = Extrusion.pieces( p.path, p.name );
+            const area = Extrusion.area( pieces );
+            if (!(Math.abs( area ) > 0)) throw new Error( `Extrusion: the ${p.name} path encloses no area` );
+            if ((area > 0) != p.outer) pieces = pieces.slice().reverse().map( q => ({ curve : Modify.curveReverse( q.curve ), index : q.index }) );
+            // a path of one piece (a circle) is split in two halves, exactly: a side face round the whole of it would
+            // meet itself along its seam, which the Booleans do not cut against (#122); both halves keep its name
+            if (pieces.length == 1) {
+                // (at the middle of the knot span nearest the middle of the domain: never at a knot, where the split
+                // would leave a knot too many)
+                const c = pieces[0].curve, a = c.knots[0], b = c.knots[c.knots.length - 1], ks = Array.from( new Set( c.knots ) );
+                let u = 0.5 * (ks[0] + ks[1]);
+                for (let i = 0; i + 1 < ks.length; i++) {
+                    const m = 0.5 * (ks[i] + ks[i + 1]);
+                    if (Math.abs( m - 0.5 * (a + b) ) < Math.abs( u - 0.5 * (a + b) )) u = m;
+                }
+                pieces = Divide.curveSplit( c, u ).map( h => ({ curve : Extrusion.unit( h ), index : pieces[0].index }) );
+            }
+            return { name : p.name, outer : p.outer, pieces : pieces };
+        } );
+    }
+
     // A closed mesh of the extrusion: each path sampled, the caps triangulated between the samples, the sides strips.
     // (Twisted, the sides are strips between sections every 5 degrees of turn, `levels` of them.)
     private static mesh( loops : Array<Array<Piece>>, z : number, zt : number, section : (v : number) => Array<number>, levels : number ) : TriMesh {
@@ -229,8 +238,8 @@ export class Extrusion {
         return mesh;
     }
 
-    // samples along a curve for the mesh: one span for a line, more for the curved
-    private static samples( c : NurbsCurveData ) : number {
+    /** Samples along a profile's piece for a mesh: one span for a line, more for the curved (at most 64 a full turn). */
+    public static samples( c : NurbsCurveData ) : number {
         if (c.degree == 1) return c.controlPoints.length - 1;
         // the turn of the control polygon, at most 64 samples to a full turn
         let turn = 0;

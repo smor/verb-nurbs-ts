@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var fs = require('fs');
 var path = require('path');
 var lib = require('../dist/index.js');
@@ -20,7 +21,7 @@ var pin = PI * 9 * 4.5;
 
 function builds(prefix, output, volume, rel) {
 	var r = new Graph().evaluate(read(prefix), { output : output });
-	r.verdict.kind.should.equal('buildable', output + ': ' + (r.verdict.reasons || []).join('; '));
+	made(r.verdict, output + ': ' + (r.verdict.reasons || []).join('; '));
 	r.result.report.manifold.closedManifold.should.be.true();
 	if (volume != null) r.result.report.volume.should.be.approximately(volume, (rel || 5e-3) * volume);
 	return r;
@@ -77,7 +78,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 		var union = { out : { type : 'boolean/union', in : { a : '@am', b : '@bm' } } };
 		var check = function (nodes, volume, rel) {
 			var r = new Graph().evaluate(N(nodes), { mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.result.report.volume.should.be.approximately(volume, rel * volume);
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
@@ -109,7 +110,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 		var op = function (type) { return { type : 'boolean/' + type, in : { a : '@a', b : '@b' } }; };
 		var build = function (nodes) {
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'caps' }, nodes : nodes, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			return r.result.report.volume;
@@ -163,7 +164,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'stand' }, nodes : { b0 : { type : 'primitive/box', in : { width : 6, depth : 16, height : 70 } },
 				up : { type : 'transform/move', in : { of : '@b0', x : 3, y : 0, z : z } }, base : base, u : { type : 'boolean/union', in : { a : '@up', b : '@base' } } },
 				outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			r.result.report.volume.should.be.approximately(exact, 1e-3 * exact);
 		});
@@ -175,7 +176,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 				e : { type : 'profile/extrude', in : { profile : { outer : rect(c[0]), holes : [] }, height : 6, z : 0 } },
 				r1 : { type : 'transform/rotate', in : { of : '@e', axis : 'x', degrees : 90 } }, up : { type : 'transform/rotate', in : { of : '@r1', axis : 'z', degrees : 90 } },
 				base : base, u : { type : 'boolean/union', in : { a : '@up', b : '@base' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			r.result.report.volume.should.be.approximately(c[1], 1e-3 * c[1]);
 		});
@@ -188,7 +189,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 		var sq = { kind : 'path', start : [-20, -20], segments : [line([20, -20]), line([20, 20]), line([-20, 20]), line([-20, -20])] };
 		var build = function (nodes) {
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'boss' }, nodes : nodes, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			return r.result.report.volume;
 		};
@@ -219,7 +220,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 			p : { type : 'profile/revolve', in : { profile : { outer : { kind : 'path', start : pts[0], segments : pts.slice(1).concat([pts[0]]).map(line) } } } },
 			c : cyl(7, 20), cm : mv('c', -20), h : cyl(2.5, 22), hm : mv('h', -21), hub : { type : 'boolean/difference', in : { from : '@cm', minus : '@hm' } },
 			u : { type : 'boolean/union', in : { a : '@p', b : '@hub' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
-		r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+		made(r.verdict, (r.verdict.reasons || []).join('; '));
 		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 		var exact = PI * (25.9 * 25.9 - 2.5 * 2.5) * 11.25 + PI * (49 - 6.25) * 20;
 		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
@@ -285,7 +286,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 				prev = 'd' + i;
 			}
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'F1' }, nodes : nodes, outputs : { s : '@' + prev } }, { output : 's', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			var a = deg * PI / 180, ov = (4 - 2 * dx * Math.cos(a)) * (4 - 2 * dx * Math.sin(a));
 			r.result.report.volume.should.be.approximately(40 * 40 * 6 - (16 * n - ov * (n - 1)) * 3, 1e-9 * 9600);
@@ -330,7 +331,7 @@ describe("507 regressions (test/fixtures/507)", function () {
 				prev = 'd' + i;
 			});
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'slot' }, nodes : nodes, outputs : { s : '@' + prev } }, { output : 's', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', (r.verdict.reasons || []).join('; '));
+			made(r.verdict, (r.verdict.reasons || []).join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			r.result.report.volume.should.be.approximately(plate * plate * 6 - union * 3, 1e-9 * plate * plate * 6);
 		};

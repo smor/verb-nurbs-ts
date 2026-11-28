@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
 var Graph = lib.Graph, Lathe = lib.Lathe;
@@ -26,7 +27,7 @@ function evaluate(nodes, options) {
 // built, closed, and the print mesh within its chords of the exact volume
 function check(profile, exact) {
 	var r = evaluate({ x : { type : 'profile/revolve', in : { profile : profile } } }, { mesh : 'print' });
-	r.verdict.kind.should.equal('buildable');
+	made(r.verdict);
 	r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 	// an inscribed mesh within `chordal` of the surface loses at most chordal x its area
 	var M = r.export.mesh, area = 0;
@@ -71,7 +72,7 @@ describe("Revolved profiles (#87)", function () {
 			p : { type : 'profile/revolve', in : { profile : path(pts[0], pts.slice(1).concat([pts[0]]).map(line)) } },
 			g : { type : 'profile/revolve', in : { profile : { outer : { kind : 'circle', center : [20, 6], r : 2 } } } },
 			x : { type : 'boolean/difference', in : { from : '@p', minus : '@g' } } });
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		r.result.report.manifold.closedManifold.should.be.true();
 		// half the torus lies in the pulley, less the sliver its polygon misses
 		r.result.report.volume.should.be.approximately(turned(pts) - PI * 4 * 2 * PI * (20 - 8 / (3 * PI)) / 2, 5e-3 * turned(pts));
@@ -88,7 +89,7 @@ describe("Revolved profiles (#87)", function () {
 		 [{ type : 'profile/revolve', in : { profile : path(pts[0], pts.slice(1).concat([pts[0]]).map(line)) } }, turned(pts)]].forEach(function (c) {
 			var r = new Graph().evaluate({ version : 2, meta : { name : 'groove' }, nodes : { p : c[0], g : groove, x : { type : 'boolean/difference', in : { from : '@p', minus : '@g' } } },
 				outputs : { s : '@x' } }, { output : 's', mesh : 'print' });
-			r.verdict.kind.should.equal('buildable', r.verdict.reasons.join('; '));
+			made(r.verdict, r.verdict.reasons.join('; '));
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			// the verdict judges the export mesh too
 			r.verdict.checks.filter(function (k) { return k.name == 'export mesh' && k.passed; }).length.should.equal(1);

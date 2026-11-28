@@ -343,7 +343,7 @@ function showStats( s : any, ms : number, fine : boolean ) {
     } else {
         const c = s.check;
         st.textContent = c.kind != null
-            ? (c.makeable ? "Buildable: makeable on " + c.machine : "Visual only, not buildable yet: " + c.issues.length + (c.issues.length == 1 ? " issue" : " issues"))
+            ? (c.kind == "unproven" ? "Makeable on " + c.machine + ", not proven: " + (c.unproven ?? []).join( "; " ) : c.makeable ? "Buildable: makeable on " + c.machine : "Visual only, not buildable yet: " + c.issues.length + (c.issues.length == 1 ? " issue" : " issues"))
             : (c.makeable ? "Makeable: " + c.machine : "Not makeable yet: " + c.issues.length + (c.issues.length == 1 ? " issue" : " issues"));
         st.dataset.state = c.makeable ? "good" : "bad";
         issues.innerHTML = c.issues.map( (x : string) => `<li>${x.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" )}</li>` ).join( "" );

@@ -161,9 +161,11 @@
             "freeform/prism",
             "freeform/vessel",
             "profile/extrude",
+            "profile/sweep",
             "profile/revolve",
             "transform/move",
             "transform/rotate",
+            "transform/place",
             "transform/scale",
             "boolean/union",
             "boolean/intersection",
@@ -1311,6 +1313,18 @@
           "if": {
             "properties": {
               "type": {
+                "const": "profile/sweep"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/profile.sweep"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "profile/revolve"
               }
             }
@@ -1341,6 +1355,18 @@
           },
           "then": {
             "$ref": "#/$defs/transform.rotate"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transform/place"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/transform.place"
           }
         },
         {
@@ -5408,6 +5434,135 @@
         }
       }
     },
+    "profile.sweep": {
+      "title": "Sweep profile",
+      "description": "A planar profile drawn in the section's (u, v) plane (lines, three-point arcs, cubic Béziers, circles; holes) swept along the rail through (x, y, z) at the samples of t from 0 to 1, exact: the section normal to the rail, its v axis held radial from the axis (a barrel cam's groove), along the axis (up), or rotation-minimizing from it. A closed rail (t = 1 back at t = 0) makes a ring; an open one is capped flat at both ends. Outputs: the solid, and each end's point, unit tangent and u and v axes (start_x ... end_vz) to place a part there with Place. Faces outer.k, hole{i}.k, start, end",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "profile/sweep"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "type": "object",
+              "description": "profile: { outer, holes }, paths of lines, three-point arcs and cubic Béziers, or circles, in millimetres (docs/formats.md, Profiles)",
+              "required": [
+                "outer"
+              ],
+              "properties": {
+                "outer": {
+                  "type": "object"
+                },
+                "holes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              },
+              "default": {
+                "outer": {
+                  "kind": "path",
+                  "start": [
+                    -1.5,
+                    -2
+                  ],
+                  "segments": [
+                    {
+                      "type": "line",
+                      "to": [
+                        1.5,
+                        -2
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        3,
+                        1
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        -3,
+                        1
+                      ]
+                    },
+                    {
+                      "type": "line",
+                      "to": [
+                        -1.5,
+                        -2
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "x": {
+              "type": "string",
+              "description": "x, an expression of t (0 to 1) and number nodes",
+              "default": "20 * cos(2 * pi * t)"
+            },
+            "y": {
+              "type": "string",
+              "description": "y, an expression of t (0 to 1) and number nodes",
+              "default": "20 * sin(2 * pi * t)"
+            },
+            "z": {
+              "type": "string",
+              "description": "z, an expression of t (0 to 1) and number nodes",
+              "default": "30 * t"
+            },
+            "rail": {
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "description": "rail",
+              "default": "open"
+            },
+            "frame": {
+              "enum": [
+                "radial",
+                "up",
+                "rotation-minimizing"
+              ],
+              "description": "frame",
+              "default": "radial"
+            },
+            "axis": {
+              "enum": [
+                "z",
+                "x",
+                "y"
+              ],
+              "description": "axis",
+              "default": "z"
+            },
+            "samples": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "samples",
+              "default": 128
+            }
+          }
+        }
+      }
+    },
     "profile.revolve": {
       "title": "Revolve profile",
       "description": "A profile drawn in the (r, z) half-plane, x the radius and y the height (lines, three-point arcs, cubic Béziers, circles), turned about the z axis, exact; a segment along the axis makes no face; faces outer.k for segment k",
@@ -5608,6 +5763,106 @@
                 "string"
               ],
               "description": "degrees (°)",
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "transform.place": {
+      "title": "Place",
+      "description": "Place a solid drawn about the origin in a frame: its x along u, its y along v (less its part along u), its z along u × v, the origin at (x, y, z). Wire a sweep's end outputs to put a part at the end of a rail",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "transform/place"
+        },
+        "label": {
+          "type": "string"
+        },
+        "in": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "of": {
+              "type": "string",
+              "pattern": "^@([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_ -]*))?$",
+              "description": "solid: a solid, \"@node\""
+            },
+            "x": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "x (mm)",
+              "default": 0
+            },
+            "y": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "y (mm)",
+              "default": 0
+            },
+            "z": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "z (mm)",
+              "default": 0
+            },
+            "ux": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "ux",
+              "default": 1
+            },
+            "uy": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "uy",
+              "default": 0
+            },
+            "uz": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "uz",
+              "default": 0
+            },
+            "vx": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "vx",
+              "default": 0
+            },
+            "vy": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "vy",
+              "default": 1
+            },
+            "vz": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "vz",
               "default": 0
             }
           }
