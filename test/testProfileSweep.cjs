@@ -266,6 +266,8 @@ describe("Profile sweep (#134)", function () {
 		}, outputs : { drum : '@drum' } };
 		var res = new Graph().evaluate(doc, { mesh : 'print' });
 		res.verdict.kind.should.equal('buildable');
+		res.verdict.defects.should.eql([]);
+		res.verdict.checks.filter(function (c) { return c.name == 'fold'; })[0].should.containDeep({ passed : true });
 		res.result.report.manifold.genus.should.equal(1);
 		var mine = res.export.mesh;
 		mine.checkClosedManifold().closedManifold.should.be.true();
@@ -287,9 +289,33 @@ describe("Profile sweep (#134)", function () {
 		worst.should.be.below(0.05);
 	});
 
-	it("refuses 167's 10° blends, where the section swept normal to the rail folds over", function () {
-		var rail = Array.from({ length : 256 }, function (_, i) { var u = i / 256; return [16 * Math.cos(2 * PI * u), 16 * Math.sin(2 * PI * u), 34 + heart(10, u)]; });
-		(function () { ProfileSweep.shell(cutter, rail, { closed : true, frame : 'radial' }); }).should.throw(/folds over near \(16, 0, 34\).*radius of 4\.\d+ mm/);
+	it("builds 167's 10° blends, where the section folds over, and says where: proven, a model's verdict visual", function () {
+		var rail = function (blend) { return Array.from({ length : 256 }, function (_, i) { var u = i / 256; return [16 * Math.cos(2 * PI * u), 16 * Math.sin(2 * PI * u), 34 + heart(blend, u)]; }); };
+		var b = ProfileSweep.build(cutter, rail(10), { closed : true, frame : 'radial' });
+		// one fold at each reversal (the bottom one over the ring's seam), each proven: the section reaches further
+		// towards the bend's centre than the bend's radius
+		b.folds.length.should.equal(2);
+		b.folds.forEach(function (f) { f.proven.should.be.true(); f.radius.should.be.approximately(4.69, 0.01); f.reach.should.be.above(f.radius); });
+		[[16, 0, 34], [-16, 0, 61]].forEach(function (p, k) { norm(sub(b.folds[k].at, p)).should.be.below(0.01); });
+		b.solid.faces.length.should.be.above(0);
+		// 13° still folds, 14° is proven free of folds
+		ProfileSweep.build(cutter, rail(13), { closed : true, frame : 'radial' }).folds.length.should.equal(2);
+		ProfileSweep.build(cutter, rail(14), { closed : true, frame : 'radial' }).folds.length.should.equal(0);
+		// as a graph's output: closed and outward (a folded shell can be), and visual for the fold, with the defects
+		var doc = { version : 2, nodes : {
+			groove : { type : 'profile/sweep', in : { profile : cutter, x : '16 * cos(2 * pi * t)', y : '16 * sin(2 * pi * t)', z : '34 + ' + heartExpr(10, 't'),
+				rail : 'closed', frame : 'radial', axis : 'z', samples : 256 } },
+			moved : { type : 'transform/move', in : { of : '@groove', z : 10 } },
+		}, outputs : { moved : '@moved' } };
+		var v = new Graph().evaluate(doc).verdict;
+		v.kind.should.equal('visual');
+		var byName = {}; v.checks.forEach(function (c) { byName[c.name] = c; });
+		byName.closed.passed.should.be.true(); byName.outward.passed.should.be.true(); byName.fold.passed.should.be.false();
+		byName.fold.detail.should.match(/the sweep "groove" folds over near \(16, 0, 44\): its rail bends with a radius of 4\.69/);
+		v.defects.length.should.equal(2);
+		v.defects[0].should.containDeep({ kind : 'fold', feature : 'groove', proven : true });
+		// moved with the sweep
+		norm(sub(v.defects[0].at, [16, 0, 44])).should.be.below(0.01);
 	});
 
 	it('refuses the end frame of a rotation-minimizing sweep, and a node named like an output', function () {

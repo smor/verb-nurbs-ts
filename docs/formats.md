@@ -187,10 +187,22 @@ points are the segment's and the splines'. So every section along the rail is th
 
 **Limits.**
 
-* **Folds.** A section that reaches further towards the centre of a bend than the bend's radius folds over there and
-  is refused, with the place and the radius. The sweep turns inside out there, so it would not be a solid.
-  For example, ~167's heart-cam groove with 10° blends: the rail turns with a radius of 4.7 mm on the drum, and the
-  groove is 5.9 to 6.9 mm wide on each side of it. A cutter's swept volume there is wider than its section swept.
+* **Folds.** A section that reaches further towards the centre of a bend than the bend's radius folds over there:
+  the swept shape passes through itself, so it encloses no well-defined solid. It is built all the same, a shape to
+  look at, and its folds are said: `ProfileSweep.build` gives them (`SweepFold`: where, the bend's radius, how far the
+  section reaches towards its centre), and a model or graph with such a sweep is **visual**, with a failed `fold`
+  check and the folds in `verdict.defects` (`ModelDefect`), for a program to read and try other values. The check is
+  a proof either way: on each knot span of the rail the Jacobian of the sweep is a polynomial in t, and its Bernstein
+  coefficients at the corners of the section's control polygons bound it (all positive: no fold); a negative value at
+  a point of the section proves a fold; what neither settles is halved, 12 times at most, and what is left is said as
+  not proven free of folds (`proven: false`), which makes the model visual too. The other checks do not see a fold: a
+  folded sweep is closed and outward. For example, ~167's heart-cam groove with 10° blends: the rail turns with a
+  radius of 4.7 mm at the reversals, and the section reaches 6.3 mm towards the bend's centre (the groove is 5.9 to
+  6.9 mm wide on each side of the rail). 13° still folds; 14° and 15° are proven free of folds. A cutter's swept
+  volume there is wider than its section swept.
+* **Passing through itself further along.** The fold check is local. A sweep whose rail comes back near itself (a
+  helix whose pitch is less than the section's height) passes through itself without folding, and nothing proves it
+  does not yet: with a machine, `Makeable.check` finds it on the mesh (`selfIntersections`).
 * **Cutters turning with a drum.** A cone turning with a drum also reaches further than its section past the rim: the
   cone's sides, ahead and behind, are further from the drum's axis than its axial section. Inside the drum, the
   section's sweep is the cones' union: within 0.035 mm for ~167's groove with 15° blends, against the exact union.

@@ -46,6 +46,20 @@ export interface SweepEnd {
     v : Vector;
 }
 
+/**
+ * Where a sweep folds over (#134): the section reaches further towards the centre of a bend of the rail than the
+ * bend's radius, so that the swept shape passes through itself there (a shape to look at, not a solid to make).
+ * `at` is the rail's point at the fold's worst, `radius` the rail's radius of curvature there and `reach` how far the
+ * section reaches towards the bend's centre (more than `radius` where it folds). `proven` is false for a fold that is
+ * neither proven nor ruled out (the sweep is within rounding of folding there).
+ */
+export interface SweepFold {
+    at : Point;
+    radius : number;
+    reach : number;
+    proven : boolean;
+}
+
 // one segment as an exact curve over [0, 1] in the plane z = 0
 interface Piece { curve : NurbsCurveData, index : number }
 // a curve's control points and knots, of any dimension (non-rational)
@@ -73,29 +87,38 @@ const DEGREE = 3, OVERLAP = 12;
  */
 export class ProfileSweep {
 
-    /** The swept solid (`shell`), as an operand of Booleans. */
+    /**
+     * The swept solid (`shell`), as an operand of Booleans, whether it folds or not: a sweep that folds (`folds`) is
+     * built as it is, a shape to look at, and its folds are said, for a model's verdict to make it visual.
+     */
     public static solid( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : BrepSolid {
-        const s = ProfileSweep.shell( section, rail, options );
+        return ProfileSweep.build( section, rail, options ).solid;
+    }
+
+    /** The swept solid (`solid`), with the folds of the sweep (`SweepFold`, none when it does not fold) and its ends. */
+    public static build( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { solid : BrepSolid, folds : Array<SweepFold>, ends : { start : SweepEnd, end : SweepEnd } } {
         if (!(options.closed ?? false) && options.caps === false) throw new Error( "ProfileSweep: an open rail without caps sweeps a surface, not a solid" );
+        const s = ProfileSweep.shell( section, rail, options );
         const solid = ShellBuilder.solid( s.shell, s.mesh );
         const names = s.shell.faces.map( f => f.name );
         solid.faces.forEach( (f, k) => { if (names.indexOf( names[k] ) != names.lastIndexOf( names[k] )) f.half = true; } );
-        return solid;
+        return { solid : solid, folds : s.folds, ends : s.ends };
     }
 
     /**
      * The exact shell of the sweep, a closed mesh of it (inside from outside), and the rail's ends with the frame
      * there (`SweepEnd`: what another part is placed by, #134). Refuses a rail of fewer than 4 points, a frame that
-     * cannot be taken (the rail along the axis or the up direction) and a section that is not a profile.
+     * cannot be taken (the rail along the axis or the up direction) and a section that is not a profile. A sweep that folds
+     * is built as it is, its folds said (`SweepFold`).
      */
-    public static shell( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { shell : BrepShell, mesh : TriMesh, ends : { start : SweepEnd, end : SweepEnd } } {
+    public static shell( section : ProfileSpec, rail : Array<Point>, options : ProfileSweepOptions = {} ) : { shell : BrepShell, mesh : TriMesh, ends : { start : SweepEnd, end : SweepEnd }, folds : Array<SweepFold> } {
         const closed = options.closed ?? false, caps = !closed && (options.caps ?? true);
         const R = ProfileSweep.rail( rail, options );
         const loops = Extrusion.loops( section ).map( l => ({ ...l, pieces : l.pieces as Array<Piece> }) );
 
         // the pieces of the rail: one, or a ring's two halves; their stations (where faces meet across the rail)
         const parts = R.parts;
-        ProfileSweep.unfolded( loops.map( l => l.pieces ), parts );
+        const folds = ProfileSweep.folds( loops.map( l => l.pieces ), parts, closed );
         const stations = closed ? parts.length : parts.length + 1;
         // the point of the rail and the frame at station s, as the parts' own end control points (so exactly theirs)
         const at = (s : number) => {
@@ -177,7 +200,7 @@ export class ProfileSweep {
             }
         }
         const shell : BrepShell = { vertices : vertices, edges : edges, faces : faces, tolerance : 0, volume : ProfileSweep.volume( loops.map( l => l.pieces ), parts ) };
-        return { shell : shell, mesh : ProfileSweep.mesh( loops.map( l => l.pieces ), parts, closed, caps ), ends : R.ends };
+        return { shell : shell, mesh : ProfileSweep.mesh( loops.map( l => l.pieces ), parts, closed, caps ), ends : R.ends, folds : folds };
     }
 
     /**
@@ -381,31 +404,94 @@ export class ProfileSweep {
         return V;
     }
 
-    // Refuses a sweep that folds: the map (x, y, t) -> C(t) + x U(t) + y V(t) turns inside out where its Jacobian
-    // det(U, V, C' + x U' + y V') is not positive, which is where the section reaches further towards the centre of a
-    // bend than the bend's radius (a groove's half-width past the radius of its rail's turn). The Jacobian is affine in
-    // (x, y), so it is positive over the section when it is at the corners of the section's control polygons (their
-    // convex hull holds it); checked at 8 parameters a knot span of the rail.
-    private static unfolded( loops : Array<Array<Piece>>, parts : Array<{ C : Spline, U : Spline, V : Spline }> ) : void {
-        const corners : Array<[number, number]> = [];
-        for (const l of loops) for (const q of l) for (const hp of q.curve.controlPoints) corners.push( [hp[0] / hp[3], hp[1] / hp[3]] );
-        for (const part of parts) {
-            const c = (s : Spline) => new NurbsCurveData( DEGREE, s.knots.slice(), s.points.map( q => [...q, 1] ) );
-            const Cc = c( part.C ), Uc = c( part.U ), Vc = c( part.V );
-            const ks = part.C.knots.filter( (k, i) => i == 0 || k > part.C.knots[i - 1] );
-            for (let i = 0; i + 1 < ks.length; i++) for (let j = 0; j <= 8; j++) {
-                const t = ks[i] + (ks[i + 1] - ks[i]) * j / 8;
-                const dC = Eval.rationalCurveDerivatives( Cc, t, 1 ), dU = Eval.rationalCurveDerivatives( Uc, t, 1 ), dV = Eval.rationalCurveDerivatives( Vc, t, 1 );
-                const n = Vec.cross( dU[0], dV[0] ), speed = Vec.norm( dC[1] );
-                const a = Vec.dot( n, dC[1] ), bx = Vec.dot( n, dU[1] ), by = Vec.dot( n, dV[1] );
-                for (const [x, y] of corners) if (!(a + x * bx + y * by > 1e-9 * speed)) {
-                    const p = dC[0].map( v => +v.toFixed( 2 ) ), d2 = Eval.rationalCurveDerivatives( Cc, t, 2 );
-                    const radius = Math.pow( speed, 3 ) / Vec.norm( Vec.cross( d2[1], d2[2] ) );
-                    throw new Error( `ProfileSweep: the section folds over near (${p.join( ", " )}), where the rail bends with a radius of ${radius.toPrecision( 3 )} mm: `
-                        + `the section reaches further than that towards the bend's centre. (A cutter's swept volume is wider there than its section swept along the rail.)` );
-                }
-            }
+    // Where a sweep folds (#134): the map (x, y, t) -> C(t) + x U(t) + y V(t) turns inside out where its Jacobian
+    // J = det(U, V, C' + x U' + y V') is not positive, which is where the section reaches further towards the centre of
+    // a bend than the bend's radius (a groove's half-width past the radius of its rail's turn). Proven either way:
+    // * J is affine in (x, y), so it is positive over the section when it is at the corners of the section's control
+    //   polygons (their convex hull holds the section);
+    // * on a knot span J is a polynomial of degree 8 in t, a product of the splines' Bézier pieces, so its Bernstein
+    //   coefficients bound it (Farouki and Rajan, "Algorithms for polynomials in Bernstein form", CAGD 5(1), 1988):
+    //   all positive proves the span free of folds;
+    // * else J is evaluated at points of the section itself (not its control polygons): a negative value proves a fold;
+    // * else the span is halved (de Casteljau) and each half checked again, 12 times at most; what is left is a fold
+    //   that is neither proven nor ruled out, said as such (`proven : false`).
+    // Consecutive spans that fold are one fold, reported at its worst point (J the most negative, for its speed).
+    private static folds( loops : Array<Array<Piece>>, parts : Array<{ C : Spline, U : Spline, V : Spline }>, closed : boolean ) : Array<SweepFold> {
+        const corners : Array<[number, number]> = [], points : Array<[number, number]> = [];
+        for (const l of loops) for (const q of l) {
+            for (const hp of q.curve.controlPoints) corners.push( [hp[0] / hp[3], hp[1] / hp[3]] );
+            const n = Extrusion.samples( q.curve );
+            for (let i = 0; i < n; i++) { const p = Eval.rationalCurvePoint( q.curve, i / n ); points.push( [p[0], p[1]] ); }
         }
+        const binom = (n : number, k : number) => { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; };
+        // the Bernstein coefficients of a product, its factors' coefficients given, by a pairing of theirs
+        const product = <A, B>( f : Array<A>, g : Array<B>, mul : (a : A, b : B) => Array<number> | number ) => {
+            const m = f.length - 1, n = g.length - 1, out : Array<Array<number>> = [];
+            for (let k = 0; k <= m + n; k++) {
+                let acc : Array<number> | null = null;
+                for (let i = Math.max( 0, k - n ); i <= Math.min( m, k ); i++) {
+                    const c = binom( m, i ) * binom( n, k - i ) / binom( m + n, k ), v = mul( f[i], g[k - i] );
+                    const w = typeof v == "number" ? [v] : v;
+                    acc = acc == null ? w.map( x => c * x ) : acc.map( (x, d) => x + c * w[d] );
+                }
+                out.push( acc! );
+            }
+            return out;
+        };
+        const halves = (c : Array<number>) : [Array<number>, Array<number>] => {
+            const lo = [c[0]], hi = [c[c.length - 1]];
+            let row = c.slice();
+            while (row.length > 1) { row = row.slice( 1 ).map( (x, i) => 0.5 * (row[i] + x) ); lo.push( row[0] ); hi.unshift( row[row.length - 1] ); }
+            return [lo, hi];
+        };
+        const value = (c : Array<number>, t : number) => { let row = c.slice(); while (row.length > 1) row = row.slice( 1 ).map( (x, i) => (1 - t) * row[i] + t * x ); return row[0]; };
+        // each knot span in order along the rail: free of folds (null), or its worst point and whether a fold is proven
+        type Span = { worst : number, part : number, t : number, proven : boolean } | null;
+        const spans : Array<Span> = [];
+        const curves = parts.map( part => { const c = (s : Spline) => new NurbsCurveData( DEGREE, s.knots.slice(), s.points.map( q => [...q, 1] ) );
+            return { C : c( part.C ), U : c( part.U ), V : c( part.V ) }; } );
+        curves.forEach( (cv, r) => {
+            const bez = (s : NurbsCurveData) => Modify.decomposeCurveIntoBeziers( s ).map( b => ({ lo : b.knots[0], hi : b.knots[b.knots.length - 1], pts : b.controlPoints.map( q => q.slice( 0, 3 ) ) }) );
+            const Cb = bez( cv.C ), Ub = bez( cv.U ), Vb = bez( cv.V );
+            Cb.forEach( (cb, s) => {
+                const h = cb.hi - cb.lo, der = (p : Array<Array<number>>) => p.slice( 1 ).map( (q, i) => Vec.mul( 3 / h, Vec.sub( q, p[i] ) ) );
+                const N = product( Ub[s].pts, Vb[s].pts, (u, v) => Vec.cross( u, v ) );
+                const dot = (w : Array<Array<number>>) => product( N, w, (n, x) => Vec.dot( n, x ) ).map( v => v[0] );
+                const a = dot( der( cb.pts ) ), bx = dot( der( Ub[s].pts ) ), by = dot( der( Vb[s].pts ) );
+                const scale = Math.max( ...a.map( Math.abs ) );
+                let worst = Infinity, wt = 0.5, unknown = false;
+                const check = (A : Array<number>, X : Array<number>, Y : Array<number>, t0 : number, t1 : number, depth : number) : void => {
+                    let low = Infinity;
+                    for (const [x, y] of corners) for (let l = 0; l < A.length; l++) low = Math.min( low, A[l] + x * X[l] + y * Y[l] );
+                    if (low > 1e-9 * scale) return;
+                    let found = false;
+                    for (const f of [0, 0.5, 1]) for (const [x, y] of points) {
+                        const j = value( A, f ) + x * value( X, f ) + y * value( Y, f );
+                        if (j < -1e-9 * scale) { found = true; if (j < worst) { worst = j; wt = t0 + f * (t1 - t0); } }
+                    }
+                    if (found) return;
+                    if (depth == 12) { if (!unknown && worst == Infinity) wt = 0.5 * (t0 + t1); unknown = true; return; }
+                    const [A0, A1] = halves( A ), [X0, X1] = halves( X ), [Y0, Y1] = halves( Y ), m = 0.5 * (t0 + t1);
+                    check( A0, X0, Y0, t0, m, depth + 1 );
+                    check( A1, X1, Y1, m, t1, depth + 1 );
+                };
+                check( a, bx, by, 0, 1, 0 );
+                spans.push( worst == Infinity && !unknown ? null : { worst : worst == Infinity ? 0 : worst / scale, part : r, t : cb.lo + wt * h, proven : worst < Infinity } );
+            } );
+        } );
+        // runs of spans that fold, one fold each (round a ring, a run over its seam is one)
+        const runs : Array<Array<Exclude<Span, null>>> = [];
+        spans.forEach( (x, i) => { if (x == null) return; if (i > 0 && spans[i - 1] != null) runs[runs.length - 1].push( x ); else runs.push( [x] ); } );
+        if (closed && runs.length > 1 && spans[0] != null && spans[spans.length - 1] != null) runs[0].push( ...runs.pop()! );
+        return runs.map( run => {
+            const w = run.reduce( (m, x) => x.worst < m.worst ? x : m, run[0] ), cv = curves[w.part];
+            const d = Eval.rationalCurveDerivatives( cv.C, w.t, 2 ), U = Eval.rationalCurvePoint( cv.U, w.t ), V = Eval.rationalCurvePoint( cv.V, w.t );
+            const speed = Vec.norm( d[1] ), bend = Vec.cross( d[1], d[2] ), k = Vec.norm( bend );
+            // towards the bend's centre: the principal normal, (C' x C'') x C'
+            const toward = k > 0 ? Vec.normalized( Vec.cross( bend, d[1] ) ) : [0, 0, 0];
+            const reach = Math.max( ...points.map( ([x, y]) => Vec.dot( Vec.add( Vec.mul( x, U ), Vec.mul( y, V ) ), toward ) ) );
+            return { at : d[0], radius : k > 0 ? Math.pow( speed, 3 ) / k : Infinity, reach : reach, proven : run.some( x => x.proven ) };
+        } );
     }
 
     // A region's area and first moments (the integrals of 1, x and y over it), its loops oriented outer
