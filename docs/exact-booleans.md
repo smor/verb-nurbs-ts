@@ -89,7 +89,7 @@ edges are within 1.3e-3, and the six STEP files keep their entities, with contro
 Tests in `test/testShell.cjs`: each edge used once each way, Euler–Poincaré against the mesh's genus, edges within
 their tolerance of both faces by independent projection, p-curves giving the curve, tolerances within half the
 fitting tolerance (plus 5e-3 at setback corners), on rounded boxes (ball and setback), a ring on a seam, the
-filleted mug and three 507 parts.
+filleted mug and three 507 parts. An edge that runs along a side of both its faces' domains (an operand's own edge, which the Boolean left whole or cut short) is taken as it is: the side's isocurve and straight p-curves, from the mesh's corner parameters, with no projection (#146).
 
 Not yet: the wheels of 507 (A, and D cut one window at a time) give shells that fail Euler–Poincaré. Their caps,
 discs with a pole at the centre, come out of the Boolean in several faces on one surface with slivers round the pole,

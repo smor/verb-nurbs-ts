@@ -161,7 +161,8 @@ export class Seams {
                 for (let k = Math.floor( pos0 ) + 1; k < c.pos - 1e-12; k++) pts.push( E.pts[k] );
                 pts.push( vertices[c.vertex] );
                 ids.push( out.length );
-                out.push( { pts : pts, start : v0, end : c.vertex, left : E.left, right : E.right } );
+                // (an edge left whole keeps the curve it came with)
+                out.push( { pts : pts, start : v0, end : c.vertex, left : E.left, right : E.right, ...(cuts.length == 0 && E.curve != null ? { curve : E.curve, pcurves : E.pcurves } : {}) } );
                 pos0 = c.pos; v0 = c.vertex;
             }
             return ids;

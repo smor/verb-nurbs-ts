@@ -2,7 +2,10 @@ import { NurbsCurveData, NurbsSurfaceData, Point, UV } from "../core/Data.js";
 import { Vec } from "../core/Vec.js";
 import { Analyze } from "../eval/Analyze.js";
 import { Eval } from "../eval/Eval.js";
+import { Divide } from "../eval/Divide.js";
 import { Fit } from "../eval/Fit.js";
+import { Make } from "../eval/Make.js";
+import { Modify } from "../eval/Modify.js";
 import { BrepFace, BrepSolid, TrimEdge } from "./Brep.js";
 import { BooleanResult } from "./BrepBoolean.js";
 import { TriMesh } from "./TriMesh.js";
@@ -101,10 +104,20 @@ export class ShellBuilder {
             if (k == null) { k = vertices.length; vertices.push( r.mesh.vertices[m] ); index.set( m, k ); }
             return k;
         };
-        const edges : Array<SeamEdge> = T.edges.map( e => ({
-            pts : ShellBuilder.refine( e.chain.map( i => r.mesh.vertices[i] ), projectors[e.left], projectors[e.right], 0.25 * tol ),
-            start : vertexOf( e.chain[0] ), end : vertexOf( e.chain[e.chain.length - 1] ), left : e.left, right : e.right,
-        }) );
+        // each mesh vertex's parameters on each face it is a corner of
+        const uvAt = new Map<string, UV>();
+        r.mesh.triangles.forEach( (t, k) => {
+            const c = r.cornerUV[k];
+            if (c != null) for (let j = 0; j < 3; j++) uvAt.set( r.faceOf[k] + "," + t[j], c[j] );
+        } );
+        const edges : Array<SeamEdge> = T.edges.map( e => {
+            const start = vertexOf( e.chain[0] ), end = vertexOf( e.chain[e.chain.length - 1] );
+            // an operand's own edge, along a side of both faces' domains: exact as it is (#146)
+            const side = ShellBuilder.sideEdge( r, (f, v) => uvAt.get( f + "," + v ) ?? null, e.chain, e.left, e.right );
+            if (side != null) return { pts : e.chain.map( i => r.mesh.vertices[i] ), start : start, end : end, left : e.left, right : e.right, curve : side.curve, pcurves : side.pcurves };
+            return { pts : ShellBuilder.refine( e.chain.map( i => r.mesh.vertices[i] ), projectors[e.left], projectors[e.right], 0.25 * tol ),
+                     start : start, end : end, left : e.left, right : e.right };
+        } );
         const cut = Seams.cut( faces, edges, vertices, T.loops, tol, onBoth );
         // only the vertices that edges use, renumbered in order
         const used = new Map<number, number>(), vs : Array<Point> = [];
@@ -338,6 +351,9 @@ export class ShellBuilder {
         ts.sort( (x, y) => x - y );
         const ds = ts.map( dist );
         let worst = Math.max( ...ds );
+        // at round-off (an exact edge: an operand's own, or a seam) the samples' maxima are noise, not worth refining
+        const size = Vec.norm( Eval.rationalCurvePoint( curve, a ) ) + Vec.norm( Eval.rationalCurvePoint( curve, b ) ) + 1;
+        if (worst <= 1e-12 * size) return worst;
         const g = (Math.sqrt( 5 ) - 1) / 2;
         // each local maximum of the samples within half of the largest
         for (let m = 0; m < ds.length; m++) {
@@ -351,6 +367,52 @@ export class ShellBuilder {
             worst = Math.max( worst, f1, f2 );
         }
         return worst;
+    }
+
+    // An edge that runs along a side of both its faces' domains, as an operand's own edges do where the Boolean leaves
+    // them whole or cuts them short (the sides of an extrusion's faces, #146): its curve is the side's isocurve of the
+    // left face, exact, between the chain's ends, and its p-curves are the two sides as lines over the curve's parameter
+    // (on the right face too, where the faces share the side's parameterisation, as `BrepSolid`'s faces do; checked).
+    // The chain's parameters come from the mesh (`cornerUV`), so nothing is projected. Null for any other edge, and on
+    // faces closed in either direction, whose seams `Seams` cuts.
+    private static sideEdge( r : BooleanResult, uvOf : (face : number, vertex : number) => UV | null, chain : Array<number>, left : number, right : number )
+        : { curve : NurbsCurveData, pcurves : [NurbsCurveData, NurbsCurveData] } | null {
+        const side = (f : number) => {
+            const s = r.faces[f].surface;
+            if (Analyze.isRationalSurfaceClosed( s, true ) || Analyze.isRationalSurfaceClosed( s, false )) return null;
+            const d = [s.knotsU[0], s.knotsU[s.knotsU.length - 1], s.knotsV[0], s.knotsV[s.knotsV.length - 1]];
+            const uvs : Array<UV> = [];
+            for (const v of chain) { const uv = uvOf( f, v ); if (uv == null) return null; uvs.push( uv ); }
+            for (let c = 0; c < 2; c++) for (let end = 0; end < 2; end++) {
+                const x = d[2 * c + end], eps = 1e-9 * (d[2 * c + 1] - d[2 * c]);
+                if (uvs.every( uv => Math.abs( uv[c] - x ) <= eps )) return { s : s, c : c, x : x, a : uvs[0][1 - c], b : uvs[uvs.length - 1][1 - c], lo : d[2 * (1 - c)], hi : d[2 * (1 - c) + 1] };
+            }
+            return null;
+        };
+        const L = side( left ), R = side( right );
+        if (L == null || R == null || Math.abs( L.b - L.a ) <= 1e-9 * (L.hi - L.lo)) return null;
+        // the left face's side (the isocurve at u = x runs along v, and at v = x along u), from a to b
+        let curve = Make.surfaceIsocurve( L.s, L.x, L.c == 1 );
+        const lo = Math.min( L.a, L.b ), hi = Math.max( L.a, L.b ), span = L.hi - L.lo;
+        if (hi < L.hi - 1e-12 * span) curve = Divide.curveSplit( curve, hi )[0];
+        if (lo > L.lo + 1e-12 * span) curve = Divide.curveSplit( curve, lo )[1];
+        if (L.a > L.b) curve = Modify.curveReverse( curve );
+        const c0 = curve.knots[0], c1 = curve.knots[curve.knots.length - 1];
+        const line = (S : { c : number, x : number, a : number, b : number }) : NurbsCurveData => {
+            const p = (t : number) => S.c == 0 ? [S.x, t, 1] : [t, S.x, 1];
+            return new NurbsCurveData( 1, [c0, c0, c1, c1], [p( S.a ), p( S.b )] );
+        };
+        const pcurves : [NurbsCurveData, NurbsCurveData] = [line( L ), line( R )];
+        // both p-curves on the curve, at its own parameter (the faces share the side's parameterisation)
+        const size = Vec.norm( Eval.rationalCurvePoint( curve, c0 ) ) + Vec.norm( Eval.rationalCurvePoint( curve, c1 ) ) + 1;
+        for (let k = 0; k <= 8; k++) {
+            const t = c0 + (c1 - c0) * k / 8, p = Eval.rationalCurvePoint( curve, t );
+            for (const [S, pc] of [[L.s, pcurves[0]], [R.s, pcurves[1]]] as Array<[NurbsSurfaceData, NurbsCurveData]>) {
+                const uv = Eval.rationalCurvePoint( pc, t );
+                if (Vec.dist( Eval.rationalSurfacePoint( S, uv[0], uv[1] ), p ) > 1e-9 * size) return null;
+            }
+        }
+        return { curve : curve, pcurves : pcurves };
     }
 
     // An edge's curve in a face's parameters, over the curve's parameter: the curve's points projected onto the

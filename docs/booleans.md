@@ -17,6 +17,9 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
    boxes overlap is intersected, unless no point where they meet can be on the result (below). The method follows Patrikalakis and Maekawa, *Shape Interrogation for Computer Aided
    Design and Manufacturing* (2002), ch. 5, and Barnhill and Kersey, "A marching method for parametric
    surface/surface intersection" (CAGD 7, 1990):
+   * **Apart?** (`SurfaceIntersect.apart`). Over each knot span a surface lies in the convex hull of the control points
+     acting there, so two faces none of whose span boxes meet have no common point: no branch, loop or contact, and
+     nothing more is looked for (#146: a bore through a long twisted extrusion, whose every face's box holds the bore).
    * **Find every branch.** Intersect two grid triangulations of the faces. This finds every branch the grids
      resolve. A closed loop smaller than a grid cell can be missed, so step 1b looks for those separately.
    * **1b. Detect small loops** (`SurfaceLoops`). By Sinha's theorem (Sinha, Klassen and Wang, ACM Symposium on

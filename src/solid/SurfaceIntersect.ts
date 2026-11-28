@@ -73,11 +73,50 @@ export class SurfaceIntersect {
         return SurfaceIntersect.analyze( A, B, options ).curves;
     }
 
+    // Whether two surfaces are certainly apart: no box of one's knot spans meets a box of the other's. Over a knot span
+    // a NURBS surface (positive weights) lies in the convex hull of the (p + 1)(q + 1) control points that act there
+    // (the strong convex hull property: Piegl and Tiller, The NURBS Book, 2nd ed., P3.29 and P4.24), so it lies in their
+    // box; boxes that do not meet hold no common point. Finer than the surfaces' own boxes where a surface winds
+    // round another (a long twisted extrusion's faces round a bore through it: each face's box holds the bore).
+    public static apart( a : NurbsSurfaceData, b : NurbsSurfaceData ) : boolean {
+        const boxes = (s : NurbsSurfaceData) => {
+            const out : Array<{ min : Array<number>, max : Array<number> }> = [];
+            const spans = (knots : Array<number>, p : number) => {
+                const r : Array<number> = [];
+                for (let i = p; i + 1 < knots.length - p; i++) if (knots[i + 1] > knots[i]) r.push( i );
+                return r;
+            };
+            const cp = s.controlPoints;
+            for (const i of spans( s.knotsU, s.degreeU )) for (const j of spans( s.knotsV, s.degreeV )) {
+                const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+                for (let k = i - s.degreeU; k <= i; k++) for (let l = j - s.degreeV; l <= j; l++) {
+                    const hp = cp[k][l], w = hp[hp.length - 1];
+                    if (!(w > 0)) return null;
+                    for (let c = 0; c < 3; c++) { const x = hp[c] / w; if (x < min[c]) min[c] = x; if (x > max[c]) max[c] = x; }
+                }
+                out.push( { min : min, max : max } );
+            }
+            return out;
+        };
+        const ba = boxes( a ), bb = boxes( b );
+        if (ba == null || bb == null) return false;
+        let size = 0;
+        for (const x of ba.concat( bb )) for (let c = 0; c < 3; c++) size = Math.max( size, Math.abs( x.min[c] ), Math.abs( x.max[c] ) );
+        const eps = 1e-9 * (1 + size);
+        for (const x of ba) for (const y of bb) {
+            if (x.min[0] <= y.max[0] + eps && y.min[0] <= x.max[0] + eps && x.min[1] <= y.max[1] + eps && y.min[1] <= x.max[1] + eps
+                && x.min[2] <= y.max[2] + eps && y.min[2] <= x.max[2] + eps) return false;
+        }
+        return true;
+    }
+
     // The branches of the intersection and the points where the surfaces touch.
     public static analyze( A : SurfaceDomain, B : SurfaceDomain, options? : SurfaceIntersectOptions ) : SurfaceIntersection {
         const o = options != null ? options : {};
         const tol = o.tolerance != null ? o.tolerance : 1e-9;
         const a = A.surface, b = B.surface;
+        // surfaces apart have no branches, loops or contacts: nothing more to look for (#146)
+        if (SurfaceIntersect.apart( a, b )) return { curves : [], touching : [], tangent : [] };
         const ma = SurfaceIntersect.gridMesh( a, o.divsA != null ? o.divsA : [48, 48] );
         const mb = SurfaceIntersect.gridMesh( b, o.divsB != null ? o.divsB : [48, 48] );
         const step = o.step != null ? o.step : Math.min( SurfaceIntersect.size( ma ), SurfaceIntersect.size( mb ) ) / 100;
