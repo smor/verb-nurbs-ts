@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var path = require('path');
 var esbuild = require('esbuild');
 var verb = require('../dist/index.js');
@@ -98,7 +99,7 @@ describe('editor components (editor/components.ts)', function () {
 		m.component.meta.name.should.equal('Plate body');
 		var r = new Graph().evaluate(g);
 		r.result.report.volume.should.be.approximately(before, 1e-6);
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		// the chamfer still cuts: the renamed pattern selects the same edges
 		var sharp = plate(); sharp.outputs = { plate : '@d' }; delete sharp.nodes.r;
 		before.should.be.below(volume(sharp) - 1);

@@ -644,7 +644,8 @@ function App() {
         listener = r => {
             setResult( r );
             if (r.ok) noteTime( r.ms );
-            if (r.ok && r.verdict?.kind == "buildable" && sent.has( r.seq )) lastGood = sent.get( r.seq )!;
+            // (an unproven part is good to go back to: it passes every check, some without a proof)
+            if (r.ok && r.verdict != null && r.verdict.kind != "visual" && sent.has( r.seq )) lastGood = sent.get( r.seq )!;
             // a finished shelf: drop pieces of outputs that are gone
             if (r.shelf) setParts( m => new Map( [...m].filter( ([k]) => G().outputs?.[k] != null && !(r.off ?? []).includes( k ) ) ) );
         };
@@ -792,7 +793,7 @@ function App() {
     const removeComp = ( name : string ) => { if (DOC.components == null) return; delete DOC.components[name]; if (Object.keys( DOC.components ).length == 0) delete DOC.components; structural(); };
     const leave = ( depth : number ) => { SCOPES.length = depth; reload(); };
     const backToGood = () => { if (lastGood == null) return; DOC = JSON.parse( lastGood ) as GraphDocument; while (SCOPES.length && DOC.components?.[SCOPES[SCOPES.length - 1]] == null) SCOPES.pop(); forgetSession(); reload( false ); record(); tell( "Back to the last buildable values" ); };
-    const unbuildable = result != null && (!result.ok || (result.verdict != null && result.verdict.kind != "buildable"));
+    const unbuildable = result != null && (!result.ok || (result.verdict != null && result.verdict.kind == "visual"));
 
     const shown = shownNode();
     const status = result?.nodes ?? {};
@@ -846,7 +847,7 @@ function App() {
                         <p className="back-good"><button type="button" onClick={backToGood}>Back to the last buildable values</button></p>}
                     {result == null ? <p className="muted">Building…</p> : result.ok ? <>
                         <div className="verdict-line">
-                            <span className={"pill big " + (result.verdict!.kind == "buildable" ? "ok" : "warn")}>{result.verdict!.kind}</span>
+                            <span className={"pill big " + (result.verdict!.kind == "buildable" ? "ok" : result.verdict!.kind == "unproven" ? "warn" : "bad")}>{result.verdict!.kind}</span>
                             <span className="num">{result.ms.toFixed( 0 )} ms</span>
                             <span className="num">{(result.volume! / 1000).toFixed( 2 )} cm³</span>
                             {result.shelf ? <span className="num">{parts.size} pieces</span> : <span className="num">{result.faces} faces</span>}

@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
 var Graph = lib.Graph, ProfileSweep = lib.ProfileSweep, ShellBuilder = lib.ShellBuilder, Extrusion = lib.Extrusion;
@@ -233,7 +234,7 @@ describe("Profile sweep (#134)", function () {
 			drum : { type : 'boolean/difference', in : { from : '@blank', minus : '@groove' } },
 		}, outputs : { drum : '@drum' } };
 		var res = new Graph().evaluate(doc, { mesh : 'print' });
-		res.verdict.kind.should.equal('buildable');
+		made(res.verdict);
 		var mine = res.export.mesh;
 		mine.checkClosedManifold().closedManifold.should.be.true();
 		// 507's build, with the same cones at the ends; in the drum, where the groove is (the cones turning with the
@@ -265,7 +266,7 @@ describe("Profile sweep (#134)", function () {
 			drum : { type : 'boolean/difference', in : { from : '@blank', minus : '@groove' } },
 		}, outputs : { drum : '@drum' } };
 		var res = new Graph().evaluate(doc, { mesh : 'print' });
-		res.verdict.kind.should.equal('buildable');
+		made(res.verdict);
 		res.verdict.defects.should.eql([]);
 		res.verdict.checks.filter(function (c) { return c.name == 'fold'; })[0].should.containDeep({ passed : true });
 		res.result.report.manifold.genus.should.equal(1);

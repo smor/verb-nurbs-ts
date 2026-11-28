@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var fs = require('fs');
 var path = require('path');
 var Ajv2020 = require('ajv/dist/2020').default;
@@ -108,7 +109,7 @@ describe("Document formats (docs/formats.md)", function () {
 		rod.result.report.volume.should.be.approximately(rodExact, rodExact * 0.005);
 		// the graph names a machine, so the verdict checks each part against it
 		[fly, rod].forEach(function (r) {
-			r.verdict.kind.should.equal('buildable');
+			made(r.verdict);
 			should.exist(r.verdict.checks.find(function (c) { return c.name == 'makeable' && c.passed; }));
 		});
 		rod.nodes.flywheel.should.equal('unused');
@@ -230,7 +231,7 @@ describe("Components (docs/formats.md)", function () {
 		r.result.report.volume.should.be.approximately(direct.result.report.volume, 1e-6 * direct.result.report.volume);
 		var fillets = function (names) { return names.filter(function (n) { return n.indexOf('round(') >= 0; }).length; };
 		fillets(r.faceNames).should.equal(fillets(direct.faceNames)).and.above(0);
-		r.verdict.kind.should.equal('buildable');
+		made(r.verdict);
 		r.faceNames.should.containEql('round(moved/part/box.+z|moved/part/box.-x)');
 		var xs = r.result.mesh.vertices.map(function (v) { return v[0]; });
 		((Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2).should.be.approximately(100, 1e-9);

@@ -122,7 +122,7 @@ import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions, BrepViewOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model, ModelError } from "./model/Model.js";
-export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelDefect, ModelWall, ModelLattice } from "./model/Model.js";
+export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelDefect, ModelCheck, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 import { Graph, GraphError } from "./model/Graph.js";
 export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult, GraphOptions, GraphMesh } from "./model/Graph.js";
