@@ -10,6 +10,7 @@ import { BrepEdges } from "../solid/BrepEdges.js";
 import { BrepShell, ShellBuilder } from "../solid/BrepShell.js";
 import { Extrusion, ProfilePoint, ProfileSegmentSpec, ProfileSpec } from "../solid/Extrusion.js";
 import { Lathe } from "../solid/Lathe.js";
+import { ProfileSweep, ProfileSweepOptions, SweepFrame } from "../solid/ProfileSweep.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -41,12 +42,21 @@ export type ModelFeature =
     | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue, twist? : ModelValue, scaleTop? : ModelValue }
     // the same profile drawn in the (r, z) half-plane (x the radius) and turned about the z axis (#87); faces outer.k
     | { type : "lathe", profile : ProfileSpec, degrees? : ModelValue }
+    // the same profile, drawn in the section's (u, v) plane, swept along a rail through points at t = i / n (the cubic
+    // spline through them, #134): the section normal to the rail, its v axis held radial from the axis through
+    // `origin` along `axis` ("radial", default the z axis), along `axis` ("up"), or rotation-minimizing from `axis` at
+    // the start ("rmf"). A closed rail (its first point not repeated) makes a ring; an open one is capped flat, its
+    // ends' derivatives d/dt `tangents` when given (`ProfileSweep`). Faces outer.k, hole{i}.k, start and end
+    | { type : "sweep", profile : ProfileSpec, rail : Array<ModelPoint>, closed? : boolean, frame? : SweepFrame, axis? : ModelPoint, origin? : ModelPoint,
+        tangents? : [ModelPoint, ModelPoint] }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
     // rigid or scaling placement of a feature (all of its solids): scale about the origin, then rotate about an axis
-    // through `about` (degrees, right-handed), then translate
-    | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint }
+    // through `about` (degrees, right-handed), then translate; then place in a frame: x along `frame.x`, y along
+    // `frame.y` (less its part along x), z along x × y, the origin at `frame.origin` (a part at a sweep's end, #134)
+    | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint,
+        frame? : { origin : ModelPoint, x : ModelPoint, y : ModelPoint } }
     // a switch: `then` where `when` is not 0, `else` where it is; either may be left out, for nothing. Resolved before
     // anything is built (`Model.choose`): nothing drops out of a union and out of a difference's cutters, and what is
     // made from nothing alone (a transform, a round, a difference from it, an intersection with it) is nothing
@@ -133,6 +143,18 @@ export interface Fillets {
 // A shell within a tree: the leaves of its solid and of its inside, and its open faces' names.
 interface Shelled { id : string, thickness : number, outside : [number, number], inside : [number, number], open : Array<string> }
 
+/**
+ * A defect of a model's operand that makes the model visual, for a program to read (#134): which feature, what,
+ * where. `fold`: a sweep whose section reaches further towards the centre of a bend of its rail than the bend's
+ * radius, so that the swept shape passes through itself (`SweepFold`); `at` is in the model's coordinates (moved
+ * by the transforms the sweep went through), `radius` and `reach` in the sweep's own (a transform that scales does
+ * not change them). `proven` is false where the sweep is within rounding of folding: not proven free of folds.
+ */
+export interface ModelDefect { kind : "fold", feature : string, at : Point, radius : number, reach : number, proven : boolean }
+
+// The sweeps in a model, and their defects (`ModelDefect`).
+export interface Sweeps { ids : Array<string>, defects : Array<ModelDefect> }
+
 // Whether a model is a buildable solid or a visual model, decided the same way every time from checks on the
 // result, each with a plain reason. A buildable solid is a closed, outward-facing 2-manifold with positive volume,
 // every requested fillet in place, and (when the document names a machine) makeable on that machine.
@@ -141,6 +163,8 @@ export interface ModelVerdict {
     reasons : Array<string>;
     // the checks, each passed or not
     checks : Array<{ name : string, passed : boolean, detail : string }>;
+    // what makes the model visual, for a program to read (each with a failed check too): folds of sweeps
+    defects : Array<ModelDefect>;
     // what is worth knowing but does not make the model visual (supports needed, the build direction, ...)
     notes : Array<string>;
     // the machine check behind the "makeable" check, when the document names a machine and the result is closed:
@@ -281,7 +305,7 @@ export class Model {
         // (a leaf with a `path` is a rounded operand made a shell: its faces carry their persistent names, which the
         // path of transforms it went through goes before; `fillets`: what the rounds inside the tree left undone)
         type Leaf = { name : string, solid : BrepSolid, path? : string };
-        type Tree = { leaves : Array<Leaf>, expr : (inside : Array<boolean>) => boolean, shells : Array<Shelled>, fillets? : Fillets };
+        type Tree = { leaves : Array<Leaf>, expr : (inside : Array<boolean>) => boolean, shells : Array<Shelled>, fillets? : Fillets, sweeps? : Sweeps };
         const nameOf = (l : Leaf, fi : number) => (l.path != null ? l.path : l.name + ".") + Model.faceName( l.solid.faces[fi], fi );
         const combine = (id : string, type : "union" | "intersection" | "difference", parts : Array<Tree>) : Tree => {
             const leaves = ([] as Tree["leaves"]).concat( ...parts.map( p => p.leaves ) );
@@ -298,7 +322,7 @@ export class Model {
                 names.add( l.name );
             }
             const shells = ([] as Array<Shelled>).concat( ...parts.map( (p, k) => p.shells.map( s => Model.shift( s, offsets[k] ) ) ) );
-            return { leaves : leaves, expr : expr, shells : shells, fillets : Model.addFillets( parts.map( p => p.fillets ) ) };
+            return { leaves : leaves, expr : expr, shells : shells, fillets : Model.addFillets( parts.map( p => p.fillets ) ), sweeps : Model.addSweeps( parts.map( p => p.sweeps ) ) };
         };
         const EMPTY : Tree = { leaves : [], expr : () => false, shells : [] };
 
@@ -311,6 +335,7 @@ export class Model {
                 case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
                 case "extrude": case "prism": throw new Error( `Model: a shell cannot yet offset the extrusion "${id}"` );
                 case "lathe": throw new Error( `Model: a shell cannot yet offset the revolved profile "${id}"` );
+                case "sweep": throw new Error( `Model: a shell cannot yet offset the swept profile "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -351,13 +376,20 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
+                case "sweep": {
+                    // a sweep that folds is built as it is, and said (the model is then visual)
+                    const o = Model.sweepOptions( f, num, point ), b = ProfileSweep.build( f.profile, o.rail, o.options );
+                    const defects = b.folds.map( x => ({ kind : "fold" as const, feature : id, at : x.at, radius : x.radius, reach : x.reach, proven : x.proven }) );
+                    return { leaves : [{ name : id, solid : b.solid }], expr : (x : Array<boolean>) => x[0], shells : [], sweeps : { ids : [id], defects : defects } };
+                }
                 case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "lathe": case "prism":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
                     const M = Model.matrix( f, num, point );
                     return { leaves : t.leaves.map( l => ({ name : id + "/" + l.name, solid : Model.transform( l.solid, M ), path : l.path != null ? id + "/" + l.path : undefined }) ),
-                             expr : t.expr, shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ), fillets : t.fillets };
+                             expr : t.expr, shells : t.shells.map( s => ({ ...s, open : s.open.map( n => id + "/" + n ) }) ), fillets : t.fillets,
+                             sweeps : t.sweeps == null ? undefined : { ids : t.sweeps.ids, defects : t.sweeps.defects.map( d => ({ ...d, at : [0, 1, 2].map( i => M[i][0] * d.at[0] + M[i][1] * d.at[1] + M[i][2] * d.at[2] + M[i][3] ) }) ) } };
                 }
                 case "union": case "intersection": case "difference": {
                     const ids = f.type == "difference" ? [f.from].concat( f.minus ) : f.of;
@@ -381,7 +413,7 @@ export class Model {
                         leaves : leaves,
                         expr : (x : Array<boolean>) => t.expr( x.slice( 0, n ) ) && !inside.expr( x.slice( n ) ),
                         shells : t.shells.concat( [{ id : id, thickness : th, outside : [0, n], inside : [n, leaves.length], open : faces.filter( nm => open.some( re => re.test( nm ) ) ) }] ),
-                        fillets : t.fillets,
+                        fillets : t.fillets, sweeps : t.sweeps,
                     };
                 }
                 case "round": {
@@ -393,7 +425,7 @@ export class Model {
                     s.faces.forEach( (fc, k) => { fc.name = b.names[shell.faces[k].source]; } );
                     const rep = b.result.report;
                     const own : Fillets = { failed : rep.filletsFailed, skipped : rep.filletsSkipped, reduced : rep.filletsReduced ?? 0 };
-                    return { leaves : [{ name : id, solid : s, path : "" }], expr : (x : Array<boolean>) => x[0], shells : [], fillets : Model.addFillets( [b.fillets, own] ) };
+                    return { leaves : [{ name : id, solid : s, path : "" }], expr : (x : Array<boolean>) => x[0], shells : [], fillets : Model.addFillets( [b.fillets, own] ), sweeps : b.sweeps };
                 }
                 case "lattice": throw new Error( `Model: the lattice "${id}" can only be the last feature (an operand of nothing)` );
             }
@@ -401,7 +433,7 @@ export class Model {
         } );
 
         // a feature's solid: one Boolean of its tree, rounded if it is a round
-        const build = (solidId : string) : { result : BooleanResult, names : Array<string>, walls : Array<ModelWall>, fillets? : Fillets, shell? : BrepShell } =>
+        const build = (solidId : string) : { result : BooleanResult, names : Array<string>, walls : Array<ModelWall>, fillets? : Fillets, sweeps? : Sweeps, shell? : BrepShell } =>
             cached( doc.certify === true ? "solid+certify" : "solid", solidId, () => {
             const out = features[solidId];
             const round = out.type == "round" ? out : null;
@@ -447,7 +479,7 @@ export class Model {
             // naming a face that is not there, would otherwise round nothing in silence)
             const unmatched = round == null ? [] : rules.filter( x => x.hits == 0 ).map( x => `"${solidId}": "${x.edges}"` );
             const fillets = unmatched.length == 0 ? t.fillets : Model.addFillets( [t.fillets, { failed : 0, skipped : 0, reduced : 0, unmatched : unmatched }] );
-            return { result : r, names : Model.names( r, leafName, (si, fi) => t.leaves[si].solid.faces[fi].half === true ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets, shell : shell };
+            return { result : r, names : Model.names( r, leafName, (si, fi) => t.leaves[si].solid.faces[fi].half === true ), walls : t.shells.map( s => Model.wall( r, s, leafName ) ), fillets : fillets, sweeps : t.sweeps, shell : shell };
         } );
 
         // the output: a Boolean of its tree, rounded if it is a round
@@ -458,7 +490,7 @@ export class Model {
         const solid = build( solidId );
 
         const lattice = lat == null ? undefined : cached( "lattice", doc.output, () => Model.lattice( doc.output, lat, solid.result, solid.names, num ) );
-        const verdict = Model.verdict( solid.result, doc.machine, solid.walls, lattice, solid.fillets );
+        const verdict = Model.verdict( solid.result, doc.machine, solid.walls, lattice, solid.fillets, solid.sweeps );
         const faceIndex : { [name : string] : number } = {};
         solid.names.forEach( (n, k) => { faceIndex[n] = k; } );
         const report : ModelResult["features"] = {};
@@ -611,6 +643,7 @@ export class Model {
             case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ),
                 ...(f.twist != null ? { twist : num( f.twist, "twist" ) } : {}), ...(f.scaleTop != null ? { scaleTop : num( f.scaleTop, "scaleTop" ) } : {}) };
             case "lathe": return { profile : f.profile, degrees : f.degrees == null ? 360 : num( f.degrees, "degrees" ) };
+            case "sweep": return Model.sweepOptions( f, num, point );
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -802,6 +835,17 @@ export class Model {
         return { ...s, outside : [s.outside[0] + by, s.outside[1] + by], inside : [s.inside[0] + by, s.inside[1] + by] };
     }
 
+    // A sweep's rail and options, its values resolved.
+    private static sweepOptions( f : Extract<ModelFeature, { type : "sweep" }>, num : (v : ModelValue, what : string) => number, point : (p : ModelPoint, what : string) => Point ) {
+        const frame = f.frame ?? "rmf";
+        const axis = f.axis == null ? null : point( f.axis, "axis" );
+        const options : ProfileSweepOptions = { closed : f.closed === true, frame : frame };
+        if (frame == "radial") options.axis = { point : f.origin == null ? [0, 0, 0] : point( f.origin, "origin" ), direction : axis ?? [0, 0, 1] };
+        else if (axis != null) options.up = axis;
+        if (f.tangents != null) { options.startTangent = point( f.tangents[0], "tangents[0]" ); options.endTangent = point( f.tangents[1], "tangents[1]" ); }
+        return { rail : f.rail.map( (p, k) => point( p, `rail[${k}]` ) ), options : options };
+    }
+
     // The affine map of a transform, as rows [a b c t] of a 3x4 matrix.
     private static matrix( f : Extract<ModelFeature, { type : "transform" }>, num : (v : ModelValue, what : string) => number, point : (p : ModelPoint, what : string) => Point ) : Array<Array<number>> {
         let M = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
@@ -827,6 +871,15 @@ export class Model {
         if (f.translate != null) {
             const t = point( f.translate, "translate" );
             then( [[1, 0, 0, t[0]], [0, 1, 0, t[1]], [0, 0, 1, t[2]]] );
+        }
+        if (f.frame != null) {
+            const o = point( f.frame.origin, "frame.origin" ), x = point( f.frame.x, "frame.x" ), y = point( f.frame.y, "frame.y" );
+            if (!(Vec.norm( x ) > 0)) throw new Error( "Model: a frame's x axis must not be zero" );
+            const X = Vec.normalized( x ), w = Vec.sub( y, Vec.mul( Vec.dot( y, X ), X ) );
+            // (1e-9 of y's length: below that, y is along x to rounding)
+            if (!(Vec.norm( w ) > 1e-9 * Vec.norm( y ))) throw new Error( "Model: a frame's y axis must not be along its x axis" );
+            const Y = Vec.normalized( w ), Z = Vec.cross( X, Y );
+            then( [0, 1, 2].map( i => [X[i], Y[i], Z[i], o[i]] ) );
         }
         return M;
     }
@@ -866,6 +919,12 @@ export class Model {
     }
 
     // ---------- names ----------
+
+    // The sweeps of several trees, and their defects (null when none has a sweep).
+    private static addSweeps( xs : Array<Sweeps | undefined> ) : Sweeps | undefined {
+        const ys = xs.filter( (x) : x is Sweeps => x != null );
+        return ys.length == 0 ? undefined : { ids : ys.flatMap( x => x.ids ), defects : ys.flatMap( x => x.defects ) };
+    }
 
     // The sum of what several rounds left undone (null when none of them is a round).
     private static addFillets( xs : Array<Fillets | undefined> ) : Fillets | undefined {
@@ -1021,10 +1080,24 @@ export class Model {
     /**
      * The verdict on a result (see `ModelVerdict`): buildable or visual, with the checks and their reasons. Any B-rep
      * result can be judged, a recipe's as well as a document's; `walls` and `lattice` come from a document's shells
-     * and lattice output.
+     * and lattice output, `sweeps` from its sweeps (a fold in any makes the model visual, #134).
      */
-    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice, inner? : Fillets ) : ModelVerdict {
-        if (lattice != null) return Model.latticeVerdict( lattice, machine );
+    public static verdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], lattice? : ModelLattice, inner? : Fillets, sweeps? : Sweeps ) : ModelVerdict {
+        const v = lattice != null ? Model.latticeVerdict( lattice, machine ) : Model.solidVerdict( r, machine, walls, inner );
+        if (sweeps == null || sweeps.ids.length == 0) return v;
+        const round = (p : Point) => "(" + p.map( x => +x.toFixed( 2 ) ).join( ", " ) + ")";
+        const say = (d : ModelDefect) => d.proven
+            ? `the sweep "${d.feature}" folds over near ${round( d.at )}: its rail bends with a radius of ${d.radius.toPrecision( 3 )} and its section reaches ${d.reach.toPrecision( 3 )} towards the bend's centre, so the swept shape passes through itself`
+            : `the sweep "${d.feature}" is not proven free of folds near ${round( d.at )} (within rounding of folding: its rail bends with a radius of ${d.radius.toPrecision( 3 )})`;
+        const ds = sweeps.defects;
+        const check = { name : "fold", passed : ds.length == 0,
+            detail : ds.length == 0 ? `no sweep folds (proven: ${sweeps.ids.map( x => `"${x}"` ).join( ", " )})` : ds.map( say ).join( "; " ) };
+        const checks = v.checks.concat( [check] ), failed = checks.filter( c => !c.passed );
+        return { ...v, kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? v.reasons : failed.map( c => c.detail ), checks : checks, defects : v.defects.concat( ds ) };
+    }
+
+    // The verdict on a solid result (not a lattice), its fold checks aside.
+    private static solidVerdict( r : BooleanResult, machine? : string | Machine, walls : Array<ModelWall> = [], inner? : Fillets ) : ModelVerdict {
         const m = r.report.manifold;
         // the fillets of the rounded operands count with the result's own
         const fFailed = r.report.filletsFailed + (inner?.failed ?? 0), fSkipped = r.report.filletsSkipped + (inner?.skipped ?? 0);
@@ -1057,7 +1130,7 @@ export class Model {
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable, defects : [] };
     }
 
     // A lattice is judged on its mesh: closed, outward, its thinnest wall against the machine's, and makeable. It is a
@@ -1089,7 +1162,7 @@ export class Model {
             checks.push( { name : "makeable", passed : mk.makeable, detail : mk.makeable ? "makeable on " + mk.machine.name : mk.issues.join( " " ) } );
         }
         const failed = checks.filter( c => !c.passed );
-        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable };
+        return { kind : failed.length == 0 ? "buildable" : "visual", reasons : failed.length == 0 ? ["passes every check (a mesh: export it as STL)"] : failed.map( c => c.detail ), checks : checks, notes : notes, makeable : makeable, defects : [] };
     }
 
     // ---------- hashing ----------

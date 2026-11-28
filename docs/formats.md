@@ -158,6 +158,62 @@ is the axis itself and makes no face; a path off the axis makes a solid with a h
 bore). Faces are `outer.k` for segment k. `degrees` must be 360 for now, and the outline has no holes (revolve each
 and subtract it): a part turn needs its end caps, which are not built yet.
 
+### Sweeps
+
+`profile/sweep` (#134) sweeps the same outline, drawn in the section's (u, v) plane, along a rail: the curve through
+(x(t), y(t), z(t)) at `samples` evenly spaced values of t from 0 to 1 (a cubic spline through them, `ProfileSweep`).
+The section stays normal to the rail. Its v axis is held by the `frame`:
+
+* `radial`: pointing away from the `axis` (through the origin). A barrel cam's groove, its cutter's axis pointing
+  at the drum's.
+* `up`: along the axis, less its part along the rail.
+* `rotation-minimizing`: from the axis at the start, carried along without spin (Wang et al. 2008).
+
+u is v × t, so a counter-clockwise outline faces out. The faces are exact. The rail and the frame's two axes are
+interpolated on the same knots, and a section segment sweeps the tensor product C(t) + x U(t) + y V(t): its control
+points are the segment's and the splines'. So every section along the rail is the outline's exact curve.
+
+* **Closed rails.** With `rail` set to `closed` (t = 1 back at t = 0, the first point not repeated), the sweep is a
+  ring with no caps, built as two halves that keep one name. A rotation-minimizing frame's twist after one loop is
+  spread along it, so the section meets itself exactly.
+* **Open rails.** An open rail is capped flat at both ends: faces `start` and `end`. The faces round the sides are
+  `outer.k` and `hole{i}.k`, as for an extrusion.
+* **Volume.** The volume is in closed form: the integral of det(U, V, C' + x U' + y V') over the section and the rail.
+* **End outputs.** The node also gives each end's point, unit tangent and u and v axes as numbers (`start_x` ...
+  `end_vz`), for `transform/place`. They are expressions over the rail's functions: the derivative is taken by
+  fourth-order one-sided differences, and the sweep takes the same derivatives at its ends, so its caps lie in the
+  planes they give. A rotation-minimizing frame at the end is carried along the whole rail, so it is not an expression,
+  and the node does not give `end_u*` or `end_v*` then.
+
+**Limits.**
+
+* **Folds.** A section that reaches further towards the centre of a bend than the bend's radius folds over there:
+  the swept shape passes through itself, so it encloses no well-defined solid. It is built all the same, a shape to
+  look at, and its folds are said: `ProfileSweep.build` gives them (`SweepFold`: where, the bend's radius, how far the
+  section reaches towards its centre), and a model or graph with such a sweep is **visual**, with a failed `fold`
+  check and the folds in `verdict.defects` (`ModelDefect`), for a program to read and try other values. The check is
+  a proof either way: on each knot span of the rail the Jacobian of the sweep is a polynomial in t, and its Bernstein
+  coefficients at the corners of the section's control polygons bound it (all positive: no fold); a negative value at
+  a point of the section proves a fold; what neither settles is halved, 12 times at most, and what is left is said as
+  not proven free of folds (`proven: false`), which makes the model visual too. The other checks do not see a fold: a
+  folded sweep is closed and outward. For example, ~167's heart-cam groove with 10° blends: the rail turns with a
+  radius of 4.7 mm at the reversals, and the section reaches 6.3 mm towards the bend's centre (the groove is 5.9 to
+  6.9 mm wide on each side of the rail). 13° still folds; 14° and 15° are proven free of folds. A cutter's swept
+  volume there is wider than its section swept.
+* **Passing through itself further along.** The fold check is local. A sweep whose rail comes back near itself (a
+  helix whose pitch is less than the section's height) passes through itself without folding, and nothing proves it
+  does not yet: with a machine, `Makeable.check` finds it on the mesh (`selfIntersections`).
+* **Cutters turning with a drum.** A cone turning with a drum also reaches further than its section past the rim: the
+  cone's sides, ahead and behind, are further from the drum's axis than its axial section. Inside the drum, the
+  section's sweep is the cones' union: within 0.035 mm for ~167's groove with 15° blends, against the exact union.
+  507's hull-of-cones build is itself up to 0.025 mm off the exact union, so the two builds differ by up to 0.075 mm
+  at the reversals.
+* **Parts placed at an end.** A part placed at an end that carries the sweep's faces on exactly (the cutter cone
+  itself) meets them along the end section. Its flat ends lie in the sweep's top and floor, almost tangent, and the
+  Booleans can fail there. Give the part a runout of its own beyond the section's (the test's cone runs out to v = 2
+  where the section stops at 1). Keep a revolved part's seam out of the end section's plane, too: turn it about its
+  axis first.
+
 A wire is `"@id"` (the node's first output) or `"@id.port"`. Wires are typed: a number cannot go into a solid input or
 the reverse. Number nodes (`number`, `expression`, the `math/` nodes) form an acyclic graph of parameters; a cycle is
 refused.
