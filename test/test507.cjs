@@ -226,6 +226,51 @@ describe("507 regressions (test/fixtures/507)", function () {
 		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
 		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
 	});
+	it('L: a bored boss on a bored disc, the boss\'s bore starting inside the disc (#133 A)', function () {
+		// the disc's top and the boss's bottom each meet the boss's bore in one circle, found twice; the disc's top is
+		// parametrised round the disc's axis, so that circle crosses its seam twice: the loops share their points only
+		// when both crossings are flagged, else each keeps its own
+		var cyl = function (radius, height) { return { type : 'primitive/cylinder', in : { radius : radius, height : height } }; };
+		var mv = function (of, z, x) { return { type : 'transform/move', in : { of : '@' + of, x : x || 0, y : 0, z : z } }; };
+		var r = new Graph().evaluate({ version : 2, meta : { name : 'disc' }, nodes : {
+			d : cyl(25, 6), b : cyl(2.5, 8), bm : mv('b', -1), disc : { type : 'boolean/difference', in : { from : '@d', minus : '@bm' } },
+			s : cyl(3, 5.5), sm : mv('s', 6, 18), h : cyl(1.4, 7.5), hm : mv('h', 5, 18), boss : { type : 'boolean/difference', in : { from : '@sm', minus : '@hm' } },
+			u : { type : 'boolean/union', in : { a : '@disc', b : '@boss' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+		made(r.verdict, (r.verdict.reasons || []).join('; '));
+		r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+		var exact = PI * (25 * 25 - 2.5 * 2.5) * 6 + PI * (9 - 1.96) * 5.5;
+		r.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
+		r.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
+	});
+	it('M: a boss under or over a small hole of an extrusion, flush with its cap (#133 B)', function () {
+		// the hole's rim is sampled a sixteenth of a turn per chord, and its chords sag from it by about 5 % of their
+		// length: the boss's cap meets the hole along the rim, so its cut takes the rim's points, found on the rim
+		// itself rather than on its chords
+		var line = function (to) { return { type : 'line', to : to }; };
+		var circ = function (r, c) { return { kind : 'circle', center : c || [0, 0], r : r }; };
+		var beam = { kind : 'path', start : [-20.25, -5.5], segments : [line([20.25, -5.5]), { type : 'arc', via : [25.75, 0], to : [20.25, 5.5] }, line([-20.25, 5.5]), { type : 'arc', via : [-25.75, 0], to : [-20.25, -5.5] }] };
+		var sq = { kind : 'path', start : [-20, -20], segments : [line([20, -20]), line([20, 20]), line([-20, 20]), line([-20, -20])] };
+		var build = function (outer, holes, z, r, h) {
+			var res = new Graph().evaluate({ version : 2, meta : { name : 'boss' }, nodes : {
+				p : { type : 'profile/extrude', in : { profile : { outer : outer, holes : holes }, height : 6, z : 0 } },
+				c : { type : 'primitive/cylinder', in : { radius : r, height : h } }, cm : { type : 'transform/move', in : { of : '@c', x : 0, y : 0, z : z } },
+				u : { type : 'boolean/union', in : { a : '@p', b : '@cm' } } }, outputs : { solid : '@u' } }, { output : 'solid', mesh : 'print' });
+			made(res.verdict, (res.verdict.reasons || []).join('; '));
+			res.export.mesh.checkClosedManifold().closedManifold.should.be.true();
+			return res;
+		};
+		var check = function (res, exact) {
+			res.result.report.volume.should.be.approximately(exact, 3e-3 * exact);
+			res.export.mesh.signedVolume().should.be.approximately(exact, 3e-3 * exact);
+		};
+		// 507's 125/beam-low: a slotted beam with three r 1.4 holes, a boss r 3 below the centre one
+		var holes = [circ(1.4, [-20.25, 0]), circ(1.4, [20.25, 0]), circ(1.4)];
+		var slab = (40.5 * 11 + PI * 5.5 * 5.5 - 3 * PI * 1.96) * 6;
+		check(build(beam, holes, -5, 3, 5), slab + PI * 9 * 5);
+		check(build(beam, holes, 6, 3, 5), slab + PI * 9 * 5);
+		// a plate with one hole, a wide boss over it, holes from r 0.8 up
+		[0.8, 1.4].forEach(function (hr) { check(build(sq, [circ(hr)], 6, 7, 5), 1600 * 6 - PI * hr * hr * 6 + PI * 49 * 5); });
+	});
 	it('K: overlapping blind pockets of one depth, cut one after the other (#120)', function () {
 		var square = function (s, c, deg) {
 			var a = deg * PI / 180, p = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (q) { return [c[0] + s / 2 * (q[0] * Math.cos(a) - q[1] * Math.sin(a)), c[1] + s / 2 * (q[0] * Math.sin(a) + q[1] * Math.cos(a))]; });
