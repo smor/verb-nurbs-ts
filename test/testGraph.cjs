@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
 var Graph = lib.Graph, Model = lib.Model, Catalog = lib.Catalog;
@@ -53,7 +54,7 @@ describe("verb.model.Graph", function(){
 		var doc = sample();
 		doc.outputs.solid = "@cut";
 		var r = new Graph().evaluate(doc);
-		r.verdict.kind.should.be.equal("buildable");
+		made(r.verdict);
 		var exact = 60 * 40 * 24 - frustumInBox(24);
 		r.result.report.volume.should.be.approximately(exact, exact * 0.005);
 		zRange(r.result.mesh)[0].should.be.approximately(0, 1e-9);
@@ -64,7 +65,7 @@ describe("verb.model.Graph", function(){
 		var g = new Graph();
 		var cut = (function(){ var d = sample(); d.outputs.solid = "@cut"; return g.evaluate(d); })();
 		var r = g.evaluate(sample());
-		r.verdict.kind.should.be.equal("buildable");
+		made(r.verdict);
 		r.faceNames.filter(function(n){ return /^round\(box\./.test(n); }).length.should.be.equal(12);
 		r.faceNames.filter(function(n){ return /^round\(.*cone/.test(n); }).length.should.be.equal(0);
 		// the same box rounded with no hole loses the same volume: the cone is clear of every box edge
@@ -82,7 +83,7 @@ describe("verb.model.Graph", function(){
 		var ring = function (shape, edges) {
 			var r = new Graph().evaluate({ version : 2, nodes : { box : { type : "primitive/box", in : { width : 40, depth : 20, height : 30 } },
 				r : { type : "finish/round", in : { of : "@box", radius : 1.5, edges : edges || "box.-y|*, *|box.-y", shape : shape } } }, outputs : { r : "@r" } }, { output : "r", mesh : "print" });
-			r.verdict.kind.should.be.equal("buildable", (r.verdict.reasons || []).join("; "));
+			made(r.verdict, (r.verdict.reasons || []).join("; "));
 			r.result.report.manifold.closedManifold.should.be.true();
 			r.export.mesh.checkClosedManifold().closedManifold.should.be.true();
 			return 40 * 20 * 30 - r.result.report.volume;
@@ -161,7 +162,7 @@ describe("verb.model.Graph", function(){
 		two("boolean/intersection").should.be.approximately(10 * 20 * 20, 1e-6);
 		var cup = new Graph().evaluate({ version : 2, nodes : { a : { type : "primitive/box", in : { width : 20, depth : 20, height : 20 } },
 			cup : { type : "finish/shell", in : { of : "@a", thickness : 2, open : "a.+z" } } }, outputs : { solid : "@cup" } });
-		cup.verdict.kind.should.be.equal("buildable");
+		made(cup.verdict);
 		cup.result.report.volume.should.be.approximately(20 * 20 * 20 - 16 * 16 * 18, 1e-6);
 	});
 

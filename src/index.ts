@@ -74,8 +74,10 @@ import { Clearance } from "./solid/Clearance.js";
 import { ProfileOffset } from "./solid/ProfileOffset.js";
 export type { ClearanceResult, ClearanceWitness, ClearanceOptions } from "./solid/Clearance.js";
 import { Extrusion } from "./solid/Extrusion.js";
+import { ProfileSweep } from "./solid/ProfileSweep.js";
 import { Lathe } from "./solid/Lathe.js";
 export type { ProfileSpec, ProfilePath, ProfileSegmentSpec, ProfilePoint } from "./solid/Extrusion.js";
+export type { ProfileSweepOptions, SweepEnd, SweepFold, SweepFrame } from "./solid/ProfileSweep.js";
 import { ShellMesher } from "./solid/ShellMesher.js";
 export type { MeshTolerance, ShellMesh } from "./solid/ShellMesher.js";
 export type { BrepShell, ShellEdge, ShellFace, ShellOptions, ShellTopology } from "./solid/BrepShell.js";
@@ -125,7 +127,7 @@ import { Inspect } from "./view/Inspect.js";
 export type { LayerKind, ViewLayer, ViewItem, View, InspectOptions, BrepViewOptions } from "./view/Inspect.js";
 import { Step } from "./io/Step.js";
 import { Model, ModelError } from "./model/Model.js";
-export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelWall, ModelLattice } from "./model/Model.js";
+export type { ModelDocument, ModelFeature, ModelValue, ModelPoint, ModelEdgeRule, ModelResult, ModelVerdict, ModelDefect, ModelCheck, ModelWall, ModelLattice } from "./model/Model.js";
 import { Expr } from "./model/Expr.js";
 import { Graph, GraphError } from "./model/Graph.js";
 export type { GraphWire, GraphPort, GraphNodeType, GraphNode, GraphDocument, GraphResult, GraphOptions, GraphMesh, GraphPose, GraphClearance, GraphClearanceOptions } from "./model/Graph.js";
@@ -218,6 +220,7 @@ export {
     Clearance,
     ProfileOffset,
     Extrusion,
+    ProfileSweep,
     Lathe,
     ShellMesher,
     Fillet,

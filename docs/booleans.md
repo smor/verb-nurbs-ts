@@ -17,6 +17,9 @@ textbook account is Hoffmann, *Geometric and Solid Modeling* (1989), ch. 4 and 7
    boxes overlap is intersected, unless no point where they meet can be on the result (below). The method follows Patrikalakis and Maekawa, *Shape Interrogation for Computer Aided
    Design and Manufacturing* (2002), ch. 5, and Barnhill and Kersey, "A marching method for parametric
    surface/surface intersection" (CAGD 7, 1990):
+   * **Apart?** (`SurfaceIntersect.apart`). Over each knot span a surface lies in the convex hull of the control points
+     acting there, so two faces none of whose span boxes meet have no common point: no branch, loop or contact, and
+     nothing more is looked for (#146: a bore through a long twisted extrusion, whose every face's box holds the bore).
    * **Find every branch.** Intersect two grid triangulations of the faces. This finds every branch the grids
      resolve. A closed loop smaller than a grid cell can be missed, so step 1b looks for those separately.
    * **1b. Detect small loops** (`SurfaceLoops`). By Sinha's theorem (Sinha, Klassen and Wang, ACM Symposium on
@@ -446,6 +449,18 @@ parts sharing a face. Three things make them work.
   way, and the faces meeting round it did not share their vertices. A loop with no corners that lies all along others
   takes the points of the finest of them, projected onto its faces, with its seam points flagged again (a loop whose
   points would miss a seam it crosses keeps its own). The pulley on its hub closes (test "507 regressions", J).
+  Every crossing counts: a bored boss on a bored disc, its bore starting inside the disc, has its bore's circle on
+  the disc's top, which is parametrised round the disc's axis, so the circle crosses that face's seam twice. The
+  finest loop had a point on one crossing only, and the loop took it anyway (#133 A). A loop now takes another's
+  points only when each step that wraps round a periodic direction has a point on the seam (test "507
+  regressions", L).
+* **Branches along a coarsely sampled curved edge (#133 B).** A boss whose cap is flush with an extrusion's cap,
+  over or under a small hole of it (r 1.4), left the union open. The hole's rim is sampled a sixteenth of a turn per
+  chord, and its chords sag from it by about 5 % of their length, the allowance for a point to lie along a polyline.
+  The boss's cap meets the hole all along the rim, but its branch's points, on the true rim, missed that allowance,
+  so the branch did not take the rim's points and the faces did not share their vertices. A branch's point now also
+  counts as on an edge when it lies within eps of the face's surface at parameters interpolated between two of the
+  edge's samples (test "507 regressions", M).
 * **Crossings of curved edges (#123).** Where a branch crosses an edge of a solid made from a shell, the crossing is
   found on the edge's polyline, so on a chord, a sag inside a curved edge. Where the three faces meet there
   transversally, the point is then put onto all three by Newton. The branch along the third face (an upright's side

@@ -41,7 +41,7 @@ The repository already has most of the back half of a node system.
 | Expressions | `src/model/Expr.ts` | any numeric input may be an expression over the parameters; cycles refused |
 | Content hashes | `Model` | each feature's hash covers its type, resolved values and its inputs' hashes; the cache rebuilds only what changed |
 | Persistent names | `Model` | faces and edges named from their history (`block.+z|peg.tube`), so rules keep selecting the same edges as values change |
-| Verdict | `Model.verdict` | buildable or visual, with reasons: the per-node status badge of the editor |
+| Verdict | `Model.verdict` | buildable, unproven or visual, with reasons: the editor's verdict pill (green, amber, red) |
 | Primitive catalogue | `Catalog.ENTRIES` | every primitive with its parameters, defaults, ranges, integer and angle flags: node definitions, generated |
 | Grasshopper-style builders | `Nodes` (`src/solid/primitives/Nodes.ts`) | Plane Surface, 4Point, Boundary, Loft, Sweep1, Sweep2, Pipe, with capped variants: the surface nodes |
 | Worker evaluation | `playground/worker.ts` | models build off the UI thread already |
@@ -348,16 +348,22 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 102 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 109 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
-  `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
+  `transform/move`, `rotate`, `scale`, `place`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
   comma separated; circular, curvature or chamfer), `finish/shell` and `finish/offset` (docs/mechanics.md); the freeform nodes `freeform/revolve`,
-  `freeform/pipe` and `freeform/vessel`; `profile/extrude` and `profile/revolve`.
+  `freeform/pipe` and `freeform/vessel`; `profile/extrude`, `profile/revolve` and `profile/sweep`.
 * **Profiles** (`profile/extrude`, `profile/revolve`) take an *outline* port: a planar region as JSON (507's
   profiles: lines, three-point arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded
   exactly from `z` up by `height` (the top turned by `twist` degrees and scaled by `scaleTop`: a worm, a tapered
-  boss), or drawn in the (r, z) half-plane and turned about z.
+  boss), or drawn in the (r, z) half-plane and turned about z, or drawn in a section's (u, v) plane and swept along a
+  rail of function ports (x, y, z of t; docs/formats.md, Sweeps).
+* **Outputs besides a solid.** `profile/sweep` gives its solid and, as numbers, each rail end's point, unit tangent and
+  section axes: `start_x` ... `end_vz`. They wire like a number node's output (`"@groove.end_ux"`) and are named
+  `groove_end_ux` in expressions; they are expressions over the rail's functions, so they follow the rail.
+  `transform/place` takes them: it puts a solid drawn about the origin into the frame (x along u, y along v, z along
+  u × v), so a part goes at the end of a rail with one wire per value.
   The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);
@@ -405,7 +411,8 @@ Graph.compile( doc );         // the version 1 model document it runs
   presets), and opens first when the graph has any. Without a range, a value gets one at its own scale (a 3 mm wall
   0–10 by 0.1). Ranges are soft and fixed for the session. Every gesture is one undo step. Previews rebuild live
   while rebuilds take under 120 ms (the median of the last three) and only on release above 250 ms. A commit that
-  leaves the part unbuildable offers "Back to the last buildable values".
+  leaves the part visual offers "Back to the last buildable values" (the last values that were buildable or
+  unproven).
 * **Keeping and sharing** (`editor/storage.ts`). The document is autosaved in the browser (localStorage) with each
   undo step and reopened on the next visit. **Share link** copies a link holding the whole document, deflated, in its
   fragment (`#g=...`, never sent to a server): whoever opens it gets this graph with its parameters. **Save** and
