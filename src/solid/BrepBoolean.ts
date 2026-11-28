@@ -330,6 +330,7 @@ export class BrepBoolean {
         // across the branch and the edge's faces share them (#104)
         BrepBoolean.edgeContacts( solids, curves, snap );
         BrepBoolean.trimVertices( solids, curves, snap );
+        BrepBoolean.sharedTrims( solids, curves, snap );
         BrepBoolean.alongEdges( solids, curves, snap );
         BrepBoolean.sharedStretches( solids, curves, snap );
         BrepBoolean.edgesOnFaces( solids, curves, snap );
@@ -643,7 +644,7 @@ export class BrepBoolean {
 
         // the runs as cuts of their faces; a branch that another one on the same face already traces
         // (two coincident faces crossing a third) cuts that face once
-        const traced = BrepBoolean.traced( curves, snap );
+        const traced = BrepBoolean.traced( curves, snap, runs );
         runs.forEach( (r, g) => {
             if (r.own) return;
             const c = r.curve, e = curves[r.ci], i = e.solids[0], j = e.solids[1];
@@ -999,7 +1000,7 @@ export class BrepBoolean {
 
     // The sides ("curve:k") of branches that another branch on the same face of the same solid already traces: every
     // point of one lies on the other's polyline (when each lies on the other, the earlier one is kept).
-    private static traced( curves : BooleanResult["curves"], eps : number ) : Set<string> {
+    private static traced( curves : BooleanResult["curves"], eps : number, runs : Array<{ ci : number, curve : IntersectionCurve, own? : boolean }> ) : Set<string> {
         const out = new Set<string>();
         const near = (p : Point, c : IntersectionCurve) => {
             const n = c.points.length, segs = c.closed ? n : n - 1;
@@ -1046,7 +1047,10 @@ export class BrepBoolean {
                 if (e.trim && !f.trim) continue;
                 if ((e.curve.closed && !f.curve.closed) || !within( ci, cj )) continue;
                 // all of it along the other (a stretch of it: a face covering only part of a third face's edge)
-                if (!e.curve.points.every( p => near( p, f.curve ) )) continue;
+                // (by its runs, the parts of it inside both its faces' trims: a branch of a face's surface outside its
+                // trims, where a hole in a third solid crosses that plane next to the face, traces nothing, #166)
+                const kept = runs.filter( r => r.ci == cj && !r.own ).map( r => r.curve );
+                if (!e.curve.points.every( p => kept.some( c => near( p, c ) ) )) continue;
                 if (cj > ci && f.curve.closed == e.curve.closed && f.curve.points.every( p => near( p, e.curve ) )) continue;
                 out.add( ci + ":" + k ); break;
             }
@@ -1557,6 +1561,64 @@ export class BrepBoolean {
         }
     }
 
+    // Edges of two solids made from shells that lie along each other (two rings stacked, their walls in one cylinder:
+    // the lower one's top edge is the upper one's bottom edge) are sampled each on its own, with as many points as its
+    // solid's size asks for: the walls' meshes would not share their vertices there, and the result would be open
+    // along them. Each takes the points of the other where they run along it, so both have them all (#166).
+    private static sharedTrims( solids : Array<BrepSolid>, curves : BooleanResult["curves"], eps : number ) : void {
+        const trims = curves.filter( T => T.trim && T.curve.points.length >= 2 );
+        const boxes = trims.map( T => {
+            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            for (const p of T.curve.points) for (let a = 0; a < 3; a++) { lo[a] = Math.min( lo[a], p[a] ); hi[a] = Math.max( hi[a], p[a] ); }
+            return { lo : lo, hi : hi };
+        } );
+        const ring = (c : IntersectionCurve) => c.closed ? c.points.concat( [c.points[0]] ) : c.points;
+        const adds : Array<{ to : IntersectionCurve, p : Point, uvA : UV, uvB : UV }> = [];
+        trims.forEach( (T, it) => trims.forEach( (U, iu) => {
+            if (T.solids[0] == U.solids[0]) return;
+            if ([0, 1, 2].some( a => boxes[it].lo[a] > boxes[iu].hi[a] + eps || boxes[iu].lo[a] > boxes[it].hi[a] + eps )) return;
+            const P = T.curve.points, Q = ring( U.curve ), n = P.length;
+            const FA = solids[U.solids[0]].faces[U.faces[0]], FB = solids[U.solids[1]].faces[U.faces[1]];
+            const uvQ = U.curve.closed ? U.curve.uvA.concat( [U.curve.uvA[0]] ) : U.curve.uvA;
+            const on = P.map( p => BrepBoolean.ontoEdge( FA, Q, uvQ, p, eps ) );
+            if (on.filter( x => x ).length < 2) return;
+            // the direction of U nearest p
+            const dirAt = (p : Point) => {
+                let best = Infinity, dir : Point = [0, 0, 0];
+                for (let i = 0; i + 1 < Q.length; i++) {
+                    const ab = Vec.sub( Q[i + 1], Q[i] ), l2 = Vec.dot( ab, ab );
+                    if (l2 == 0) continue;
+                    const t = Math.max( 0, Math.min( 1, Vec.dot( Vec.sub( p, Q[i] ), ab ) / l2 ) );
+                    const dd = Vec.dist( p, Vec.add( Q[i], Vec.mul( t, ab ) ) );
+                    if (dd < best) { best = dd; dir = Vec.mul( 1 / Math.sqrt( l2 ), ab ); }
+                }
+                return dir;
+            };
+            P.forEach( (p, k) => {
+                if (!on[k] || U.curve.points.some( q => Vec.dist( p, q ) < eps )) return;
+                // along U, not across it: a neighbour on it too, the chord between them nearly along U's (a chord
+                // of a curve turns from the curve's own direction by half its angle)
+                const prev = k > 0 ? k - 1 : T.curve.closed ? n - 1 : -1, next = k + 1 < n ? k + 1 : T.curve.closed ? 0 : -1;
+                const along = (j : number) => {
+                    if (j < 0 || !on[j]) return false;
+                    const d = Vec.sub( P[j], p ), l = Vec.norm( d );
+                    return l > 0 && Vec.norm( Vec.cross( Vec.mul( 1 / l, d ), dirAt( Vec.lerp( 0.5, p, P[j] ) ) ) ) < 0.1;
+                };
+                if (!along( prev ) && !along( next )) return;
+                let nearest = 0;
+                U.curve.points.forEach( (q, j) => { if (Vec.dist( q, p ) < Vec.dist( U.curve.points[nearest], p )) nearest = j; } );
+                const uvA = SurfaceIntersect.project( FA.surface, p, 12, U.curve.uvA[nearest] );
+                const uvB = SurfaceIntersect.project( FB.surface, p, 12, U.curve.uvB[nearest] );
+                if (Vec.dist( BrepBoolean.eval( FA.surface, uvA ), p ) > eps || Vec.dist( BrepBoolean.eval( FB.surface, uvB ), p ) > eps) return;
+                adds.push( { to : U.curve, p : p, uvA : uvA, uvB : uvB } );
+            } );
+        } ) );
+        for (const a of adds) {
+            if (a.to.points.some( q => Vec.dist( q, a.p ) < eps )) continue;
+            BrepBoolean.insertPoint( a.to, a.p, a.uvA, a.uvB, eps );
+        }
+    }
+
     // A vertex of a solid made from a shell (an end of one of its edges) lying inside a branch on a face it bounds is
     // where the branch leaves that edge (a hub's rim runs along the arm's round end, then on across the arm's top):
     // the branch gets that very point, and its runs end there (#104).
@@ -1658,7 +1720,8 @@ export class BrepBoolean {
                              || (e.solids[1] == si && e.faces[1] == T.faces[1 - s] && e.solids[0] == sj && e.faces[0] == fj))
                             && BrepBoolean.onto( e.curve.closed ? e.curve.points.concat( [e.curve.points[0]] ) : e.curve.points, mid, eps ).d < eps );
                         if (found) continue;
-                        if (BrepBoolean.trimsOf( curves, sj, fj ).some( U => idx.every( x => BrepBoolean.onto( U.e.curve.points, P[x], eps ).d < eps ) )) continue;
+                        // (an edge of F of another solid, sampled on its own, lies within its chords' sag of these points: #166)
+                        if (BrepBoolean.trimsOf( curves, sj, fj ).some( U => idx.every( x => BrepBoolean.ontoEdge( F, U.e.curve.points, U.uv, P[x], eps ) ) )) continue;
                         const first = si < sj;
                         const uvF = idx.map( x => uv[x] ), uvT = idx.map( x => [uvH[x][0], uvH[x][1]] as UV );
                         added.push( { solids : first ? [si, sj] : [sj, si], faces : first ? [T.faces[1 - s], fj] : [fj, T.faces[1 - s]],

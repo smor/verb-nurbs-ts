@@ -1,0 +1,136 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "N: two rings of one profile stacked, their walls one cylinder (#166)",
+    "description": "507 ~39 rod, shrunk: a closed solid (Manifold: closed, genus 1, volume 1390.5)",
+    "expect": {
+      "solid": {
+        "volume": "(π·9² − 8.3²)·7.5 = 1391.84, the joint closed"
+      }
+    }
+  },
+  "nodes": {
+    "n1": {
+      "type": "profile/extrude",
+      "in": {
+        "profile": {
+          "outer": {
+            "kind": "circle",
+            "center": [
+              0,
+              0
+            ],
+            "r": 9
+          },
+          "holes": [
+            {
+              "kind": "path",
+              "start": [
+                -4.15,
+                -4.15
+              ],
+              "segments": [
+                {
+                  "type": "line",
+                  "to": [
+                    4.15,
+                    -4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    4.15,
+                    4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    -4.15,
+                    4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    -4.15,
+                    -4.15
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "height": 3.5,
+        "z": 0
+      }
+    },
+    "n2": {
+      "type": "profile/extrude",
+      "in": {
+        "profile": {
+          "outer": {
+            "kind": "circle",
+            "center": [
+              0,
+              0
+            ],
+            "r": 9
+          },
+          "holes": [
+            {
+              "kind": "path",
+              "start": [
+                -4.15,
+                -4.15
+              ],
+              "segments": [
+                {
+                  "type": "line",
+                  "to": [
+                    4.15,
+                    -4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    4.15,
+                    4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    -4.15,
+                    4.15
+                  ]
+                },
+                {
+                  "type": "line",
+                  "to": [
+                    -4.15,
+                    -4.15
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "height": 4,
+        "z": 3.5
+      }
+    },
+    "n3": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@n1",
+        "b": "@n2"
+      }
+    }
+  },
+  "outputs": {
+    "solid": "@n3"
+  }
+}

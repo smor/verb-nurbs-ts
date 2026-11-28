@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Q: a pin across a bar's end, its cap's centre on the bar's edge (#166)",
+    "description": "507 ~330 rod, shrunk: a closed solid (Manifold: closed, genus 0, volume 3764.7)",
+    "expect": {
+      "solid": {
+        "volume": "85·4·10 + π·5²·(4/2 + 2.65) = 3765.21, the pin's cap closed"
+      }
+    }
+  },
+  "nodes": {
+    "n1": {
+      "type": "primitive/box",
+      "in": {
+        "width": 85,
+        "depth": 4,
+        "height": 10
+      }
+    },
+    "n2": {
+      "type": "transform/move",
+      "in": {
+        "of": "@n1",
+        "x": 42.5,
+        "y": 2,
+        "z": -5
+      }
+    },
+    "n3": {
+      "type": "primitive/cylinder",
+      "in": {
+        "radius": 5,
+        "height": 6.649999999999999
+      }
+    },
+    "n4": {
+      "type": "transform/move",
+      "in": {
+        "of": "@n3",
+        "x": 85,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "n5": {
+      "type": "transform/rotate",
+      "in": {
+        "of": "@n4",
+        "axis": "x",
+        "degrees": -90
+      }
+    },
+    "n6": {
+      "type": "boolean/union",
+      "in": {
+        "a": "@n2",
+        "b": "@n5"
+      }
+    }
+  },
+  "outputs": {
+    "solid": "@n6"
+  }
+}

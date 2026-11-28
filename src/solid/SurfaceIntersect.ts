@@ -530,7 +530,8 @@ export class SurfaceIntersect {
             const x = Vec.distSquared( Eval.rationalSurfacePoint( s, uv[0], uv[1] ), p );
             if (x < bd) { bd = x; best = uv; }
         }
-        let uv = best;
+        const solve = (start : UV) : UV => {
+        let uv = start;
         for (let it = 0; it < 30; it++) {
             const e = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 2 );
             const r = Vec.sub( e[0][0], p ), su = e[1][0], sv = e[0][1];
@@ -544,6 +545,30 @@ export class SurfaceIntersect {
                 + Math.min( Math.abs( next[1] - uv[1] ), closed[1] ? Math.abs( Math.abs( next[1] - uv[1] ) - (d[3] - d[2]) ) : Infinity );
             uv = next;
             if (moved < 1e-15 * (d[1] - d[0] + d[3] - d[2])) break;
+        }
+        return uv;
+        };
+        let uv = solve( best );
+        // at a pole (a side of the domain that is one point: a disc's centre, a cone's apex) the parameter along
+        // the side has no direction, the step is singular and stays there, however far the point is: start again
+        // just off the pole, round it, and keep the nearest (a cap's diameter through its centre, #166)
+        const e = Eval.rationalSurfaceDerivatives( s, uv[0], uv[1], 1 );
+        const lu = Vec.norm( e[1][0] ), lv = Vec.norm( e[0][1] );
+        if (lu < 1e-9 * lv || lv < 1e-9 * lu) {
+            const a = lu < lv ? 0 : 1, o = 1 - a, lo = d[2 * o], hi = d[2 * o + 1];
+            const inward = uv[o] - lo < hi - uv[o] ? 1 : -1;
+            // (only a point well away from the pole moves: one at it, or nearly so, keeps its parameters, which the
+            // branch through it chose)
+            const box = SurfaceIntersect.box( s, 0 ), size = Vec.dist( box.min, box.max );
+            const d0 = Vec.dist( Eval.rationalSurfacePoint( s, uv[0], uv[1] ), p );
+            let bestD = 0.5 * d0;
+            for (let k = 0; k < grid && d0 > 1e-9 * size; k++) {
+                const start : UV = [0, 0];
+                start[a] = d[2 * a] + (d[2 * a + 1] - d[2 * a]) * (k + 0.5) / grid;
+                start[o] = uv[o] + inward * 0.01 * (hi - lo);
+                const q = solve( start ), dq = Vec.dist( Eval.rationalSurfacePoint( s, q[0], q[1] ), p );
+                if (dq < bestD) { bestD = dq; uv = q; }
+            }
         }
         return uv;
     }
