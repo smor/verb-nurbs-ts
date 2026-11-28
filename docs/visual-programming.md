@@ -348,16 +348,22 @@ g.evaluate( doc ).nodes;      // box, cut and round "built"; coneShape and cone 
 Graph.compile( doc );         // the version 1 model document it runs
 ```
 
-* **Node types** (`Graph.REGISTRY`, 102 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
+* **Node types** (`Graph.REGISTRY`, 109 of them): `number` and `expression`; the math nodes `math/add`, `sub`, `mul`,
   `div`, `min`, `max`, `pow`, `sqrt`, `abs`, `sin`, `cos`, `rad`, `mix`, `clamp`; one `primitive/<shape>` per catalogue
   entry (`Catalog.ENTRIES`), with the catalogue's parameters as ports (`top radius` becomes the port `top_radius`);
-  `transform/move`, `rotate`, `scale`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
+  `transform/move`, `rotate`, `scale`, `place`; `boolean/union`, `intersection`, `difference`; `finish/round` (edge patterns,
   comma separated; circular, curvature or chamfer) and `finish/shell`; the freeform nodes `freeform/revolve`,
-  `freeform/pipe` and `freeform/vessel`; `profile/extrude` and `profile/revolve`.
+  `freeform/pipe` and `freeform/vessel`; `profile/extrude`, `profile/revolve` and `profile/sweep`.
 * **Profiles** (`profile/extrude`, `profile/revolve`) take an *outline* port: a planar region as JSON (507's
   profiles: lines, three-point arcs, cubic Béziers and circles, with holes; docs/formats.md, Profiles), extruded
   exactly from `z` up by `height` (the top turned by `twist` degrees and scaled by `scaleTop`: a worm, a tapered
-  boss), or drawn in the (r, z) half-plane and turned about z.
+  boss), or drawn in the (r, z) half-plane and turned about z, or drawn in a section's (u, v) plane and swept along a
+  rail of function ports (x, y, z of t; docs/formats.md, Sweeps).
+* **Outputs besides a solid.** `profile/sweep` gives its solid and, as numbers, each rail end's point, unit tangent and
+  section axes: `start_x` ... `end_vz`. They wire like a number node's output (`"@groove.end_ux"`) and are named
+  `groove_end_ux` in expressions; they are expressions over the rail's functions, so they follow the rail.
+  `transform/place` takes them: it puts a solid drawn about the origin into the frame (x along u, y along v, z along
+  u × v), so a part goes at the end of a rail with one wire per value.
   The editor shows the outline as JSON text.
 * **Freeform nodes** take *function* ports: an expression of `t`, from 0 to 1, and of number nodes. `freeform/revolve`
   turns a radius function about z (circles at `samples` evenly spaced values of t, lofted, the model's `revolve`);

@@ -10,6 +10,7 @@ import { BrepEdges } from "../solid/BrepEdges.js";
 import { BrepShell, ShellBuilder } from "../solid/BrepShell.js";
 import { Extrusion, ProfilePoint, ProfileSegmentSpec, ProfileSpec } from "../solid/Extrusion.js";
 import { Lathe } from "../solid/Lathe.js";
+import { ProfileSweep, ProfileSweepOptions, SweepFrame } from "../solid/ProfileSweep.js";
 import { Catalog } from "../solid/primitives/Catalog.js";
 import { FilletShape } from "../solid/Fillet.js";
 import { Implicit, LatticePattern } from "../solid/Implicit.js";
@@ -41,12 +42,21 @@ export type ModelFeature =
     | { type : "extrude", profile : ProfileSpec, height : ModelValue, z? : ModelValue, twist? : ModelValue, scaleTop? : ModelValue }
     // the same profile drawn in the (r, z) half-plane (x the radius) and turned about the z axis (#87); faces outer.k
     | { type : "lathe", profile : ProfileSpec, degrees? : ModelValue }
+    // the same profile, drawn in the section's (u, v) plane, swept along a rail through points at t = i / n (the cubic
+    // spline through them, #134): the section normal to the rail, its v axis held radial from the axis through
+    // `origin` along `axis` ("radial", default the z axis), along `axis` ("up"), or rotation-minimizing from `axis` at
+    // the start ("rmf"). A closed rail (its first point not repeated) makes a ring; an open one is capped flat, its
+    // ends' derivatives d/dt `tangents` when given (`ProfileSweep`). Faces outer.k, hole{i}.k, start and end
+    | { type : "sweep", profile : ProfileSpec, rail : Array<ModelPoint>, closed? : boolean, frame? : SweepFrame, axis? : ModelPoint, origin? : ModelPoint,
+        tangents? : [ModelPoint, ModelPoint] }
     // a primitive from the catalogue (`Catalog`, docs/primitives.md) by name, with its parameters by name (missing
     // ones take their defaults; angles in degrees)
     | { type : "primitive", shape : string, values? : { [name : string] : ModelValue } }
     // rigid or scaling placement of a feature (all of its solids): scale about the origin, then rotate about an axis
-    // through `about` (degrees, right-handed), then translate
-    | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint }
+    // through `about` (degrees, right-handed), then translate; then place in a frame: x along `frame.x`, y along
+    // `frame.y` (less its part along x), z along x × y, the origin at `frame.origin` (a part at a sweep's end, #134)
+    | { type : "transform", of : string, scale? : ModelValue | ModelPoint, rotate? : { axis : ModelPoint, degrees : ModelValue, about? : ModelPoint }, translate? : ModelPoint,
+        frame? : { origin : ModelPoint, x : ModelPoint, y : ModelPoint } }
     // a switch: `then` where `when` is not 0, `else` where it is; either may be left out, for nothing. Resolved before
     // anything is built (`Model.choose`): nothing drops out of a union and out of a difference's cutters, and what is
     // made from nothing alone (a transform, a round, a difference from it, an intersection with it) is nothing
@@ -311,6 +321,7 @@ export class Model {
                 case "primitive": throw new Error( `Model: a shell cannot yet offset the primitive "${id}"` );
                 case "extrude": case "prism": throw new Error( `Model: a shell cannot yet offset the extrusion "${id}"` );
                 case "lathe": throw new Error( `Model: a shell cannot yet offset the revolved profile "${id}"` );
+                case "sweep": throw new Error( `Model: a shell cannot yet offset the swept profile "${id}"` );
                 case "box": case "cylinder": case "pipe": case "revolve": {
                     const leaf = path + id;
                     const by = (face : string) => open.some( re => re.test( leaf + "." + face ) ) ? -d : d;
@@ -351,7 +362,7 @@ export class Model {
         const tree = (id : string) : Tree => cached( "tree", id, () => {
             const f = features[id];
             switch (f.type) {
-                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "lathe": case "prism":
+                case "box": case "cylinder": case "pipe": case "revolve": case "primitive": case "extrude": case "lathe": case "prism": case "sweep":
                     return { leaves : [{ name : id, solid : Model.primitive( f, num, point ) }], expr : (x : Array<boolean>) => x[0], shells : [] };
                 case "transform": {
                     const t = tree( f.of );
@@ -611,6 +622,7 @@ export class Model {
             case "extrude": return { profile : f.profile, height : num( f.height, "height" ), z : f.z == null ? 0 : num( f.z, "z" ),
                 ...(f.twist != null ? { twist : num( f.twist, "twist" ) } : {}), ...(f.scaleTop != null ? { scaleTop : num( f.scaleTop, "scaleTop" ) } : {}) };
             case "lathe": return { profile : f.profile, degrees : f.degrees == null ? 360 : num( f.degrees, "degrees" ) };
+            case "sweep": return Model.sweepOptions( f, num, point );
             case "transform": return Model.matrix( f, num, point );
             case "union": case "intersection": return { n : f.of.length };
             case "difference": return { n : f.minus.length };
@@ -650,6 +662,7 @@ export class Model {
             case "extrude": return Extrusion.solid( f.profile, num( f.height, "height" ), f.z == null ? 0 : num( f.z, "z" ),
                 { twist : f.twist == null ? 0 : num( f.twist, "twist" ), scaleTop : f.scaleTop == null ? 1 : num( f.scaleTop, "scaleTop" ) } );
             case "lathe": return Lathe.solid( f.profile, f.degrees == null ? 360 : num( f.degrees, "degrees" ) );
+            case "sweep": { const o = Model.sweepOptions( f, num, point ); return ProfileSweep.solid( f.profile, o.rail, o.options ); }
             case "box": {
                 const a = point( f.min, "min" ), b = point( f.max, "max" );
                 for (let k = 0; k < 3; k++) if (!(b[k] > a[k])) throw new Error( "Model: a box's max must exceed its min on every axis" );
@@ -802,6 +815,17 @@ export class Model {
         return { ...s, outside : [s.outside[0] + by, s.outside[1] + by], inside : [s.inside[0] + by, s.inside[1] + by] };
     }
 
+    // A sweep's rail and options, its values resolved.
+    private static sweepOptions( f : Extract<ModelFeature, { type : "sweep" }>, num : (v : ModelValue, what : string) => number, point : (p : ModelPoint, what : string) => Point ) {
+        const frame = f.frame ?? "rmf";
+        const axis = f.axis == null ? null : point( f.axis, "axis" );
+        const options : ProfileSweepOptions = { closed : f.closed === true, frame : frame };
+        if (frame == "radial") options.axis = { point : f.origin == null ? [0, 0, 0] : point( f.origin, "origin" ), direction : axis ?? [0, 0, 1] };
+        else if (axis != null) options.up = axis;
+        if (f.tangents != null) { options.startTangent = point( f.tangents[0], "tangents[0]" ); options.endTangent = point( f.tangents[1], "tangents[1]" ); }
+        return { rail : f.rail.map( (p, k) => point( p, `rail[${k}]` ) ), options : options };
+    }
+
     // The affine map of a transform, as rows [a b c t] of a 3x4 matrix.
     private static matrix( f : Extract<ModelFeature, { type : "transform" }>, num : (v : ModelValue, what : string) => number, point : (p : ModelPoint, what : string) => Point ) : Array<Array<number>> {
         let M = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]];
@@ -827,6 +851,15 @@ export class Model {
         if (f.translate != null) {
             const t = point( f.translate, "translate" );
             then( [[1, 0, 0, t[0]], [0, 1, 0, t[1]], [0, 0, 1, t[2]]] );
+        }
+        if (f.frame != null) {
+            const o = point( f.frame.origin, "frame.origin" ), x = point( f.frame.x, "frame.x" ), y = point( f.frame.y, "frame.y" );
+            if (!(Vec.norm( x ) > 0)) throw new Error( "Model: a frame's x axis must not be zero" );
+            const X = Vec.normalized( x ), w = Vec.sub( y, Vec.mul( Vec.dot( y, X ), X ) );
+            // (1e-9 of y's length: below that, y is along x to rounding)
+            if (!(Vec.norm( w ) > 1e-9 * Vec.norm( y ))) throw new Error( "Model: a frame's y axis must not be along its x axis" );
+            const Y = Vec.normalized( w ), Z = Vec.cross( X, Y );
+            then( [0, 1, 2].map( i => [X[i], Y[i], Z[i], o[i]] ) );
         }
         return M;
     }

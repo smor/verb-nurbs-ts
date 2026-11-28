@@ -48,8 +48,9 @@ the same cache.
 | `prism` | `outline` (`[x, y]` or `[x, y, r]` points in z = 0, numbers or expressions; r rounds that corner), `height`; an exact extrusion (lines and arcs), its caps planes trimmed by the outline (#99; `center?` is accepted and not read) | `bottom`, `top`, `outer.k` |
 | `extrude` | `profile` (an outline: `{ outer, holes }`, see [formats.md](formats.md), Profiles), `height`, `z?`, `twist?` (degrees), `scaleTop?` | `bottom`, `top`, `outer.k`, `hole{i}.k` |
 | `lathe` | `profile` (an outline in the (r, z) half-plane), `degrees?` (360) | `outer.k` |
+| `sweep` | `profile` (an outline in the section's (u, v) plane), `rail` (points at t = i / n), `closed?`, `frame?` (`radial`, `up`, `rmf`), `axis?`, `origin?`, `tangents?` (an open rail's d/dt at its ends); see [formats.md](formats.md), Sweeps | `outer.k`, `hole{i}.k`, `start`, `end` |
 | `primitive` | `shape` (a `Catalog` name, see [primitives.md](primitives.md)), `values?` (its parameters by name; angles in degrees) | the shape's own: `side.k`, `bottom`, `top`, `face.k`, ... |
-| `transform` | `of`, `scale?` (number or per axis; negative mirrors), `rotate?` (`axis`, `degrees`, `about?`), `translate?` | its input's, behind `<transform>/` |
+| `transform` | `of`, `scale?` (number or per axis; negative mirrors), `rotate?` (`axis`, `degrees`, `about?`), `translate?`, `frame?` (`origin`, `x`, `y`: placed with x along `x`, y along `y` less its part along x, z along x × y) | its input's, behind `<transform>/` |
 | `union`, `intersection` | `of` | |
 | `difference` | `from`, `minus` | |
 | `choose` | `when` (a number or expression), `then?`, `else?`: a switch, `then` where `when` is not 0, else `else`; a side left out is nothing | the chosen feature's |

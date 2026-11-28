@@ -69,8 +69,10 @@ import { BrepBoolean } from "./solid/BrepBoolean.js";
 export type { TrimmedFace, BooleanOptions, BooleanResult } from "./solid/BrepBoolean.js";
 import { ShellBuilder } from "./solid/BrepShell.js";
 import { Extrusion } from "./solid/Extrusion.js";
+import { ProfileSweep } from "./solid/ProfileSweep.js";
 import { Lathe } from "./solid/Lathe.js";
 export type { ProfileSpec, ProfilePath, ProfileSegmentSpec, ProfilePoint } from "./solid/Extrusion.js";
+export type { ProfileSweepOptions, SweepEnd, SweepFrame } from "./solid/ProfileSweep.js";
 import { ShellMesher } from "./solid/ShellMesher.js";
 export type { MeshTolerance, ShellMesh } from "./solid/ShellMesher.js";
 export type { BrepShell, ShellEdge, ShellFace, ShellOptions, ShellTopology } from "./solid/BrepShell.js";
@@ -210,6 +212,7 @@ export {
     BrepBoolean,
     ShellBuilder,
     Extrusion,
+    ProfileSweep,
     Lathe,
     ShellMesher,
     Fillet,
