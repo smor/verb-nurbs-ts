@@ -308,10 +308,7 @@ export class Graph {
         const m = ex.mesh.checkClosedManifold();
         const check = { name : "export mesh", passed : m.closedManifold,
             detail : m.closedManifold ? "the export mesh is closed" : `the export mesh is not closed (${m.boundaryEdges} open and ${m.badEdges} non-manifold edges)` };
-        const checks = r.verdict.checks.concat( [check] );
-        const failed = checks.filter( c => !c.passed );
-        const verdict : ModelVerdict = { ...r.verdict, checks : checks, kind : failed.length == 0 ? "buildable" : "visual",
-            reasons : failed.length == 0 ? r.verdict.reasons : failed.map( c => c.detail ) };
+        const verdict : ModelVerdict = { ...r.verdict, ...Model.judge( r.verdict.checks.concat( [check] ), r.verdict.reasons ) };
         return { ...r, verdict : verdict, export : ex };
     }
 

@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 
 var lib = require('../dist/index.js');
 var verb = lib.default;
@@ -76,7 +77,7 @@ describe("verb.model.Model: certified intersections", function(){
 		c.proven.should.be.equal(c.pairs);
 		c.unproven.length.should.be.equal(0);
 		r.verdict.notes.join(' ').should.containEql('proven complete');
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 	});
 
 	// a gate: the reference models' Booleans stay proven complete

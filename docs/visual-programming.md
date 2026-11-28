@@ -41,7 +41,7 @@ The repository already has most of the back half of a node system.
 | Expressions | `src/model/Expr.ts` | any numeric input may be an expression over the parameters; cycles refused |
 | Content hashes | `Model` | each feature's hash covers its type, resolved values and its inputs' hashes; the cache rebuilds only what changed |
 | Persistent names | `Model` | faces and edges named from their history (`block.+z|peg.tube`), so rules keep selecting the same edges as values change |
-| Verdict | `Model.verdict` | buildable or visual, with reasons: the per-node status badge of the editor |
+| Verdict | `Model.verdict` | buildable, unproven or visual, with reasons: the editor's verdict pill (green, amber, red) |
 | Primitive catalogue | `Catalog.ENTRIES` | every primitive with its parameters, defaults, ranges, integer and angle flags: node definitions, generated |
 | Grasshopper-style builders | `Nodes` (`src/solid/primitives/Nodes.ts`) | Plane Surface, 4Point, Boundary, Loft, Sweep1, Sweep2, Pipe, with capped variants: the surface nodes |
 | Worker evaluation | `playground/worker.ts` | models build off the UI thread already |
@@ -411,7 +411,8 @@ Graph.compile( doc );         // the version 1 model document it runs
   presets), and opens first when the graph has any. Without a range, a value gets one at its own scale (a 3 mm wall
   0–10 by 0.1). Ranges are soft and fixed for the session. Every gesture is one undo step. Previews rebuild live
   while rebuilds take under 120 ms (the median of the last three) and only on release above 250 ms. A commit that
-  leaves the part unbuildable offers "Back to the last buildable values".
+  leaves the part visual offers "Back to the last buildable values" (the last values that were buildable or
+  unproven).
 * **Keeping and sharing** (`editor/storage.ts`). The document is autosaved in the browser (localStorage) with each
   undo step and reopened on the next visit. **Share link** copies a link holding the whole document, deflated, in its
   fragment (`#g=...`, never sent to a server): whoever opens it gets this graph with its parameters. **Save** and

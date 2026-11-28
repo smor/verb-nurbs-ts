@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
 var Model = lib.Model, Expr = lib.Expr;
@@ -77,12 +78,33 @@ describe("verb.model.Model", function(){
 
 	it('regenerates a document into a buildable solid whose faces have persistent names', function(){
 		var r = new Model().evaluate(bracket());
-		r.verdict.kind.should.be.equal('buildable');
-		r.verdict.checks.map(function(c){ return c.name; }).should.be.eql(['closed', 'outward', 'fillets']);
+		made(r.verdict);
+		r.verdict.checks.map(function(c){ return c.name; }).should.be.eql(['closed', 'outward', 'fillets', 'intersections']);
 		r.faceNames.slice().sort().should.be.eql(['block.+x', 'block.+y', 'block.+z', 'block.-x', 'block.-y', 'block.-z', 'bore.tube', 'peg.end cap', 'peg.tube',
 			'round(block.+z|bore.tube)', 'round(block.+z|peg.tube)']);
 		r.result.report.fillets.should.be.equal(2);
 		r.faceIndex['peg.tube'].should.be.equal(r.faceNames.indexOf('peg.tube'));
+	});
+
+	it('is buildable only when every check is proven: a Boolean is unproven without its certificate', function(){
+		// a Boolean of three operands, not certified: every check passes, its intersections are not proven
+		var r = new Model().evaluate(bracket());
+		r.verdict.kind.should.be.equal('unproven');
+		r.verdict.unproven.should.have.length(1);
+		r.verdict.unproven[0].should.match(/the intersections of the 3 operands are not proven complete/);
+		r.verdict.reasons.should.be.eql(r.verdict.unproven);
+		// certified: proven, so buildable
+		var doc = bracket(); doc.certify = true;
+		var c = new Model().evaluate(doc);
+		c.verdict.kind.should.be.equal('buildable');
+		c.verdict.unproven.should.be.eql([]);
+		c.verdict.checks.filter(function(x){ return x.name == 'intersections'; })[0].proven.should.be.true();
+		// one solid, no Boolean: nothing to prove
+		var one = new Model().evaluate({ version : 1, features : { b : { type : 'box', min : [0, 0, 0], max : [1, 2, 3] } }, output : 'b' });
+		one.verdict.kind.should.be.equal('buildable');
+		// a failed check outweighs a missing proof
+		Model.judge([{ name : 'a', passed : true, proven : false, detail : 'not proven' }, { name : 'b', passed : false, detail : 'failed' }]).should.containDeep({ kind : 'visual', reasons : ['failed'], unproven : ['not proven'] });
+		Model.judge([{ name : 'a', passed : true, detail : 'ok' }]).kind.should.be.equal('buildable');
 	});
 
 	it('is deterministic: the same document gives the same mesh, bit for bit, in a fresh model', function(){
@@ -105,11 +127,11 @@ describe("verb.model.Model", function(){
 		var built = Object.keys(moved.features).filter(function(id){ return moved.features[id].built; }).sort();
 		built.should.be.eql(['body', 'bore', 'rounded']);
 		moved.faceNames.slice().sort().should.be.eql(first.faceNames.slice().sort());
-		moved.verdict.kind.should.be.equal('buildable');
+		made(moved.verdict);
 		// only the rim's radius: only the round rebuilds
 		var rim = m.evaluate(edit(doc, function(d){ d.parameters.rim = 0.8; }));
 		Object.keys(rim.features).filter(function(id){ return rim.features[id].built; }).should.be.eql(['rounded']);
-		rim.verdict.kind.should.be.equal('buildable');
+		made(rim.verdict);
 		// a wider block moves everything, and the names still hold
 		var wider = m.evaluate(edit(doc, function(d){ d.parameters.w = 50; }));
 		wider.faceNames.slice().sort().should.be.eql(first.faceNames.slice().sort());
@@ -144,7 +166,7 @@ describe("verb.model.Model", function(){
 			machine : 'fdm',
 		};
 		var r = new Model().evaluate(doc);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.verdict.checks.map(function(c){ return c.name; }).should.containEql('makeable');
 		// pins standing on a plate print as they stand
 		r.verdict.notes.should.eql(['Builds without supports with +z up.']);
@@ -164,7 +186,7 @@ describe("verb.model.Model", function(){
 			output : 't',
 		};
 		var r = new Model().evaluate(doc);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.volume.should.be.approximately(1000, 1e-6);
 	});
 
@@ -172,13 +194,13 @@ describe("verb.model.Model", function(){
 		var r = new Model().evaluate({ version : 1, parameters : { R : 10, H : 30 }, features : {
 			c : { type : 'revolve', profile : [['R', 0], ['R', 'H / 2'], ['R', 'H']] },
 		}, output : 'c' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.faceNames.slice().sort().should.be.eql(['c.bottom', 'c.top', 'c.wall']);
 		r.result.report.volume.should.be.approximately(Math.PI * 100 * 30, Math.PI * 100 * 30 * 0.01);
 		var p = new Model().evaluate({ version : 1, features : {
 			p : { type : 'pipe', through : [[0, 0, 0], [20, 10, 10], [40, 0, 20]], radius : 3 },
 		}, output : 'p' });
-		p.verdict.kind.should.be.equal('buildable');
+		made(p.verdict);
 		p.faceNames.slice().sort().should.be.eql(['p.end cap', 'p.start cap', 'p.tube']);
 	});
 
@@ -212,7 +234,7 @@ describe("verb.model.Model", function(){
 		doc.features.placed = { type : 'transform', of : 'rounded', rotate : { axis : [0, 0, 1], degrees : 90 }, translate : [100, 0, 0] };
 		doc.output = 'placed';
 		var r = new Model().evaluate(doc);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.volume.should.be.approximately(v0, 1e-6 * v0);
 		r.result.report.fillets.should.be.equal(2);
 		r.faceNames.should.containEql('round(placed/block.+z|placed/peg.tube)');
@@ -231,13 +253,13 @@ describe("verb.model.Model", function(){
 		compiled.features.rounded.rules[0].edges.should.be.equal('placed/big/block.+z|placed/big/peg.tube');
 		var big = new Model().evaluate(doc);
 		big.result.report.volume.should.be.approximately(8 * v0, 2e-3 * 8 * v0);
-		big.verdict.kind.should.be.equal('buildable');
+		made(big.verdict);
 		// a scale that differs along the axes does not commute with rounding: the rounded solid is built first, and its
 		// shell scaled (affine maps keep its trims and edges exact): twice the volume, on the exact faces
 		doc.features.big.scale = [1, 2, 1];
 		Model.liftRound(doc).output.should.be.equal('placed');
 		var stretched = new Model().evaluate(doc);
-		stretched.verdict.kind.should.be.equal('buildable');
+		made(stretched.verdict);
 		var exact = function(m){ return lib.ShellBuilder.volume(lib.ShellBuilder.fromResult(m.result)); };
 		exact(stretched).should.be.approximately(2 * exact(r0), 2e-5 * 2 * exact(r0));
 		stretched.faceNames.should.containEql('placed/big/round(block.+z|peg.tube)');
@@ -257,7 +279,7 @@ describe("verb.model.Model", function(){
 		var V = BOX - 25 * Math.PI * 20;
 		var model = new Model();
 		var r = model.evaluate(staged(20));
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.manifold.genus.should.equal(1);
 		exact(r).should.be.approximately(V, 2e-5 * V);
 		// the round's faces keep the names it gave them, the hole's are its own
@@ -285,7 +307,7 @@ describe("verb.model.Model", function(){
 		u.part = { type : 'union', of : ['rounded', 'boss'] };
 		delete u.hole;
 		var bossed = new Model().evaluate({ version : 1, features : u, output : 'part' });
-		bossed.verdict.kind.should.be.equal('buildable');
+		made(bossed.verdict);
 		bossed.result.report.manifold.genus.should.equal(0);
 		exact(bossed).should.be.approximately(BOX + 25 * Math.PI * 10, 2e-5 * BOX);
 		// rounding over a rounded operand is step A5: refused, with the reason
@@ -313,7 +335,7 @@ describe("verb.model.Model shells", function(){
 
 	it('hollows a box open at the top into a tray whose walls are the thickness asked, the inside named after the shell', function(){
 		var r = new Model().evaluate({ version : 1, features : { box : box(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] } }, output : 'tray' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.volume.should.be.approximately(40 * 30 * 20 - 36 * 26 * 18, 1e-6);
 		wall(r).should.be.approximately(2, 1e-9);
 		r.faceNames.should.containEql('tray~box.-z');
@@ -326,7 +348,7 @@ describe("verb.model.Model shells", function(){
 
 	it('carries the machine check behind its verdict: the tray\'s wall measured as the thickness asked', function(){
 		var r = new Model().evaluate({ version : 1, features : { box : box(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] } }, output : 'tray', machine : 'sla' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.verdict.makeable.makeable.should.be.true();
 		r.verdict.makeable.machine.name.should.be.equal(lib.Makeable.MACHINES.sla.name);
 		r.verdict.makeable.wall.p01.should.be.approximately(2, 0.1);
@@ -340,7 +362,7 @@ describe("verb.model.Model shells", function(){
 			box : box(), bore : { type : 'cylinder', from : [10, 15, -5], to : [10, 15, 25], radius : 3 },
 			holed : { type : 'difference', from : 'box', minus : ['bore'] },
 			tray : { type : 'shell', of : 'holed', thickness : 2, open : ['box.+z'] } }, output : 'tray' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		// (box - bore) - (inner box - bore grown by 2), within the box
 		var expected = 24000 - Math.PI * 9 * 20 - (36 * 26 * 18 - Math.PI * 25 * 18);
 		r.result.report.volume.should.be.approximately(expected, 2e-3 * expected);
@@ -350,7 +372,7 @@ describe("verb.model.Model shells", function(){
 	it('rounds a shell: outside radius = inside radius + thickness keeps the wall; a sharp inside under a round outside does not', function(){
 		var doc = function(rules){ return { version : 1, features : { box : box(), hollow : { type : 'shell', of : 'box', thickness : 2 }, r : { type : 'round', of : 'hollow', rules : rules } }, output : 'r' }; };
 		var both = new Model().evaluate(doc([{ edges : 'box.*', radius : 4 }, { edges : 'hollow~*', radius : 2 }]));
-		both.verdict.kind.should.be.equal('buildable');
+		made(both.verdict);
 		both.result.report.fillets.should.be.equal(24);
 		wall(both).should.be.above(2 * (1 - Model.WALL_TOLERANCE));
 		// the inside of a rounded box, 36 x 26 x 16 rounded by 2, is taken from the outside, 40 x 30 x 20 rounded by 4
@@ -373,7 +395,7 @@ describe("verb.model.Model shells", function(){
 			rounded : { type : 'round', of : 'mug', rules : [
 				{ edges : 'cup.end cap|*', radius : 0.8 }, { edges : 'cup.start cap|cup.tube', radius : 4 },
 				{ edges : 'mug~cup.start cap|mug~cup.tube', radius : 2 }, { edges : 'cup.tube|handle.tube', radius : 2 }] } }, output : 'rounded' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.fillets.should.be.equal(6);
 		wall(r).should.be.above(2 * (1 - Model.WALL_TOLERANCE));
 		// the handle is hollow and open to the cup: two handles' worth of genus
@@ -388,7 +410,7 @@ describe("verb.model.Model shells", function(){
 		var r = new Model().evaluate({ version : 1, features : { box : box(),
 			t : { type : 'transform', of : 'box', scale : 0.5, rotate : { axis : [0, 0, 1], degrees : 30 } },
 			tray : { type : 'shell', of : 't', thickness : 1, open : ['t/box.+z'] } }, output : 'tray' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.volume.should.be.approximately(20 * 15 * 10 - 18 * 13 * 9, 1e-6);
 		var bad = function(features, output){ return function(){ new Model().evaluate({ version : 1, features : features, output : output }); }; };
 		bad({ box : box(), s : { type : 'shell', of : 'box', thickness : 1, open : ['box.top'] } }, 's').should.throw(/opens "box.top", which names no face/);
@@ -409,7 +431,7 @@ describe("verb.model.Model fillets that run out onto a face", function(){
 
 	it('rounds only the vertical edges of a box: each blend ends on the top and the bottom, cut by them', function(){
 		var r = evaluate({ block : block(), out : 'block' }, [{ edges : '*z*', radius : 0 }, { edges : '*', radius : 4 }]);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.fillets.should.be.equal(4);
 		r.result.report.volume.should.be.approximately(24000 - 4 * quarter(4) * 20, 1e-3 * 24000);
 	});
@@ -419,7 +441,7 @@ describe("verb.model.Model fillets that run out onto a face", function(){
 		var four = 24000 - 4 * quarter(3) * 20, one = 24000 - quarter(3) * 20;
 		[['block.*x|block.*y', four], ['block.*y|block.*x', four], ['block.-x|block.+y', one], ['block.+y|block.-x', one]].forEach(function(c){
 			var r = evaluate({ block : block(), out : 'block' }, [{ edges : c[0], radius : 3 }]);
-			r.verdict.kind.should.equal('buildable', c[0]);
+			made(r.verdict, c[0]);
 			r.result.report.volume.should.be.approximately(c[1], 1e-3 * c[1]);
 		});
 		// a misspelt face: the rule rounds nothing, and the verdict names it (the other rule still rounds its edges)
@@ -432,16 +454,16 @@ describe("verb.model.Model fillets that run out onto a face", function(){
 	it('rounds a slot: rims cut off where they leave the block, the bottom filled in on the block\'s sides', function(){
 		var f = function(){ return { block : block(), slot : slot(), d : { type : 'difference', from : 'block', minus : ['slot'] }, out : 'd' }; };
 		var rims = evaluate(f(), [{ edges : 'block.+z|slot.*', radius : 2 }]);
-		rims.verdict.kind.should.be.equal('buildable');
+		made(rims.verdict);
 		// (the blends' chords take off a little more than the arcs: within a sixth of what the fillets take)
 		rims.result.report.volume.should.be.approximately(21600 - 2 * quarter(2) * 30, 2 * quarter(2) * 30 / 6);
 		var bottom = evaluate(f(), [{ edges : 'block.*|slot.-z', radius : 0 }, { edges : '*slot.-z*', radius : 2 }]);
-		bottom.verdict.kind.should.be.equal('buildable');
+		made(bottom.verdict);
 		bottom.result.report.volume.should.be.approximately(21600 + 2 * quarter(2) * 30, 2 * quarter(2) * 30 / 6);
 		// turned, the blends meet the sides at a slant
 		var turned = f(); turned.t = { type : 'transform', of : 'slot', rotate : { axis : [0, 0, 1], degrees : 20, about : [20, 15, 0] } }; turned.d.minus = ['t'];
 		var slant = evaluate(turned, [{ edges : 'block.+z|t/slot.*', radius : 2 }, { edges : 'block.*|t/slot.-z', radius : 0 }, { edges : '*t/slot.-z*', radius : 2 }]);
-		slant.verdict.kind.should.be.equal('buildable');
+		made(slant.verdict);
 		slant.result.report.fillets.should.be.equal(4);
 	});
 
@@ -449,14 +471,14 @@ describe("verb.model.Model fillets that run out onto a face", function(){
 		var r = evaluate({ block : block(), cutter : { type : 'box', min : [-10, -10, 16], max : [50, 40, 40] },
 			tilt : { type : 'transform', of : 'cutter', rotate : { axis : [1, 0, 0], degrees : 15, about : [0, 0, 16] } },
 			d : { type : 'difference', from : 'block', minus : ['tilt'] }, out : 'd' }, [{ edges : 'block.*x|block.*y', radius : 3 }, { edges : 'block.*y|block.*x', radius : 3 }]);
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.fillets.should.be.equal(4);
 	});
 
 	it('rounds an open tray inside and out, the inside corners filled in up to the rim', function(){
 		var r = new Model().evaluate({ version : 1, features : { box : block(), tray : { type : 'shell', of : 'box', thickness : 2, open : ['box.+z'] },
 			r : { type : 'round', of : 'tray', rules : [{ edges : '*box.+z*', radius : 0 }, { edges : 'box.*', radius : 4 }, { edges : '*', radius : 2 }] } }, output : 'r' });
-		r.verdict.kind.should.be.equal('buildable');
+		made(r.verdict);
 		r.result.report.fillets.should.be.equal(16);
 		r.walls[0].thinnest.should.be.above(2 * (1 - Model.WALL_TOLERANCE));
 	});

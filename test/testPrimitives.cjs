@@ -1,4 +1,5 @@
 var should = require('should');
+var made = require('./support/made.cjs');
 var lib = require('../dist/index.js');
 var budget = require('./support/budget.cjs');
 var P = lib.Primitives, Pr = lib.Profiles, H = lib.Polyhedra, BrepEdges = lib.BrepEdges, BrepBoolean = lib.BrepBoolean, Step = lib.Step;
@@ -241,7 +242,7 @@ describe('Primitives', function () {
 				body : { type : 'difference', from : 'nut', minus : ['hole'] },
 				rounded : { type : 'round', of : 'body', rules : [{ edges : 'nut.side.*|nut.side.*', radius : 1.5 }] } }, output : 'rounded' };
 			var r = new lib.Model().evaluate(doc);
-			r.verdict.kind.should.be.equal('buildable');
+			made(r.verdict);
 			r.result.report.fillets.should.be.equal(6);
 			r.faceNames.filter(function(n){ return /^round\(nut\.side/.test(n); }).length.should.be.equal(6);
 			r.result.report.manifold.genus.should.be.equal(1);

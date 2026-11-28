@@ -2,8 +2,8 @@
 
 `Model` turns a **document** into a solid. The document is plain JSON: named parameters, features keyed by id, and
 the feature that is the output. The same document always gives the same solid, bit for bit. Every face of the
-solid has a **persistent name** that comes from its history, and every result carries a **verdict**: buildable or
-visual, with the reason.
+solid has a **persistent name** that comes from its history, and every result carries a **verdict**: buildable,
+unproven or visual, with the reason.
 
 ```js
 import { Model } from "verb-nurbs-ts";
@@ -102,10 +102,20 @@ it cannot prove are named in `result.report.certificate`.
   | `round rules` | (with a round) every rule selects at least one edge: one that matches nothing, a misspelt face, is named (#79) |
   | `makeable` | (with a machine) `Makeable.check` passes: the surface does not pass through itself, fits, no wall too thin, no sealed void on a machine that drains, and for a moulded process (`Machine.draft`) enough draft and no undercut along the best pull |
   | `wall` | (for each shell) the thinnest wall measured is the thickness asked, within `Model.WALL_TOLERANCE` (3%) |
+  | `intersections` | (a Boolean of two solids or more) passes always; **proven** only when evaluated with `certify: true` and the certificate proves every pair of faces (docs/exact-booleans.md) |
   | `fold` | (with a sweep) no sweep folds over in a tight bend of its rail, proven on the exact sweep; each fold is also in `verdict.defects` (`ModelDefect`: the feature, where, the bend's radius, how far the section reaches), for a program to read (formats.md, Sweeps) |
+  | `self-contact` | (with a sweep) passes always, **not proven**: the fold check is local, and nothing yet proves that a sweep does not pass through itself further along its rail |
   | `export mesh` | (in a graph evaluated with `mesh: "print"` or `"view"`) the export mesh is closed: the faces are meshed from the exact shell apart from the result's own mesh, and an open one names how many edges are open (#116) |
 
   Any failed check makes the model **visual**: fine to look at and render, not to fabricate. The reasons say why.
+  A model that passes every check, but one or more of them without a proof (`proven: false` on the check), is
+  **unproven**: it is as far as the kernel checked it what was asked, but that is not certain; the reasons, and
+  `verdict.unproven`, say what is not proven. **Buildable** means every check passed and is proven, as far as the
+  kernel can check it (a check measured on the mesh that is exported, a wall or a machine's, is a proof about that
+  mesh). So a Boolean of two operands is unproven unless it is evaluated with `certify: true`, and a model with a
+  sweep is unproven for now. What makes a model visual is also in `verdict.defects` where a program can read it
+  (`ModelDefect`: a sweep's fold, where, the bend's radius and the section's reach). `Model.judge( checks )` gives the
+  kind and reasons from checks, for a program that adds its own.
   Fillets made smaller than asked so that they keep clear of each other (`report.filletsReduced`) are in place and
   leave the model buildable; the notes say how many.
 
