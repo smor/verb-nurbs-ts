@@ -251,6 +251,9 @@ not part of the document, so one document gives a print mesh and a viewer mesh. 
 2-manifold), `faceNames` (the persistent name of each triangle's face), `faceOf` (the index of that face in
 `r.result.faces`, which `Inspect.brep( r.result, title, { mesh : r.export } )` draws on), the `tolerance` and the
 `deviation` measured.
+An open result (its Booleans' mesh has open edges, as where a folded sweep cuts) has no exact shell: its export is
+its own mesh, as it is (`tolerance` and `deviation` null), and the `export mesh` check fails, so the result is visual
+with its checks and defects rather than an exception (#162).
 The graph keeps each result's shell and meshes, so asking again, or for another tolerance, does not rebuild the shell.
 A result that is one solid made from an exact shell (an extrusion), with nothing cut or rounded, uses that
 shell itself, and reports its exact volume (#117).

@@ -280,7 +280,9 @@ export class Graph {
             const m = r.lattice.mesh;
             return { mesh : m, faceNames : m.triangles.map( () => "lattice" ), tolerance : null, deviation : null };
         }
-        if (given == "analysis") {
+        // an open result (its Booleans' mesh has open edges, as a folded sweep cut leaves) has no exact shell: its own
+        // mesh is what it exports, as it is, and the "export mesh" check says it is open (#162)
+        if (given == "analysis" || (r.shell == null && !r.result.mesh.checkClosedManifold().closedManifold)) {
             return { mesh : r.result.mesh, faceNames : r.result.faceOf.map( f => r.faceNames[f] ), faceOf : r.result.faceOf, tolerance : null, deviation : null };
         }
         const T = ShellMesher.tolerance( given );
